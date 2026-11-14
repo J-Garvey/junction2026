@@ -1,13 +1,13 @@
 /** Shell: sidebar or phone tabs, the "viewing as" switcher (TM-06), the top bar with the profile, the allergy banner,
  * and the person picker with the demo settings (test clock and reset). */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { NavLink, Route, Routes, useLocation, useNavigate } from "react-router";
+import { Link, NavLink, Route, Routes, useLocation } from "react-router";
 import type { WarningRecord } from "@aimo/contracts";
 import { api, authHooks, type Outlet, type Person, type StatusResp, type SceneKey } from "./api";
 import { Ctx, type AppCtx, useLoad } from "./ctx";
 import { Icon, Lockup, Mark, type IconName } from "./ui/icons";
 import { AllergyBanner } from "./ui/Banner";
-import { initials, when } from "./format";
+import { day, initials, when } from "./format";
 import { Home } from "./screens/Home";
 import { BasketPage, BasketsHome } from "./screens/Baskets";
 import { RequestNew, RequestPlan, Requests } from "./screens/Request";
@@ -175,23 +175,61 @@ function Sidebar({ badge, me }: { badge: number; me: Person }) {
 }
 
 function OrderSwitcher({ currentId }: { currentId: string }) {
-  const nav = useNavigate();
   const { data } = useLoad(() => api.baskets(), []);
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
   const orders = [...(data?.baskets ?? [])].sort((a, b) => a.deliveryDate.localeCompare(b.deliveryDate));
+  const current = orders.find((order) => order.id === currentId);
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOutside = (event: MouseEvent) => {
+      if (!ref.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", closeOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
 
   return (
-    <label className="acct order-switcher" title="Switch order">
-      <Mark s={20} />
-      <select value={currentId} onChange={(e) => nav(`/baskets/${e.target.value}`)} aria-label="Current order">
-        {!orders.some((order) => order.id === currentId) && <option value={currentId}>Loading order…</option>}
-        {orders.map((order) => (
-          <option key={order.id} value={order.id}>
-            {order.name}
-          </option>
-        ))}
-      </select>
-      <Icon n="down" s={14} />
-    </label>
+    <div className="order-switcher" ref={ref}>
+      <button type="button" className="order-switcher-trigger" onClick={() => setOpen((value) => !value)} aria-haspopup="menu" aria-expanded={open}>
+        <span className="order-switcher-mark"><Icon n="box" s={16} /></span>
+        <span className="order-switcher-copy">
+          <span className="order-switcher-label">Current order</span>
+          <b>{current?.name ?? "Loading order…"}</b>
+        </span>
+        <Icon n="down" s={14} />
+      </button>
+      {open && (
+        <div className="order-switcher-menu" role="menu" aria-label="Switch order">
+          <div className="order-switcher-heading">Orders</div>
+          <div className="order-switcher-list">
+            {orders.map((order) => (
+              <Link key={order.id} to={`/baskets/${order.id}`} role="menuitem" className={order.id === currentId ? "selected" : ""} onClick={() => setOpen(false)}>
+                <span className="order-switcher-order">
+                  <b>{order.name}</b>
+                  <span>Delivery {day(order.deliveryDate)}</span>
+                </span>
+                {order.waiting > 0 && <span className="order-switcher-count">{order.waiting}</span>}
+                {order.id === currentId && <Icon n="check" s={16} />}
+              </Link>
+            ))}
+          </div>
+          <Link to="/" role="menuitem" className="order-switcher-all" onClick={() => setOpen(false)}>
+            <span className="order-switcher-all-icon"><Icon n="box" s={15} /></span>
+            <span><b>All orders</b><small>View and create orders</small></span>
+            <Icon n="chev" s={15} />
+          </Link>
+        </div>
+      )}
+    </div>
   );
 }
 
