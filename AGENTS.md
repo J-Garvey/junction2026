@@ -7,7 +7,7 @@ Keep `C:\Users\benfh\junction` as a clean, local mirror of GitHub's `main` branc
 - Create a separate Git worktree and branch from the latest `origin/main` for every task. Use a sibling path such as `C:\Users\benfh\junction-worktrees\<task>`.
 - Give each person, agent and concurrent task its own worktree and branch. Never let two active sessions share a worktree or branch.
 - Before creating a worktree, run `git fetch origin` and base it on `origin/main`. Do not pull, rebase, switch branches or remove a worktree that another session may be using.
-- Make all changes on the task branch. Push the branch, open a GitHub pull request targeting `main`, and merge through the pull request; never push commits directly to `main`.
+- Make all changes on the task branch. Push the branch and open a GitHub pull request targeting `main`; never push commits directly to `main`. **Merge when ready by default**: once required checks pass, required reviews are satisfied and the branch is conflict-free, merge the pull request without waiting for a separate instruction. If any of those conditions are not met, leave the pull request open and report the blocker instead of forcing the merge.
 - Before merging, bring the branch up to date with `origin/main` when needed and run the checks appropriate to the change.
 - After a pull request merges, fast-forward the clean primary checkout with `git pull --ff-only`. Remove only the completed task's worktree and local branch, then run `git fetch --prune`.
 - If the primary checkout has tracked modifications, stop and identify their owner instead of overwriting or stashing them. Treat untracked directories and other worktrees as potentially active work until verified otherwise.
