@@ -48,7 +48,7 @@ What changed when the two uploads were merged is in **[CHANGES.md](CHANGES.md)**
 | [research/stand-questions.md](research/stand-questions.md) | **Take this to the Valio Aimo stand:** the 15 questions only they can answer, in priority order |
 | [research/mentor-questions.md](research/mentor-questions.md) | The single list of 49 mentor questions, with what's already answered |
 | [docs/data-dictionary.md](docs/data-dictionary.md) | Every field of the slim dataset, quantity conversion, code glossaries (unverified) |
-| `data/products_slim.jsonl` | Main product table: 17,546 rows, carbon and reliability joined in |
+| `data/products_slim.jsonl` | Main product table: 17,546 rows with hotel use tags, carbon and reliability where available |
 | `data/products_core.csv` | Flat subset for grep and spreadsheets |
 | `data/ingredients.jsonl` | Ingredient statements (en, fi) |
 | `data/categories.csv` | Category codes decoded by example |
@@ -61,6 +61,12 @@ What changed when the two uploads were merged is in **[CHANGES.md](CHANGES.md)**
 ## Quick start
 
 The slim data is already in `data/`, so most work needs no download.
+
+To find croissants for a hotel breakfast, filter on the tag before calling the API for shortlisted items. Other tags are described in the [data dictionary](docs/data-dictionary.md#hotel-use-tags).
+
+```bash
+jq -c 'select((.hotel_tags // []) | index("breakfast:croissants")) | {id,en,fi}' data/products_slim.jsonl
+```
 
 ```bash
 python3 scripts/aimo_api.py ping
