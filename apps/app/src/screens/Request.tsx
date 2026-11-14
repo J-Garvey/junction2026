@@ -3,13 +3,13 @@ import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import type { Plan, Question, SingleLine, SingleRequest, Unit } from "@aimo/contracts";
 import { api, type MessageResp, type PlanResp } from "../api";
-import { useApp, useLoad } from "../ctx";
+import { canAnswer, useApp, useLoad, waitingForText } from "../ctx";
 import { Composer } from "./Home";
 import { Candidates, LinesList, MoneyView, CutoffBoard, Section, shortfallText } from "../ui/PlanView";
 import { stockText } from "../ui/Popover";
 import { QuestionCard } from "../ui/QuestionCard";
 import { Status, planStatusKind, PLAN_STATUS_TEXT, Fixture } from "../ui/Status";
-import { claimLabel, day, eur, qty, when, helsinkiDate, addDays, ROLE_LABEL } from "../format";
+import { claimLabel, day, eur, qty, when, helsinkiDate, addDays } from "../format";
 
 const UNITS: Unit[] = ["l", "dl", "ml", "kg", "g", "pcs"];
 const CLAIMS = ["FREE_FROM_LACTOSE", "FREE_FROM_GLUTEN", "FREE_FROM_MILK", "FREE_FROM_EGG"];
@@ -361,7 +361,7 @@ export function RequestPlan() {
   const { data, error, setData } = useLoad(() => api.plan(id!), [id]);
   const [view, setView] = useState<"lines" | "money">("lines");
   const { data: rules } = useLoad(() => api.rules(), []);
-  const { me } = useApp();
+  const { me, people } = useApp();
   useEffect(() => {
     if (initial && !data) setData(initial);
   }, [initial, data, setData]);
@@ -371,7 +371,7 @@ export function RequestPlan() {
   const { plan, questions } = d;
   const open = questions.filter((q: Question) => q.state === "open" || q.state === "waiting");
   // One question at a time, and only one this person can answer; the rest are someone else's.
-  const next = open.find((q) => q.state === "open" && q.forRole === me.role) ?? null;
+  const next = open.find((q) => q.state === "open" && canAnswer(q, me, people)) ?? null;
   const elsewhere = next ? null : open[0] ?? null;
   const head = (
     <div>
@@ -408,7 +408,7 @@ export function RequestPlan() {
       ) : (
         elsewhere && (
           <div className="callout blue small" role="status">
-            {elsewhere.state === "waiting" ? "Waiting for the chef to answer first." : `Sent to the ${ROLE_LABEL[elsewhere.forRole].toLowerCase()} for approval.`}
+            {elsewhere.state === "waiting" ? "Waiting for the chef to answer first." : `Sent for approval. ${waitingForText(elsewhere, me, people)}.`}
           </div>
         )
       )}

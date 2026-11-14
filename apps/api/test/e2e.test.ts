@@ -86,6 +86,10 @@ async function eventCase() {
   out.order = (await aino.call("POST", "/events/evt-wedding/order")).plan;
   out.ainoQs = (await aino.call("GET", "/home")).questions;
   out.sannaBefore = (await sanna.call("GET", "/home")).questions.filter((q: any) => q.state === "open");
+  const wedding = async (c: Client) => (await c.call("GET", "/baskets")).baskets.find((b: any) => b.id === "evt-wedding");
+  out.ainoBasket = await wedding(aino);
+  out.sannaBasket = await wedding(sanna);
+  out.sannaAll = (await sanna.call("GET", "/home")).questions.filter((q: any) => q.eventId === "evt-wedding");
   out.mikkoQs = (await mikko.call("GET", "/home")).questions;
   out.cont = await aino.call("POST", `/questions/${out.ainoQs[0].id}/answer`, { optionId: "continue" });
   out.sannaQs = (await sanna.call("GET", "/home")).questions;
@@ -180,6 +184,9 @@ describe("Test case 1: the wedding through four scenes (docs/demo-plan.md)", () 
     expect(a.ainoQs[0]).toMatchObject({ type: "unknown_stock", forRole: "chef" });
     expect(a.ainoQs[0].facts.lines).toHaveLength(4);
     expect(a.sannaBefore).toHaveLength(0); // the chef answers first (D6)
+    // Each person's basket counts only what they can answer; the rest shows as waiting for others.
+    expect(a.ainoBasket).toMatchObject({ waiting: 1, waitingOthers: a.sannaAll.length });
+    expect(a.sannaBasket).toMatchObject({ waiting: a.sannaAll.length, waitingOthers: 1 });
     expect(a.sannaQs).toHaveLength(1);
     expect(a.sannaQs[0].ruleIds).toContain("MAN-01");
     expect(a.approved.plan.status).toBe("ordered");

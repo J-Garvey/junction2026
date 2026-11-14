@@ -221,7 +221,10 @@ export interface Basket {
   coverage: Coverage;
   lines: number;
   totalExVat: number;
+  /** Questions this person can answer. */
   waiting: number;
+  /** Questions waiting for someone else. */
+  waitingOthers: number;
   requests: number;
 }
 export interface BasketPlan {

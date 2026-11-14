@@ -3,8 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import type { Order, Plan, SingleRequest, Unit } from "@aimo/contracts";
 import { api, type Basket, type BasketPlan, type MessageResp } from "../api";
-import { useApp, useLoad } from "../ctx";
-import { QuestionCard } from "../ui/QuestionCard";
+import { splitMine, useApp, useLoad } from "../ctx";
+import { OthersWaiting, QuestionCard } from "../ui/QuestionCard";
 import { Status, planStatusKind, PLAN_STATUS_TEXT } from "../ui/Status";
 import { Icon } from "../ui/icons";
 import { TooLateDialog, tooLateText } from "../ui/TooLate";
@@ -16,7 +16,8 @@ const UNITS: Unit[] = ["l", "dl", "ml", "kg", "g", "pcs"];
 /** One word for a basket's state; the numbers follow it. */
 function BasketState({ b }: { b: Basket }) {
   if (b.coverage.level === "warning") return <Status k="allergy_warning" />;
-  if (b.waiting) return <span className="stamp ask">{b.waiting} waiting</span>;
+  if (b.waiting) return <span className="stamp ask">{b.waiting} for you</span>;
+  if (b.waitingOthers) return <span className="stamp unknown">{b.waitingOthers} waiting for others</span>;
   if (b.lines) return <Status k="ordered" />;
   return <span className="stamp unknown">Empty</span>;
 }
@@ -164,6 +165,7 @@ function BasketSwitcher({ current }: { current: { id: string; name: string; deli
 }
 
 export function BasketPage() {
+  const { me, people } = useApp();
   const { id } = useParams();
   const { data, error, reload } = useLoad(() => api.basket(id!), [id]);
 
@@ -171,7 +173,7 @@ export function BasketPage() {
   if (!data) return <div className="muted">Loading…</div>;
   const { event: ev, questions, requests, orders } = data;
   const live = orders.filter((o) => o.state !== "rejected");
-  const waitingQs = questions.filter((q) => q.state === "open" || q.state === "waiting");
+  const { mine: waitingQs, others } = splitMine(questions.filter((q) => q.state === "open" || q.state === "waiting"), me, people);
   const pending = requests.filter((r) => r.status !== "ordered" && !r.orderIds.length);
 
   return (
@@ -188,7 +190,7 @@ export function BasketPage() {
 
       <section>
         <div className="sechead">
-          <h2>Awaiting approval</h2>
+          <h2>Awaiting your approval</h2>
           {waitingQs.length > 0 && <span className="countb">{waitingQs.length}</span>}
         </div>
         {waitingQs.length ? (
@@ -199,9 +201,10 @@ export function BasketPage() {
           </div>
         ) : (
           <div className="empty">
-            <Icon n="check" s={18} /> Nothing waiting.
+            <Icon n="check" s={18} /> Nothing waiting for you.
           </div>
         )}
+        <OthersWaiting others={others} />
         {pending.length > 0 && (
           <div className="card" style={{ marginTop: 12 }}>
             {pending.map((r) => (

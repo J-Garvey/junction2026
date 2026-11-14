@@ -2,17 +2,30 @@
 import { useEffect, useState } from "react";
 import type { Question } from "@aimo/contracts";
 import { api, ApiError } from "../api";
-import { useApp } from "../ctx";
-import { countdown, eur, when, qty, ROLE_LABEL } from "../format";
-import { Status } from "./Status";
+import { answerers, canAnswer, namesOf, useApp, waitingForText } from "../ctx";
+import { countdown, eur, when, qty } from "../format";
 import { Icon } from "./icons";
 
 type Row = { field: string; original: string; substitute: string; differs: boolean };
 type ApprovalLine = { lineId: string; productId: string; product: string; quantity: number; unit: string | null; lineTotal: number | null };
 type Item = { ruleId: string; text: string; grant?: string | null };
 
+/** One line per group of questions someone else answers: who, and how many. */
+export function OthersWaiting({ others }: { others: { who: string; n: number }[] }) {
+  if (!others.length) return null;
+  return (
+    <div className="stack-s" style={{ marginTop: 8 }}>
+      {others.map((o) => (
+        <div key={o.who} className="small muted row" style={{ gap: 6 }}>
+          <Icon n="clock" s={14} /> {o.n} waiting for {o.who}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function QuestionCard({ q: initial, compact, onAnswered }: { q: Question; compact?: boolean; onAnswered?: (q: Question) => void }) {
-  const { me, now, refresh } = useApp();
+  const { me, people, now, refresh } = useApp();
   const [q, setQ] = useState(initial);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -23,7 +36,7 @@ export function QuestionCard({ q: initial, compact, onAnswered }: { q: Question;
 
   const f = q.facts as Record<string, any>;
   const dl = countdown(q.deadline, now);
-  const mine = q.forRole === me.role;
+  const mine = canAnswer(q, me, people);
   const answered = q.state === "answered" || q.state === "expired" || q.state === "replaced";
 
   async function pick(optionId: string) {
@@ -55,11 +68,13 @@ export function QuestionCard({ q: initial, compact, onAnswered }: { q: Question;
     <article className={`qcard ${q.state}`} aria-label={q.title}>
       <header className="qhead">
         <div style={{ flex: 1, minWidth: 0 }}>
-          {!(mine && q.state === "open") && (
-            <div className="row" style={{ gap: 6, flexWrap: "wrap", marginBottom: 4 }}>
-              {q.state === "waiting" ? <Status k="waiting" role="chef" /> : answered ? <span className="stamp order">{q.state === "answered" ? "Answered" : q.state === "expired" ? "Expired" : "Replaced"}</span> : <Status k="waiting" role={q.forRole} />}
-            </div>
-          )}
+          <div className="row" style={{ gap: 6, flexWrap: "wrap", marginBottom: 4 }}>
+            {answered ? (
+              <span className="stamp order">{q.state === "answered" ? "Answered" : q.state === "expired" ? "Expired" : "Replaced"}</span>
+            ) : (
+              <span className={`stamp ${mine && q.state === "open" ? "ask" : "unknown"}`}>{waitingForText(q, me, people)}</span>
+            )}
+          </div>
           <h3 className="qtitle">{q.title}</h3>
         </div>
         {q.deadline && !answered && (
@@ -155,7 +170,7 @@ export function QuestionCard({ q: initial, compact, onAnswered }: { q: Question;
       ) : q.state === "waiting" ? (
         <div className="qanswered small muted">Chef first</div>
       ) : !mine ? (
-        <div className="qanswered small muted">For the {ROLE_LABEL[q.forRole].toLowerCase()}</div>
+        <div className="qanswered small muted">Only {namesOf(answerers(q, people)) || `the ${q.forRole}`} can approve this</div>
       ) : (
         <div className="qopts">
           {q.options.map((o) => (
