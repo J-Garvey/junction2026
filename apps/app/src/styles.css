@@ -314,7 +314,6 @@ table.t tr:last-child td { border-bottom: 0; }
   .kv.wide dt { margin-top: 6px; }
   .pickgrid { grid-template-columns: 1fr; }
   .popover { position: fixed; left: 8px !important; right: 8px !important; top: auto; bottom: 74px; width: auto; max-width: none; }
-  .board .br { gap: 8px; font-size: 12px; }
   .moneybar { gap: 16px; }
   .search { width: 100%; margin-left: 0; }
   .receipt { padding: 14px; font-size: 12px; }
