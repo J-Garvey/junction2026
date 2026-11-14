@@ -7,7 +7,7 @@ import { useApp, useLoad } from "../ctx";
 import { Composer } from "./Home";
 import { Candidates, LinesList, MoneyView, CutoffBoard, Section, shortfallText } from "../ui/PlanView";
 import { QuestionCard } from "../ui/QuestionCard";
-import { Status, planStatusKind, PLAN_STATUS_TEXT, RuleChip, Fixture } from "../ui/Status";
+import { Status, planStatusKind, PLAN_STATUS_TEXT, Fixture } from "../ui/Status";
 import { claimLabel, day, eur, when, helsinkiDate, addDays } from "../format";
 
 const UNITS: Unit[] = ["l", "dl", "ml", "kg", "g", "pcs"];
@@ -216,9 +216,7 @@ export function Outcome({ plan }: { plan: Plan }) {
       {plan.inputRules.filter((r) => r.outcome !== "order").length > 0 && (
         <div className="row small" style={{ gap: 6, marginTop: 6, flexWrap: "wrap" }}>
           {plan.inputRules.filter((r) => r.outcome !== "order").map((r, i) => (
-            <span key={i} title={r.message}>
-              <RuleChip id={r.ruleId} /> {r.label}
-            </span>
+            <span key={i}>{r.message}</span>
           ))}
         </div>
       )}

@@ -4,7 +4,7 @@ import type { Question } from "@aimo/contracts";
 import { api, ApiError } from "../api";
 import { useApp } from "../ctx";
 import { countdown, eur, when, qty, ROLE_LABEL } from "../format";
-import { RuleChip, Status } from "./Status";
+import { Status } from "./Status";
 import { Icon } from "./icons";
 
 type Row = { field: string; original: string; substitute: string; differs: boolean };
@@ -57,10 +57,6 @@ export function QuestionCard({ q: initial, compact, onAnswered }: { q: Question;
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="row" style={{ gap: 6, flexWrap: "wrap", marginBottom: 4 }}>
             {q.state === "waiting" ? <Status k="waiting" role="chef" /> : answered ? <span className="stamp order">{q.state === "answered" ? "Answered" : q.state === "expired" ? "Expired" : "Replaced"}</span> : <Status k="waiting" role={q.forRole} />}
-            {open &&
-              q.ruleIds.map((r) => (
-                <RuleChip key={r} id={r} />
-              ))}
           </div>
           <h3 className="qtitle">{q.title}</h3>
         </div>
@@ -110,7 +106,7 @@ export function QuestionCard({ q: initial, compact, onAnswered }: { q: Question;
         <ul className="qitems">
           {items.map((it, i) => (
             <li key={i}>
-              <RuleChip id={it.ruleId} /> {it.text}
+              {it.text}
             </li>
           ))}
         </ul>

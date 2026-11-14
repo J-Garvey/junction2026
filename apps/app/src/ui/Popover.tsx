@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Candidate, FiredRule, ModelJudgement, PlanLine, StockFact } from "@aimo/contracts";
 import { eur, qty, when, day, fi } from "../format";
-import { RuleChip, Fixture } from "./Status";
+import { Fixture } from "./Status";
 import { get } from "../api";
 
 export function Pop({ label, children, className }: { label: ReactNode; children: ReactNode; className?: string }) {
@@ -52,7 +52,7 @@ export function RulesList({ rules }: { rules: FiredRule[] }) {
       <div className="pophead">Rules</div>
       {rules.map((r, i) => (
         <div key={i} className="poprule">
-          <RuleChip id={r.ruleId} /> <span>{r.message}</span>
+          <span>{r.message}</span>
           {r.facts && Object.keys(r.facts).length > 0 && (
             <div className="popfacts mono">
               {Object.entries(r.facts)
