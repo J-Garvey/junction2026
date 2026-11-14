@@ -1,7 +1,7 @@
 /** Plan lines, candidates, the dish and money views, the cut-off board and the change view. */
 import { useState, type ReactNode } from "react";
 import type { Need, Plan, PlanLine, StatusLabel, WarningRecord } from "@aimo/contracts";
-import { countdown, eur, qty, when, fi, plural } from "../format";
+import { countdown, eur, qty, when, fi, plural, parseTime } from "../format";
 import { useApp, outletName } from "../ctx";
 import type { DiffLine } from "../api";
 import { Status, Fixture } from "./Status";
@@ -216,7 +216,7 @@ export function Candidates({ need }: { need: Need }) {
   );
 }
 
-/** UI-10: lines grouped by order cut-off, countdown against the simulated clock. */
+/** UI-10: lines grouped by order cut-off. "Order in 5 h 20 min" under 48 h, else "Order by Sun 15 Nov, 17:00". */
 export function CutoffBoard({ lines }: { lines: PlanLine[] }) {
   const { now } = useApp();
   const groups = new Map<string, PlanLine[]>();
@@ -227,22 +227,18 @@ export function CutoffBoard({ lines }: { lines: PlanLine[] }) {
   const rows = [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
   if (!rows.length) return null;
   return (
-    <div className="board" role="table" aria-label="Order cut-offs">
+    <ul className="cutoffs" aria-label="Order cut-offs">
       {rows.map(([k, ls]) => {
-        const cd = k === "none" ? { text: "No cut-off", past: false } : countdown(k, now);
+        const t = k === "none" ? null : parseTime(k);
+        const ms = t ? t.getTime() - (parseTime(now) ?? new Date()).getTime() : 0;
+        const text = !t ? "Cannot be delivered" : ms <= 0 ? `Too late: cut-off was ${when(k)}` : ms < 48 * 3600000 ? `Order in ${countdown(k, now).text}` : `Order by ${when(k)}`;
         return (
-          <div key={k} className="br" role="row">
-            <span className="trunc">
-              {plural(ls.length, "line")}
-            </span>
-            <span className="t">{k === "none" ? "–" : when(k)}</span>
-            <span className={cd.past ? "gone" : "left"}>
-              {cd.past && <Icon n="lock" s={12} />} {cd.past ? "Locked" : cd.text}
-            </span>
-          </div>
+          <li key={k} className={!t || ms <= 0 ? "late" : undefined}>
+            <b>{text}</b> <span className="muted small">{plural(ls.length, "line")}</span>
+          </li>
         );
       })}
-    </div>
+    </ul>
   );
 }
 

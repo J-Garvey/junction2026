@@ -128,7 +128,7 @@ export function Live() {
           <button className="lv-ghost" disabled={busy} onClick={() => act(() => post("/api/live/reset"))}>
             Reset
           </button>
-          <a className="lv-link" href="/home">
+          <a className="lv-link" href="/">
             Hotel app
           </a>
         </div>

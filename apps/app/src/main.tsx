@@ -8,7 +8,7 @@ import "./styles.css";
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <BrowserRouter>
-      {location.pathname === "/" || location.pathname === "/live" ? <Live /> : <App />}
+      {location.pathname === "/live" ? <Live /> : <App />}
     </BrowserRouter>
   </StrictMode>,
 );

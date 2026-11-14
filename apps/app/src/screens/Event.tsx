@@ -3,9 +3,9 @@ import { useState } from "react";
 import { Link, useParams } from "react-router";
 import type { PlanLine } from "@aimo/contracts";
 import { api, ApiError, type ChangeResp, type SceneKey, type StoredEvent } from "../api";
-import { useApp, useLoad } from "../ctx";
+import { splitMine, useApp, useLoad } from "../ctx";
 import { CoverageLine, Fixture, Status } from "../ui/Status";
-import { QuestionCard } from "../ui/QuestionCard";
+import { OthersWaiting, QuestionCard } from "../ui/QuestionCard";
 import { CutoffBoard, DiffView, DishView, LinesList, MoneyView, Section, sortGapsFirst, lineStatus, isGap } from "../ui/PlanView";
 import { Outcome } from "./Request";
 import { day, plural, when } from "../format";
@@ -38,7 +38,7 @@ const ONNI = { id: "onni", label: "Tree nuts (Onni)", count: 1, constraints: { c
 
 export function EventPage() {
   const { id } = useParams();
-  const { me, status, refresh } = useApp();
+  const { me, people, status, refresh } = useApp();
   const { data, error, reload } = useLoad(() => api.event(id!), [id]);
   const { data: rules } = useLoad(() => api.rules(), []);
   const { data: orders } = useLoad(() => api.orders(id), [id]);
@@ -56,7 +56,7 @@ export function EventPage() {
   const { event: ev, coverage, decisions, warnings, questions } = data;
   const plan = data.orderPlan ?? data.viability;
   const v = view ?? (me.role === "approver" ? "money" : "dish");
-  const openQs = questions.filter((q) => q.state === "open" || q.state === "waiting");
+  const { mine: openQs, others } = splitMine(questions.filter((q) => q.state === "open" || q.state === "waiting"), me, people);
   const order = orders?.orders.find((o) => o.state !== "rejected") ?? null;
 
   async function act(key: string, fn: () => Promise<unknown>, scene?: SceneKey, retryWith?: (ver: number) => Promise<unknown>) {
@@ -202,17 +202,18 @@ export function EventPage() {
         </div>
       )}
 
-      {openQs.length > 0 && (
+      {(openQs.length > 0 || others.length > 0) && (
         <section>
           <div className="sechead">
-            <h2>Questions</h2>
-            <span className="countb">{openQs.length}</span>
+            <h2>Questions for you</h2>
+            {openQs.length > 0 && <span className="countb">{openQs.length}</span>}
           </div>
           <div className="qlist">
             {openQs.map((q) => (
               <QuestionCard key={q.id} q={q} compact />
             ))}
           </div>
+          <OthersWaiting others={others} />
         </section>
       )}
 

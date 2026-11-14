@@ -7,6 +7,7 @@ import { resolve } from "node:path";
 import type { Product, ProductSearchQuery } from "@aimo/contracts";
 import { config } from "./config.js";
 import { registerBrand } from "./util.js";
+import { relevance, type Match } from "./search.js";
 
 type Raw = Record<string, any>;
 
@@ -77,33 +78,6 @@ export function catalogSize() {
   return products!.size;
 }
 
-/** English words the chef types, with the Finnish stems the catalogue uses. */
-const SYNONYMS: Record<string, string[]> = {
-  milk: ["milk", "maito"],
-  cream: ["cream", "kerma"],
-  butter: ["butter", "voi"],
-  salmon: ["salmon", "lohi"],
-  potato: ["potato", "peruna"],
-  potatoes: ["potato", "peruna"],
-  bread: ["bread", "leipä", "loaf"],
-  cheese: ["cheese", "juusto"],
-  egg: ["egg", "muna"],
-  eggs: ["egg", "muna"],
-  coffee: ["coffee", "kahvi"],
-  yoghurt: ["yoghurt", "yogurt", "jogurtti"],
-  yogurt: ["yoghurt", "yogurt", "jogurtti"],
-  flour: ["flour", "jauho"],
-  sugar: ["sugar", "sokeri"],
-};
-
-function tokens(q: string): string[][] {
-  return q
-    .toLowerCase()
-    .split(/[^a-z0-9äöåé%-]+/i)
-    .filter((t) => t.length > 1)
-    .map((t) => SYNONYMS[t] ?? [t]);
-}
-
 /** A product with no allergen declaration is never "safe" for an allergy (GROUND_TRUTH 4.2). */
 export function failsAllergens(p: Product, avoid: string[]): string | null {
   if (!avoid.length) return null;
@@ -116,25 +90,42 @@ export function failsAllergens(p: Product, avoid: string[]): string | null {
   return null;
 }
 
-/** PRODUCT-SEARCH: filters the local file only. Same input, same list, same order (by product id). */
+/**
+ * PRODUCT-SEARCH: filters the local file only. Without text, every match by product id.
+ * With text, ranked by what the product is (search.ts): "cheese" returns cheeses, not
+ * cheesecake. Same input, same list, same order.
+ */
 export function searchProducts(q: ProductSearchQuery): Product[] {
+  return searchMatches(q).map((m) => m.product);
+}
+
+/** The same search with each product's relevance tier, for the gateway and tests. */
+export function searchMatches(q: ProductSearchQuery): Match[] {
   loadCatalog();
-  const toks = q.q ? tokens(q.q) : [];
-  const out: Product[] = [];
-  const ids = [...products!.keys()].sort();
-  for (const id of ids) {
+  const limit = q.limit ?? 50;
+  const pool: Product[] = [];
+  for (const id of [...products!.keys()].sort()) {
     const p = products!.get(id)!;
     if (q.category && !p.category.startsWith(q.category)) continue;
     if (q.claims?.length && !q.claims.every((c) => p.claims.includes(c))) continue;
     if (q.excludeAllergens?.length && failsAllergens(p, q.excludeAllergens)) continue;
     if (q.origin && p.origin !== q.origin) continue;
     if (q.labels?.length && !q.labels.every((l) => p.labels.includes(l))) continue;
-    if (toks.length) {
-      const hay = `${p.name} ${p.nameFi ?? ""} ${p.brand ?? ""}`.toLowerCase();
-      if (!toks.every((alts) => alts.some((t) => hay.includes(t)))) continue;
-    }
-    out.push(p);
-    if (out.length >= (q.limit ?? 50)) break;
+    pool.push(p);
+    if (!q.q?.trim() && pool.length >= limit) break;
   }
-  return out;
+  if (!q.q?.trim()) return pool.map((product) => ({ product, tier: 0, role: null, term: "" }));
+  return relevance(q.q, pool, [...products!.values()], q.category).slice(0, limit);
+}
+
+/** Every product whose name mentions the text, whatever it is (fixture recording wants them all). */
+export function productsMentioning(text: string): Product[] {
+  loadCatalog();
+  const t = text.toLowerCase();
+  return [...products!.values()].filter((p) => `${p.name} ${p.nameFi ?? ""}`.toLowerCase().includes(t)).sort((a, b) => (a.id < b.id ? -1 : 1));
+}
+
+export function allProducts(): Product[] {
+  loadCatalog();
+  return [...products!.values()];
 }

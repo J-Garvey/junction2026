@@ -44,7 +44,7 @@ Each function is one problem that can be built and tested alone. "Deterministic 
 | `ORDER-DIFF` | Deterministic code | The placed order, the re-run result | Per line: added, removed, up, down, unchanged or needs a substitute | Compare by product ID. | Edge cases |
 | `CHANGE-APPLY` | Deterministic code | The diff, the tolerance | An amendment applied, or one question | Apply within tolerance. Otherwise ask. | Q07.1 |
 | `ALLERGY-RECHECK` | Deterministic code | New constraints, the placed order | The lines that now fail, and the warning state | Warn at once. If nobody resolves it by the cut-off, the order goes ahead with the warning (D28). | Q07.9, Q07.10 |
-| `FINAL-CHECK` | Deterministic code | An order, the clock | Covered, or a list of shortfalls | Run 24 hours before each cut-off: `LOOKUP`, `STOCK-CHECK`, `CUTOFF-CHECK` and price validity. | Q07.2 |
+| `FINAL-CHECK` | Deterministic code | An order, the clock | Covered, or a list of shortfalls | Run 24 hours and 1 hour before each cut-off: `LOOKUP`, `STOCK-CHECK`, `CUTOFF-CHECK` and price validity. | Q07.2 |
 | `SHORTFALL-RESOLVE` | Deterministic code | A short line | Fixed, or a question | Try the fixes in the agreed order. | Q07.3 |
 | `SUBSTITUTE-FIND` | Deterministic code | The original product, the event's constraints | Up to three candidates | Listed substitutes first. Every candidate must pass `DIET-FILTER` and `TYPE-CHECK`. | Q07.4 |
 | `SUBSTITUTE-CLOSENESS` | Decisions API, score (optional) | The original's and a candidate's spec, the dish | A closeness score per candidate | Only orders the candidates the chef sees. The chef still decides. | Q07.4 |
@@ -67,7 +67,7 @@ Each function is one problem that can be built and tested alone. "Deterministic 
 
 **Q07.2 When exactly does the final check run?**
 - Recommended: 24 hours before each cut-off. Lines that share a cut-off are checked together. In the test cases there is one run, started by moving the clock.
-- **Answer:** **Answered** (Darragh, 14 Nov): agreed as recommended.
+- **Answer:** **Answered, then changed** (Darragh, 14 Nov): it runs **twice, 24 hours and 1 hour** before each cut-off. Both times are fixed. Lines that share a cut-off are checked together.
 
 **Q07.3 In what order does the agent try to fix a shortfall?**
 - Recommended:

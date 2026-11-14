@@ -130,7 +130,7 @@ export async function ambiguityCheck(word: string, type: string | null): Promise
 export async function messageRoute(text: string): Promise<{ route: "new_request" | "event_change" | "neither" | "unsure"; judgement: ModelJudgement | null }> {
   const t = text.toLowerCase();
   const changeHint = /\b(\d+)\s*guests?\b|\bnow\b.*\bguests?\b|\ballerg|\bguest count\b/.test(t);
-  const requestHint = /\b\d[\d\s.,]*\s*(l|litres?|liters?|kg|g|ml|dl|pcs|packs?|cases?)\b|\bby (mon|tue|wed|thu|fri|sat|sun|tomorrow)/.test(t);
+  const requestHint = /\b\d[\d\s.,]*\s*(l|litres?|liters?|kg|g|ml|dl|pcs|packs?|cases?)\b|\bby (mon|tue|wed|thu|fri|sat|sun|tomorrow)|^\s*\d[\d.,]*\s*(x\s*)?\p{L}/u.test(t);
   if (changeHint && !requestHint) return { route: "event_change", judgement: null };
   if (requestHint && !changeHint) return { route: "new_request", judgement: null };
   const q = "Is this message a new request, a change to an existing event, or neither?";

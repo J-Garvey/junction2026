@@ -74,7 +74,19 @@ export function buildOpenApi() {
             { name: "labels", in: "query", schema: { type: "string" } },
             { name: "limit", in: "query", schema: { type: "integer", maximum: 50 } },
           ],
-          responses: { "200": { description: "Up to 50 products, ordered by id", ...json({ type: "object", properties: { products: { type: "array", items: ref("Product") } } }) } },
+          responses: {
+            "200": {
+              description:
+                "Up to 50 products. Without q, ordered by id. With q, only products that are the thing asked for (\"cheese\" returns cheeses, not cheesecake or cheese snacks), spread across the matching categories; each has a relevance tier (0 named and in a home category, 1 in a home category, 2 named elsewhere, 3 only mentioned, returned when nothing better exists)",
+              ...json({
+                type: "object",
+                properties: {
+                  products: { type: "array", items: ref("Product") },
+                  relevance: { type: "array", items: { type: "object", properties: { productId: { type: "string" }, tier: { type: "integer", minimum: 0, maximum: 3 }, role: { type: ["string", "null"], enum: ["head", "modifier", "mention", null] } } } },
+                },
+              }),
+            },
+          },
         },
       },
       "/products/{id}": { get: { operationId: "getProduct", parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }], responses: { "200": { description: "Product", ...json(ref("Product")) } } } },

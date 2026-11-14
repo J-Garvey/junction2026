@@ -10,6 +10,7 @@ import { now } from "../clock.js";
 import { fire } from "../rules/catalogue.js";
 import { isoDate } from "../util.js";
 import { structured, ModelUnavailable } from "./openai.js";
+import { QUERY_FORMS } from "../search.js";
 
 /** Known product words: the type asked for and a category hint (CATEGORY-HINT, deterministic tier). */
 export const PRODUCT_WORDS: { re: RegExp; word: string; type: string | null; category: string | null }[] = [
@@ -27,6 +28,21 @@ export const PRODUCT_WORDS: { re: RegExp; word: string; type: string | null; cat
   { re: /\bbread\b/, word: "bread", type: null, category: null },
 ];
 
+/**
+ * The product word only counts as the head of the phrase: "cream cheese" is a cheese, not
+ * cream, and gets no cream category. Form words may follow ("salmon fillet").
+ */
+export function productWord(phrase: string): (typeof PRODUCT_WORDS)[number] | undefined {
+  const s = phrase.toLowerCase();
+  for (const w of PRODUCT_WORDS) {
+    const m = s.match(w.re);
+    if (!m) continue;
+    const rest = s.slice(m.index! + m[0].length).split(/[^\p{L}]+/u).filter(Boolean);
+    if (rest.every((r) => QUERY_FORMS.has(r))) return w;
+  }
+  return undefined;
+}
+
 const CLAIM_WORDS: [RegExp, string][] = [
   [/lactose[- ]?free|laktoositon/, "FREE_FROM_LACTOSE"],
   [/gluten[- ]?free|gluteeniton/, "FREE_FROM_GLUTEN"],
@@ -35,6 +51,10 @@ const CLAIM_WORDS: [RegExp, string][] = [
 ];
 
 const UNIT_MAP: Record<string, Unit> = { l: "l", litre: "l", litres: "l", liter: "l", liters: "l", ltr: "l", kg: "kg", kilo: "kg", kilos: "kg", g: "g", gram: "g", grams: "g", ml: "ml", dl: "dl", pcs: "pcs", pieces: "pcs", piece: "pcs", pc: "pcs" };
+
+const UNIT_AMOUNT = /(\d[\d\s]*(?:[.,]\d+)?)\s*(litres?|liters?|ltr|l|kg|kilos?|grams?|g|ml|dl|pcs|pieces?|pc)\b/;
+/** A number on its own, with an optional "x" either side; not a 6-digit product code or a day of the month. */
+const BARE_COUNT = /(?:\bx\s*)?(?<![\d.,/-])(\d{1,5}(?:[.,]\d+)?)(?![\d.,/-])(?!\s*(?:\.|st|nd|rd|th)?\s*(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec))(?:\s*x\b)?/;
 
 const DAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 
@@ -84,21 +104,26 @@ export function rulesParse(text: string): Omit<SingleRequest, "siteId" | "outlet
   const lines: SingleLine[] = [];
   for (const raw of parts) {
     const s = raw.toLowerCase();
-    const q = s.match(/(\d[\d\s]*(?:[.,]\d+)?)\s*(litres?|liters?|ltr|l|kg|kilos?|grams?|g|ml|dl|pcs|pieces?|pc)\b/);
-    const quantity: Amount | null = q ? { amount: Number(q[1].replace(/\s/g, "").replace(",", ".")), unit: UNIT_MAP[q[2]] ?? "pcs" } : null;
+    const q = s.match(UNIT_AMOUNT);
+    // A bare count ("10 cheese", "12 x birthday cakes") is pieces; no number at all is one piece.
+    const count = q ? null : s.match(BARE_COUNT);
+    const quantity: Amount = q
+      ? { amount: Number(q[1].replace(/\s/g, "").replace(",", ".")), unit: UNIT_MAP[q[2]] ?? "pcs" }
+      : { amount: count ? Number(count[1].replace(",", ".")) : 1, unit: "pcs" };
     const claims = CLAIM_WORDS.filter(([re]) => re.test(s)).map(([, c]) => c);
     const pid = s.match(/\b(4\d{5})\b/);
-    const pw = PRODUCT_WORDS.find((w) => w.re.test(s));
     const leftover = s
-      .replace(/(\d[\d\s]*(?:[.,]\d+)?)\s*(litres?|liters?|ltr|l|kg|kilos?|grams?|g|ml|dl|pcs|pieces?|pc)\b/, "")
+      .replace(q ? UNIT_AMOUNT : BARE_COUNT, "")
       .replace(/lactose[- ]?free|gluten[- ]?free|vegan|milk[- ]?free|\bof\b|\bi need\b|\bwe need\b|\bplease\b|\border\b/g, "")
       .replace(/\s+/g, " ")
       .trim();
+    const pw = productWord(leftover || s);
     if (!pw && !pid && !leftover) continue;
     lines.push({
       id: lineId(),
       text: raw.trim(),
-      query: pw?.word ?? leftover,
+      // "salmon fillet" keeps its form word for the search; "lactose-free milk" is just milk.
+      query: pw && (!leftover || leftover.endsWith(pw.word)) ? pw.word : leftover,
       productType: pw?.type ?? null,
       category: pw?.category ?? null,
       productId: pid?.[1] ?? null,
@@ -148,7 +173,7 @@ export async function parseRequest(text: string): Promise<{ request: Omit<Single
     });
     const date = resolveDate(r.neededByText ?? text);
     const lines: SingleLine[] = r.lines.map((l) => {
-      const pw = PRODUCT_WORDS.find((w) => w.re.test(String(l.productWord).toLowerCase()));
+      const pw = productWord(String(l.productWord));
       return {
         id: lineId(),
         text: l.text,
@@ -156,7 +181,8 @@ export async function parseRequest(text: string): Promise<{ request: Omit<Single
         productType: l.productType ?? pw?.type ?? null,
         category: pw?.category ?? null,
         productId: l.productId && /^\d{6}$/.test(l.productId) ? l.productId : null,
-        quantity: typeof l.amount === "number" && l.unit ? { amount: l.amount, unit: l.unit } : null,
+        // A count without a unit is pieces; no amount at all is one piece.
+        quantity: typeof l.amount === "number" ? { amount: l.amount, unit: l.unit ?? "pcs" } : { amount: 1, unit: "pcs" },
         constraints: { claims: l.claims ?? [], avoidAllergens: l.avoidAllergens ?? [], labels: [] },
       };
     });

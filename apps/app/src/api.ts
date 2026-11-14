@@ -212,6 +212,38 @@ export interface OrdersResp {
   orders: Order[];
 }
 
+/** An order basket: one event, named by the event and its delivery date. */
+export interface Basket {
+  id: string;
+  name: string;
+  deliveryDate: string;
+  guests: number;
+  coverage: Coverage;
+  lines: number;
+  totalExVat: number;
+  /** Questions this person can answer. */
+  waiting: number;
+  /** Questions waiting for someone else. */
+  waitingOthers: number;
+  requests: number;
+}
+export interface BasketPlan {
+  id: string;
+  title: string;
+  status: Plan["status"];
+  summary: string;
+  createdAt: string;
+  createdBy: string;
+  totalExVat: number | null;
+  orderIds: string[];
+  tooLate: Plan["tooLate"];
+  tooLateChoice: Plan["tooLateChoice"];
+}
+export interface BasketResp extends EventResp {
+  requests: BasketPlan[];
+  orders: Order[];
+}
+
 // ---------- calls ----------
 
 export const api = {
@@ -221,8 +253,14 @@ export const api = {
   me: () => get<{ person: Person }>("/api/me"),
   home: () => get<HomeResp>("/api/home"),
   message: (text: string) => post<MessageResp>("/api/messages", { text }),
-  request: (request: SingleRequest) => post<PlanResp>("/api/requests", { request }),
+  request: (request: SingleRequest, eventId?: string) => post<PlanResp>("/api/requests", { request, eventId }),
+  baskets: () => get<{ baskets: Basket[] }>("/api/baskets"),
+  basket: (id: string) => get<BasketResp>(`/api/baskets/${encodeURIComponent(id)}`),
+  newBasket: (name: string, deliveryDate: string) => post<{ basket: { id: string; name: string; deliveryDate: string } }>("/api/baskets", { name, deliveryDate }),
   plan: (id: string) => get<PlanResp>(`/api/plans/${encodeURIComponent(id)}`),
+  accept: (id: string) => post<PlanResp>(`/api/plans/${encodeURIComponent(id)}/accept`),
+  tooLate: (id: string, choice: "remove" | "review") => post<PlanResp>(`/api/plans/${encodeURIComponent(id)}/too-late`, { choice }),
+  choose: (id: string, needId: string, productId: string) => post<PlanResp>(`/api/plans/${encodeURIComponent(id)}/choose`, { needId, productId }),
   answer: (id: string, optionId: string) => post<AnswerResp>(`/api/questions/${encodeURIComponent(id)}/answer`, { optionId }),
   event: (id: string) => get<EventResp>(`/api/events/${encodeURIComponent(id)}`),
   events: () => get<{ events: (StoredEvent & { coverage: Coverage })[] }>("/api/events"),

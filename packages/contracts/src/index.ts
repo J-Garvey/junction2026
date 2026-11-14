@@ -35,7 +35,7 @@ export type Constraints = z.infer<typeof Constraints>;
 // ---------- catalogue (PRODUCT-SEARCH, VA-01) ----------
 
 export const ProductSearchQuery = z.object({
-  q: z.string().optional().describe("Text matched against the English and Finnish names"),
+  q: z.string().optional().describe("What the product is, read against the English and Finnish names: 'cheese' finds cheeses, not cheesecake"),
   category: z.string().optional().describe("Category code or prefix, e.g. 10400"),
   claims: z.array(z.string()).optional().describe("Every listed claim must be present"),
   excludeAllergens: z.array(z.string()).optional().describe("Products that contain or may contain these, or have no allergen declaration, are excluded"),
@@ -92,6 +92,11 @@ export const LookupLine = z.object({
   stock: StockFact,
   availableDate: z.string().nullable(),
   closingTime: z.string().nullable().describe("Order cut-off, ISO 8601 with offset"),
+  projectedFrom: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("The mock ignores requestedDate and offers its own date. When the requested date is later, availableDate is the requested date and closingTime is the mock's cut-off moved forward by the same number of days. This holds the mock's original date. The cut-off is an estimate"),
   price: z
     .object({
       value: z.number().describe("catalogPrice.value per sales unit, ex VAT"),
@@ -350,6 +355,7 @@ export const AuditAction = z.enum([
   "model_judgement",
   "gateway_error",
   "seed_reset",
+  "basket_created",
 ]);
 export type AuditAction = z.infer<typeof AuditAction>;
 

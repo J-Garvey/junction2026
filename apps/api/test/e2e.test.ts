@@ -54,7 +54,11 @@ async function milkCase(choice: "continue" | "confirmed") {
   await anna.call("POST", "/clock", { time: "2026-11-14T10:00:00Z" });
   await anna.call("POST", "/data-mode", { mode: "fixture", overlay: null });
   const m = await anna.call("POST", "/messages", { text: "I need 1,000 litres of lactose-free milk by Monday" });
-  const r = await anna.call("POST", "/requests", { request: m.request });
+  const proposed = await anna.call("POST", "/requests", { request: m.request });
+  // Nothing is quoted on until the chef approves adding the products.
+  expect(proposed.plan.proposal).toBe(true);
+  expect(proposed.questions.filter((q: any) => q.state === "open")).toHaveLength(0);
+  const r = await anna.call("POST", `/plans/${proposed.plan.id}/accept`);
   const stockQ = r.questions.find((x: any) => x.type === "unknown_stock");
   const approverTry = await sara.call("POST", `/questions/${stockQ.id}/answer`, { optionId: "continue" });
   const a = await anna.call("POST", `/questions/${stockQ.id}/answer`, { optionId: choice });
@@ -82,6 +86,10 @@ async function eventCase() {
   out.order = (await aino.call("POST", "/events/evt-wedding/order")).plan;
   out.ainoQs = (await aino.call("GET", "/home")).questions;
   out.sannaBefore = (await sanna.call("GET", "/home")).questions.filter((q: any) => q.state === "open");
+  const wedding = async (c: Client) => (await c.call("GET", "/baskets")).baskets.find((b: any) => b.id === "evt-wedding");
+  out.ainoBasket = await wedding(aino);
+  out.sannaBasket = await wedding(sanna);
+  out.sannaAll = (await sanna.call("GET", "/home")).questions.filter((q: any) => q.eventId === "evt-wedding");
   out.mikkoQs = (await mikko.call("GET", "/home")).questions;
   out.cont = await aino.call("POST", `/questions/${out.ainoQs[0].id}/answer`, { optionId: "continue" });
   out.sannaQs = (await sanna.call("GET", "/home")).questions;
@@ -132,6 +140,28 @@ describe("Test case 2: the brief's milk request (D31, D32)", () => {
   });
 });
 
+describe("Not in time (DLV-06)", () => {
+  async function tooLate(time: string, neededBy: string) {
+    const { anna } = await fresh();
+    await anna.call("POST", "/clock", { time });
+    await anna.call("POST", "/data-mode", { mode: "fixture", overlay: null });
+    const m = await anna.call("POST", "/messages", { text: "I need 1,000 litres of lactose-free milk by Monday" });
+    return anna.call("POST", "/requests", { request: { ...m.request, neededBy } });
+  }
+  it("needed before anything arrives: one message with the earliest date, no basket or questions", async () => {
+    const r = await tooLate("2026-11-14T10:00:00Z", "2026-11-15");
+    expect(r.plan.status).toBe("blocked");
+    expect(r.plan.tooLate).toEqual({ neededBy: "2026-11-15", earliest: "2026-11-16" });
+    expect(r.plan.summary).toMatch(/No products available for delivery in time/);
+    expect(r.questions).toHaveLength(0);
+    expect(r.plan.needs[0].rules.map((x: any) => x.ruleId)).toContain("DLV-06");
+  });
+  it("cut-off passed for Monday: the earliest date moves to the next delivery day", async () => {
+    const r = await tooLate("2026-11-15T16:00:00Z", "2026-11-16");
+    expect(r.plan.tooLate?.earliest).toBe("2026-11-17");
+  });
+});
+
 describe("Test case 1: the wedding through four scenes (docs/demo-plan.md)", () => {
   let a: Record<string, any>;
   let b: Record<string, any>;
@@ -154,6 +184,9 @@ describe("Test case 1: the wedding through four scenes (docs/demo-plan.md)", () 
     expect(a.ainoQs[0]).toMatchObject({ type: "unknown_stock", forRole: "chef" });
     expect(a.ainoQs[0].facts.lines).toHaveLength(4);
     expect(a.sannaBefore).toHaveLength(0); // the chef answers first (D6)
+    // Each person's basket counts only what they can answer; the rest shows as waiting for others.
+    expect(a.ainoBasket).toMatchObject({ waiting: 1, waitingOthers: a.sannaAll.length });
+    expect(a.sannaBasket).toMatchObject({ waiting: a.sannaAll.length, waitingOthers: 1 });
     expect(a.sannaQs).toHaveLength(1);
     expect(a.sannaQs[0].ruleIds).toContain("MAN-01");
     expect(a.approved.plan.status).toBe("ordered");

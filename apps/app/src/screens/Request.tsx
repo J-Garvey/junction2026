@@ -3,12 +3,13 @@ import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import type { Plan, Question, SingleLine, SingleRequest, Unit } from "@aimo/contracts";
 import { api, type MessageResp, type PlanResp } from "../api";
-import { useApp, useLoad } from "../ctx";
+import { canAnswer, useApp, useLoad, waitingForText } from "../ctx";
 import { Composer } from "./Home";
 import { Candidates, LinesList, MoneyView, CutoffBoard, Section, shortfallText } from "../ui/PlanView";
+import { stockText } from "../ui/Popover";
 import { QuestionCard } from "../ui/QuestionCard";
 import { Status, planStatusKind, PLAN_STATUS_TEXT, Fixture } from "../ui/Status";
-import { claimLabel, day, eur, when, helsinkiDate, addDays } from "../format";
+import { claimLabel, day, eur, qty, when, helsinkiDate, addDays } from "../format";
 
 const UNITS: Unit[] = ["l", "dl", "ml", "kg", "g", "pcs"];
 const CLAIMS = ["FREE_FROM_LACTOSE", "FREE_FROM_GLUTEN", "FREE_FROM_MILK", "FREE_FROM_EGG"];
@@ -186,7 +187,7 @@ export function RequestNew() {
           <button type="button" className="btn primary" disabled={busy} onClick={quote}>
             {busy ? "…" : "Quote"}
           </button>
-          <Link to="/home" className="btn ghost">
+          <Link to="/" className="btn ghost">
             Cancel
           </Link>
         </div>
@@ -224,6 +225,135 @@ export function Outcome({ plan }: { plan: Plan }) {
   );
 }
 
+/**
+ * DLV-06: nothing arrives by the needed-by date. Only this is shown until the date moves;
+ * the button re-runs the same request for the earliest date. A request in an order basket
+ * has the basket's date, so it is removed from the quote or kept for review instead.
+ */
+function TooLate({ plan }: { plan: Plan }) {
+  const nav = useNavigate();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const t = plan.tooLate!;
+  async function choose(choice: "remove" | "review") {
+    setBusy(true);
+    setErr(null);
+    try {
+      await api.tooLate(plan.id, choice);
+      nav(`/baskets/${plan.eventId}`);
+    } catch (e) {
+      setErr((e as Error).message);
+      setBusy(false);
+    }
+  }
+  async function move() {
+    if (!plan.request || !t.earliest) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await api.request({ ...plan.request, neededBy: t.earliest });
+      nav(`/requests/${r.plan.id}`, { state: { planResp: r } });
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className={`callout ${plan.tooLateChoice === "review" ? "yellow" : "red"} stack`} role="alert">
+      <b>No products available for delivery in time.</b>
+      <span>
+        Nothing can arrive by {day(t.neededBy)}.{" "}
+        {t.earliest ? <>The earliest delivery is <b>{day(t.earliest)}</b>.</> : "No later delivery date is known yet."}
+      </span>
+      {err && <span className="small">{err}</span>}
+      {plan.eventId ? (
+        plan.tooLateChoice === "review" ? (
+          <span className="small">Kept in the order for review. Nothing is ordered.</span>
+        ) : (
+          <div className="row" style={{ flexWrap: "wrap" }}>
+            <button type="button" className="btn primary" disabled={busy} onClick={() => choose("review")}>
+              Add to order for review
+            </button>
+            <button type="button" className="btn ghost" disabled={busy} onClick={() => choose("remove")}>
+              Remove from quote
+            </button>
+          </div>
+        )
+      ) : t.earliest && plan.request && (
+        <div className="row">
+          <button type="button" className="btn primary" disabled={busy} onClick={move}>
+            {busy ? "…" : `Change the date to ${day(t.earliest)}`}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Products found, in stock and in time: a summary and one button to add them to the quote. */
+function Proposal({ plan, onDone }: { plan: Plan; onDone: (r: PlanResp) => void }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const lines = plan.lines.filter((l) => !l.removed && l.productId);
+  const used = new Set(lines.map((l) => l.productId));
+  // Two other passing products per need, offered quietly below.
+  const alts = plan.needs.flatMap((n) => n.candidates.filter((c) => !used.has(c.productId)).slice(0, 2).map((c) => ({ n, c })));
+  async function run(key: string, f: () => Promise<PlanResp>) {
+    setBusy(key);
+    setErr(null);
+    try {
+      onDone(await f());
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+  return (
+    <div className="stack">
+      <div className="card pad stack">
+        {lines.map((l) => (
+          <div key={l.id} className="propline">
+            <div style={{ minWidth: 0 }}>
+              <div className="trunc" style={{ color: "var(--ink)", fontWeight: 600 }}>
+                {l.productName}
+              </div>
+              <div className="small muted">
+                {qty(l.quantity)} {l.salesUnit ?? ""} · {stockText(l.stock, l.salesUnit)} · arrives {day(l.availableDate)}
+              </div>
+            </div>
+            <b className="num">{eur(l.lineTotal)}</b>
+          </div>
+        ))}
+        <div className="totalrow">
+          <span className="muted">Ex VAT</span>
+          <b className="price">{eur(plan.totalExVat)}</b>
+        </div>
+        {err && <div className="callout red small">{err}</div>}
+        <div className="row">
+          <button type="button" className="btn primary" disabled={!!busy} onClick={() => run("accept", () => api.accept(plan.id))}>
+            {busy === "accept" ? "…" : "Add to quote"}
+          </button>
+          <Link to="/" className="btn ghost">
+            Cancel
+          </Link>
+        </div>
+      </div>
+      {alts.length > 0 && (
+        <div className="alts small muted">
+          <span>Or instead:</span>
+          {alts.map(({ n, c }) => (
+            <button key={`${n.id}:${c.productId}`} type="button" className="linkbtn" disabled={!!busy} onClick={() => run(c.productId, () => api.choose(plan.id, n.id, c.productId))}>
+              {busy === c.productId ? "…" : `${c.name} · ${eur(c.pricePerBase)}/${n.amount.unit}`}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function RequestPlan() {
   const { id } = useParams();
   const loc = useLocation();
@@ -231,6 +361,7 @@ export function RequestPlan() {
   const { data, error, setData } = useLoad(() => api.plan(id!), [id]);
   const [view, setView] = useState<"lines" | "money">("lines");
   const { data: rules } = useLoad(() => api.rules(), []);
+  const { me, people } = useApp();
   useEffect(() => {
     if (initial && !data) setData(initial);
   }, [initial, data, setData]);
@@ -239,32 +370,47 @@ export function RequestPlan() {
   if (!d) return <div className="muted">Loading…</div>;
   const { plan, questions } = d;
   const open = questions.filter((q: Question) => q.state === "open" || q.state === "waiting");
-  const done = questions.filter((q: Question) => !open.includes(q));
+  // One question at a time, and only one this person can answer; the rest are someone else's.
+  const next = open.find((q) => q.state === "open" && canAnswer(q, me, people)) ?? null;
+  const elsewhere = next ? null : open[0] ?? null;
+  const head = (
+    <div>
+      <h1>{plan.title}</h1>
+      <div className="small muted row" style={{ gap: 8, flexWrap: "wrap" }}>
+        <span>By {day(plan.neededBy)}</span>
+        {plan.urgent && <span className="stamp ask">Urgent</span>}
+      </div>
+    </div>
+  );
+  // Nothing arrives in time: no basket, options or cut-offs until the date moves.
+  if (plan.tooLate)
+    return (
+      <div className="page stack-l">
+        {head}
+        <TooLate plan={plan} />
+      </div>
+    );
+  if (plan.proposal)
+    return (
+      <div className="page stack-l">
+        {head}
+        <Proposal plan={plan} onDone={setData} />
+      </div>
+    );
 
   return (
     <div className="page stack-l">
-      <div>
-
-        <h1>{plan.title}</h1>
-        <div className="small muted row" style={{ gap: 8, flexWrap: "wrap" }}>
-          <span>By {day(plan.neededBy)}</span>
-          {plan.urgent && <span className="stamp ask">Urgent</span>}
-        </div>
-      </div>
+      {head}
       <Outcome plan={plan} />
 
-      {open.length > 0 && (
-        <section>
-          <div className="sechead">
-            <h2>Questions</h2>
-            <span className="countb">{open.length}</span>
+      {next ? (
+        <QuestionCard key={next.id} q={next} onAnswered={() => api.plan(plan.id).then(setData)} />
+      ) : (
+        elsewhere && (
+          <div className="callout blue small" role="status">
+            {elsewhere.state === "waiting" ? "Waiting for the chef to answer first." : `Sent for approval. ${waitingForText(elsewhere, me, people)}.`}
           </div>
-          <div className="qlist">
-            {open.map((q) => (
-              <QuestionCard key={q.id} q={q} onAnswered={() => api.plan(plan.id).then(setData)} />
-            ))}
-          </div>
-        </section>
+        )
       )}
 
       <Section
@@ -308,16 +454,6 @@ export function RequestPlan() {
           ))}
         </div>
       </Section>
-
-      {done.length > 0 && (
-        <Section title="Answered">
-          <div className="qlist">
-            {done.map((q) => (
-              <QuestionCard key={q.id} q={q} compact />
-            ))}
-          </div>
-        </Section>
-      )}
     </div>
   );
 }

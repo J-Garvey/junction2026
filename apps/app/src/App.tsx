@@ -1,13 +1,14 @@
-/** Shell: sidebar or phone tabs, the "viewing as" switcher (TM-06), the test clock and the allergy banner. */
+/** Shell: sidebar or phone tabs, the "viewing as" switcher (TM-06), the top bar with the profile, and the allergy banner. */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { NavLink, Route, Routes, useLocation } from "react-router";
 import type { WarningRecord } from "@aimo/contracts";
-import { api, authHooks, type Outlet, type Person, type StatusResp, type SceneKey } from "./api";
+import { api, authHooks, type Outlet, type Person, type StatusResp } from "./api";
 import { Ctx, type AppCtx } from "./ctx";
 import { Icon, Lockup, Mark, type IconName } from "./ui/icons";
 import { AllergyBanner } from "./ui/Banner";
-import { initials, when } from "./format";
+import { initials } from "./format";
 import { Home } from "./screens/Home";
+import { BasketPage, BasketsHome } from "./screens/Baskets";
 import { RequestNew, RequestPlan, Requests } from "./screens/Request";
 import { EventPage, Events } from "./screens/Event";
 import { Orders } from "./screens/Orders";
@@ -15,7 +16,8 @@ import { Audit } from "./screens/Audit";
 import { Rules } from "./screens/Rules";
 
 const NAV: [string, IconName, string][] = [
-  ["/home", "home", "Home"],
+  ["/", "home", "Home"],
+  ["/inbox", "q", "Waiting"],
   ["/events", "cal", "Events"],
   ["/requests", "chat", "Requests"],
   ["/orders", "box", "Orders"],
@@ -111,14 +113,16 @@ export function App() {
   return (
     <Ctx.Provider value={ctx}>
       <div className="shell">
-        <Sidebar badge={badge} me={ctx.me} people={people} onPick={pick} status={status} />
+        <Sidebar badge={badge} me={ctx.me} people={people} onPick={pick} />
         <div className="main">
-          <ClockBar status={status} onChange={refresh} />
+          <TopBar status={status} me={ctx.me} onChange={refresh} onSwitch={() => setNeedPick(true)} />
           <AllergyBanner warnings={warnings} />
           <MobileHead me={ctx.me} onSwitch={() => setNeedPick(true)} />
           <div className="content">
             <Routes>
-              <Route path="/home" element={<Home />} />
+              <Route path="/" element={<BasketsHome />} />
+              <Route path="/baskets/:id" element={<BasketPage />} />
+              <Route path="/inbox" element={<Home />} />
               <Route path="/requests" element={<Requests />} />
               <Route path="/requests/new" element={<RequestNew />} />
               <Route path="/requests/:id" element={<RequestPlan />} />
@@ -137,12 +141,11 @@ export function App() {
   );
 }
 
-function Sidebar({ badge, me, people, onPick, status }: { badge: number; me: Person; people: Person[]; onPick: (id: string) => void; status: StatusResp | null }) {
+function Sidebar({ badge, me, people, onPick }: { badge: number; me: Person; people: Person[]; onPick: (id: string) => void }) {
   return (
     <aside className="side">
-      <Lockup />
-      <label className="switch" title="Viewing as (test session)">
-        <span className="sq">{initials(me.name)}</span>
+      <label className="acct" title="Viewing as (test session)">
+        <Mark s={20} />
         <select value={me.id} onChange={(e) => onPick(e.target.value)} aria-label="Viewing as">
           {people.map((p) => (
             <option key={p.id} value={p.id}>
@@ -156,7 +159,7 @@ function Sidebar({ badge, me, people, onPick, status }: { badge: number; me: Per
         <NavLink key={to} to={to} end={to === "/"} className={({ isActive }) => (isActive ? "on" : "")}>
           <Icon n={ic} s={17} />
           {l}
-          {to === "/" && badge > 0 && (
+          {to === "/inbox" && badge > 0 && (
             <span className="n" aria-label={`${badge} waiting`}>
               {badge}
             </span>
@@ -179,61 +182,43 @@ export function ModelStatus({ status }: { status: StatusResp | null }) {
   );
 }
 
-function ClockBar({ status, onChange }: { status: StatusResp | null; onChange: () => void }) {
-  const [busy, setBusy] = useState<string | null>(null);
+function TopBar({ status, me, onChange, onSwitch }: { status: StatusResp | null; me: Person; onChange: () => void; onSwitch: () => void }) {
+  const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  if (!status) return <div className="clockbar" />;
-  const dm = typeof status.dataMode === "string" ? status.dataMode : status.dataMode.mode;
-  const overlay = typeof status.dataMode === "string" ? null : status.dataMode.overlay;
-  async function run(key: string, fn: () => Promise<unknown>) {
-    setBusy(key);
+  async function reset() {
+    if (!confirm("Reset the demo? This clears orders, questions and the audit log.")) return;
+    setBusy(true);
     setErr(null);
     try {
-      await fn();
+      await api.reset();
       onChange();
     } catch (e) {
       setErr((e as Error).message);
     } finally {
-      setBusy(null);
+      setBusy(false);
     }
   }
-  const scenes = Object.entries(status.clock.scenes) as [SceneKey, { label: string; time: string }][];
   return (
-    <div className="clockbar">
-      <div className="scenes" role="group" aria-label="Scenes">
-        {scenes.map(([k, s]) => (
-          <button key={k} type="button" className={`scenebtn ${status.clock.scene === k ? "on" : ""}`} title={`${s.label}, ${when(s.time)}`} disabled={!!busy} onClick={() => run(k, () => api.clock(k))}>
-            {k}
-          </button>
-        ))}
-        <button type="button" className={`scenebtn ${status.clock.mode !== "fixed" ? "on" : ""}`} title="Real time" disabled={!!busy} onClick={() => run("live", () => api.clock("live"))}>
-          Live
-        </button>
-      </div>
-      <span className="clocknow">
-        <Icon n="clock" s={14} /> {when(status.clock.now)}
-      </span>
-      <span className={`stamp ${dm === "fixture" ? "fixture" : "info"}`} title={overlay ? `Fixture: ${overlay}` : undefined}>{dm === "fixture" ? "Fixture" : "Live"}</span>
-      {!status.chain.ok && <span className="stamp block">Audit chain broken</span>}
-      <button
-        type="button"
-        className="btn sm ghost"
-        style={{ marginLeft: "auto" }}
-        disabled={!!busy}
-        onClick={() => {
-          if (confirm("Reset the demo? This clears orders, questions and the audit log.")) run("reset", () => api.reset());
-        }}
-      >
-        <Icon n="refresh" s={14} /> {busy === "reset" ? "Resetting…" : "Reset"}
-      </button>
+    <div className="topbar">
+      {status && !status.chain.ok && <span className="stamp block">Audit chain broken</span>}
       {err && <span className="small" style={{ color: "var(--red)" }}>{err}</span>}
+      <button type="button" className="btn sm ghost" style={{ marginLeft: "auto" }} disabled={busy} onClick={reset}>
+        <Icon n="refresh" s={14} /> {busy ? "Resetting…" : "Reset"}
+      </button>
+      <button type="button" className="profile hide-m" onClick={onSwitch} title="Switch person">
+        <span className="avatar">{initials(me.name)}</span>
+        <span>
+          <b>{me.name}</b>
+          <span className="small muted">{me.title}</span>
+        </span>
+      </button>
     </div>
   );
 }
 
 function MobileHead({ me, onSwitch }: { me: Person; onSwitch: () => void }) {
   const loc = useLocation();
-  const title = NAV.find(([to]) => loc.pathname.startsWith(to))?.[2] ?? "";
+  const title = NAV.find(([to]) => (to === "/" ? loc.pathname === "/" : loc.pathname.startsWith(to)))?.[2] ?? "";
   return (
     <div className="mhead">
       <Mark s={20} />
@@ -252,7 +237,7 @@ function Tabs({ badge }: { badge: number }) {
         <NavLink key={to} to={to} end={to === "/"} className={({ isActive }) => (isActive ? "on" : "")}>
           <Icon n={ic} s={21} />
           {l}
-          {to === "/" && badge > 0 && <span className="n">{badge}</span>}
+          {to === "/inbox" && badge > 0 && <span className="n">{badge}</span>}
         </NavLink>
       ))}
     </nav>
