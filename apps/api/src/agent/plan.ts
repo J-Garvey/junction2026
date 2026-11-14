@@ -428,9 +428,14 @@ export async function quoteAndDecide(plan: StoredPlan, personToken?: string): Pr
   const red = live.filter((l) => l.verdict === "red");
   // Q05.3: an order can't go in while a line is blocked. The chef fixes or removes it first.
   if (red.length) {
+    const missing = plan.needs.flatMap((n) => n.rules).filter((r) => r.ruleId === "REQ-04" || r.ruleId === "DIET-04");
     plan.status = "blocked";
     plan.quoteId = null;
-    plan.summary = `Blocked · ${red.length} line${red.length > 1 ? "s" : ""}`;
+    plan.summary = missing.some((r) => r.ruleId === "REQ-04")
+      ? "Product not found. Refine the search and try again."
+      : missing.length
+        ? "No matching product found. Refine the search and try again."
+        : `Blocked · ${red.length} line${red.length > 1 ? "s" : ""}`;
     audit({ actor: AGENT, action: "line_verdict_set", summary: `Blocked: ${plan.summary}`, eventId: plan.eventId, ruleIds: red.flatMap((l) => l.rules.map((r) => r.ruleId)), details: { planId: plan.id }, visibility: "hotel" });
     savePlan(plan);
     return plan;
