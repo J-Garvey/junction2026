@@ -51,6 +51,10 @@ h4 { font-size: 13px; font-weight: 700; text-transform: uppercase; color: var(--
 .acct { display: flex; align-items: center; gap: 8px; padding: 4px 8px 14px; font-size: 14px; font-weight: 600; color: var(--ink); cursor: pointer; }
 .acct select { min-width: 0; max-width: 170px; border: 0; background: transparent; font: inherit; color: inherit; appearance: none; cursor: pointer; padding: 0; text-overflow: ellipsis; }
 .acct select:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 4px; }
+.acct-static { cursor: default; align-items: flex-start; }
+.acct-static > span { display: flex; min-width: 0; flex-direction: column; line-height: 1.25; }
+.acct-static b, .acct-static .small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.order-switcher select { font-weight: 700; }
 .viewing { padding: 4px 8px 10px; }
 .side a { display: flex; align-items: center; gap: 9px; padding: 6px 8px; border-radius: 6px; font-size: 14px; font-weight: 500; color: var(--body); text-decoration: none; }
 .side a.on { background: var(--card); color: var(--ink); font-weight: 600; box-shadow: inset 0 0 0 1px var(--hairline); }
