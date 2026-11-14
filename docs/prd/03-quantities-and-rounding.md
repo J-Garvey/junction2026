@@ -43,27 +43,27 @@ Each function is one problem that can be built and tested alone. "Deterministic 
 
 **Q03.1 Which units can a recipe line use?**
 - Recommended: g, kg, ml, dl, l and pieces. Everything is converted to kg, L or pieces before any maths. A "pieces" line needs a product sold by the piece or with a known count per pack.
-- **Answer:** _open_
+- **Answer:** **Agreed** (Ben, 14 Nov): as recommended. g, kg, ml, dl, l and pieces; everything converted to kg, L or pieces before any maths. A pieces line needs a product sold by the piece or with a known count per pack, otherwise it asks.
 
 **Q03.2 What is the default overshoot tolerance?** Small lines always overshoot by a large percentage: needing 0.3 of a case means buying 1.
 - Recommended: ask only when the overshoot is both more than 10% of the line **and** worth more than €25. Either one alone goes through. Both numbers live in the hotel's pre-answers (chunk 05).
-- **Answer:** _open_
+- **Answer:** **Agreed** (Ben, 14 Nov): as recommended. Ask only when the overshoot is more than 10% of the line **and** worth more than €25. Both values live in the hotel's pre-answers (chunk 05).
 
 **Q03.3 When is the same product combined across diet groups?**
 - Recommended: each diet group's lines are matched separately, so regular guests are never silently moved onto the lactose-free product. If two groups end up on the same product ID, their quantities are combined into one order line, with each group's share still shown.
-- **Answer:** _open_
+- **Answer:** **Agreed** (Ben, 14 Nov): as recommended. Each diet group is matched separately; regular guests are never moved onto a diet product to simplify the order. Lines on the same product ID are combined into one order line, rounded once (D25), with each group's share shown.
 
 **Q03.4 How do we know two catalogue entries are "the same product in a different pack"?**
 - Recommended: same vendor and brand, identical ingredient statement, identical allergens and claims, and they differ only in size. If any of that is missing or different, they are different products and a swap asks the chef. If no such pairs exist among the seed products, pack mixing is skipped for Junction.
-- **Answer:** _open_
+- **Answer:** **Agreed** (Ben, 14 Nov): as recommended. Same vendor and brand, identical ingredient statement, allergens and claims, differing only in size. Anything missing or different means different products, and a swap asks the chef. If no seed pair qualifies, pack mixing is skipped for Junction.
 
 **Q03.5 What happens when the recipe's unit and the product's unit don't match?** For example grams of milk against a product sold in litres.
 - Recommended: no density conversion. The line asks the chef to restate the amount in the product's unit.
-- **Answer:** _open_
+- **Answer:** **Agreed** (Ben, 14 Nov): as recommended. No density conversion; the line asks the chef to restate the amount in the product's unit.
 
 **Q03.6 Are recipe amounts as-purchased or as-served?**
 - Recommended: as-purchased. Waste and yield factors are not in core.
-- **Answer:** _open_
+- **Answer:** **Agreed** (Ben, 14 Nov): as recommended. Amounts are as-purchased. No waste or yield factors in core; extra margin comes from the buffer, added before rounding (D25).
 
 ## Edge cases to rule on
 
