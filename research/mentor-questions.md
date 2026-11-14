@@ -1,5 +1,7 @@
 # Questions for the Valio Aimo mentors
 
+**At the stand, use [stand-questions.md](stand-questions.md)**: the 15 that matter before the deadline, in order. This file is the full list.
+
 The single list of questions for the mentors. **Before asking, check [../GROUND_TRUTH.md](../GROUND_TRUTH.md)**: questions marked **[answered]** or **[partly public]** below were settled or narrowed on 14 Nov from the data, the API, the brief or Valio Aimo's own website. Q1–33 come from [01-customer-options-brief.md](01-customer-options-brief.md) and keep their numbers, because 01 refers to them. Q34–45 were added from [04-segment-research-chain-first.md](04-segment-research-chain-first.md) and the data review. Tick answers off here and record them in the relevant research file.
 
 ## Q1–33: customer-segment questions (from 01)

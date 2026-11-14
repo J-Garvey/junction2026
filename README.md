@@ -10,7 +10,7 @@ How can a food-service wholesaler let autonomous purchasing agents find products
 - ✅ Facts verified against the data, API, brief and public sources: **[GROUND_TRUTH.md](GROUND_TRUTH.md)**
 - ⏰ **Final submission deadline: Sun 15 Nov 2026, 10:00**
 - ✅ Two research passes on customer segments (they disagree; see [QUESTIONS.md](QUESTIONS.md))
-- ⏳ Ask the mentors ([research/mentor-questions.md](research/mentor-questions.md)), then pick a segment
+- ⏳ Ask the mentors ([research/stand-questions.md](research/stand-questions.md) first), then pick a segment
 - ⬜ Guardrails design (deliberately later)
 - ⬜ Build
 
@@ -40,6 +40,7 @@ What changed when the two uploads were merged is in **[CHANGES.md](CHANGES.md)**
 | [research/02-initial-deep-dive.md](research/02-initial-deep-dive.md) | Archived public-kitchen pass, plus reusable design ideas: guardrails (draft, deferred), trust protocol, audit trail, demo pattern |
 | [research/03-data-profile.md](research/03-data-profile.md) | What the data covers and where it's thin; API behaviour |
 | [research/04-segment-research-chain-first.md](research/04-segment-research-chain-first.md) | The chain-first research pass, the order-quantity primer and kitchen-system notes |
+| [research/stand-questions.md](research/stand-questions.md) | **Take this to the Valio Aimo stand:** the 15 questions only they can answer, in priority order |
 | [research/mentor-questions.md](research/mentor-questions.md) | The single list of 45 mentor questions, with what's already answered |
 | [docs/data-dictionary.md](docs/data-dictionary.md) | Every field of the slim dataset, quantity conversion, code glossaries (unverified) |
 | `data/products_slim.jsonl` | Main product table: 17,546 rows, carbon and reliability joined in |
