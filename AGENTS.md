@@ -11,6 +11,8 @@
 
 Use a hotel kitchen dealing with a late change to a conference or banquet as the first demo case. The external agent acts for the hotel. The challenge calls for structured catalog, price and availability lookup, an order at the returned fixed price, and rules for when a human must approve. Keep orders, approvals and receipts in the prototype. Use a documented interface that another agent can call.
 
+The product scope also covers supermarket dropshipping for small parts of large orders and AI agents for email, SMS, and phone calls. Use the same hotel order and approval rules across channels. See the [product scope](ICP.md#6-our-product-opportunity).
+
 The brief's example asks for 1,000 L of lactose-free milk by Monday. Show a clear outcome: an order placed within the buyer's authority, a basket awaiting approval, or a short explanation of what cannot be filled. Treat the demo's spend cap, approved products, delivery site and approval roles as explicit fixture policy. A manager can approve a change the hotel permits. Approval cannot confirm unknown stock or waive a dietary rule.
 
 ## Use the data already here
