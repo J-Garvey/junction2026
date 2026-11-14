@@ -1,12 +1,13 @@
-/** Shell: sidebar or phone tabs, the "viewing as" switcher (TM-06), the top bar with the profile, and the allergy banner. */
+/** Shell: sidebar or phone tabs, the "viewing as" switcher (TM-06), the top bar with the profile, the allergy banner,
+ * and the person picker with the demo settings (test clock and reset). */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { NavLink, Route, Routes, useLocation } from "react-router";
 import type { WarningRecord } from "@aimo/contracts";
-import { api, authHooks, type Outlet, type Person, type StatusResp } from "./api";
+import { api, authHooks, type Outlet, type Person, type StatusResp, type SceneKey } from "./api";
 import { Ctx, type AppCtx } from "./ctx";
 import { Icon, Lockup, Mark, type IconName } from "./ui/icons";
 import { AllergyBanner } from "./ui/Banner";
-import { initials } from "./format";
+import { initials, when } from "./format";
 import { Home } from "./screens/Home";
 import { BasketPage, BasketsHome } from "./screens/Baskets";
 import { RequestNew, RequestPlan, Requests } from "./screens/Request";
@@ -108,14 +109,14 @@ export function App() {
         <div className="callout red">{bootErr}</div>
       </div>
     );
-  if (!ctx || needPick) return <PersonPicker people={people} current={me} onPick={pick} onCancel={me ? () => setNeedPick(false) : undefined} />;
+  if (!ctx || needPick) return <PersonPicker people={people} current={me} status={status} onChange={refresh} onPick={pick} onCancel={me ? () => setNeedPick(false) : undefined} />;
 
   return (
     <Ctx.Provider value={ctx}>
       <div className="shell">
         <Sidebar badge={badge} me={ctx.me} people={people} onPick={pick} />
         <div className="main">
-          <TopBar status={status} me={ctx.me} onChange={refresh} onSwitch={() => setNeedPick(true)} />
+          <TopBar status={status} me={ctx.me} onSwitch={() => setNeedPick(true)} />
           <AllergyBanner warnings={warnings} />
           <MobileHead me={ctx.me} onSwitch={() => setNeedPick(true)} />
           <div className="content">
@@ -182,30 +183,11 @@ export function ModelStatus({ status }: { status: StatusResp | null }) {
   );
 }
 
-function TopBar({ status, me, onChange, onSwitch }: { status: StatusResp | null; me: Person; onChange: () => void; onSwitch: () => void }) {
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  async function reset() {
-    if (!confirm("Reset the demo? This clears orders, questions and the audit log.")) return;
-    setBusy(true);
-    setErr(null);
-    try {
-      await api.reset();
-      onChange();
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
+function TopBar({ status, me, onSwitch }: { status: StatusResp | null; me: Person; onSwitch: () => void }) {
   return (
     <div className="topbar">
       {status && !status.chain.ok && <span className="stamp block">Audit chain broken</span>}
-      {err && <span className="small" style={{ color: "var(--red)" }}>{err}</span>}
-      <button type="button" className="btn sm ghost" style={{ marginLeft: "auto" }} disabled={busy} onClick={reset}>
-        <Icon n="refresh" s={14} /> {busy ? "Resetting…" : "Reset"}
-      </button>
-      <button type="button" className="profile hide-m" onClick={onSwitch} title="Switch person">
+      <button type="button" className="profile hide-m" style={{ marginLeft: "auto" }} onClick={onSwitch} title="Switch person">
         <span className="avatar">{initials(me.name)}</span>
         <span>
           <b>{me.name}</b>
@@ -244,7 +226,22 @@ function Tabs({ badge }: { badge: number }) {
   );
 }
 
-function PersonPicker({ people, current, onPick, onCancel }: { people: Person[]; current: Person | null; onPick: (id: string) => void; onCancel?: () => void }) {
+function PersonPicker({
+  people,
+  current,
+  status,
+  onChange,
+  onPick,
+  onCancel,
+}: {
+  people: Person[];
+  current: Person | null;
+  status: StatusResp | null;
+  onChange: () => void;
+  onPick: (id: string) => void;
+  onCancel?: () => void;
+}) {
+  const [settings, setSettings] = useState(false);
   return (
     <div className="picker">
       <Lockup s={30} />
@@ -261,11 +258,79 @@ function PersonPicker({ people, current, onPick, onCancel }: { people: Person[];
         ))}
         {!people.length && <div className="muted">Loading people…</div>}
       </div>
-      {onCancel && (
-        <button type="button" className="btn ghost" onClick={onCancel}>
-          Cancel
+      <div className="pickfoot">
+        {onCancel && (
+          <button type="button" className="btn ghost" onClick={onCancel}>
+            Cancel
+          </button>
+        )}
+        <button type="button" className="btn ghost" style={{ marginLeft: "auto" }} aria-expanded={settings} onClick={() => setSettings((v) => !v)}>
+          <Icon n="clock" s={14} /> Demo settings
         </button>
-      )}
+      </div>
+      {settings && <DemoSettings status={status} onChange={onChange} />}
     </div>
+  );
+}
+
+/** Test-only controls, kept off the product screens: move the clock to a scene or real time, and reset the demo. */
+function DemoSettings({ status, onChange }: { status: StatusResp | null; onChange: () => void }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  if (!status) return <div className="demoset muted">Loading demo settings…</div>;
+  const dm = typeof status.dataMode === "string" ? status.dataMode : status.dataMode.mode;
+  const overlay = typeof status.dataMode === "string" ? null : status.dataMode.overlay;
+  async function run(key: string, fn: () => Promise<unknown>) {
+    setBusy(key);
+    setErr(null);
+    try {
+      await fn();
+      onChange();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+  const scenes = Object.entries(status.clock.scenes) as [SceneKey, { label: string; time: string }][];
+  return (
+    <section className="demoset" aria-label="Demo settings">
+      <div className="demohead">
+        <h2>Demo settings</h2>
+        <span className="small muted">
+          <Icon n="clock" s={14} /> {when(status.clock.now)}
+        </span>
+        <span className={`stamp ${dm === "fixture" ? "fixture" : "info"}`} title={overlay ? `Fixture: ${overlay}` : undefined}>
+          {dm === "fixture" ? "Fixture" : "Live"}
+        </span>
+      </div>
+      <div className="small muted">Time</div>
+      <div className="demotimes" role="group" aria-label="Demo time">
+        {scenes.map(([k, s]) => (
+          <button key={k} type="button" className={`demotime ${status.clock.scene === k ? "on" : ""}`} disabled={!!busy} onClick={() => run(k, () => api.clock(k))}>
+            <b>{s.label}</b>
+            <span className="small muted">{when(s.time)}</span>
+          </button>
+        ))}
+        <button type="button" className={`demotime ${status.clock.mode !== "fixed" ? "on" : ""}`} disabled={!!busy} onClick={() => run("live", () => api.clock("live"))}>
+          <b>Real time</b>
+          <span className="small muted">Live clock and live mock data</span>
+        </button>
+      </div>
+      <div className="demofoot">
+        {err && <span className="small" style={{ color: "var(--red)" }}>{err}</span>}
+        <button
+          type="button"
+          className="btn sm ghost"
+          style={{ marginLeft: "auto" }}
+          disabled={!!busy}
+          onClick={() => {
+            if (confirm("Reset the demo? This clears orders, questions and the audit log.")) run("reset", () => api.reset());
+          }}
+        >
+          <Icon n="refresh" s={14} /> {busy === "reset" ? "Resetting…" : "Reset demo"}
+        </button>
+      </div>
+    </section>
   );
 }

@@ -280,6 +280,15 @@ table.t tr:last-child td { border-bottom: 0; }
 .pickcard > span:last-child { display: flex; flex-direction: column; color: var(--ink); }
 .pickcard.on { box-shadow: inset 0 0 0 2px var(--primary); }
 .pickcard:hover { border-color: var(--ink); }
+.pickfoot { display: flex; gap: 10px; align-items: center; }
+.demoset { display: flex; flex-direction: column; gap: 10px; background: var(--card); border: 1px solid var(--hairline); border-radius: 6px; padding: 16px; }
+.demohead { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.demohead h2 { font-size: 15px; margin: 0 auto 0 0; }
+.demotimes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.demotime { display: flex; flex-direction: column; gap: 2px; text-align: left; background: var(--canvas); border: 1px solid var(--hairline); border-radius: 6px; padding: 10px 12px; color: var(--ink); font-size: 13px; }
+.demotime:hover:not(:disabled) { border-color: var(--ink); }
+.demotime.on { box-shadow: inset 0 0 0 2px var(--primary); }
+.demofoot { display: flex; gap: 10px; align-items: center; }
 .big-av { width: 40px; height: 40px; font-size: 14px; background: var(--primary); }
 
 /* phone (UI-13) */
@@ -309,7 +318,7 @@ table.t tr:last-child td { border-bottom: 0; }
   .tl { grid-template-columns: 1fr; gap: 0; }
   .kv.wide { grid-template-columns: 1fr; }
   .kv.wide dt { margin-top: 6px; }
-  .pickgrid { grid-template-columns: 1fr; }
+  .pickgrid, .demotimes { grid-template-columns: 1fr; }
   .popover { position: fixed; left: 8px !important; right: 8px !important; top: auto; bottom: 74px; width: auto; max-width: none; }
   .moneybar { gap: 16px; }
   .search { width: 100%; margin-left: 0; }
