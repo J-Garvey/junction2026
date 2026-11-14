@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import type { Question } from "@aimo/contracts";
 import type { Person, StatusResp, Outlet } from "./api";
 
 export interface AppCtx {
@@ -20,6 +21,42 @@ export const useApp = () => {
   if (!c) throw new Error("No app context");
   return c;
 };
+
+/** Mirrors the server's QUESTION-ROUTE (canAnswer): by role and outlet; the server still checks every answer. */
+export function canAnswer(q: Question, p: Person, people: Person[]): boolean {
+  if (p.role !== q.forRole) return false;
+  if (q.forRole === "approver") return p.hotelScope || (q.outletId !== null && p.outlets.includes(q.outletId));
+  if (!q.outletId) return true;
+  const chefs = people.filter((x) => x.role === "chef" && x.outlets.includes(q.outletId!));
+  return chefs.length ? p.outlets.includes(q.outletId) : true;
+}
+
+/** Everyone who can answer a question. */
+export const answerers = (q: Question, people: Person[]) => people.filter((p) => canAnswer(q, p, people));
+
+/** "Sanna (Finance manager) or Jonas (F&B director)". */
+export function namesOf(ps: Person[]) {
+  const n = ps.map((p) => `${p.name} (${p.title})`);
+  return n.length > 1 ? `${n.slice(0, -1).join(", ")} or ${n[n.length - 1]}` : n[0] ?? "";
+}
+
+/** Who a question waits for, as seen by `me`. A "waiting" question needs the chef's answer first. */
+export function waitingForText(q: Question, me: Person, people: Person[]) {
+  const who = answerers(q, people);
+  const names = who.some((p) => p.id === me.id) ? (who.length > 1 ? `you or ${namesOf(who.filter((p) => p.id !== me.id))}` : "you") : namesOf(who) || `the ${q.forRole}`;
+  return q.state === "waiting" ? `Chef answers first, then ${names}` : `Waiting for ${names}`;
+}
+
+/** Splits open questions into the ones `me` answers and a count per who-it-waits-for for the rest. */
+export function splitMine(qs: Question[], me: Person, people: Person[]) {
+  const mine = qs.filter((q) => canAnswer(q, me, people));
+  const others = new Map<string, number>();
+  for (const q of qs) if (!canAnswer(q, me, people)) {
+    const k = namesOf(answerers(q, people)) || `the ${q.forRole}`;
+    others.set(k, (others.get(k) ?? 0) + 1);
+  }
+  return { mine, others: [...others].map(([who, n]) => ({ who, n })) };
+}
 
 export const outletName = (outlets: Outlet[], id: string | null | undefined) => outlets.find((o) => o.id === id)?.name ?? id ?? "";
 
