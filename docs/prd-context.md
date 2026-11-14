@@ -1,6 +1,6 @@
 # PRD context: decisions the PRD builds on
 
-> **What this is:** the agreed context base for the agent that writes the PRD. It records the decisions made in a grilling session with Jack on 14 Nov 2026 (D1 to D14), Darragh's follow-up decisions (D15 to D22) and Jack's review of the stories (D23 to D26), what each rests on, and what is still open. The user stories built on it are in [user-stories.md](user-stories.md).
+> **What this is:** the agreed context base for the agent that writes the PRD. It records the decisions made in a grilling session with Jack on 14 Nov 2026 (D1 to D14), Darragh's follow-up decisions (D15 to D22) and Jack's review of the stories (D23 to D27), what each rests on, and what is still open. The user stories built on it are in [user-stories.md](user-stories.md).
 >
 > **How to read the tags:** **[TEAM Dn]** a decision from this session; **[BRIEF]**, **[API]**, **[SPEC]**, **[DATA]**, **[SRC]**, **[STAND]**, **[INF]**, **[OPEN]** mean what they mean in [GROUND_TRUTH.md](../GROUND_TRUTH.md) and [research/07](../research/07-hotel-event-ordering-journey.md). Where this file and GROUND_TRUTH.md disagree on a fact, GROUND_TRUTH.md wins.
 >
@@ -126,6 +126,19 @@ Customers buy whole sales units: 1.5 needed means 2 [STAND, research/06]. The da
 - **One set of status labels everywhere**, and gaps (blocked, unresolved, at risk) always shown above what's fine.
 - Stories UI-01 to UI-12 in [user-stories.md](user-stories.md#interface).
 
+## Teams and outlets (D27, overrides D17)
+
+Several people share a hotel, and a bar and a restaurant coordinate on the same events. Valio Aimo's webshop already has linked accounts for multi-site users and central templates a main user controls [SRC, GROUND_TRUTH 5]. [TEAM D27]
+
+- **One hotel, linked outlets.** The hotel is the organisation (one Valio Aimo customer, one mandate). **Outlets** such as bar, restaurant and banquet kitchen sit inside it, each with its own members and preferences.
+- **People, not shared logins.** Each person has a role (Chef or Approver) and the outlets they belong to. A bar manager is the Chef for the bar; a financial controller can be Approver for one outlet or the whole hotel.
+- **Several people per role; any one can answer.** A question goes to everyone with that role in that outlet. **The first answer closes it for all**, showing who answered and when. The audit names the person, not just the role.
+- **Events can span outlets.** Each line belongs to an outlet; its recipe questions go to that outlet's Chef. Everyone on the event sees the whole event, their own lines first.
+- **One Valio Aimo order per delivery site and date**, every line tagged by outlet so costs can be split.
+- **Simultaneous edits:** if two people change the same line, the second sees the change and confirms again. Nothing is silently overwritten.
+- **Core for Junction:** the data model (hotel, outlets, people with role and outlet), routing by role and outlet, first-answer-wins, outlet tags, and a **"viewing as" switcher** in the demo instead of real logins.
+- **Add-on:** real logins and invites, spend caps per outlet, **two-person approval** above a threshold (both controllers must sign, unlike the core where either can), and cost split per outlet.
+
 ## Architecture decisions
 
 - **Two parts with a clear boundary.** [TEAM D11]
@@ -150,7 +163,7 @@ These answer the follow-up questions and take precedence over anything above tha
 
 - **D15. The core is the trust algorithm.** The core feature is how a hotel can trust an AI agent to spend money: the mandate, the hard rules, auto-approval within limits, and the audit trail. Everything else is non-core unless it is needed to show that.
 - **D16. The app approves most food orders by itself.** The target is a highly agentic workflow: orders inside the hotel's mandate go through without a human. Approval of every order (research/08) describes how hotels work today, not the default we design for. A hotel can still set its spend cap to zero.
-- **D17. The hotel acts as one entity.** We were told to assume the hotel makes decisions as one body, so the product doesn't verify individual identities or permissions. The split of work is already agreed: the **Chef** is in charge of food, the **manager (Approver)** of finances. A detailed permission model is non-core.
+- **D17. The hotel acts as one entity.** We were told to assume the hotel makes decisions as one body, so the product doesn't verify individual identities or permissions. The split of work is already agreed: the **Chef** is in charge of food, the **manager (Approver)** of finances. A detailed permission model is non-core. **Overridden by D27:** the product now records individual people within the hotel, though it still doesn't build a permissions system.
 - **D18. Hotels set themselves up, self-serve.** Each hotel enters its own sites, roles, spend caps, approved products and tolerances in the app; Valio Aimo doesn't onboard them. The setup screens are **non-core**; the core can run on one pre-filled hotel.
 - **D19. Spend caps are per order**, for now.
 - **D20. The Purchasing Manager has maximum authority** over what is bought and how much, for now. What the role may do in different situations is left open and may become a non-core refinement.
