@@ -12,6 +12,8 @@ import { seedReset } from "./seed.js";
 import { kvGet } from "./db.js";
 import { gate, gateRouter } from "./gate.js";
 import { jwks } from "./gateway/keys.js";
+import { feedTap } from "./live/feed.js";
+import { liveRouter } from "./live/routes.js";
 
 export function createApp() {
   getDb();
@@ -51,7 +53,8 @@ export function createApp() {
     res.setHeader("Cache-Control", "public, max-age=300");
     res.type("application/jwk-set+json").send(JSON.stringify(jwks()));
   });
-  app.use("/gateway/v1", gatewayRouter());
+  app.use("/gateway/v1", feedTap, gatewayRouter());
+  app.use("/api/live", liveRouter());
   app.use("/api", appRouter());
   app.use(gatewayErrors);
   app.use(appErrors);

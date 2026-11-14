@@ -15,7 +15,7 @@ import { Audit } from "./screens/Audit";
 import { Rules } from "./screens/Rules";
 
 const NAV: [string, IconName, string][] = [
-  ["/", "home", "Home"],
+  ["/home", "home", "Home"],
   ["/events", "cal", "Events"],
   ["/requests", "chat", "Requests"],
   ["/orders", "box", "Orders"],
@@ -118,7 +118,7 @@ export function App() {
           <MobileHead me={ctx.me} onSwitch={() => setNeedPick(true)} />
           <div className="content">
             <Routes>
-              <Route path="/" element={<Home />} />
+              <Route path="/home" element={<Home />} />
               <Route path="/requests" element={<Requests />} />
               <Route path="/requests/new" element={<RequestNew />} />
               <Route path="/requests/:id" element={<RequestPlan />} />
@@ -233,7 +233,7 @@ function ClockBar({ status, onChange }: { status: StatusResp | null; onChange: (
 
 function MobileHead({ me, onSwitch }: { me: Person; onSwitch: () => void }) {
   const loc = useLocation();
-  const title = NAV.find(([to]) => (to === "/" ? loc.pathname === "/" : loc.pathname.startsWith(to)))?.[2] ?? "";
+  const title = NAV.find(([to]) => loc.pathname.startsWith(to))?.[2] ?? "";
   return (
     <div className="mhead">
       <Mark s={20} />

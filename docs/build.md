@@ -16,7 +16,7 @@ For development, `pnpm dev` runs the API with `tsx watch` and the Vite app on po
 
 | Command | What it does |
 |---|---|
-| `pnpm test` | 31 tests: rule units, the three PRD test cases end to end (the wedding twice from a fresh reset), and signature checks |
+| `pnpm test` | 35 tests: the live console with a scripted model, rule units, the three PRD test cases end to end (the wedding twice from a fresh reset), and signature checks |
 | `pnpm seed` | Fresh database: one hotel, four people, the mandate, the event, clock at scene 1 |
 | `pnpm agent:demo` | An outside agent that uses only `/openapi.json` and its token: search, quote, order, retry, and the refusals |
 | `pnpm fixtures:record` | Saves real mock responses for the seed pool to `data/fixtures/aimo/base.json` |
@@ -36,6 +36,17 @@ The server reads the environment, then the untracked `.env.local`, then the trac
 | `AIMO_DB` | `apps/api/var/aimo.db` | SQLite file; `:memory:` for tests |
 | `CONTEXT_DEV_API_KEY` | unset | Supplier brand profiles from context.dev at `GET /gateway/v1/products/{id}/brand`. External web data: cached, labelled, never used by a rule |
 | `PREVIEW_PASSWORD` | unset | Turns on the preview gate: browsers sign in at `/login`, scripts send `X-Preview-Password`. `/healthz` stays open |
+
+## The live console (the demo screen)
+
+`/` opens one split screen. The design is in [designs/aimo-agent-gateway-rebuild.md](designs/aimo-agent-gateway-rebuild.md).
+
+- **Left: the hotel agent.** A real `gpt-6-astra` agent with tool calling. Its only tools are the gateway's operations (`GET /products`, `POST /lookup`, `GET /mandate`, `POST /quotes`, `POST /orders`), called over HTTP with the hotel's agent token. Two more tools stop the run and show a one-tap card: the chef decides on stock Valio Aimo can't confirm (D31), and Sanna approves anything outside the hotel's rules with her own session token.
+- **Right: Valio Aimo's gateway.** Every call to `/gateway/v1` appears as a row with the gateway's own verdict: ALLOWED (signed), NEEDS APPROVAL, ASKS CHEF, APPROVED or REFUSED with the rule. Tap an order to see the signed record, check its ES256 signature and open the Peppol XML.
+- **Send unvetted agent** runs a script that holds the hotel's token and orders €2,387 of salmon with no approval. The gateway refuses it (`mandate_violation`).
+- **Reset** reseeds the database, sets the clock to Sat 14 Nov 12:00 Helsinki (before Sunday's cut-off) and uses the saved fixtures, so runs repeat.
+
+Code: `apps/api/src/live/` (agent loop, gateway feed, `/api/live` routes with one server-sent event stream) and `apps/app/src/live/`. `test/live.test.ts` runs the whole flow with a scripted model. The old hotel app is still at `/home`.
 
 ## How it fits together
 

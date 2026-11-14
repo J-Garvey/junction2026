@@ -137,7 +137,7 @@ export function RequestNew() {
           <button type="button" className="btn primary" disabled={busy} onClick={quote}>
             {busy ? "…" : "Quote"}
           </button>
-          <Link to="/" className="btn ghost">
+          <Link to="/home" className="btn ghost">
             Cancel
           </Link>
         </div>
