@@ -104,6 +104,7 @@ Preference stories (**PF**) belong to the Chef, the Approver or both, as marked.
 | UI-10 | Chef, Approver | P1 | See what's still editable and until when so that I know what I can change | S2–S4 |
 | UI-11 | Chef, Approver | P1 | Get one "all covered" summary instead of a notification per line so that an alert always means action | S4 |
 | UI-12 | Chef | P1 | Answer a question from my phone in under 10 seconds so that the kitchen doesn't stop | S3, S4 |
+| UI-13 | Chef, Approver | P1 | Use the app on my phone so that I can send requests, check orders, and answer questions away from my desk | all |
 
 Add-ons and parked stories are listed at the end of each avatar's section.
 
@@ -549,6 +550,12 @@ How people use the app (D26). The rule underneath every story: **type to ask, ta
 **UI-12** Answer a question from my phone in under 10 seconds so that the kitchen doesn't stop.
 *S3, S4 · [INF: not yet checked with a chef]*
 - Question cards (UI-03) work on a phone screen with one thumb.
+
+**UI-13** Use the app on my phone so that I can send requests, check orders, and answer questions away from my desk.
+*all · [TechStack.md](../TechStack.md)*
+- On a phone in portrait mode, the chef can send or edit a request and check the order status. The approver can open a quote, see its total and cut-off, and submit a decision.
+- Text, fields, and buttons stay readable and usable without horizontal scrolling or zoom. The on-screen keyboard leaves the current field and its submit action reachable.
+- Verify the same flow in mobile Safari on iOS, Chrome on Android, and the Capacitor build on both platforms. A decision made on a phone shows up on the web with the same order status and audit entry.
 
 ---
 
