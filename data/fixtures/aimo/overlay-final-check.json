@@ -1,0 +1,19 @@
+{
+ "name": "overlay-final-check",
+ "recordedAt": "2026-11-14T18:33:14.105Z",
+ "timeNow": "2026-11-14T20:33:14+0200",
+ "note": "FIXTURE: base responses with Arla whipping cream (464727) stock lowered from 37 to 10, to produce the final-check shortfall (Q11.4).",
+ "availability": {
+  "464727": {
+   "scheduleLines": [
+    {
+     "salesBlock": false,
+     "availableAmount": 10.0,
+     "availableDate": "2026-11-16",
+     "salesUnit": "ST"
+    }
+   ]
+  }
+ },
+ "price": {}
+}

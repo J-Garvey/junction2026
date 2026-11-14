@@ -1,0 +1,112 @@
+/**
+ * Applies a recorded answer. Recipe answers re-run the pipeline with the
+ * chef's choice recorded; approver answers sign an approval at the gateway
+ * (with the approver's own credential) and place the order.
+ */
+import type { Question } from "@aimo/contracts";
+import { audit } from "../audit.js";
+import { recordAnswer, openWaitingApprover, openQuestionsForPlan } from "./questions.js";
+import { getPlan, savePlan, quoteAndDecide, placeFromPlan, type StoredPlan } from "./plan.js";
+import { gw, GatewayError } from "./gatewayClient.js";
+import { rememberSubstitute } from "./memory.js";
+import { answerAllergy, answerChange, answerFinalSubstitute, personActor } from "./events.js";
+import { nowIso } from "../clock.js";
+import type { Person } from "../identity.js";
+
+export async function answer(qId: string, p: Person, optionId: string, token: string) {
+  const r = recordAnswer(qId, p, optionId);
+  if (!r.ok) return r;
+  const q = r.question;
+  const label = q.options.find((o) => o.id === optionId)?.label ?? optionId;
+  audit({
+    actor: personActor(p),
+    action: "question_answered",
+    summary: `${p.name} answered "${q.title}": ${label}`,
+    eventId: q.eventId,
+    quoteId: q.quoteId,
+    questionId: q.id,
+    ruleIds: q.ruleIds,
+    details: { option: optionId, type: q.type, kind: "decision" },
+    visibility: "hotel",
+  });
+  try {
+    await applyAnswer(q, p, token);
+  } catch (e) {
+    const msg = e instanceof GatewayError ? `${e.body.error}: ${e.body.message}` : (e as Error).message;
+    audit({ actor: personActor(p), action: "gateway_error", summary: `Applying the answer failed: ${msg}`, eventId: q.eventId, questionId: q.id, details: {}, visibility: "hotel" });
+    return { ok: true as const, question: q, error: msg };
+  }
+  return { ok: true as const, question: q };
+}
+
+async function applyAnswer(q: Question, p: Person, token: string) {
+  const f = q.facts as any;
+  if (f.kind === "change") return answerChange(q, p, token);
+  if (f.kind === "allergy") return answerAllergy(q, p);
+  if (f.kind === "final_substitute") return answerFinalSubstitute(q, p);
+  const plan = getPlan(q.planId);
+  if (!plan) return;
+  plan.questionsAnswered += 1;
+  const ov = plan.overrides;
+  let replan = false;
+  if (f.kind === "type") {
+    for (const l of f.lines) for (const n of l.needIds) (q.answer === "yes" ? ov.confirmed : ov.excluded).push(`${n}:${l.productId}`);
+    replan = q.answer === "no";
+  } else if (f.kind === "substitute") {
+    if (q.answer === "use") {
+      ov.confirmed.push(`${f.needId}:${f.substitute}`);
+      rememberSubstitute(f.dishId ?? "request", f.original, f.substitute, p.name, nowIso());
+    } else if (q.answer === "another") {
+      ov.excluded.push(`${f.needId}:${f.substitute}`);
+      replan = true;
+    } else {
+      ov.removedNeeds.push(f.needId);
+      replan = true;
+    }
+  } else if (f.kind === "quantity") {
+    for (const l of f.lines) for (const n of l.needIds) (q.answer === "keep" ? ov.confirmed : ov.removedNeeds).push(q.answer === "keep" ? `${n}:${l.productId}` : n);
+    replan = q.answer === "remove";
+  } else if (f.kind === "approval") {
+    return applyApproval(plan, q, p, token);
+  }
+  savePlan(plan);
+  const chefOpen = openQuestionsForPlan(plan.id).some((x) => x.forRole === "chef" && x.state === "open");
+  if (replan) {
+    await quoteAndDecide(plan);
+    return;
+  }
+  if (!chefOpen) {
+    // All recipe questions answered: re-quote so the approver sees the exact version to sign.
+    await quoteAndDecide(getPlan(plan.id)!);
+  }
+  openWaitingApprover(plan.id);
+}
+
+async function applyApproval(plan: StoredPlan, q: Question, p: Person, token: string) {
+  const f = q.facts as any;
+  if (q.answer === "reject") {
+    plan.status = "rejected";
+    plan.summary = `Rejected by ${p.name}. Nothing was ordered.`;
+    savePlan(plan);
+    return;
+  }
+  if (q.answer === "keep_short") {
+    plan.overrides.keepShort = true;
+    plan.overrides.approvedSoft.push(q.fingerprint!);
+    savePlan(plan);
+    // Keep short: re-quote with only the confirmed stock; the split decision is made.
+    const next = await quoteAndDecide(plan);
+    if (next.status === "waiting") {
+      // The keep-short version has no unknown-stock lines, so any remaining card is for a different reason.
+    }
+    return;
+  }
+  plan.overrides.approvedSoft.push(q.fingerprint!);
+  let approvalId: string | undefined;
+  if ((f.grants ?? []).length) {
+    const a = await gw.approve(token, q.quoteId!, q.fingerprint!, f.grants);
+    approvalId = a.id;
+  }
+  savePlan(plan);
+  await placeFromPlan(plan, approvalId);
+}

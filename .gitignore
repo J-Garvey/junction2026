@@ -4,3 +4,9 @@ data/raw/
 __pycache__/
 *.pyc
 .DS_Store
+.env.local
+node_modules/
+dist/
+*.db
+*.db-*
+apps/api/var/

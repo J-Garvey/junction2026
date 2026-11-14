@@ -1,0 +1,241 @@
+/** Thin client for the hotel app API (/api). Shapes follow apps/api/src/app/routes.ts. */
+import type { AuditEntry, Order, Plan, Question, SingleRequest, WarningRecord, DietGroup, FiredRule, Mandate } from "@aimo/contracts";
+
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    public body: any,
+  ) {
+    super(body?.message ?? body?.error ?? body?.reason ?? `HTTP ${status}`);
+  }
+}
+
+/** Set by the shell: called on 401 so the person picker shows. */
+export const authHooks: { onUnauthorized: () => void } = { onUnauthorized: () => {} };
+
+async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(path, {
+      method,
+      credentials: "same-origin",
+      headers: body === undefined ? {} : { "content-type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch {
+    throw new ApiError(0, { message: "Can't reach the server right now. Nothing has been ordered." });
+  }
+  const text = await res.text();
+  let data: any = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = { message: text.slice(0, 200) };
+  }
+  // The preview gate (not the person picker) refused us: the login expired or the password changed.
+  if (res.status === 401 && typeof data?.message === "string" && data.message.includes("X-Preview-Password")) {
+    window.location.href = "/login";
+    throw new ApiError(res.status, data);
+  }
+  if (res.status === 401) authHooks.onUnauthorized();
+  if (!res.ok) throw new ApiError(res.status, data);
+  return data as T;
+}
+
+export const get = <T>(p: string) => call<T>("GET", p);
+export const post = <T>(p: string, b?: unknown) => call<T>("POST", p, b ?? {});
+
+// ---------- response shapes ----------
+
+export type SceneKey = "1" | "2" | "3" | "4";
+export interface StatusResp {
+  clock: { mode: string; time: string | null; scene: string | null; now: string; scenes: Record<SceneKey, { label: string; time: string }> };
+  dataMode: { mode: "live" | "fixture"; overlay: string | null } | string;
+  model: { provider: string; model: string; configured: boolean };
+  catalogue?: number;
+  testMode?: boolean;
+  chain: { ok: boolean; brokenAt: number | null; entries: number };
+}
+
+export interface Person {
+  id: string;
+  name: string;
+  title: string;
+  role: "chef" | "approver";
+  outlets: string[];
+  hotelScope: boolean;
+}
+export interface Outlet {
+  id: string;
+  name: string;
+}
+export interface PeopleResp {
+  people: Person[];
+  outlets: Outlet[];
+}
+
+export type CoverageLevel = "covered" | "at_risk" | "not_covered" | "warning" | "none";
+export interface Coverage {
+  level: CoverageLevel;
+  text: string;
+}
+export interface HomeEvent {
+  id: string;
+  name: string;
+  serviceDate: string;
+  guests: number;
+  coverage: Coverage;
+  version: number;
+  outlets?: string[];
+}
+export interface HomePlan {
+  id: string;
+  title: string;
+  status: Plan["status"];
+  summary: string;
+  createdAt: string;
+  createdBy: string;
+}
+export interface HomeResp {
+  questions: Question[];
+  events: HomeEvent[];
+  plans: HomePlan[];
+  warnings: WarningRecord[];
+}
+
+export type MessageResp =
+  | { route: "new_request" | "new_request_unsure"; request: SingleRequest; note: string | null }
+  | { route: "event_change"; guests: number | null; events: { id: string; name: string; guests: number; version: number }[] }
+  | { route: "neither"; message: string };
+
+export interface PlanResp {
+  plan: Plan;
+  questions: Question[];
+}
+
+export interface AnswerResp {
+  ok: boolean;
+  question: Question;
+  plan?: Plan | null;
+  error?: string;
+  reason?: string;
+}
+
+export type DiffChange = "added" | "removed" | "up" | "down" | "unchanged" | "needs_substitute";
+export interface DiffLine {
+  productId: string;
+  productName: string;
+  outletId: string;
+  was: number;
+  now: number;
+  unit: string | null;
+  change: DiffChange;
+}
+export interface FinalCheck {
+  at: string;
+  summary: string;
+  lines: { productId: string; productName: string; result: string; detail: string }[];
+}
+export interface EventDish {
+  id: string;
+  name: string;
+  outletId: string;
+  excludesGroups: string[];
+  ingredients: { id: string; text: string; productId?: string; perPortion: { amount: number; unit: string } }[];
+}
+export interface StoredEvent {
+  id: string;
+  name: string;
+  siteId: string;
+  serviceDate: string;
+  guests: number;
+  dietGroups: DietGroup[];
+  dishes: EventDish[];
+  dietsConfirmed: boolean;
+  version: number;
+  removedNeeds: string[];
+  viabilityPlanId: string | null;
+  orderPlanId: string | null;
+  orderedGuests: number | null;
+  lastDiff: DiffLine[] | null;
+  finalCheck: FinalCheck | null;
+  changes: { at: string; by: string; what: string }[];
+}
+export interface DecisionCount {
+  decisions: number;
+  confirmations: number;
+  items: { at: string; by: string; summary: string; ruleIds: string[] }[];
+}
+export interface EventResp {
+  event: StoredEvent;
+  viability: Plan | null;
+  orderPlan: Plan | null;
+  warnings: WarningRecord[];
+  coverage: Coverage;
+  decisions: DecisionCount;
+  questions: Question[];
+}
+export interface ChangeResp {
+  applied?: boolean;
+  reason?: string;
+  diff?: DiffLine[];
+  questionId?: string;
+  [k: string]: unknown;
+}
+
+export interface AuditResp {
+  viewer: "hotel" | "valio";
+  chain: { ok: boolean; brokenAt: number | null; entries: number };
+  entries: AuditEntry[];
+  decisions: DecisionCount | null;
+}
+
+export interface RuleDef {
+  label: string;
+  id: string;
+  area: string;
+  outcome: FiredRule["outcome"];
+  hard: boolean;
+  who: string;
+  trigger: string;
+  template: string;
+}
+export interface RulesResp {
+  rules: RuleDef[];
+  mandate: Mandate;
+  fixed: Record<string, number | string>;
+  remembered: { dish: string; original: string; sub: string; by: string; at: string; spec?: string }[];
+  tokens: { outsideAgent: string; valioViewer: string };
+}
+
+export interface OrdersResp {
+  orders: Order[];
+}
+
+// ---------- calls ----------
+
+export const api = {
+  status: () => get<StatusResp>("/api/status"),
+  people: () => get<PeopleResp>("/api/people"),
+  session: (personId: string) => post<{ person: Person }>("/api/session", { personId }),
+  me: () => get<{ person: Person }>("/api/me"),
+  home: () => get<HomeResp>("/api/home"),
+  message: (text: string) => post<MessageResp>("/api/messages", { text }),
+  request: (request: SingleRequest) => post<PlanResp>("/api/requests", { request }),
+  plan: (id: string) => get<PlanResp>(`/api/plans/${encodeURIComponent(id)}`),
+  answer: (id: string, optionId: string) => post<AnswerResp>(`/api/questions/${encodeURIComponent(id)}/answer`, { optionId }),
+  event: (id: string) => get<EventResp>(`/api/events/${encodeURIComponent(id)}`),
+  events: () => get<{ events: (StoredEvent & { coverage: Coverage })[] }>("/api/events"),
+  viability: (id: string) => post<{ plan: Plan }>(`/api/events/${id}/viability`),
+  orderEvent: (id: string) => post<{ plan: Plan }>(`/api/events/${id}/order`),
+  finalCheck: (id: string) => post<{ finalCheck: FinalCheck }>(`/api/events/${id}/final-check`),
+  cutoff: (id: string) => post<{ flags: unknown }>(`/api/events/${id}/cutoff`),
+  removeNeed: (id: string, needId: string, version: number) => post<{ event: StoredEvent }>(`/api/events/${id}/remove-need`, { needId, version }),
+  guests: (id: string, guests: number, version: number) => post<ChangeResp>(`/api/events/${id}/guests`, { guests, version }),
+  dietGroup: (id: string, group: DietGroup, version: number) => post<ChangeResp>(`/api/events/${id}/diet-groups`, { group, version }),
+  orders: (eventId?: string) => get<OrdersResp>(`/api/orders${eventId ? `?eventId=${encodeURIComponent(eventId)}` : ""}`),
+  audit: (viewer: "hotel" | "valio", eventId?: string) => get<AuditResp>(`/api/audit?viewer=${viewer}${eventId ? `&eventId=${encodeURIComponent(eventId)}` : ""}`),
+  rules: () => get<RulesResp>("/api/rules"),
+  clock: (scene: SceneKey | "live") => post<unknown>("/api/clock", { scene }),
+  reset: () => post<{ ok: boolean }>("/api/reset"),
+};

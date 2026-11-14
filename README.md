@@ -17,7 +17,7 @@ How can a food-service wholesaler let autonomous purchasing agents find products
 - ✅ **Target customer decided:** large hotels, conference hotels and event venues with high-volume catering. See **[ICP.md](ICP.md)**. The base challenge features are still built for any buyer.
 - ⏳ Ask the mentors the remaining questions ([research/stand-questions.md](research/stand-questions.md) first)
 - ⬜ Guardrails design (deliberately later)
-- ⬜ Build
+- ✅ **Build:** the Aimo Copilot prototype (Agent Gateway, hotel agent, web app). See **[docs/build.md](docs/build.md)** to run it
 
 ## Open decisions (team)
 
@@ -37,6 +37,8 @@ What changed when the two uploads were merged is in **[CHANGES.md](CHANGES.md)**
 | [ICP.md](ICP.md) | Target customers, buyer roles, and product scope; external sourcing (e.g. supermarket dropshipping) is non-core, and SMS and calls are cut |
 | [Tech stack](TechStack.md) | TypeScript workspace, web and mobile apps, Agent Gateway, and Sentry |
 | [Hotel catering user stories](docs/hotel-catering-user-stories.md) · [HTML](docs/hotel-catering-user-stories.html) | Draft backlog with acceptance criteria and a suggested Junction demo |
+| [docs/build.md](docs/build.md) | **The prototype:** how to run it, how it fits together, the three test cases and the PRD answers the build chose |
+| `apps/api`, `apps/app`, `packages/contracts` | The TypeScript workspace: gateway and hotel agent, React app, shared Zod schemas |
 | [docs/prd/](docs/prd/README.md) | **The PRD, in 11 chunks and 65 named functions.** Each chunk says how a group of user stories is delivered, the functions to build, and the questions and edge cases still to rule on |
 | [QUESTIONS.md](QUESTIONS.md) | Open team decisions, with both positions for each |
 | [CHANGES.md](CHANGES.md) | Every change made when the two uploads were merged |
@@ -70,6 +72,8 @@ What changed when the two uploads were merged is in **[CHANGES.md](CHANGES.md)**
 | [scripts/profile_products.py](scripts/profile_products.py) | Reproduces the data profile from the raw files |
 
 ## Quick start
+
+To run the prototype: `pnpm install && pnpm --filter @aimo/app build && pnpm start`, then open http://127.0.0.1:8787. Details in [docs/build.md](docs/build.md).
 
 The slim data is already in `data/`, so most work needs no download.
 
