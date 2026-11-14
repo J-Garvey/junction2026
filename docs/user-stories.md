@@ -1,6 +1,6 @@
 # User stories
 
-> **What this is:** the story backlog the PRD agent builds from, grouped by avatar and sorted by importance. Each story is one sentence, **"X so that Y"**: what the avatar does or gets, and why it matters to them. Every story names what it rests on: a team decision (**D1** to **D26**, in [prd-context.md](prd-context.md)), the brief, the data or a research file.
+> **What this is:** the story backlog the PRD agent builds from, grouped by avatar and sorted by importance. Each story is one sentence, **"X so that Y"**: what the avatar does or gets, and why it matters to them. Every story names what it rests on: a team decision (**D1** to **D27**, in [prd-context.md](prd-context.md)), the brief, the data or a research file.
 >
 > It replaces [hotel-catering-user-stories.md](hotel-catering-user-stories.md) (US01 to US12) as the PRD's input. That file is kept as history. Since then (14 Nov): voice calls, SMS and WhatsApp are **cut** (email updates stay an add-on, CH-A6); the supermarket top-up is a **non-core add-on** (CH-A12); the Purchasing Manager is **kept for now as an optional role** (prd-context D1, D2, D15–D22).
 
@@ -15,7 +15,7 @@
 | **Valio Aimo** (VA) | The wholesaler, through the Agent Gateway API, plus its rep | Answers lookups and quotes, takes orders, enforces the hotel's mandate, keeps the audit log |
 | **Purchasing Manager** (optional) | A separate buyer, where the hotel has one | Decides what is bought and how much, with maximum authority for now (D20). No stories yet |
 
-The hotel acts as one entity: the product doesn't verify individual people or permissions (D17). The core is how the hotel can trust the agent to spend (D15), and most food orders are approved automatically (D16).
+A hotel can have several people per role and linked outlets such as a bar and a restaurant (D27, which overrides D17). There is no permissions system, but the product records who did what. The core is how the hotel can trust the agent to spend (D15), and most food orders are approved automatically (D16).
 
 Preference stories (**PF**) belong to the Chef, the Approver or both, as marked.
 
@@ -105,6 +105,13 @@ Preference stories (**PF**) belong to the Chef, the Approver or both, as marked.
 | UI-11 | Chef, Approver | P1 | Get one "all covered" summary instead of a notification per line so that an alert always means action | S4 |
 | UI-12 | Chef | P1 | Answer a question from my phone in under 10 seconds so that the kitchen doesn't stop | S3, S4 |
 | UI-13 | Chef, Approver | P1 | Use the app on my phone so that I can send requests, check orders, and answer questions away from my desk | all |
+| TM-01 | Chef, Approver | P0 | Belong to a hotel with linked outlets, each with its own members and preferences, so that the bar and the restaurant each run their part while the hotel stays one customer | all |
+| TM-02 | Chef, Approver | P0 | Share my role with colleagues, any one of whom can answer, so that a question never waits on one person | S2–S4 |
+| TM-03 | Chef, Approver | P0 | See a question close for everyone once someone answers, with who and when, so that nobody answers twice or contradicts a colleague | S2–S4 |
+| TM-04 | Chef | P0 | Plan one event with another outlet, with each line owned by an outlet, so that the bar manager and the restaurant manager coordinate on one page | S1–S4 |
+| TM-05 | Approver | P0 | Send one Valio Aimo order per delivery site and date, with every line tagged by outlet, so that we get one delivery and can still split the costs | S2 |
+| TM-06 | Shared | P0 | Switch who I'm viewing as in the demo so that multi-person flows can be shown without building logins | all |
+| TM-07 | Chef, Approver | P1 | See that a colleague just changed a line I'm editing, and confirm again, so that nobody's change is silently overwritten | S1, S3 |
 
 Add-ons and parked stories are listed at the end of each avatar's section.
 
@@ -152,7 +159,7 @@ Add-ons and parked stories are listed at the end of each avatar's section.
 - 999999 on Terminal products and 9,999,999,999 base units (scaled) on Stock products both display as "unknown stock".
 - They are suggested, but ranked below any product with a real stock figure that passes the same rules.
 - Ordering one needs the Approver to **accept the unknown-stock risk** (AP-13). That approval never turns the stock into "confirmed": the line stays labelled unknown.
-- At the final check such a line shows "covered at risk: unknown stock, accepted by the Approver on [date]", never plain "covered".
+- At the final check such a line shows "covered at risk: unknown stock, accepted by [person] on [date]", never plain "covered".
 - This matters for the milk case: 20 of the lactose-free milks are Terminal. [API, GROUND_TRUTH 4.3]
 
 **CH-06** Judge a substitute side by side with one yes/no question so that I can decide fast whether my dish still works.
@@ -298,7 +305,7 @@ Add-ons and parked stories are listed at the end of each avatar's section.
 **AP-13** Accept or refuse the risk of ordering a product with unknown stock so that we can still order it, knowingly.
 *S2, S4, M · D23*
 - The question says plainly: "Valio Aimo cannot confirm stock for [product]. Order it anyway?" and names any known-stock alternative.
-- A yes means "accept the risk", never "stock confirmed". The line keeps its "unknown stock" label everywhere, and the audit records that the Approver accepted it (roles, not individuals: D17).
+- A yes means "accept the risk", never "stock confirmed". The line keeps its "unknown stock" label everywhere, and the audit records who accepted it (D27).
 - A pre-answer (AP-11) can cover it, e.g. "accept unknown stock on approved products under €200".
 
 ### P1
@@ -407,7 +414,7 @@ Add-ons and parked stories are listed at the end of each avatar's section.
 **VA-11** Require every call to name the hotel, site and role so that I can check it against the mandate.
 *all · D11, GROUND_TRUTH 7*
 - A header for Junction; OAuth 2.0 Token Exchange (`act` claim) named as the production path.
-- Identifies the hotel only: the hotel acts as one entity, and individual people aren't verified (D17).
+- Names the hotel, the outlet and the person acting (D27). Verifying the person with real logins is an add-on (TM-A1).
 
 **VA-12** Send unresolved-at-cut-off flags to the rep so that they can call the hotel before picking.
 *S4 · D9*
@@ -506,7 +513,8 @@ How people use the app (D26). The rule underneath every story: **type to ask, ta
 **UI-02** See each waiting question with its deadline, soonest first, so that I never hunt for what needs me.
 *S2–S4 · D9, D14*
 - Each item shows the event, a one-line question, and its deadline (the cut-off, D9).
-- Only questions routed to my role appear (D6): recipe questions to the chef, money and policy to the approver.
+- Only questions routed to my role and my outlets appear (D6, D27): recipe questions to that outlet's chef, money and policy to the approver.
+- A question someone else already answered disappears from my list and shows in the event as "Answered by [person], [time]" (TM-03).
 
 **UI-03** Answer every question on one card with two or three buttons so that I never have to type to decide.
 *S2–S4, M · D9, D14*
@@ -562,7 +570,62 @@ How people use the app (D26). The rule underneath every story: **type to ask, ta
 *all · [TechStack.md](../TechStack.md)*
 - On a phone in portrait mode, the chef can send or edit a request and check the order status. The approver can open a quote, see its total and cut-off, and submit a decision.
 - Text, fields, and buttons stay readable and usable without horizontal scrolling or zoom. The on-screen keyboard leaves the current field and its submit action reachable.
-- Verify the same flow in mobile Safari on iOS, Chrome on Android, and the Capacitor build on both platforms. A decision made on a phone shows up on the web with the same order status and audit entry.
+- Verify the same flow in mobile Safari on iOS, Chrome on Android, and the Capacitor build on both platforms. When a colleague answers on either device, the question closes on both, and each shows who answered and when (TM-03).
+
+---
+
+## Teams and outlets
+
+A hotel has linked **outlets** (bar, restaurant, banquet kitchen), each with its own people, and several people can share a role (D27). This overrides D17's "hotel acts as one entity": there is still no permissions system, but the product knows who did what.
+
+### P0
+
+**TM-01** Belong to a hotel with linked outlets, each with its own members and preferences, so that the bar and the restaurant each run their part while the hotel stays one customer.
+*all · D27, GROUND_TRUTH 5*
+- The hotel is one Valio Aimo customer with one mandate (AP-06). Outlets sit inside it.
+- Each person has a role (Chef or Approver) and one or more outlets; an Approver can cover the whole hotel.
+- Preferences (PF-02) can be set per outlet, e.g. the bar's brands and the restaurant's origin rules.
+- Mirrors Valio Aimo's linked accounts for multi-site users.
+
+**TM-02** Share my role with colleagues, any one of whom can answer, so that a question never waits on one person.
+*S2–S4 · D27*
+- A question goes to everyone with that role in that outlet (two chefs, two financial controllers).
+- Any one of them can answer; it doesn't need all of them.
+
+**TM-03** See a question close for everyone once someone answers, with who and when, so that nobody answers twice or contradicts a colleague.
+*S2–S4 · D27, D9*
+- The first answer wins and the card closes for all; others see "Answered by [person], [time]".
+- The audit records the person, not just the role (AP-05).
+
+**TM-04** Plan one event with another outlet, with each line owned by an outlet, so that the bar manager and the restaurant manager coordinate on one page.
+*S1–S4 · D27, D6*
+- Each line is tagged with its outlet; recipe questions go to that outlet's chef (a wine swap to the bar manager, never the restaurant chef).
+- Everyone on the event sees all of it, with their own outlet's lines first (UI-07).
+
+**TM-05** Send one Valio Aimo order per delivery site and date, with every line tagged by outlet, so that we get one delivery and can still split the costs.
+*S2 · D27*
+- Lines from several outlets for the same site and date go out as one order.
+- The outlet tag stays on each line in the order, the receipt and the audit.
+
+**TM-06** Switch who I'm viewing as in the demo so that multi-person flows can be shown without building logins.
+*all · D27*
+- A visible "viewing as [person, role, outlet]" switcher; every action is attributed to the person selected.
+- Labelled as a demo stand-in for real logins (TM-A1).
+
+### P1
+
+**TM-07** See that a colleague just changed a line I'm editing, and confirm again, so that nobody's change is silently overwritten.
+*S1, S3 · D27*
+- The second editor sees "Changed by [person] just now" with the new value, and confirms or redoes their change.
+
+### Add-on
+
+| ID | Story | Basis |
+|---|---|---|
+| TM-A1 | Sign in with my own login and invite colleagues so that each person has secure access of their own | D27 |
+| TM-A2 | Give each outlet its own spend cap so that the bar's budget is separate from the restaurant's | D27, D19 |
+| TM-A3 | Require two approvers above a set amount so that large orders need both financial controllers to sign | D27 |
+| TM-A4 | Split an event's cost by outlet afterwards so that each outlet sees what it spent | D27 |
 
 ---
 
