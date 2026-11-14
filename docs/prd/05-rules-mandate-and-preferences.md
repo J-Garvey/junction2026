@@ -34,7 +34,7 @@ D15 names this the core of the product: how a hotel can trust an agent to spend 
 | Preferences | Brand, origin, price vs reliability, pre-answers | Chef or Approver | Hotel agent | Yes, per event or request |
 
 - **Hard rules are code with stable IDs.** About 30 are already written in [human-approval-rules.md](../human-approval-rules.md). Each has an outcome (order, ask, block), a message template and a test. [D12]
-- **Blocked lines have no approve option.** Blocked means: allergen or diet failure, no delivery dates, no price, past cut-off. Unknown stock is not blocked; it is a risk the Approver can accept. [D23]
+- **Blocked lines have no approve option.** Blocked means: allergen or diet failure, no delivery dates, no price, past cut-off. Unconfirmed stock is not blocked; it is a question the person building the order can continue past. [D31]
 - **The mandate is one object**, registered with the gateway, which refuses orders that break it. [D11]
 - **Spend caps are per order.** [D19]
 - **For Junction the mandate and profile are pre-filled.** Setup screens are non-core. [D18]
@@ -113,7 +113,7 @@ Each function is one problem that can be built and tested alone. "Deterministic 
 | Price rise that needs no question | 5% | Hotel | `QUOTE-RECHECK` | Q05.4 |
 | Rounding overshoot that needs no question | Up to 10% or up to €25 | Hotel | `OVERSHOOT-CHECK` | Q03.2 |
 | Partial fill accepted without asking | Not set | Hotel | `PREANSWER-MATCH` | Q05.6 |
-| Unknown stock accepted without asking | Not set | Hotel | `PREANSWER-MATCH` | Q05.6 |
+| Unconfirmed stock: continue without asking | Not set | Hotel | `PREANSWER-MATCH` | Q05.6 |
 | "Very large order" threshold | Not set | Hotel | Add-on only | D2 |
 | Agreed delivery days | Monday to Friday | Hotel | `NEEDED-BY` | Q04.4 |
 | Days before service that goods must arrive | 1 day; 2 days for frozen | Hotel or recipe | `NEEDED-BY` | Q04.3 |

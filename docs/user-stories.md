@@ -1,6 +1,6 @@
 # User stories
 
-> **What this is:** the story backlog the PRD agent builds from, grouped by avatar and sorted by importance. Each story is one sentence, **"X so that Y"**: what the avatar does or gets, and why it matters to them. Every story names what it rests on: a team decision (**D1** to **D30**, in [prd-context.md](prd-context.md)), the brief, the data or a research file.
+> **What this is:** the story backlog the PRD agent builds from, grouped by avatar and sorted by importance. Each story is one sentence, **"X so that Y"**: what the avatar does or gets, and why it matters to them. Every story names what it rests on: a team decision (**D1** to **D31**, in [prd-context.md](prd-context.md)), the brief, the data or a research file.
 >
 > It replaces [hotel-catering-user-stories.md](hotel-catering-user-stories.md) (US01 to US12) as the PRD's input. That file is kept as history. Since then (14 Nov): voice calls, SMS and WhatsApp are **cut** (email updates stay an add-on, CH-A6); the supermarket top-up is a **non-core add-on** (CH-A12); the Purchasing Manager is **kept for now as an optional role** (prd-context D1, D2, D15–D22).
 
@@ -38,7 +38,7 @@ Preference stories (**PF**) belong to the Chef, the Approver or both, as marked.
 | CH-02 | Chef | P0 | See every line as green, amber or red months ahead so that I know whether I can realistically make the menu from Valio Aimo goods | S1 |
 | CH-03 | Chef | P0 | Get the right product type, not a lookalike from the same category, so that I don't have to correct the basket | S1, M |
 | CH-04 | Chef | P0 | Get my per-portion amounts as whole packs so that the order is something Valio Aimo can actually pick | S1, S2 |
-| CH-05 | Chef | P0 | Still see products with unknown stock, flagged as unknown and needing approval, so that I keep options without ever mistaking them for confirmed stock | S1, S4, M |
+| CH-05 | Chef | P0 | Be asked whether to continue when a product's stock can't be confirmed so that I keep the option without ever mistaking it for confirmed stock | S1, S4, M |
 | CH-06 | Chef | P0 | Judge a substitute side by side with one yes/no question so that I can decide fast whether my dish still works | S4 |
 | CH-07 | Chef | P0 | Update guest and diet counts and see the full order with every change colour-coded so that I check the changes in context without redoing the order | S3 |
 | CH-08 | Chef | P0 | See the cut-off as the deadline on any final-check question so that I know how long I have to answer | S4 |
@@ -58,7 +58,6 @@ Preference stories (**PF**) belong to the Chef, the Approver or both, as marked.
 | AP-04 | Approver | P0 | See no approve option on blocked lines so that I can't accidentally waive a diet rule or confirm unknown stock | S1–S4 |
 | AP-05 | Approver | P0 | Read a log of everything the agent did and why so that I can trust it and show my director | all |
 | AP-06 | Approver | P0 | Hold our rules as one mandate so that the agent and Valio Aimo enforce the same thing | all |
-| AP-13 | Approver | P0 | Accept or refuse the risk of ordering a product with unknown stock so that we can still order it, knowingly | S2, S4, M |
 | AP-07 | Approver | P1 | Have my approval tied to the exact quote so that it can't be reused for a different order | S2 |
 | AP-08 | Approver | P1 | Have small changes at the 2–3-week point applied without me so that the clarification call disappears for normal changes | S3 |
 | AP-09 | Approver | P1 | Get money questions only after the chef says yes so that I never approve something the chef would reject | S4 |
@@ -154,13 +153,13 @@ Add-ons and parked stories are listed at the end of each avatar's section.
   6. Any buffer (CH-A5) is added before rounding.
 - Shows the overshoot on every rounded line.
 
-**CH-05** Still see products with unknown stock, flagged as unknown and needing approval, so that I keep options without ever mistaking them for confirmed stock.
-*S1, S4, M · GROUND_TRUTH 3 · D23*
-- 999999 on Terminal products and 9,999,999,999 base units (scaled) on Stock products both display as "unknown stock".
-- They are suggested, but ranked below any product with a real stock figure that passes the same rules.
-- Each one shows a warning wherever it appears, not only a label: "Warning: Valio Aimo can't confirm stock for this product." The warning stays after the risk is accepted.
-- Ordering one needs the Approver to **accept the unknown-stock risk** (AP-13). That approval never turns the stock into "confirmed": the line stays labelled unknown.
-- At the final check such a line shows "covered at risk: unknown stock, accepted by [person] on [date]", never plain "covered".
+**CH-05** Be asked whether to continue when a product's stock can't be confirmed so that I keep the option without ever mistaking it for confirmed stock.
+*S1, S4, M · GROUND_TRUTH 3 · D31*
+- 999999 on Terminal products and 9,999,999,999 base units (scaled) on Stock products both mean the stock can't be confirmed.
+- These products are still suggested, but ranked below any product with a real stock figure that passes the same rules.
+- When one is picked, the person building the order is asked a question, not shown a warning: "Valio Aimo can't confirm stock for [product]. Continue with it?" They can continue or pick another. The Approver is not asked.
+- The line is labelled "stock not confirmed" everywhere and is never shown as confirmed, including after the final check.
+- A pre-answer (AP-11) can skip the question, for example on cheap lines.
 - This matters for the milk case: 20 of the lactose-free milks are Terminal. [API, GROUND_TRUTH 4.3]
 
 **CH-06** Judge a substitute side by side with one yes/no question so that I can decide fast whether my dish still works.
@@ -288,9 +287,9 @@ Add-ons and parked stories are listed at the end of each avatar's section.
 - For the milk case: the products with real stock figures, their litres and total, and the rest named "unknown stock".
 
 **AP-04** See no approve option on blocked lines so that I can't accidentally waive a diet rule or confirm unknown stock.
-*S1–S4 · approval rules · D23*
+*S1–S4 · approval rules · D31*
 - Blocked: allergen or diet failure, no delivery dates, price `error: true`, past cut-off.
-- Unknown stock is **not** blocked: it is a separate question asking me to accept the risk (AP-13), and it is never shown as confirmed.
+- Unconfirmed stock is **not** blocked: it is a question to the person building the order (CH-05), and it is never shown as confirmed.
 - Each blocked line says what would unblock it (a different product or a different request).
 
 **AP-05** Read a log of everything the agent did and why so that I can trust it and show my director.
@@ -303,12 +302,6 @@ Add-ons and parked stories are listed at the end of each avatar's section.
 - The mandate holds sites, roles, spend cap, approved products, tolerances, the "very large order" threshold and soft defaults.
 - For Junction the mandate may be a read-only fixture; editing it is the PRD's call.
 - The mandate is registered with the gateway (VA-04), not only kept by the agent.
-
-**AP-13** Accept or refuse the risk of ordering a product with unknown stock so that we can still order it, knowingly.
-*S2, S4, M · D23*
-- The question says plainly: "Valio Aimo cannot confirm stock for [product]. Order it anyway?" and names any known-stock alternative.
-- A yes means "accept the risk", never "stock confirmed". The line keeps its "unknown stock" label everywhere, and the audit records who accepted it (D27).
-- A pre-answer (AP-11) can cover it, e.g. "accept unknown stock on approved products under €200".
 
 ### P1
 
@@ -362,6 +355,7 @@ Add-ons and parked stories are listed at the end of each avatar's section.
 |---|---|---|
 | AP-P2 | Review phone decisions, or approve a quote from an SMS or WhatsApp link (former AP-A6, AP-A7, added 14 Nov) | Cut on 14 Nov with the other channels; see CH-P2. Full text in git history (commit 1b64da9) |
 | AP-P1 | Pick which wholesaler gets the order so that we get the best offer | Valio Aimo only; a buyer agent comparing wholesalers is the marketplace the brief rules out (D2) |
+| AP-13 | Accept or refuse the risk of ordering a product with unknown stock so that we can still order it, knowingly | Withdrawn 14 Nov (D31): the stock question now goes to the person building the order, see CH-05 |
 | AP-P3 | Get warned when a recurring weekly order drifts (portions creeping up, cost rising) so that it isn't renewed blindly | A brief scenario, but recurring orders like breakfast are already templated and outside our event segment (research/06) |
 
 ---
@@ -535,8 +529,8 @@ How people use the app (D26). The rule underneath every story: **type to ask, ta
 - Opens in place (a popover or drawer), not a new page.
 
 **UI-06** See one set of status labels on every screen so that I read state at a glance.
-*all · D7, D21, D23*
-- Labels: green, amber, red (D7); unknown stock and covered at risk (D23); externally sourced (D21); awaiting answer; blocked.
+*all · D7, D21, D31*
+- Labels: green, amber, red (D7); stock not confirmed (D31); externally sourced (D21); awaiting answer; blocked.
 - Same colour and wording everywhere; never colour alone (each has a text label).
 
 **UI-07** Open one page per event with its menu, order, open questions and timeline so that the chef and the approver look at the same thing.
@@ -547,7 +541,7 @@ How people use the app (D26). The rule underneath every story: **type to ask, ta
 **UI-08** See what the agent didn't do as prominently as what it did so that gaps are never hidden.
 *all · D14*
 - Blocked, unresolved and at-risk lines sit at the top of the event page and the order, above lines that are fine.
-- A summary never says "covered" while any line is at risk; it says "covered, 2 at risk".
+- A summary never says "covered" alone while any line's stock is unconfirmed; it says how many lines are unconfirmed.
 
 ### P1
 
@@ -649,7 +643,7 @@ Core rules shared by every scene, followed by add-ons for the teams that run the
 **SF-06** Rank candidates good-better-best in one fixed order so that the same request always gives the same pick and the pick can be explained.
 *P0 · BRIEF response logic*
 - Only candidates that pass every hard rule are ranked. Then, in order:
-  1. real stock figure over unknown stock (D23);
+  1. real stock figure over unknown stock (D31);
   2. recipe-approved or brand-matching over not;
   3. higher delivery reliability (unknown sorts below known-good, above known-poor);
   4. lower total price per kg or L after pack rounding (D25);

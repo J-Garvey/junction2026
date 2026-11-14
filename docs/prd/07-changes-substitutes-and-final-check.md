@@ -51,7 +51,7 @@ Each function is one problem that can be built and tested alone. "Deterministic 
 | `SPEC-COMPARE` | Deterministic code | Two products | Side-by-side rows with the differences marked | Built from the data only. | Q07.5 |
 | `APPROVAL-RECALL` | Deterministic code | Recipe, original product, substitute | A remembered yes, or none | Void if the substitute's spec has changed. | Q07.6 |
 | `SILENCE-RESOLVE` | Deterministic code | The questions still open at a cut-off | The order unchanged, and flags to the Approver and the rep | Never change the order. | Q07.8 |
-| `COVERAGE-SUMMARY` | Deterministic code | The order's state | One summary line | Never "covered" alone while a line is at risk or carries a warning. | Q07.7 |
+| `COVERAGE-SUMMARY` | Deterministic code | The order's state | One summary line | Never "covered" alone while a line's stock is unconfirmed or a line carries a warning. | Q07.7 |
 
 **Decisions API calls in this chunk.** The question wording is a recommendation for the owner to settle.
 
@@ -91,9 +91,9 @@ Each function is one problem that can be built and tested alone. "Deterministic 
 - **Answer:** **Answered** (Darragh, 14 Nov): agreed as recommended.
 
 **Q07.7 What does the hotel see when the final check finishes?**
-- Recommended: one of three summaries per event, and never "covered" alone while anything is at risk:
+- Recommended: one of three summaries per event, and never "covered" alone while any line's stock is unconfirmed:
   - "Covered."
-  - "Covered, 2 lines at risk (unknown stock)."
+  - "Covered. Valio Aimo can't confirm stock on 2 lines." (Reworded on 14 Nov for D31; it was "Covered, 2 lines at risk".)
   - "Not covered: 1 line needs an answer by Sun 17:00."
 - **Answer:** **Answered** (Darragh, 14 Nov): agreed as recommended.
 

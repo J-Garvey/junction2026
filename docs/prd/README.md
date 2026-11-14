@@ -16,7 +16,7 @@
 
 Three rules while answering:
 
-- **The "How: what's already settled" section is not up for debate inside a chunk.** It restates team decisions (D1 to D30 in [prd-context.md](../prd-context.md)). To change one, raise it with the team and update prd-context.md first.
+- **The "How: what's already settled" section is not up for debate inside a chunk.** It restates team decisions (D1 to D31 in [prd-context.md](../prd-context.md)). To change one, raise it with the team and update prd-context.md first.
 - **Recommended answers are proposals, not decisions.** They were drafted from the stories and the data so that nobody starts from a blank page. Nothing in a "Recommended" line has been agreed by the team.
 - **Core only.** Add-on and parked stories are not designed here.
 
@@ -29,13 +29,13 @@ Three rules while answering:
 | 03 | [Quantities, packs and rounding](03-quantities-and-rounding.md) | A | 2 (1) | 5 | 6 (6) | 6 | Ben |
 | 04 | [Viability, stock and timing](04-viability-stock-and-timing.md) | A | 5 (3) | 6 | 7 (7) | 6 | Darragh |
 | 05 | [Rules, mandate and preferences](05-rules-mandate-and-preferences.md) | B | 9 (3) | 6 | 10 (8) | 6 | Darragh |
-| 06 | [Questions, approvals and teams](06-questions-approvals-and-teams.md) | B | 14 (11) | 6 | 9 (8) | 6 | Jack |
+| 06 | [Questions, approvals and teams](06-questions-approvals-and-teams.md) | B | 13 (10) | 6 | 9 (8) | 6 | Jack |
 | 07 | [Changes, substitutes and the final check](07-changes-substitutes-and-final-check.md) | B | 10 (3) | 11 | 10 (8) | 8 | Darragh |
 | 08 | [Agent Gateway and orders](08-gateway-and-orders.md) | C | 10 (6) | 8 | 10 (10) | 7 | Pavit |
 | 09 | [Audit and explanations](09-audit-and-explanations.md) | C | 7 (3) | 7 | 7 (6) | 6 | Ben |
 | 10 | [Interface](10-interface.md) | C | 8 (4) | 0 | 9 (9) | 6 | Jack |
 | 11 | [Fixtures, clock and test cases](11-fixtures-clock-and-tests.md) | C | 2 (2) | 4 | 6 (6) | 5 | Ben |
-| | **Total** | | **78 (43)** | **65** | **90 (82)** | **69** | |
+| | **Total** | | **77 (42)** | **65** | **90 (82)** | **69** | |
 
 The tracks group chunks by topic. Owners cut across them.
 
@@ -157,7 +157,7 @@ All from Jack, 14 Nov. The rest of the team hasn't confirmed them yet.
 
 | Question | Ruling |
 |---|---|
-| D23: unknown stock | **Louder.** Still suggested and labelled, and now always shown with a warning, not as a plain label. |
+| Unconfirmed stock (D31, replaces D23) | **A question, not a warning.** The person building the order is asked and can continue or pick another. The Approver isn't asked. Story AP-13 is withdrawn. |
 | D26 to D30 | **Confirmed** as written in [prd-context.md](../prd-context.md). |
 | [Q07.9](07-changes-substitutes-and-final-check.md): a late allergy makes an ordered line unsafe and nobody resolves it | **The order goes ahead, with a big warning that is impossible to miss** (D28). The agent never removes the line by itself. |
 | [Q07.10](07-changes-substitutes-and-final-check.md): where the allergy warning shows | **Everywhere, in the same words**, until resolved. Wording still to finalise. |
@@ -190,7 +190,7 @@ Chunks depend on each other, so some answers are needed before others:
 | 03 Quantities, packs and rounding | CH-04, CH-12 |
 | 04 Viability, stock and timing | CH-02, CH-05, CH-17, SF-07, AP-14 |
 | 05 Rules, mandate and preferences | SF-03, SF-04, AP-04, AP-06, AP-11, PF-02, PF-03, PF-04, PF-05 |
-| 06 Questions, approvals and teams | AP-01, AP-02, AP-03, AP-07, AP-09, AP-13, TM-01, TM-02, TM-03, TM-04, TM-06, TM-07, UI-02, UI-03 |
+| 06 Questions, approvals and teams | AP-01, AP-02, AP-03, AP-07, AP-09, TM-01, TM-02, TM-03, TM-04, TM-06, TM-07, UI-02, UI-03 |
 | 07 Changes, substitutes and the final check | CH-06, CH-07, CH-08, CH-11, CH-13, CH-14, AP-08, AP-10, VA-12, UI-11 |
 | 08 Agent Gateway and orders | VA-02, VA-03, VA-04, VA-05, VA-07, VA-08, VA-09, VA-10, VA-11, TM-05 |
 | 09 Audit and explanations | AP-05, VA-06, AP-12, CH-10, UI-05, PF-06, SF-05 |

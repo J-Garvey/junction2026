@@ -16,7 +16,6 @@
 | AP-03 | P0 | Approve a fill split across several products so that the order still goes in when no single product covers it |
 | AP-07 | P1 | Have my approval tied to the exact quote so that it can't be reused for a different order |
 | AP-09 | P1 | Get money questions only after the chef says yes so that I never approve something the chef would reject |
-| AP-13 | P0 | Accept or refuse the risk of ordering a product with unknown stock so that we can still order it, knowingly |
 | TM-01 | P0 | Belong to a hotel with linked outlets, each with its own members and preferences, so that the bar and the restaurant each run their part while the hotel stays one customer |
 | TM-02 | P0 | Share my role with colleagues, any one of whom can answer, so that a question never waits on one person |
 | TM-03 | P0 | See a question close for everyone once someone answers, with who and when, so that nobody answers twice or contradicts a colleague |
@@ -63,7 +62,7 @@ Each function is one problem that can be built and tested alone. "Deterministic 
 |---|---|---|
 | Missing or ambiguous request details | Chef | Chips to fill in |
 | Substitute: will the dish still work? | Chef | Use this one / Use another / None of these |
-| Unknown stock: accept the risk? | Approver | Accept the risk / Use the alternative |
+| Stock can't be confirmed: continue? | The person building the order, normally the Chef (D31) | Continue / Pick another |
 | Partial fill | Approver | Approve the split / Keep short / Reject |
 | Rounding overshoot above tolerance | Approver | Accept / Round down / Switch pack |
 | Over the spend cap | Approver | Approve / Reject |
