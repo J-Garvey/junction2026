@@ -169,8 +169,35 @@ Add-ons and parked stories are listed at the end of each avatar's section.
 | CH-A3 | Get compatibility tags suggested ahead of time so that fewer substitutes need my answer | D6 |
 | CH-A4 | Subtract stock the hotel already has so that we don't buy what's already in the store room | old US02; chef interview Q12 |
 | CH-A5 | Set a buffer above the confirmed count, per dish, so that late extra guests don't run us short | research/07 open; chef interview Q11 |
-| CH-A6 | Send requests and get updates by email, SMS or phone so that I can use the agent mid-service | ICP.md |
+| CH-A6 | Send requests and get updates by email so that I can use the agent mid-service | ICP.md |
 | CH-A7 | Get a reminder, then have my named backup (e.g. sous chef) asked, so that a question never dies because I'm busy | D9 |
+| CH-A8 | Call in a request or change so that I can add it to the right event without opening the app | ICP.md, D10, old US09 |
+| CH-A9 | Get a call about a shortfall so that I can answer before the cut-off | ICP.md, D8, D9, old US10 |
+| CH-A10 | Text a request or change by SMS so that I can update an event between services | ICP.md, D4, D10, old US09 |
+| CH-A11 | Answer a substitution question in WhatsApp so that I can decide before the cut-off | D6, D8, D9, old US10 |
+
+**CH-A8** Call in a request or change so that I can add it to the right event without opening the app.
+*S3, M · ICP.md, D10, old US09*
+- The agent says it is an AI assistant. It asks for the hotel site, event reference, item or change, amount and unit, and when it is needed. It reads back the key details and lets the chef correct them.
+- The agent checks the caller's role before it shares order details. A phone number alone cannot verify a caller. If the event or role is unclear, it saves the request for staff review.
+- A confirmed read-back feeds the same request and order checks as typed input (CH-07, CH-09). The agent tells the chef whether it captured a request or has a confirmed result from the gateway.
+
+**CH-A9** Get a call about a shortfall so that I can answer before the cut-off.
+*S4 · ICP.md, D8, D9, old US10*
+- The agent calls the hotel's named contact. It names the event, explains the shortfall, gives the deadline and asks one question. It reads back the answer and links it to the open decision and its version.
+- A busy line, voicemail, dropped call or unclear answer leaves the decision open. Staff can see the outcome and use the next contact in the hotel's policy. Voicemail gives a callback number and omits order details.
+
+**CH-A10** Text a request or change by SMS so that I can update an event between services.
+*S3, M · ICP.md, D4, D10, old US09*
+- Match the SMS to the hotel site and event using the sender's verified contact and the event or request reference. If the site, event, sender's role, amount, unit or date is unclear, ask for the missing detail and leave the change pending.
+- Read back the change in a short text. For a headcount change, include the old and new counts and check whether the diet counts changed. Once confirmed, run the same checks as a change entered in the app (CH-07, CH-09).
+- Send one update with the request reference and its status. If the SMS fails to send, show that in the app and keep any open decision pending.
+
+**CH-A11** Answer a substitution question in WhatsApp so that I can decide before the cut-off.
+*S4 · D6, D8, D9, old US10*
+- Send the hotel's verified WhatsApp contact the event reference, a short note about the proposed swap, and the cutoff. Link to the side-by-side product details and dietary checks (CH-06).
+- Tie the chef's reply to the open question and its version. Record the answer only when the chef's role and the decision are clear. If the offer changed, show the new terms and ask again.
+- If the message fails, the answer is unclear, or nobody replies, keep the decision open and follow the hotel's contact rules. A read receipt leaves the decision open.
 
 ### Parked
 
@@ -253,6 +280,19 @@ Add-ons and parked stories are listed at the end of each avatar's section.
 | AP-A3 | See a partner-sourcing request's status ("awaiting Valio Aimo") on my order so that I know what Valio Aimo is still working on | D2, D3 |
 | AP-A4 | Review an event's purchasing cost and issues afterwards so that the next event is cheaper and smoother | old US12 |
 | AP-A5 | Name a backup for each role so that questions still get answered when someone is away | D9 |
+| AP-A6 | Review a decision made by phone so that I can check what the caller heard and how they answered | D9, D11, old US10 |
+| AP-A7 | Open the exact quote from an SMS or WhatsApp message so that I can approve or reject it from my phone | D1, D9, D11, old US10 |
+
+**AP-A6** Review a decision made by phone so that I can check what the caller heard and how they answered.
+*S2, S4 · D9, D11, old US10*
+- The call record shows the time, direction, outcome, call reference and linked event or order. Hotel staff with access can see the transcript when one is available. A repeat provider delivery creates one call record.
+- The agent can capture a spoken answer for review. A purchase exception still needs proof of the approver's role and approval tied to the exact quote (AP-02, AP-07). Unclear answers and hard blocks stay open for the right staff to handle.
+
+**AP-A7** Open the exact quote from an SMS or WhatsApp message so that I can approve or reject it from my phone.
+*S2, S3, S4 · D1, D9, D11, old US10*
+- Send the named approver the event reference, decision needed, and deadline through their chosen channel. The link opens the quote for signed-in review with the items, quantities, total, delivery terms and reason for approval (AP-02).
+- Check the approver's role and bind the answer to the exact quote. If the quote changes, ask again (AP-07). Blocked lines still have no approve option (AP-04).
+- The same decision can continue by voice, SMS, WhatsApp or in the app. Keep one event history with the channel, time, actor, decision version and outcome. A duplicate delivery or reply cannot apply the same decision twice.
 
 ### Parked
 
