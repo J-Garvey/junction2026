@@ -17,6 +17,11 @@ import os
 import re
 import sys
 
+if __package__:
+    from .hotel_tags import hotel_tags
+else:
+    from hotel_tags import hotel_tags
+
 NUTR = {"ENER-KJO": "kj", "ENER-E14": "kcal", "FAT": "fat", "FASAT": "sat", "CHOAVL": "carb",
         "SUGAR-": "sugar", "FIBTG": "fibre", "PRO-": "prot", "SALTEQ": "salt", "LACS": "lactose"}
 TEMP_LABELS = {"warmTemperature": "warm", "coolTemperature": "cool", "freezeTemperature": "freeze"}
@@ -161,6 +166,9 @@ def slim(p, co2, rel):
         o["co2_kg_per_kg"] = r4(co2[p["id"]])
     if p["id"] in rel:
         o["reliability"] = rel[p["id"]]
+    tags = hotel_tags(o)
+    if tags:
+        o["hotel_tags"] = tags
     return o
 
 

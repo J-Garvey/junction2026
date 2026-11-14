@@ -6,7 +6,7 @@ All data is synthetic and for Junction 2026 only.
 ## Files in `data/`
 | File | Size | Use |
 |---|---|---|
-| `products_slim.jsonl` | ~11 MB | Main table. One JSON object per line. Load this. |
+| `products_slim.jsonl` | ~12 MB | Main table with hotel use tags. One JSON object per line. |
 | `products_core.csv` | ~3.7 MB | Flat subset of the same rows (lists space-separated). For grep / spreadsheets. |
 | `ingredients.jsonl` | ~5.6 MB | `id`, ingredient statement `en` / `fi`. Free text; allergens are in CAPITALS in the source. |
 | `categories.csv` | 55 kB | Category code → product count, dominant temperature label, top vendor, 3 example names. Category names are not in the dataset; this is the only decode. |
@@ -51,6 +51,19 @@ Dropped fields: marketing texts, media ids, storage / usage / preparation / disp
 | `deposits` | [obj]? | Returnable-packaging deposits charged with the product. |
 | `co2_kg_per_kg` | num? | Product-GROUP average kg CO2-eq per kg, not a per-product measurement. 63% coverage. |
 | `reliability` | num? | Historical delivered / ordered quantity, 0–1. 25% coverage. Missing = unknown, not bad. |
+| `hotel_tags` | [str]? | Inferred hotel uses and product roles. Treat a missing field as an empty list. |
+
+## Hotel use tags
+
+The [tag rules](../scripts/hotel_tags.py) use Aimo category codes and Finnish and English product names. The catalog builder applies the rules on each rebuild. A product can match more than one service and role. Each detailed tag includes its service prefix, and every tagged row also carries the matching service tag.
+
+| Service tag | Example detailed tags |
+|---|---|
+| `breakfast` | `breakfast:milk`, `breakfast:croissants`, `breakfast:eggs`, `breakfast:cereals_and_porridge` |
+| `banquet` | `banquet:appetizers`, `banquet:prepared_mains`, `banquet:desserts`, `banquet:buffet_equipment` |
+| `room_service` | `room_service:sandwiches_and_wraps`, `room_service:burgers`, `room_service:pizza`, `room_service:meal_packaging` |
+
+Use a detailed tag to shortlist products for a specific need. Service tags cover ingredients, drinks and supplies, and can include bulk kitchen packs. For lactose-free breakfast milk, combine `breakfast:milk` with the supplier claim `FREE_FROM_LACTOSE`. Check allergen declarations, packs, price and stock before order decisions. Hotel tags represent likely uses. Buyer approval and supplier data come from their own fields and systems.
 
 ## Quantity conversion
 ```
