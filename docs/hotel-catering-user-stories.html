@@ -1,0 +1,264 @@
+<!doctype html>
+<!-- Rendered from hotel-catering-user-stories.md. Update both views when the stories change. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hotel catering user stories | Junction 2026</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #fcfbf7;
+      --ink: #202824;
+      --muted: #4b5a51;
+      --link: #155541;
+      --rule: #cfd9d0;
+      --wash: #e8efe8;
+      --gutter: 2rem;
+      font-family: "Source Sans 3", system-ui, sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font-size: 1.0625rem; line-height: 1.65; }
+    ::selection { color: var(--ink); background: #cce1d1; }
+    a { color: var(--link); text-underline-offset: .2em; }
+    a:hover { text-decoration-thickness: 2px; }
+    a:focus-visible { outline: 2px solid var(--link); outline-offset: 4px; border-radius: 2px; }
+    :target { scroll-margin-top: 1.5rem; }
+
+    .skip-link {
+      position: fixed;
+      inset: .75rem auto auto .75rem;
+      z-index: 1;
+      padding: .5rem .75rem;
+      background: var(--paper);
+      transform: translateY(-200%);
+    }
+    .skip-link:focus { transform: translateY(0); }
+
+    .page {
+      width: min(calc(100% - var(--gutter) * 2), 68rem);
+      margin-inline: auto;
+      padding-block: 3.5rem 5rem;
+      display: grid;
+      grid-template-columns: 13rem minmax(0, 1fr);
+      column-gap: 4.5rem;
+    }
+    .intro, main { grid-column: 2; min-width: 0; max-width: 69ch; }
+    .intro { grid-row: 1; }
+    main { grid-row: 2; }
+    nav { grid-column: 1; grid-row: 1 / span 2; }
+    .contents { position: sticky; top: 2rem; padding-top: .8rem; border-top: 2px solid var(--link); }
+    .contents h2 { margin: 0 0 .65rem; font: 700 .95rem/1.4 "Source Sans 3", system-ui, sans-serif; }
+    .contents ul { margin: 0; padding: 0; list-style: none; }
+    .contents li + li { margin-top: .25rem; }
+    .contents a { display: block; padding: .35rem .5rem; margin-inline: -.5rem; font-size: .95rem; line-height: 1.4; }
+    .contents a:hover, .contents a:focus-visible { background: var(--wash); }
+
+    h1, h2 { font-family: "DM Serif Text", Georgia, serif; font-weight: 400; text-wrap: balance; }
+    h1 { margin: 0 0 1.4rem; font-size: 3.25rem; line-height: 1.08; letter-spacing: -.035em; }
+    main h2 { margin: 0 0 .75rem; color: var(--link); font-size: 2.05rem; line-height: 1.2; letter-spacing: -.025em; }
+    h3 { margin: 0 0 .55rem; font-size: 1.22rem; line-height: 1.35; text-wrap: balance; }
+    p { margin: 0 0 1rem; }
+    .intro p { color: var(--muted); }
+    section { margin-top: 2.65rem; }
+    article { padding-block: 1.35rem; border-top: 1px solid var(--rule); }
+    article p { margin-bottom: .65rem; }
+    article h4 { margin: .85rem 0 .2rem; color: var(--muted); font-size: .9rem; }
+    article ul, main ol { margin: 0; padding-inline-start: 1.4em; }
+    article li + li, main ol li + li { margin-top: .45rem; }
+    li::marker { color: var(--link); }
+    code { padding: .08em .23em; background: var(--wash); font-size: .9em; }
+
+    .demo { padding: 1.6rem 1.8rem; background: var(--wash); border-top: 2px solid var(--link); }
+    .demo ol { margin-block: 1rem; }
+    .demo p:last-child { margin-bottom: 0; }
+
+    @media (max-width: 56rem) {
+      .page { column-gap: 2.25rem; grid-template-columns: 10.5rem minmax(0, 1fr); }
+      h1 { font-size: 2.85rem; }
+    }
+
+    @media (max-width: 44rem) {
+      :root { --gutter: 1.25rem; }
+      .page { display: block; padding-block: 2.15rem 3rem; }
+      h1 { font-size: 2.4rem; }
+      main h2 { font-size: 1.75rem; }
+      .contents { position: static; margin-top: 1.6rem; }
+      .contents ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .35rem 1rem; }
+      .contents li + li { margin-top: 0; }
+      section { margin-top: 2.1rem; }
+      .demo { padding: 1.2rem; }
+    }
+
+    @media (max-width: 22rem) {
+      .contents ul { grid-template-columns: 1fr; }
+    }
+
+    @media print {
+      body { color: #000; background: white; font-size: 11pt; }
+      .page { display: block; width: auto; padding: 0; }
+      .intro, main { max-width: none; }
+      nav, .skip-link { display: none; }
+      h1 { font-size: 29pt; }
+      h2, h3, h4 { break-after: avoid; }
+      article { break-inside: avoid; }
+      .demo { background: white; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#stories">Skip to user stories</a>
+  <div class="page">
+    <header class="intro">
+      <h1>Hotel catering user stories</h1>
+      <p>The working scenario is a 500-guest conference with coffee service, lunch, and a gala dinner. The event manager owns the event brief, the banquet chef owns food requirements, the purchasing manager owns the order, and the food and beverage (F&amp;B) director owns major cost or service decisions. The customer journey is a working hypothesis. The stories describe proposed product behavior.</p>
+      <p>The first demo can follow one event from brief to order, then handle a late change that needs a small supermarket top-up and a chef&#39;s decision. The product scope covers email, SMS, and phone. For Junction, use the Aimo catalog and mock lookups. Use simulated hotel records, order writes, supermarket offers, and communications. <a href="https://github.com/J-Garvey/junction2026/blob/main/ICP.md#6-our-product-opportunity">Product scope</a> · <a href="https://github.com/J-Garvey/junction2026/blob/main/GROUND_TRUTH.md#3-the-mock-api">Mock API behavior</a></p>
+    </header>
+    <nav aria-labelledby="contents-heading">
+      <div class="contents">
+        <h2 id="contents-heading">On this page</h2>
+        <ul>
+          <li><a href="#event-brief-and-food-requirements">Event brief and food requirements</a></li>
+          <li><a href="#catalog-and-ordering">Catalog and ordering</a></li>
+          <li><a href="#supermarket-top-ups-and-communications">Supermarket top-ups and communications</a></li>
+          <li><a href="#receiving-and-event-review">Receiving and event review</a></li>
+          <li><a href="#suggested-junction-demo">Suggested Junction demo</a></li>
+        </ul>
+      </div>
+    </nav>
+    <main id="stories" tabindex="-1">
+      <section aria-labelledby="event-brief-and-food-requirements">
+        <h2 id="event-brief-and-food-requirements">Event brief and food requirements</h2>
+        <article aria-labelledby="us01-capture-the-event-brief">
+          <h3 id="us01-capture-the-event-brief">US01 Capture the event brief</h3>
+          <p>As an event manager, I want to share the banquet event order (BEO) so the chef and buyer work from the same brief.</p>
+          <h4>Acceptance criteria</h4>
+          <ul>
+            <li>The event record shows the venue, guest count, service times, menus, and dietary requests. The chef and buyer can see the current version and the source of each change.</li>
+            <li>If a required detail is missing or unclear, the agent asks for it and leaves that part of the brief open.</li>
+          </ul>
+        </article>
+        <article aria-labelledby="us02-scale-the-menu-and-use-stock-on-hand">
+          <h3 id="us02-scale-the-menu-and-use-stock-on-hand">US02 Scale the menu and use stock on hand</h3>
+          <p>As a banquet chef, I want to turn confirmed menus and guest counts into a list of what to buy so I can check that each service has enough food.</p>
+          <h4>Acceptance criteria</h4>
+          <ul>
+            <li>Scale the chef&#39;s recipes by service and show ingredient quantities, units, and any chef-set buffer. Keep each special meal linked to its own menu and count.</li>
+            <li>Subtract stock the hotel has confirmed is usable and free for this event. Show required, on-hand, and to-buy quantities. If recipe yield, portion size, or usable stock is missing, show the gap for the chef to resolve.</li>
+          </ul>
+        </article>
+        <article aria-labelledby="us03-share-one-list-with-purchasing">
+          <h3 id="us03-share-one-list-with-purchasing">US03 Share one list with purchasing</h3>
+          <p>As a banquet chef, I want purchasing to see the exact ingredients and product requirements I approved so the buyer can make the right order.</p>
+          <h4>Acceptance criteria</h4>
+          <ul>
+            <li>Each requested line shows the ingredient or product, quantity, unit, date needed, and any named item or dietary rule. The buyer can trace it to the event and its menu.</li>
+            <li>Where multiple services need the same item, combine quantities only when product requirements and delivery needs match. Keep the original amounts visible by service.</li>
+          </ul>
+        </article>
+      </section>
+      <section aria-labelledby="catalog-and-ordering">
+        <h2 id="catalog-and-ordering">Catalog and ordering</h2>
+        <article aria-labelledby="us04-compare-products-and-packs">
+          <h3 id="us04-compare-products-and-packs">US04 Compare products and packs</h3>
+          <p>As a purchasing manager, I want to match each request to supplier products and pack sizes so I can compare what I would buy, pay, and receive.</p>
+          <h4>Acceptance criteria</h4>
+          <ul>
+            <li>Shortlist Aimo products by category, hotel tag, and documented requirements. Show the SKU, pack size, number of packs, and any extra quantity from rounding. A case of 36 croissants requires six cases to cover 200 pieces.</li>
+            <li>For shortlisted Aimo items, show the fixed price per sales unit, the total for the proposed packs, reported stock, and the delivery date. Mark uncertain pack sizes and unknown stock. For a preparation deadline that needs a time of day, show whether the supplier provided a delivery time. <a href="https://github.com/J-Garvey/junction2026/blob/main/docs/data-dictionary.md">Data dictionary</a> · <a href="https://github.com/J-Garvey/junction2026/blob/main/GROUND_TRUTH.md#3-the-mock-api">Mock API behavior</a></li>
+          </ul>
+        </article>
+        <article aria-labelledby="us05-check-diets-and-approve-a-change">
+          <h3 id="us05-check-diets-and-approve-a-change">US05 Check diets and approve a change</h3>
+          <p>As a banquet chef, I want to see why a replacement was chosen and whether it suits the dish so I can make a safe decision before the buyer orders.</p>
+          <h4>Acceptance criteria</h4>
+          <ul>
+            <li>Show the requested and proposed items with the relevant claims, allergens, pack sizes, price, and delivery. A missing or conflicting declaration for an allergen the meal must avoid blocks that product. A lactose-free label still allows the product to contain milk.</li>
+            <li>Send recipe substitutions to the chef, purchasing exceptions to the purchasing manager, and cost or service exceptions to the F&amp;B director when hotel policy calls for it. Ask one clear question. Record the approver and the exact terms they accepted. Send changed terms back through the rules. <a href="https://github.com/J-Garvey/junction2026/blob/main/docs/human-approval-rules.md">Approval rules</a></li>
+          </ul>
+        </article>
+        <article aria-labelledby="us06-recalculate-a-late-change">
+          <h3 id="us06-recalculate-a-late-change">US06 Recalculate a late change</h3>
+          <p>As a purchasing manager, I want to see what a change in guest count, menu, or diet list does to the order so I can buy the extra items without buying the rest again.</p>
+          <h4>Acceptance criteria</h4>
+          <ul>
+            <li>Compare the latest brief with the current order. Show changed requirements, quantities already ordered, and what is still needed. Run product and delivery checks on the revised basket.</li>
+            <li>If the order window for an affected item has closed, show that status and any new offer the buyer can use. Leave the placed order as recorded until a supplier confirms the change.</li>
+          </ul>
+        </article>
+        <article aria-labelledby="us07-place-one-order-within-hotel-policy">
+          <h3 id="us07-place-one-order-within-hotel-policy">US07 Place one order within hotel policy</h3>
+          <p>As a purchasing manager, I want the agent to place a checked basket within its authority so I can see what the hotel has committed to buy.</p>
+          <h4>Acceptance criteria</h4>
+          <ul>
+            <li>Before placing the order, check the exact products, pack counts, price, stock, delivery terms, site, and any required approval. Route cases that need a decision or cannot go through to the right status.</li>
+            <li>A placed order has an order reference and a record of its checks and approvals. A retry of the same submission returns the same order reference. For Junction, the prototype supplies the order write and receipt. <a href="https://github.com/J-Garvey/junction2026/blob/main/docs/human-approval-rules.md">Approval rules</a> · <a href="https://github.com/J-Garvey/junction2026/blob/main/GROUND_TRUTH.md#3-the-mock-api">Mock API behavior</a></li>
+          </ul>
+        </article>
+      </section>
+      <section aria-labelledby="supermarket-top-ups-and-communications">
+        <h2 id="supermarket-top-ups-and-communications">Supermarket top-ups and communications</h2>
+        <article aria-labelledby="us08-fill-a-small-gap-through-a-supermarket">
+          <h3 id="us08-fill-a-small-gap-through-a-supermarket">US08 Fill a small gap through a supermarket</h3>
+          <p>As a purchasing manager, I want an external supermarket to deliver a few missing items to the venue so a small shortfall does not hold up the whole event.</p>
+          <h4>Acceptance criteria</h4>
+          <ul>
+            <li>If a line is short or needs less than a wholesale pack, show a supermarket offer for the remaining quantity. Show the exact product and pack count, price including delivery, expected arrival, and what Valio Aimo is already supplying.</li>
+            <li>Apply the same product and approval checks to the top-up. Link the supermarket order to the event and show a separate supplier reference and delivery status. If either supplier fails to confirm, show which items the event still needs. <a href="https://github.com/J-Garvey/junction2026/blob/main/ICP.md#6-our-product-opportunity">Product scope</a></li>
+          </ul>
+        </article>
+        <article aria-labelledby="us09-take-requests-by-email-sms-or-phone">
+          <h3 id="us09-take-requests-by-email-sms-or-phone">US09 Take requests by email, SMS, or phone</h3>
+          <p>As an event manager, I want to send a late change through the channel I already use so it reaches the right event and the right people.</p>
+          <h4>Acceptance criteria</h4>
+          <ul>
+            <li>Accept email, SMS, and calls. Show the source and the details the agent captured, including the event, count, units, and timing where stated. For calls, read back key values when they are unclear.</li>
+            <li>Ask for clarification if the event or change is unclear. Check who made the request and what they can change before applying it. If the same change arrives twice, keep one revision. <a href="https://github.com/J-Garvey/junction2026/blob/main/ICP.md#6-our-product-opportunity">Product scope</a></li>
+          </ul>
+        </article>
+        <article aria-labelledby="us10-get-answers-and-updates-on-the-same-order">
+          <h3 id="us10-get-answers-and-updates-on-the-same-order">US10 Get answers and updates on the same order</h3>
+          <p>As a purchasing manager, I want the agent to ask for missing details or approval and send updates by email, SMS, or phone so I can resolve issues without losing the order history.</p>
+          <h4>Acceptance criteria</h4>
+          <ul>
+            <li>Each question names the event, the change, and the decision needed. Responses tie back to the same order and version across channels. Apply the answer after checking the person&#39;s role and which terms they accepted.</li>
+            <li>Send updates for placed orders, changes, and delivery issues through the chosen channel. Show what is confirmed and what still needs action. <a href="https://github.com/J-Garvey/junction2026/blob/main/ICP.md#6-our-product-opportunity">Product scope</a></li>
+          </ul>
+        </article>
+      </section>
+      <section aria-labelledby="receiving-and-event-review">
+        <h2 id="receiving-and-event-review">Receiving and event review</h2>
+        <article aria-labelledby="us11-check-what-arrived-before-prep">
+          <h3 id="us11-check-what-arrived-before-prep">US11 Check what arrived before prep</h3>
+          <p>As a banquet chef, I want to see what arrived and what is still missing so I can plan prep and special meals.</p>
+          <h4>Acceptance criteria</h4>
+          <ul>
+            <li>Record goods received against each supplier order. Show open quantities, damaged or wrong items, and any replacement that still needs a check. Keep the product details attached to the affected line.</li>
+            <li>The chef and buyer see the same readiness status by service. An expected delivery stays pending until receiving confirms it.</li>
+          </ul>
+        </article>
+        <article aria-labelledby="us12-review-event-costs-and-issues">
+          <h3 id="us12-review-event-costs-and-issues">US12 Review event costs and issues</h3>
+          <p>As an F&amp;B director, I want to see what changed the event&#39;s food cost and which issues need my help so I can act before service and review results after it.</p>
+          <h4>Acceptance criteria</h4>
+          <ul>
+            <li>Show the planned cost, order totals by supplier, delivery fees, and the cost of changes. Show which open decisions affect the event&#39;s budget or service.</li>
+            <li>After the event, show actual cost and waste when the hotel records them. Tie variances to order changes or delivery issues where the record shows a cause.</li>
+          </ul>
+        </article>
+      </section>
+      <section aria-labelledby="suggested-junction-demo" class="demo">
+        <h2 id="suggested-junction-demo">Suggested Junction demo</h2>
+        <ol>
+          <li>Load the brief for the 500-guest conference. For coffee service, assume one croissant each and no stock on hand. Use a simulated offer with enough stock to place the base order for 14 cases of Aimo SKU <code>460768</code>. At 36 per case, that covers 504 pieces. <a href="https://github.com/J-Garvey/junction2026/blob/main/data/products_slim.jsonl">Catalog data</a></li>
+          <li>Simulate an SMS that raises coffee service to 510 guests and confirms the extra guests have the same pastry requirements. Keep the 504 pieces in the base order and show the six-piece gap. Keep the separate dietary counts for the other meals.</li>
+          <li>Show a simulated supermarket offer for six suitable pastries delivered to the venue. Include the price with delivery and the expected arrival. If these pastries change the agreed item, ask the chef to approve that exact offer.</li>
+          <li>Apply the chef&#39;s answer to the event record, recheck the offer, and place the simulated supermarket order. Show the buyer the Aimo order and the top-up together. Send an update through the selected channel.</li>
+        </ol>
+        <p>Use US01, US02, and US04–US10 for the demo path. US03, US11, and US12 give the team follow-on stories for handoffs, receiving, and review. One simulated channel can carry the demo. The other two share the same acceptance criteria.</p>
+      </section>
+    </main>
+  </div>
+</body>
+</html>
