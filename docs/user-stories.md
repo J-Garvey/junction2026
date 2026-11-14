@@ -1,6 +1,6 @@
 # User stories
 
-> **What this is:** the story backlog the PRD agent builds from, grouped by avatar and sorted by importance. Each story is one sentence, **"X so that Y"**: what the avatar does or gets, and why it matters to them. Every story names what it rests on: a team decision (**D1** to **D27**, in [prd-context.md](prd-context.md)), the brief, the data or a research file.
+> **What this is:** the story backlog the PRD agent builds from, grouped by avatar and sorted by importance. Each story is one sentence, **"X so that Y"**: what the avatar does or gets, and why it matters to them. Every story names what it rests on: a team decision (**D1** to **D30**, in [prd-context.md](prd-context.md)), the brief, the data or a research file.
 >
 > It replaces [hotel-catering-user-stories.md](hotel-catering-user-stories.md) (US01 to US12) as the PRD's input. That file is kept as history. Since then (14 Nov): voice calls, SMS and WhatsApp are **cut** (email updates stay an add-on, CH-A6); the supermarket top-up is a **non-core add-on** (CH-A12); the Purchasing Manager is **kept for now as an optional role** (prd-context D1, D2, D15–D22).
 
@@ -158,6 +158,7 @@ Add-ons and parked stories are listed at the end of each avatar's section.
 *S1, S4, M · GROUND_TRUTH 3 · D23*
 - 999999 on Terminal products and 9,999,999,999 base units (scaled) on Stock products both display as "unknown stock".
 - They are suggested, but ranked below any product with a real stock figure that passes the same rules.
+- Each one shows a warning wherever it appears, not only a label: "Warning: Valio Aimo can't confirm stock for this product." The warning stays after the risk is accepted.
 - Ordering one needs the Approver to **accept the unknown-stock risk** (AP-13). That approval never turns the stock into "confirmed": the line stays labelled unknown.
 - At the final check such a line shows "covered at risk: unknown stock, accepted by [person] on [date]", never plain "covered".
 - This matters for the milk case: 20 of the lactose-free milks are Terminal. [API, GROUND_TRUTH 4.3]
@@ -208,6 +209,7 @@ Add-ons and parked stories are listed at the end of each avatar's section.
 **CH-13** Have every line re-checked when a new allergy arrives so that nothing unsafe stays in the order.
 *S3 · D4, approval rules*
 - A line that now fails is blocked with its reason; no approval can push it through.
+- If the line is already ordered and nobody resolves the conflict by the cut-off, the order goes ahead with a big warning shown everywhere (D28). The agent never removes the line by itself.
 
 **CH-14** Get a one-line "covered" when the final check passes so that I know the event is safe without opening anything.
 *S4 · D8*

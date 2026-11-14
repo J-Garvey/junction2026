@@ -1,6 +1,6 @@
 # PRD context: decisions the PRD builds on
 
-> **What this is:** the agreed context base for the agent that writes the PRD. It records the decisions made in a grilling session with Jack on 14 Nov 2026 (D1 to D14), Darragh's follow-up decisions (D15 to D22) and Jack's review of the stories (D23 to D27), what each rests on, and what is still open. The user stories built on it are in [user-stories.md](user-stories.md).
+> **What this is:** the agreed context base for the agent that writes the PRD. It records the decisions made in a grilling session with Jack on 14 Nov 2026 (D1 to D14), Darragh's follow-up decisions (D15 to D22) and Jack's review of the stories and the PRD draft (D23 to D30), what each rests on, and what is still open. The user stories built on it are in [user-stories.md](user-stories.md). The PRD, split into chunks that each say how a group of stories is delivered, is in [prd/](prd/README.md).
 >
 > **How to read the tags:** **[TEAM Dn]** a decision from this session; **[BRIEF]**, **[API]**, **[SPEC]**, **[DATA]**, **[SRC]**, **[STAND]**, **[INF]**, **[OPEN]** mean what they mean in [GROUND_TRUTH.md](../GROUND_TRUTH.md) and [research/07](../research/07-hotel-event-ordering-journey.md). Where this file and GROUND_TRUTH.md disagree on a fact, GROUND_TRUTH.md wins.
 >
@@ -85,6 +85,7 @@ All four moments run the same pipeline; the demo shows them as four scenes on on
 
 ## Unknown stock (D23, changed 14 Nov)
 
+- **Always shown with a warning, not as a plain label** (made louder in the team review, 14 Nov).
 - **Products with unknown stock are suggested, not blocked.** They rank below any product with a real stock figure that passes the same rules, are always labelled "unknown stock", and need the **Approver to accept the risk** before they are ordered. [TEAM D23]
 - Accepting the risk is not confirming the stock. The label stays everywhere; at the final check the line reads "covered at risk", never "covered". A pre-answer (AP-11) can accept it in advance. Under D16 most orders go through without a human, so a hotel that wants unknown-stock lines to go through automatically sets that pre-answer.
 - **This changes an earlier rule.** [human-approval-rules.md](human-approval-rules.md) and [AGENTS.md](../AGENTS.md) treated unknown stock as a block. Both are updated to match. It matters for the milk case: 20 of the 35 lactose-free products are Terminal, so they always report unknown stock. [API, GROUND_TRUTH 4.3]
@@ -170,13 +171,23 @@ These answer the follow-up questions and take precedence over anything above tha
 - **D21. External sourcing: any partner shop, clearly labelled.** Sources can be a supermarket, a Valio Aimo partner, or another partnered shop, including small local stores (for example small purchases of alcohol). Valio Aimo does **not** approve each externally sourced line; the line must be clearly marked as externally sourced, with its source. Still non-core (see Supplier scope). This replaces the "only with Valio Aimo's approval" condition on partner sourcing.
 - **D22. Not decided yet:** how recipes are uploaded, the tech stack, and the demo. The Decisions API may still be useful for some decisions; it stays optional.
 
+## Decisions on the PRD draft, 14 Nov late (Jack)
+
+- **D28. A late allergy conflict that nobody resolves: the order goes ahead, with a big warning.** If a new allergy makes an already-ordered line unsafe, the hotel is warned at once and the warning stays very visible everywhere until someone resolves it. If nobody does, the order still goes ahead unchanged. The agent never removes the line by itself. This keeps D9 (silence never changes the order) and is the one stated exception to D14's "zero hard-rule violations reach an order": the conflict is never hidden, but it doesn't stop an order that was already placed. Before an order is placed, an allergen failure is still a block.
+- **D29. The Gemini Decisions API is in the build**, for several functions, not optional as D22 had it. It still never decides a hard rule (D12). The PRD is broken down to named functions (for example `LOOKUP` and `PRODUCT-SEARCH`), each marked as deterministic code, a Decisions API call or a language-model call. See [prd/README.md](prd/README.md).
+- **D30. The demo script and the pitch are not part of the PRD.** The PRD covers building the product only. Seed data, the simulated clock and test cases stay in, because the build needs them.
+- **D23 made louder (team review, Jack).** A product with unknown stock is still suggested and labelled, and it now always carries a visible warning wherever it appears, not only a label. It stays a risk the Approver can accept, and the warning stays after acceptance.
+- **Confirmed in the team review (Jack):** D26, D27, D28, D29 and D30 as written. Decisions API thresholds: 0.90 or above is a fact, 0.10 or below rejects. Decisions API answers are stored and reused. An order can't go in while a line is blocked. The allergy warning (D28) shows everywhere, in the same words.
+- **Open after the review:** one complete list of every rule and parameter ([prd chunk 05, Q05.10](prd/05-rules-mandate-and-preferences.md)); the seed event, deferred until the demo is planned.
+- **Team:** Jack, Darragh, Pavit and Ben. Who owns which PRD chunk or function is a team decision; nothing is pre-assigned.
+
 ## Still open
 
 | Item | Status | Who answers |
 |---|---|---|
 | **How each hotel sets itself up** | **Decided (D18, D19):** self-serve, non-core; spend caps per order | |
 | Who pays: Valio Aimo, the hotel, or both | Open, **does not block the build**. The secondary goal (rep time saved) serves either answer | Team; mentor Q3 |
-| Team members, skills and stack | Not decided (D22). The Decisions API stays optional. Suggested: Python/FastAPI gateway (generates OpenAPI 3.1, reuses `scripts/aimo_api.py`), SQLite, React from `designs/mockups/src` | Jack |
+| Team members, skills and stack | **Stack decided:** see [TechStack.md](../TechStack.md) (TypeScript monorepo, React and Vite, Express, SQLite). The Decisions API is in (D29). Team: Jack, Darragh, Pavit, Ben. Still open: who owns which PRD chunk or function ([docs/prd](prd/README.md)) | Team |
 | Does My Aimo keep customer recipes an agent could read, with past accepted substitutes? | Decides whether the recipe library add-on is cheap | Valio Aimo stand |
 | ~~Does a hotel want exceptions-only approval, or approval of every order?~~ | **Decided (D16):** the app auto-approves most food orders within the mandate | |
 | How recipes get into the app (typed, uploaded, imported) | Open (D22) | Team |
