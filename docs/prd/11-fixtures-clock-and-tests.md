@@ -57,23 +57,23 @@ Each function is one problem that can be built and tested alone. "Deterministic 
   - Scenes 1 and 2: mid-August.
   - Scene 3: Fri 30 Oct.
   - Scene 4: Sat 14 Nov, 17:00, which is 24 hours before the main cut-off.
-- **Answer:** _open_
+- **Answer:** **Agreed** (Ben, 14 Nov): as recommended. Service Tue 17 Nov 2026, delivery Mon 16 Nov. Scenes 1 and 2 mid-August, scene 3 Fri 30 Oct, scene 4 Sat 14 Nov 17:00. At scene 4 the Fri 13 Nov and Terminal cut-offs have passed, so those lines show as blocked: this is the expired cut-off case.
 
 **Q11.3 How is the clock controlled?**
 - Recommended: one clock module that every time check reads. A small clock bar with four buttons, one per scene, visible only in test mode. Moving the clock is written to the audit.
-- **Answer:** _open_
+- **Answer:** **Agreed** (Ben, 14 Nov): as recommended. One frozen clock module that every time check reads (no direct system-time reads). A test-mode clock bar with four scene buttons. Every move is written to the audit.
 
 **Q11.4 How is the final-check shortfall produced?**
 - Recommended: a saved copy of the real API response for the seed products, with one product's stock lowered below the need. It is stored as a fixture file and marked as a fixture wherever it shows.
-- **Answer:** _open_
+- **Answer:** **Agreed** (Ben, 14 Nov): as recommended. A saved copy of the real API response with one product's stock lowered below the need, stored as a fixture file and labelled as a fixture wherever it shows.
 
 **Q11.5 Which test cases hit the live mock, and which use fixtures?**
 - Recommended: the milk request runs against the live mock, to prove the real API works. The event runs on fixtures so it repeats exactly. If the live call fails, the milk request falls back to its own saved fixture and says so.
-- **Answer:** _open_
+- **Answer:** **Agreed** (Ben, 14 Nov): the milk request and the blocked path run against the live mock; each falls back to its own saved fixture if the live call fails, and says so on screen. The four-scene event runs on fixtures so it repeats exactly.
 
 **Q11.6 How is the data reset between runs?**
 - Recommended: one command that empties the database, re-seeds the hotel, people, mandate and event, and sets the clock to scene 1.
-- **Answer:** _open_
+- **Answer:** **Agreed** (Ben, 14 Nov): as recommended. One reset command (CLI, plus a test-mode button) that empties the database, re-seeds the hotel, people, mandate and event, sets the clock to scene 1, and logs the reset as the first entry.
 
 ## Edge cases to rule on
 

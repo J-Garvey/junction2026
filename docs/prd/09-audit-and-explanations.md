@@ -48,7 +48,7 @@ Each function is one problem that can be built and tested alone. "Deterministic 
 
 **Q09.1 What fields does an audit entry have?**
 - Recommended: ID; time on the simulated clock and real time; actor (agent, a named person with role and outlet, or the gateway); action, from a closed list; what it was about (event, order, quote, line); rule IDs; model judgements; before and after values; whether fixture data was involved; who can see it.
-- **Answer:** _open_
+- **Answer:** **Agreed** (Ben, 14 Nov): as recommended. ID; time on the simulated clock and real time; actor (agent, a named person with role and outlet, or the gateway); action, from the closed list (Q09.7); subject (event, order, quote, line); rule IDs; model judgements; before and after values; fixture flag; visibility tag. Plus the previous entry's hash (Q09.3).
 
 **Q09.2 What does Valio Aimo see, and what stays with the hotel?** The brief's headline is "without exposing confidential data". **Major question: answer first.** Responsibility: Pavit, who builds the core brief functions (`PRODUCT-SEARCH`, `LOOKUP`, quoting and ordering).
 - Recommended: Valio Aimo sees quotes, orders, amendments, approvals (that one exists and which mandate rule it answered), refusals and cut-off flags. It does not see recipes, dishes, guest and diet details, the hotel's preferences, or the wording of chef questions. Each entry is tagged with who can read it.
@@ -60,7 +60,7 @@ Each function is one problem that can be built and tested alone. "Deterministic 
 
 **Q09.3 How do we show the log hasn't been edited?**
 - Recommended: the table is append-only, and each entry stores a hash of the entry before it. It's cheap, and it gives a concrete answer to "why should either side trust this record?"
-- **Answer:** _open_
+- **Answer:** **Agreed** (Ben, 14 Nov): as recommended. The table is append-only and each entry stores a hash of the entry before it. A "verify log" check on the audit screen shows a tick, or the first entry where the chain breaks.
 
 **Q09.4 Are explanations written by templates or by the language model?** D10 gives the model this job, but a model can introduce a number that isn't in the facts.
 - Recommended: every rule's message template is the floor and is always available. The model may rewrite a card's one-line summary from those facts. If its text contains a number or product that isn't in the facts, the template is shown instead.
@@ -77,11 +77,11 @@ Each function is one problem that can be built and tested alone. "Deterministic 
   - A verdict or status: the rule IDs and the data fact each one tested.
   - A pick: the ranking step that decided it and the preferences applied.
   - A model judgement: the question asked, the probability and the threshold.
-- **Answer:** _open_
+- **Answer:** **Agreed** (Ben, 14 Nov): as recommended, all five kinds, each read from stored facts and never recomputed.
 
 **Q09.7 What is the closed list of audit actions?**
 - Recommended starting list: request received, request parsed, constraint asked, quote created, line verdict set, question asked, question answered, question expired, order placed, order refused, order amended, substitute applied, final check run, flag sent to Valio Aimo, mandate changed, preference changed, clock moved.
-- **Answer:** _open_
+- **Answer:** **Agreed** (Ben, 14 Nov): the recommended 17, plus four: **gateway call failed**, **auto-approved** (a remembered approval or pre-answer answered a question; counts as zero decisions), **request confirmed** (counted as a confirmation, Q09.5) and **data reset** (chunk 11). Model judgements are a field on other entries, not an action of their own.
 
 ## Edge cases to rule on
 
