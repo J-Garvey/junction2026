@@ -60,7 +60,7 @@ One read-only page.
 | Budget per order, before VAT | €1,600 | Proposed: just above the booking's total, so the booking needs no approval |
 | Fish origin | Finland only | Agreed |
 | Carbon | Shown on every line; blocks nothing | Agreed |
-| Guest-count change that needs no question | ±5% | Proposed (PRD recommendation) |
+| Guest-count change that needs no question | 5%, rounded down (9 guests on a booking of 180) | Agreed: Darragh's answer to PRD question Q07.1 |
 
 ## Booking, months ahead (0:42–1:10)
 
@@ -99,7 +99,7 @@ Products and prices are real. Amounts per guest are proposed (0.25 L of cream a 
 
 | What changes | From → to | Status |
 |---|---|---|
-| Guests | 180 → 194 (+14, +7.8%) | Proposed: outside the ±5% tolerance |
+| Guests | 180 → 194 (+14, +7.8%) | Proposed: outside the 5% tolerance, which allows 9 |
 | New allergy | Onni, one of the new guests, tree nuts | Agreed |
 
 **What the agent does:**
@@ -107,7 +107,7 @@ Products and prices are real. Amounts per guest are proposed (0.25 L of cream a 
 - Re-runs the order and shows the whole list with the changed lines coloured. Salmon rises to 33.0 kg, cream to 49 L.
 - Re-checks every line against the new allergy. The princess cake contains almond and tree nuts (real). There is no approve button.
 
-**Human tap 2, Aino:** she replaces the cake. The chef answers first, so Sanna is only asked about the final order. Three real candidates, none with nuts declared:
+**Human tap 2, Aino:** she replaces the cake. The chef answers first, so Sanna is only asked about the final order. Three real candidates, none with nuts listed as "contains" or "may contain". Darragh's allergy rule (PRD question Q02.3) also fails a product that lists the allergen as "undeclared"; that field isn't in our slim data, so each candidate still has to be checked against the raw catalogue:
 
 | Candidate | Price | Stock |
 |---|---|---|
@@ -123,7 +123,7 @@ Products and prices are real. Amounts per guest are proposed (0.25 L of cream a 
 
 | What changes | From → to | Status |
 |---|---|---|
-| Guests | 194 → 188 (6 no-shows, −3.1%) | Proposed: inside the tolerance, so nobody is asked |
+| Guests | 194 → 188 (6 no-shows, −3.1%) | Proposed: inside the tolerance, which allows 9, so nobody is asked |
 
 **What the agent does:**
 
