@@ -4,6 +4,7 @@
 
 - [README.md](README.md) gives the repo map and quick start. The repo currently has research, data and Python tools. Check the current tree before choosing a stack or naming app commands.
 - [challenge/brief.txt](challenge/brief.txt) defines the deliverable and judging. [GROUND_TRUTH.md](GROUND_TRUTH.md) is the reference for verified data and mock API behavior.
+- [ICP.md](ICP.md) is the decided target customer: large hotels, conference hotels and event venues with high-volume catering, and the chef, purchasing and F&B roles we build for. Still build the challenge's general lookup, ordering and approval features for any buyer.
 - [Sponsor conversation notes](research/06-valio-aimo-conversation-2026-11-14.md) explain the case for hotel catering and event orders. Treat them as first-hand notes. Keep unresolved choices in [QUESTIONS.md](QUESTIONS.md) open until the team decides.
 
 ## Build for the hotel buyer

@@ -12,16 +12,17 @@ How can a food-service wholesaler let autonomous purchasing agents find products
 - ✅ Two research passes on customer segments (they disagree; see [QUESTIONS.md](QUESTIONS.md))
 - ✅ Research on urgent, large, variable orders: event caterers and banquet venues fit best ([research/05](research/05-spike-orders-under-time-pressure.md))
 - ✅ Talked to Valio Aimo: **hotels first, then restaurants; target hotel catering and event orders** ([research/06](research/06-valio-aimo-conversation-2026-11-14.md))
-- ⏳ Ask the mentors ([research/stand-questions.md](research/stand-questions.md) first), then pick a segment
+- ✅ **Target customer decided:** large hotels, conference hotels and event venues with high-volume catering. See **[ICP.md](ICP.md)**. The base challenge features are still built for any buyer.
+- ⏳ Ask the mentors the remaining questions ([research/stand-questions.md](research/stand-questions.md) first)
 - ⬜ Guardrails design (deliberately later)
 - ⬜ Build
 
 ## Open decisions (team)
 
-Three decisions have no single right answer. **[QUESTIONS.md](QUESTIONS.md)** sets out both positions for each:
+**[QUESTIONS.md](QUESTIONS.md)** sets out both positions for each team decision:
 
-1. Which customer segment to build for first (the two research passes disagree).
-2. Who pays: the wholesaler or the kitchens.
+1. ~~Which customer segment to build for first~~ **Decided 14 Nov:** hotels, conference hotels and event venues ([ICP.md](ICP.md)).
+2. Who pays: the wholesaler, the hotels, or both. The ICP names the hotel's F&B Director as economic buyer.
 3. Whether the API key, portal password and data stay committed.
 
 What changed when the two uploads were merged is in **[CHANGES.md](CHANGES.md)**.
@@ -31,6 +32,7 @@ What changed when the two uploads were merged is in **[CHANGES.md](CHANGES.md)**
 | Path | What's there |
 |---|---|
 | [GROUND_TRUTH.md](GROUND_TRUTH.md) | **Verified facts**: data, API behaviour, brief, code meanings, Valio Aimo, standards. Wins where another file disagrees |
+| [ICP.md](ICP.md) | **Who we build for:** the ideal customer profile, buyer roles, pain points and product positioning |
 | [QUESTIONS.md](QUESTIONS.md) | Open team decisions, with both positions for each |
 | [CHANGES.md](CHANGES.md) | Every change made when the two uploads were merged |
 | [AGENTS.md](AGENTS.md) | Shared instructions for Codex and Claude Code, with the hotel demo and data workflow |
