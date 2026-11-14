@@ -35,6 +35,7 @@ What changed when the two uploads were merged is in **[CHANGES.md](CHANGES.md)**
 |---|---|
 | [GROUND_TRUTH.md](GROUND_TRUTH.md) | **Verified facts**: data, API behaviour, brief, code meanings, Valio Aimo, standards. Wins where another file disagrees |
 | [ICP.md](ICP.md) | Target customers, buyer roles, and product scope; external sourcing (e.g. supermarket dropshipping) is non-core, and SMS and calls are cut |
+| [Tech stack](TechStack.md) | TypeScript workspace, web and mobile apps, Agent Gateway, and Sentry |
 | [Hotel catering user stories](docs/hotel-catering-user-stories.md) · [HTML](docs/hotel-catering-user-stories.html) | Draft backlog with acceptance criteria and a suggested Junction demo |
 | [QUESTIONS.md](QUESTIONS.md) | Open team decisions, with both positions for each |
 | [CHANGES.md](CHANGES.md) | Every change made when the two uploads were merged |
