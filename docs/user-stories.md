@@ -1,6 +1,6 @@
 # User stories
 
-> **What this is:** the story backlog the PRD agent builds from, grouped by avatar and sorted by importance. Every story names what it rests on: a team decision (**D1** to **D14**, in [prd-context.md](prd-context.md)), the brief, the data or a research file. Stories marked **[INF]** are our extension of a decision, not something agreed outright: check them first.
+> **What this is:** the story backlog the PRD agent builds from, grouped by avatar and sorted by importance. Every story names what it rests on: a team decision (**D1** to **D14**, in [prd-context.md](prd-context.md)), the brief, the data or a research file.
 >
 > It replaces [hotel-catering-user-stories.md](hotel-catering-user-stories.md) (US01 to US12) as the PRD's input. That file is kept as history: its Purchasing Manager role, supermarket top-up and multi-channel demo were dropped or parked on 14 Nov (D1, D2).
 
@@ -40,10 +40,9 @@
 | CH-09 | Chef | P0 | Ask in plain words | M |
 | CH-10 | Chef | P1 | Know why a line isn't green | S1 |
 | CH-11 | Chef | P1 | A swap I approved never asks again | S4 |
-| CH-12 | Chef | P1 | Confirm a generic ingredient's product once | S1 |
-| CH-13 | Chef | P1 | One line per product, with each dish's share visible | S1, S2 |
-| CH-14 | Chef | P1 | A new allergy re-checks every line | S3 |
-| CH-15 | Chef | P1 | Hear "covered" when the final check passes | S4 |
+| CH-12 | Chef | P1 | One line per product, with each dish's share visible | S1, S2 |
+| CH-13 | Chef | P1 | A new allergy re-checks every line | S3 |
+| CH-14 | Chef | P1 | Hear "covered" when the final check passes | S4 |
 | AP-01 | Approver | P0 | Orders inside my rules go through without me | S2 |
 | AP-02 | Approver | P0 | One question, with the exact rule that tripped | S2, S3, M |
 | AP-03 | Approver | P0 | Approve a partial fill | M, S4 |
@@ -148,20 +147,15 @@ As a chef, I want my yes to a substitute remembered for that recipe and product 
 - Scoped to the recipe, not to every dish.
 - The audit shows "auto-approved: remembered chef approval of [date]".
 
-**CH-12 Confirm a generic ingredient's product once** · S1 · D5, D6 [INF]
-As a chef, when my recipe says "cream 35%" rather than a product, I want to confirm which product the agent picked the first time, so later events reuse my choice.
-- The first match is a question; afterwards it is remembered like CH-11.
-- *Extension of D5 and D6, not agreed outright: confirm before building.*
-
-**CH-13 One line per product, with each dish's share visible** · S1, S2 · old US03
+**CH-12 One line per product, with each dish's share visible** · S1, S2 · old US03
 As a chef, I want the same product used across dishes combined into one order line, so the order is clean, while still seeing how much each dish needs.
 - Combine only when product, requirements and delivery date match.
 
-**CH-14 A new allergy re-checks every line** · S3 · D4, approval rules
+**CH-13 A new allergy re-checks every line** · S3 · D4, approval rules
 As a chef, when a new allergy or diet arrives at the 2–3-week point, I want every affected line re-checked, so nothing unsafe stays in the order.
 - A line that now fails is blocked with its reason; no approval can push it through.
 
-**CH-15 Hear "covered" when the final check passes** · S4 · D8
+**CH-14 Hear "covered" when the final check passes** · S4 · D8
 As a chef, I want a one-line confirmation when the final check passes, so I know the event is covered without opening anything.
 
 ### Add-on
