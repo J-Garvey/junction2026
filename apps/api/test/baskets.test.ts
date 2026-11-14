@@ -76,6 +76,28 @@ describe("order baskets", () => {
     expect(r.plan.needs[0].rules.map((x: any) => x.ruleId)).not.toContain("DLV-06");
   });
 
+  it("distinguishes an unknown product ID from a search with no matching product", async () => {
+    await call("POST", "/clock", { time: "2026-11-14T10:00:00Z" });
+    const id = (await call("POST", "/baskets", { name: "Search failures", deliveryDate: "2026-11-20" })).basket.id;
+    const m = await call("POST", "/messages", { text: "10 kg salmon" });
+
+    const unknown = await call("POST", "/requests", {
+      request: { ...m.request, neededBy: "2026-11-20", lines: m.request.lines.map((line: any) => ({ ...line, productId: "999999" })) },
+      eventId: id,
+      reviewing: true,
+    });
+    expect(unknown.plan.summary).toBe("Product not found. Refine the search and try again.");
+    expect(unknown.plan.needs[0].rules.map((rule: any) => rule.ruleId)).toContain("REQ-04");
+
+    const noMatch = await call("POST", "/requests", {
+      request: { ...m.request, neededBy: "2026-11-20", lines: m.request.lines.map((line: any) => ({ ...line, query: "zzzz-no-such-product", category: "99999", productId: null })) },
+      eventId: id,
+      reviewing: true,
+    });
+    expect(noMatch.plan.summary).toBe("No matching product found. Refine the search and try again.");
+    expect(noMatch.plan.needs[0].rules.map((rule: any) => rule.ruleId)).toContain("DIET-04");
+  });
+
   it("too late: removed from the quote, or kept in the order for review", async () => {
     await call("POST", "/clock", { time: "2026-11-14T10:00:00Z" });
     const id = (await call("POST", "/baskets", { name: "Tomorrow lunch", deliveryDate: "2026-11-15" })).basket.id;

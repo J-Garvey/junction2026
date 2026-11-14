@@ -408,11 +408,15 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
   }
 
   const plan = review?.plan ?? null;
+  const notFoundRules = plan?.needs.flatMap((need) => need.rules).filter((rule) => rule.ruleId === "REQ-04" || rule.ruleId === "DIET-04") ?? [];
+  const productNotFound = notFoundRules.some((rule) => rule.ruleId === "REQ-04");
+  const noMatch = notFoundRules.length > 0;
+  const tooLate = plan?.tooLate ?? null;
+  const foundLines = plan?.lines.filter((line) => line.productId) ?? [];
   const issues = plan ? [...new Set([
-    ...(plan.tooLate ? [plan.summary] : []),
     ...(plan.error ? [plan.error] : []),
     ...plan.inputRules.filter((rule) => rule.outcome !== "order").map((rule) => rule.message),
-    ...plan.lines.flatMap((line) => line.rules.filter((rule) => rule.outcome !== "order").map((rule) => rule.message)),
+    ...plan.lines.flatMap((line) => line.rules.filter((rule) => rule.outcome !== "order" && rule.ruleId !== "REQ-04" && rule.ruleId !== "DIET-04" && rule.ruleId !== "DLV-06").map((rule) => rule.message)),
   ])] : [];
   const selected = new Set(plan?.lines.map((line) => line.productId).filter(Boolean));
   const alternatives = plan?.needs.flatMap((need) => need.candidates
@@ -497,23 +501,40 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
 
           {plan && !editTarget && (
             <>
-              <div className="item-dialog-section add-review-section">
-                <h3>Products found</h3>
-                <div className="item-dialog-lines">
-                  {plan.lines.map((line) => (
+              {foundLines.length > 0 && (
+                <div className="item-dialog-section add-review-section">
+                  <h3>Products found</h3>
+                  <div className="item-dialog-lines">
+                    {foundLines.map((line) => (
                     <div key={line.id} className="item-dialog-line add-review-product">
                       <span><b>{line.productName}</b><small>{line.packContent ? `${qty(line.packContent.value)} ${line.packContent.unit} per ${line.salesUnit ?? "sales unit"}` : `Product ${line.productId}`}</small></span>
                       <span>{qty(line.quantity)} {line.salesUnit ?? ""}</span>
                       <span><Status k={line.status} /></span>
                       <b>{eur(line.lineTotal)}</b>
                     </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
-              <div className={`callout ${noIssues ? "green" : "yellow"} add-review-result`}>
-                <b>{noIssues ? "Ready to add" : "Needs attention"}</b>
-                {noIssues ? <span>Stock and delivery timing are confirmed for {day(deliveryDate)}.</span> : issues.length ? <ul>{issues.map((message) => <li key={message}>{message}</li>)}</ul> : <span>{plan.summary}</span>}
+              <div className={`callout ${noIssues ? "green" : "yellow"} add-review-result`} role={!noIssues ? "alert" : undefined}>
+                <b>{noIssues ? "Ready to add" : productNotFound ? "Product not found" : noMatch ? "No matching product" : tooLate ? "Nothing available in time" : "Needs attention"}</b>
+                {noIssues ? (
+                  <span>Stock and delivery timing are confirmed for {day(deliveryDate)}.</span>
+                ) : productNotFound ? (
+                  <span>That product is not in the Valio Aimo catalogue. Refine the product search and try again.</span>
+                ) : noMatch ? (
+                  <span>No product matched this search and its requirements. Refine the product or requirements and try again.</span>
+                ) : tooLate ? (
+                  <span>Nothing can arrive by {day(tooLate.neededBy)}. {tooLate.earliest ? <>The earliest available delivery is <b>{day(tooLate.earliest)}</b>.</> : "No later delivery date is known yet."}</span>
+                ) : issues.length ? (
+                  <ul>{issues.map((message) => <li key={message}>{message}</li>)}</ul>
+                ) : (
+                  <span>{plan.summary}</span>
+                )}
+                {(noMatch || tooLate) && request.lines[0] && (
+                  <button type="button" className="btn sm" disabled={!!busy} onClick={() => setEditTarget({ lineId: request.lines[0].id, field: "description" })}>Refine search</button>
+                )}
               </div>
 
               {!noIssues && alternatives.length > 0 && (

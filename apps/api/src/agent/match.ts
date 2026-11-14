@@ -151,8 +151,12 @@ export async function rankNeed(need: Need, list: Product[], pool: Pool, opts: { 
     notes: s.notes,
   }));
   if (!passing.length && !need.rules.some((r) => r.ruleId === "DLV-06")) {
-    const ruleNames = [...(need.constraints.claims ?? []), ...(need.constraints.avoidAllergens ?? []).map((a) => `no ${a}`)].join(", ") || "delivery and price checks";
-    need.rules.push(fire("DIET-04", { need: need.label, rules: ruleNames, filter: lastFilter }));
+    if (need.pinnedProductId && !getProduct(need.pinnedProductId)) {
+      need.rules.push(fire("REQ-04", { product: need.pinnedProductId }));
+    } else {
+      const ruleNames = [...(need.constraints.claims ?? []), ...(need.constraints.avoidAllergens ?? []).map((a) => `no ${a}`)].join(", ") || "delivery and price checks";
+      need.rules.push(fire("DIET-04", { need: need.label, rules: ruleNames, filter: lastFilter }));
+    }
   } else if (need.pinnedProductId && passing[0].p.id !== need.pinnedProductId) {
     need.substituteFor = need.pinnedProductId;
   }
