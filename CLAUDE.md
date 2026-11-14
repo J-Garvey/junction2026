@@ -1,6 +1,8 @@
+@AGENTS.md
+
 # Junction 2026 — Valio Aimo "Trusted Trade Agents"
 
-Hackathon context pack. Read this first; open the linked files only when needed. **Verified facts are in `GROUND_TRUTH.md`; it wins where another file disagrees.**
+Hackathon background. Open the linked files as needed. **Use `GROUND_TRUTH.md` for verified facts.**
 
 **Final submission deadline: Sun 15 Nov 2026, 10:00** (junction2026.com/about.md).
 
