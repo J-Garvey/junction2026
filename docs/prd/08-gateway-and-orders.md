@@ -66,9 +66,13 @@ Each function is one problem that can be built and tested alone. "Deterministic 
   - `GET /audit`, filtered by event or order.
 - **Answer:** _open_
 
-**Q08.2 Where is the line between Valio Aimo's gateway and the hotel's agent, inside one service?**
+**Q08.2 Where is the line between Valio Aimo's gateway and the hotel's agent, inside one service?** **Major question: answer first.** Responsibility: whoever builds the core brief functions (`PRODUCT-SEARCH`, `LOOKUP`, quoting and ordering).
 - Recommended: two folders in `apps/api` that may not import each other's internals: `gateway/` (Valio Aimo's side) and `agent/` (the hotel's side). The agent reaches the gateway only through the same HTTP routes an outside agent uses. That keeps it honest: our own agent has no back door.
-- **Answer:** _open_
+- **Answer:** **Agreed in outline, incomplete** (Jack, team review 14 Nov): our own agent uses the same gateway routes as an outside agent, and we host the gateway ourselves. Still to be written in detail by the owner:
+  - where the gateway is hosted and its address;
+  - how our agent authenticates compared with an outside agent;
+  - whether our agent calls the routes over HTTP or through the same handlers in-process;
+  - whether any route exists that only our agent may call, and if so why.
 
 **Q08.3 How long is a quote valid?** The mock can't say anything about a date months away.
 - Recommended: until its earliest cut-off, and never more than 24 hours. An order placed months ahead is built from a fresh quote, and the final check re-quotes it.

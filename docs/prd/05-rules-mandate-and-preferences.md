@@ -66,7 +66,7 @@ Each function is one problem that can be built and tested alone. "Deterministic 
 
 **Q05.3 Can an order go in while one of its lines is blocked?**
 - Recommended: no. A blocked line has to be changed or removed by the chef first. The other lines wait. This keeps "what was ordered" identical to "what the event needs".
-- **Answer:** _open_
+- **Answer:** **Agreed** (Jack, team review 14 Nov): no. The chef fixes or removes the line first.
 
 **Q05.4 What fields does the mandate have, and what are the seed values?**
 - Recommended fields, with seed values to be confirmed:
@@ -78,7 +78,7 @@ Each function is one problem that can be built and tested alone. "Deterministic 
   - tolerances: guest-count change ±5%, price rise 5%, overshoot 10% and €25;
   - the "very large order" threshold;
   - pre-answers.
-- **Answer:** _open_
+- **Answer:** **Fields agreed in outline** (Jack, team review 14 Nov). The values are placeholders. The complete list of rules and parameters is Q05.10.
 
 **Q05.5 Is hotel policy evaluated with CEL or plain JSON thresholds?**
 - Recommended: plain JSON thresholds, checked in TypeScript, for Junction. CEL is named in the docs as the production path. I haven't verified a CEL library for Node, so treat CEL tonight as a risk, not a plan.
@@ -98,6 +98,40 @@ Each function is one problem that can be built and tested alone. "Deterministic 
 
 **Q05.9 How do a standing allergy and an event allergy combine?** (PF-05)
 - Recommended: the event gets both. Standing constraints can't be removed for one event, only added to.
+- **Answer:** _open_
+
+**Q05.10 What is the complete list of rules and parameters?** Raised in the team review: the values so far are placeholders, and nobody has one list of everything that can be set.
+- This question is for the owner to complete, not just to agree. It needs two lists:
+  1. **Every rule**, from Q05.1: ID, trigger, outcome, who is asked.
+  2. **Every parameter**: its value, who can change it (the hotel, or fixed in the product), and which function reads it.
+- Starting list of parameters, gathered from the recommendations in all eleven chunks. None of these values is agreed unless marked:
+
+| Parameter | Proposed value | Who sets it | Read by | From |
+|---|---|---|---|---|
+| Spend cap per order, before VAT | €5,000 | Hotel | `MANDATE-CHECK` | Q05.4 |
+| Guest-count change that needs no question | ±5% | Hotel | `CHANGE-APPLY` | Q07.1 |
+| Price rise that needs no question | 5% | Hotel | `QUOTE-RECHECK` | Q05.4 |
+| Rounding overshoot that needs no question | Up to 10% or up to €25 | Hotel | `OVERSHOOT-CHECK` | Q03.2 |
+| Partial fill accepted without asking | Not set | Hotel | `PREANSWER-MATCH` | Q05.6 |
+| Unknown stock accepted without asking | Not set | Hotel | `PREANSWER-MATCH` | Q05.6 |
+| "Very large order" threshold | Not set | Hotel | Add-on only | D2 |
+| Agreed delivery days | Monday to Friday | Hotel | `NEEDED-BY` | Q04.4 |
+| Days before service that goods must arrive | 1 day; 2 days for frozen | Hotel or recipe | `NEEDED-BY` | Q04.3 |
+| Decisions API: confidence that counts as a fact | 0.90 or above | Fixed | `TYPE-CHECK` and the other Decisions API functions | Q02.2, agreed |
+| Decisions API: confidence that rejects | 0.10 or below | Fixed | Same | Q02.2, agreed |
+| Delivery reliability below which a line is amber | 0.95 | Fixed | `LINE-VERDICT` | D7 |
+| Delivery reliability below which ordering asks | 0.80 | Fixed | `LINE-VERDICT` | Q04.5 |
+| Days to needed-by that make a request urgent | 4 or fewer | Fixed | `URGENCY-CHECK` | Q04.1 |
+| How long before a cut-off the final check runs | 24 hours | Fixed | `FINAL-CHECK` | Q07.2 |
+| How long a quote is valid | Until its earliest cut-off, at most 24 hours | Fixed | `QUOTE-CREATE` | Q08.3 |
+| Candidates kept by a search | 50 | Fixed | `PRODUCT-SEARCH` | Q02.1 |
+| Candidates shown to a person | 3 | Fixed | `RANK`, `SUBSTITUTE-FIND` | Q02.6, Q07.3 |
+| Product IDs per lookup call | 1,000 (the API's limit) | Fixed by Valio Aimo | `LOOKUP` | SPEC |
+| Pack-content disagreement that turns a line amber | More than 5% | Fixed | `PACK-CONTENT` | Chunk 03 |
+| Per-guest amount that triggers a sanity question | Above 1 kg or 1 L; below 1 g or 1 ml | Fixed | `QUANTITY-SANITY` | Q01.7 |
+
+- To settle for each row: is the value right, and should the hotel be able to change it?
+- To add: any parameter this list has missed. If a function uses a number that isn't in this table, the table is incomplete.
 - **Answer:** _open_
 
 ## Edge cases to rule on

@@ -25,7 +25,7 @@
   - Red: nothing passes the diet rules, or nothing is deliverable.
 - **Stock counts only close to delivery.** Until then it is shown as "today's stock, not a promise for your date". [D8]
 - **Inside the lead time, real stock is used straight away** (SF-07). This is what the milk request needs.
-- **Unknown stock is suggested, never confirmed** (D23). It ranks below real stock, is labelled, and needs the Approver to accept the risk. At the final check it reads "covered at risk".
+- **Unknown stock is suggested, never confirmed, and always carries a warning** (D23, made louder in review). It ranks below real stock. It is labelled "unknown stock" and shows a warning wherever it appears, not only a label. It needs the Approver to accept the risk. At the final check it reads "covered at risk", still with the warning.
 - **A past cut-off is always caught by us**, because the mock still shows a Monday delivery after a cut-off has passed. [GROUND_TRUTH 3]
 - **Delivery is planned for when prep starts**, including thawing, not for the service date. [CH-17]
 

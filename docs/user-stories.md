@@ -158,6 +158,7 @@ Add-ons and parked stories are listed at the end of each avatar's section.
 *S1, S4, M · GROUND_TRUTH 3 · D23*
 - 999999 on Terminal products and 9,999,999,999 base units (scaled) on Stock products both display as "unknown stock".
 - They are suggested, but ranked below any product with a real stock figure that passes the same rules.
+- Each one shows a warning wherever it appears, not only a label: "Warning: Valio Aimo can't confirm stock for this product." The warning stays after the risk is accepted.
 - Ordering one needs the Approver to **accept the unknown-stock risk** (AP-13). That approval never turns the stock into "confirmed": the line stays labelled unknown.
 - At the final check such a line shows "covered at risk: unknown stock, accepted by [person] on [date]", never plain "covered".
 - This matters for the milk case: 20 of the lactose-free milks are Terminal. [API, GROUND_TRUTH 4.3]

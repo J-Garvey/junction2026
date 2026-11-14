@@ -49,9 +49,13 @@ Each function is one problem that can be built and tested alone. "Deterministic 
 - Recommended: ID; time on the simulated clock and real time; actor (agent, a named person with role and outlet, or the gateway); action, from a closed list; what it was about (event, order, quote, line); rule IDs; model judgements; before and after values; whether fixture data was involved; who can see it.
 - **Answer:** _open_
 
-**Q09.2 What does Valio Aimo see, and what stays with the hotel?** The brief's headline is "without exposing confidential data".
+**Q09.2 What does Valio Aimo see, and what stays with the hotel?** The brief's headline is "without exposing confidential data". **Major question: answer first.** Responsibility: whoever builds the core brief functions (`PRODUCT-SEARCH`, `LOOKUP`, quoting and ordering).
 - Recommended: Valio Aimo sees quotes, orders, amendments, approvals (that one exists and which mandate rule it answered), refusals and cut-off flags. It does not see recipes, dishes, guest and diet details, the hotel's preferences, or the wording of chef questions. Each entry is tagged with who can read it.
-- **Answer:** _open_
+- **Answer:** **Agreed in outline, incomplete** (Jack, team review 14 Nov): largely as recommended. Still to be written in detail by the owner:
+  - the exact fields of each entry type that Valio Aimo can read;
+  - whether Valio Aimo sees the hotel's mandate values, or only that a rule was met;
+  - what an outside agent acting for the hotel can read;
+  - how the visibility tag is set and tested.
 
 **Q09.3 How do we show the log hasn't been edited?**
 - Recommended: the table is append-only, and each entry stores a hash of the entry before it. It's cheap, and it gives a concrete answer to "why should either side trust this record?"

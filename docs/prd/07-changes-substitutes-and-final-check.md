@@ -116,7 +116,7 @@ Each function is one problem that can be built and tested alone. "Deterministic 
   - in the summary, which reads "Warning: 1 line conflicts with a stated allergy", never "covered";
   - in the audit, and in the flag sent to the Valio Aimo rep at the cut-off.
 - Recommended wording: "[Product] contains [allergen]. [N] guests at [event] must avoid it. This line is still in the order." with two buttons: remove the line, or replace it.
-- **Answer:** _open_
+- **Answer:** **Agreed** (Jack, team review 14 Nov): the warning shows in every place listed, in the same words, until it is resolved. An allergy conflict is a major concern and has to be shown consistently everywhere. The wording is still for the owner to finalise.
 
 ## Edge cases to rule on
 

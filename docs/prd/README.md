@@ -22,20 +22,20 @@ Three rules while answering:
 
 ## The chunks
 
-| # | Chunk | Track | Stories (P0) | Functions | Questions (open) | Edge cases | Owner |
+| # | Chunk | Track | Stories (P0) | Functions | Questions (open or incomplete) | Edge cases | Owner |
 |---|---|---|---|---|---|---|---|
 | 01 | [Request intake and constraints](01-intake-and-constraints.md) | A | 5 (4) | 6 | 7 (7) | 6 | _unassigned_ |
-| 02 | [Product matching and ranking](02-matching-and-ranking.md) | A | 6 (3) | 6 | 9 (8) | 7 | _unassigned_ |
+| 02 | [Product matching and ranking](02-matching-and-ranking.md) | A | 6 (3) | 6 | 9 (7) | 7 | _unassigned_ |
 | 03 | [Quantities, packs and rounding](03-quantities-and-rounding.md) | A | 2 (1) | 5 | 6 (6) | 6 | _unassigned_ |
 | 04 | [Viability, stock and timing](04-viability-stock-and-timing.md) | A | 5 (3) | 6 | 7 (7) | 6 | _unassigned_ |
-| 05 | [Rules, mandate and preferences](05-rules-mandate-and-preferences.md) | B | 9 (3) | 6 | 9 (9) | 6 | _unassigned_ |
+| 05 | [Rules, mandate and preferences](05-rules-mandate-and-preferences.md) | B | 9 (3) | 6 | 10 (8) | 6 | _unassigned_ |
 | 06 | [Questions, approvals and teams](06-questions-approvals-and-teams.md) | B | 14 (11) | 6 | 9 (8) | 6 | _unassigned_ |
-| 07 | [Changes, substitutes and the final check](07-changes-substitutes-and-final-check.md) | B | 10 (3) | 11 | 10 (9) | 8 | _unassigned_ |
+| 07 | [Changes, substitutes and the final check](07-changes-substitutes-and-final-check.md) | B | 10 (3) | 11 | 10 (8) | 8 | _unassigned_ |
 | 08 | [Agent Gateway and orders](08-gateway-and-orders.md) | C | 10 (6) | 8 | 10 (10) | 7 | _unassigned_ |
 | 09 | [Audit and explanations](09-audit-and-explanations.md) | C | 7 (3) | 7 | 7 (6) | 6 | _unassigned_ |
 | 10 | [Interface](10-interface.md) | C | 8 (4) | 0 | 9 (9) | 6 | _unassigned_ |
 | 11 | [Fixtures, clock and test cases](11-fixtures-clock-and-tests.md) | C | 2 (2) | 4 | 6 (6) | 5 | _unassigned_ |
-| | **Total** | | **78 (43)** | **65** | **89 (85)** | **69** | |
+| | **Total** | | **78 (43)** | **65** | **90 (82)** | **69** | |
 
 The tracks group chunks by topic. They are not assignments.
 
@@ -125,24 +125,44 @@ The Gemini Decisions API is in the build (D29). It returns a probability, not a 
 - **Every answer is logged as a model judgement** with the question asked, the probability and the threshold, separately from rule IDs (SF-05).
 - **Recommended, not yet agreed: answers are stored and reused**, so the same request gives the same result twice ([Q02.9](02-matching-and-ranking.md)). Google doesn't state whether the API is deterministic.
 
+## Major questions: answer first
+
+Two questions were agreed only in outline at the team review and are marked incomplete. They come first, and they belong to **whoever builds the core functions the brief requires** (`PRODUCT-SEARCH`, `LOOKUP`, quoting and ordering), whichever chunks that person also owns. No person is named here; that is a team decision.
+
+| Question | Agreed so far | Still to write |
+|---|---|---|
+| [Q08.2](08-gateway-and-orders.md): the line between Valio Aimo's gateway and the hotel's agent | Our own agent uses the same routes as an outside agent, and we host the gateway ourselves | Hosting, authentication, how the call is made, and whether any route is ours alone |
+| [Q09.2](09-audit-and-explanations.md): what Valio Aimo sees in the audit | Orders, approvals and flags, but not recipes, guests or preferences | The exact fields, what it sees of the mandate, and what an outside agent can read |
+
 ## Team rulings so far
 
-| Question | Ruling (Jack, 14 Nov) |
+All from Jack, 14 Nov. The rest of the team hasn't confirmed them yet.
+
+| Question | Ruling |
 |---|---|
+| D23: unknown stock | **Louder.** Still suggested and labelled, and now always shown with a warning, not as a plain label. |
+| D26 to D30 | **Confirmed** as written in [prd-context.md](../prd-context.md). |
 | [Q07.9](07-changes-substitutes-and-final-check.md): a late allergy makes an ordered line unsafe and nobody resolves it | **The order goes ahead, with a big warning that is impossible to miss** (D28). The agent never removes the line by itself. |
+| [Q07.10](07-changes-substitutes-and-final-check.md): where the allergy warning shows | **Everywhere, in the same words**, until resolved. Wording still to finalise. |
+| [Q02.2](02-matching-and-ranking.md): Decisions API | **In** (D29). **Thresholds agreed:** 0.90 and 0.10. |
+| [Q02.9](02-matching-and-ranking.md): are Decisions API answers stored and reused | **Yes.** |
+| [Q05.3](05-rules-mandate-and-preferences.md): can an order go in while a line is blocked | **No.** The chef fixes or removes the line first. |
+| [Q05.4](05-rules-mandate-and-preferences.md): the hotel's rule values | **Placeholders for now.** A complete list of rules and parameters is a new open question, [Q05.10](05-rules-mandate-and-preferences.md). |
 | [Q06.5](06-questions-approvals-and-teams.md): seeded accounts or a "viewing as" switcher | **Both.** The switcher swaps between seeded people. |
 | [Q09.4](09-audit-and-explanations.md): templates or the language model for explanations | **Templates are the floor.** The model may only rephrase. |
-| [Q02.2](02-matching-and-ranking.md): is the Decisions API in | **Yes** (D29). Thresholds are still open. |
+| [Q11.1](11-fixtures-clock-and-tests.md): the seed event | **Deferred**, to be decided with the demo. |
 | Demo script, pitch and submission | **Out of this PRD** (D30). |
+
+Not yet answered by anyone: the proposed list of five Decisions API uses, and the two things proposed as not built for Junction (the Purchasing Manager role in Q06.8, and CEL in Q05.5).
 
 ## Order of work
 
 Chunks depend on each other, so some answers are needed before others:
 
-1. **First:** 05 (rule IDs and the mandate), 01 (the request object), 08 (endpoints and the quote), and the seed event in 11 (Q11.1), because chunks 01 to 04 are tested against it.
+1. **First:** the two major questions above, then 05 (rule IDs, the mandate, and the list of rules and parameters in Q05.10), 01 (the request object) and 08 (endpoints and the quote).
 2. **Next:** 02, 03, 04 and 06, which build on them.
 3. **Then:** 07 and 09.
-4. **Last:** 10 and the rest of 11.
+4. **Last:** 10 and 11. The seed event (Q11.1) is deferred until the demo is planned.
 
 ## Every core story has a chunk
 

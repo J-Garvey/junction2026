@@ -6,6 +6,7 @@
 | **Track** | A: request to basket |
 | **Needs from** | 01 (the `Request` object), 05 (the diet-to-claim table sits with the hard rules) |
 | **Feeds** | 03 (quantities), 04 (viability), 07 (substitutes reuse this ranking) |
+| **Also this owner's** | Two major questions to answer first: [Q08.2](08-gateway-and-orders.md) and [Q09.2](09-audit-and-explanations.md). See the index. |
 
 ## What: the stories this chunk delivers
 
@@ -59,7 +60,7 @@ Each function is one problem that can be built and tested alone. "Deterministic 
 
 **Q02.2 Is the Decisions API in, and what are the thresholds?** It is three days old.
 - Recommended: confidence of 0.90 or more counts as a fact, 0.10 or less rejects the candidate, and anything between asks the chef. If the API can't be reached, use the hand-checked list that exists (the 25 plain lactose-free milks are classified in research/03) and ask for everything else.
-- **Answer:** **It's in** (team decision D29, Jack, 14 Nov). Still open for this chunk's owner: the two thresholds, and what happens when the API can't be reached.
+- **Answer:** **It's in** (D29), and the thresholds are **agreed** (Jack, team review 14 Nov): 0.90 or above is a fact, 0.10 or below rejects, anything between asks a person. Still open for the owner: what happens when the API can't be reached.
 
 **Q02.3 What is the exact table from diet or allergy to data check?**
 - Recommended starting rows, to be signed off by this chunk's owner:
@@ -92,7 +93,7 @@ Each function is one problem that can be built and tested alone. "Deterministic 
 
 **Q02.9 Are Decisions API answers stored and reused?** Google doesn't say whether the same question always returns the same probability, and SF-06 promises the same request always gives the same pick.
 - Recommended: store each answer against the question and the product, and reuse it. A stored answer is refreshed only when the product's data changes. The audit shows whether an answer was fresh or reused.
-- **Answer:** _open_
+- **Answer:** **Agreed** (Jack, team review 14 Nov): answers are stored and reused.
 
 ## Edge cases to rule on
 

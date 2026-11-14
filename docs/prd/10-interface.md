@@ -64,8 +64,8 @@ This chunk has no functions of its own. Its screens call the functions in the ot
 | Covered | Passes every check |
 | Check | Amber: a caveat, with its reason |
 | Not available | Red: nothing passes |
-| Unknown stock | Valio Aimo can't confirm stock |
-| Covered at risk | Unknown stock, risk accepted |
+| Unknown stock, with a warning mark | Valio Aimo can't confirm stock. Always shown as a warning, never as a plain label (D23) |
+| Covered at risk, with a warning mark | Unknown stock, risk accepted. The warning stays |
 | Waiting for [role] | An open question |
 | Blocked | A hard rule; no approve option |
 | Unresolved | Unanswered at the cut-off |

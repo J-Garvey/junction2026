@@ -85,6 +85,7 @@ All four moments run the same pipeline; the demo shows them as four scenes on on
 
 ## Unknown stock (D23, changed 14 Nov)
 
+- **Always shown with a warning, not as a plain label** (made louder in the team review, 14 Nov).
 - **Products with unknown stock are suggested, not blocked.** They rank below any product with a real stock figure that passes the same rules, are always labelled "unknown stock", and need the **Approver to accept the risk** before they are ordered. [TEAM D23]
 - Accepting the risk is not confirming the stock. The label stays everywhere; at the final check the line reads "covered at risk", never "covered". A pre-answer (AP-11) can accept it in advance. Under D16 most orders go through without a human, so a hotel that wants unknown-stock lines to go through automatically sets that pre-answer.
 - **This changes an earlier rule.** [human-approval-rules.md](human-approval-rules.md) and [AGENTS.md](../AGENTS.md) treated unknown stock as a block. Both are updated to match. It matters for the milk case: 20 of the 35 lactose-free products are Terminal, so they always report unknown stock. [API, GROUND_TRUTH 4.3]
@@ -175,6 +176,9 @@ These answer the follow-up questions and take precedence over anything above tha
 - **D28. A late allergy conflict that nobody resolves: the order goes ahead, with a big warning.** If a new allergy makes an already-ordered line unsafe, the hotel is warned at once and the warning stays very visible everywhere until someone resolves it. If nobody does, the order still goes ahead unchanged. The agent never removes the line by itself. This keeps D9 (silence never changes the order) and is the one stated exception to D14's "zero hard-rule violations reach an order": the conflict is never hidden, but it doesn't stop an order that was already placed. Before an order is placed, an allergen failure is still a block.
 - **D29. The Gemini Decisions API is in the build**, for several functions, not optional as D22 had it. It still never decides a hard rule (D12). The PRD is broken down to named functions (for example `LOOKUP` and `PRODUCT-SEARCH`), each marked as deterministic code, a Decisions API call or a language-model call. See [prd/README.md](prd/README.md).
 - **D30. The demo script and the pitch are not part of the PRD.** The PRD covers building the product only. Seed data, the simulated clock and test cases stay in, because the build needs them.
+- **D23 made louder (team review, Jack).** A product with unknown stock is still suggested and labelled, and it now always carries a visible warning wherever it appears, not only a label. It stays a risk the Approver can accept, and the warning stays after acceptance.
+- **Confirmed in the team review (Jack):** D26, D27, D28, D29 and D30 as written. Decisions API thresholds: 0.90 or above is a fact, 0.10 or below rejects. Decisions API answers are stored and reused. An order can't go in while a line is blocked. The allergy warning (D28) shows everywhere, in the same words.
+- **Open after the review:** one complete list of every rule and parameter ([prd chunk 05, Q05.10](prd/05-rules-mandate-and-preferences.md)); the seed event, deferred until the demo is planned.
 - **Team:** Jack, Darragh, Pavit and Ben. Who owns which PRD chunk or function is a team decision; nothing is pre-assigned.
 
 ## Still open
