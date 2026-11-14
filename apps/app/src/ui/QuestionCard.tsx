@@ -168,7 +168,7 @@ export function QuestionCard({ q: initial, compact, onAnswered }: { q: Question;
           )}
         </div>
       ) : q.state === "waiting" ? (
-        <div className="qanswered small muted">Chef first</div>
+        <div className="qanswered small muted">The chef finishes the order first</div>
       ) : !mine ? (
         <div className="qanswered small muted">Only {namesOf(answerers(q, people)) || `the ${q.forRole}`} can approve this</div>
       ) : (

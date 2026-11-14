@@ -40,11 +40,14 @@ export function namesOf(ps: Person[]) {
   return n.length > 1 ? `${n.slice(0, -1).join(", ")} or ${n[n.length - 1]}` : n[0] ?? "";
 }
 
-/** Who a question waits for, as seen by `me`. A "waiting" question needs the chef's answer first. */
+/** Who a question waits for, and whether it is a chef decision or final supplier-order approval. */
 export function waitingForText(q: Question, me: Person, people: Person[]) {
   const who = answerers(q, people);
   const names = who.some((p) => p.id === me.id) ? (who.length > 1 ? `you or ${namesOf(who.filter((p) => p.id !== me.id))}` : "you") : namesOf(who) || `the ${q.forRole}`;
-  return q.state === "waiting" ? `Chef answers first, then ${names}` : `Waiting for ${names}`;
+  if (q.forRole === "approver") {
+    return q.state === "waiting" ? `Waiting for the chef to finish the order, then approval from ${names} to send it to the supplier` : `Waiting for approval from ${names} to send the order to the supplier`;
+  }
+  return `Waiting for chef decision from ${names}`;
 }
 
 /** Splits open questions into the ones `me` answers and a count per who-it-waits-for for the rest. */
@@ -52,7 +55,8 @@ export function splitMine(qs: Question[], me: Person, people: Person[]) {
   const mine = qs.filter((q) => canAnswer(q, me, people));
   const others = new Map<string, number>();
   for (const q of qs) if (!canAnswer(q, me, people)) {
-    const k = namesOf(answerers(q, people)) || `the ${q.forRole}`;
+    const names = namesOf(answerers(q, people)) || `the ${q.forRole}`;
+    const k = q.forRole === "approver" ? `approval from ${names} to send the order to the supplier` : `chef decision from ${names}`;
     others.set(k, (others.get(k) ?? 0) + 1);
   }
   return { mine, others: [...others].map(([who, n]) => ({ who, n })) };
