@@ -16,7 +16,7 @@
 
 Three rules while answering:
 
-- **The "How: what's already settled" section is not up for debate inside a chunk.** It restates team decisions (D1 to D31 in [prd-context.md](../prd-context.md)). To change one, raise it with the team and update prd-context.md first.
+- **The "How: what's already settled" section is not up for debate inside a chunk.** It restates team decisions (D1 to D32 in [prd-context.md](../prd-context.md)). To change one, raise it with the team and update prd-context.md first.
 - **Recommended answers are proposals, not decisions.** They were drafted from the stories and the data so that nobody starts from a blank page. Nothing in a "Recommended" line has been agreed by the team.
 - **Core only.** Add-on and parked stories are not designed here.
 
@@ -158,6 +158,7 @@ All from Jack, 14 Nov. The rest of the team hasn't confirmed them yet.
 | Question | Ruling |
 |---|---|
 | Unconfirmed stock (D31, replaces D23) | **A question, not a warning.** The person building the order is asked and can continue or pick another. The Approver isn't asked. Story AP-13 is withdrawn. |
+| Ranking and stock (D32) | **Confirmed stock no longer ranks first.** The product that is best on recipe match, reliability and price is picked even if its stock is unconfirmed, and the person is then asked whether to continue. Stock is only the last tie-breaker. |
 | D26 to D30 | **Confirmed** as written in [prd-context.md](../prd-context.md). |
 | [Q07.9](07-changes-substitutes-and-final-check.md): a late allergy makes an ordered line unsafe and nobody resolves it | **The order goes ahead, with a big warning that is impossible to miss** (D28). The agent never removes the line by itself. |
 | [Q07.10](07-changes-substitutes-and-final-check.md): where the allergy warning shows | **Everywhere, in the same words**, until resolved. Wording still to finalise. |

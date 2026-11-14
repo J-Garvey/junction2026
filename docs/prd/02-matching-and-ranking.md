@@ -25,7 +25,7 @@
 - **Shortlist locally, then ask the API.** Candidates come from `data/products_slim.jsonl`. The mock is called only for the shortlist, at most 1,000 IDs per call. [SPEC, VA-13]
 - **Diets are matched on claims and allergen codes, never on names.** No allergen declaration means unknown, never safe. [GROUND_TRUTH 4.2]
 - **Product type is a model judgement.** Where claims can't tell types apart (plain milk vs coffee milk in category 10400), the Gemini Decisions API answers yes/no per candidate. Below the threshold the line becomes a question. The Decisions API is in the build. [D12, D29]
-- **Ranking is one fixed order** (SF-06): passes hard rules, then real stock over unknown, recipe-approved or brand match, delivery reliability, price per kg or L after rounding, then labels, origin and carbon as preferences weigh them. Ties break on product ID.
+- **Ranking is one fixed order** (SF-06): passes hard rules, then recipe-approved or brand match, delivery reliability, price per kg or L after rounding, then labels, origin and carbon as preferences weigh them, and confirmed stock only as the last tie-breaker (D32, which moved stock from first to last). Ties break on product ID.
 - **Labels and origin** come from the data's `labels` and `origin` fields. A required one is a hard rule for that event; a preferred one only changes rank. [CH-15, CH-16]
 
 ## Functions: the problems to solve
