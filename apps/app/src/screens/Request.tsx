@@ -153,6 +153,11 @@ export function Outcome({ plan }: { plan: Plan }) {
       <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
         <Status k={planStatusKind(plan.status)} />
         <b>{plan.summary}</b>
+        {plan.timings && (
+          <span className="small muted" title="Measured while the agent ran">
+            {plan.timings.products} products checked in {(plan.timings.totalMs / 1000).toFixed(1)} s
+          </span>
+        )}
         {plan.orderIds.length > 0 && (
           <Link to="/orders" className="small" style={{ marginLeft: "auto" }}>
             Receipt

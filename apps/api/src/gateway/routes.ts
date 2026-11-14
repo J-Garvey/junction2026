@@ -12,6 +12,7 @@ import { amendOrder, createApproval, createQuote, getMandate, getOrder, getQuote
 import { auditView, verifyChain } from "../audit.js";
 import { buildOpenApi } from "./openapi.js";
 import { brandProfile, ExternalUnavailable } from "../external/contextdev.js";
+import { orderToUbl } from "./peppol.js";
 
 declare global {
   namespace Express {
@@ -85,7 +86,7 @@ export function gatewayRouter(): Router {
   r.post("/approvals", (req, res) => res.status(201).json(createApproval(req.identity!, parse(ApprovalBody, req.body))));
   r.post("/orders", async (req, res) => {
     const b = parse(OrderCreateBody, req.body);
-    const out = await placeOrder(req.identity!, b.quoteId, req.header("idempotency-key") ?? "", b.approvalId);
+    const out = await placeOrder(req.identity!, b.quoteId, req.header("idempotency-key") ?? "", b.approvalId, undefined, { continueWith: b.continueWithUnconfirmedStock, decidedBy: b.decidedBy });
     res.status(out.replay ? 200 : 201).json(out.order);
   });
   r.get("/orders", (req, res) => {
@@ -94,6 +95,13 @@ export function gatewayRouter(): Router {
     res.json({ orders: listOrders(id.hotelId, req.query.eventId ? String(req.query.eventId) : undefined) });
   });
   r.get("/orders/:id", (req, res) => res.json(getOrder(String(req.params.id))));
+  // The same order as a Peppol BIS Ordering 3 document (UBL 2.1 Order).
+  r.get("/orders/:id/peppol", (req, res) => {
+    const o = getOrder(String(req.params.id));
+    const id = req.identity!;
+    if (id.kind !== "valio" && o.hotelId !== id.hotelId) throw new GatewayRefusal(403, { error: "forbidden", message: "Order belongs to another hotel" });
+    res.type("application/xml").send(orderToUbl(o));
+  });
   r.post("/orders/:id/amendments", async (req, res) => res.json(await amendOrder(req.identity!, String(req.params.id), parse(AmendmentBody, req.body))));
   r.get("/mandate", (req, res) => {
     const id = req.identity!;

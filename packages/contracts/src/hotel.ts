@@ -80,6 +80,8 @@ export interface PlanLine {
   allocation: "primary" | "partial" | "unknown_fill" | "short";
   riskAccepted: { by: string; at: string } | null;
   removed: boolean;
+  /** Product-group average kg CO2e per kg, times the kg or L ordered. An estimate, labelled as such. */
+  co2Kg?: number | null;
 }
 
 export type PlanStatus = "needs_input" | "viability" | "waiting" | "ordered" | "blocked" | "rejected" | "kept_short" | "failed";
@@ -116,6 +118,8 @@ export interface Plan {
   questionIds: string[];
   shortfall: { need: number; covered: number; unit: string } | null;
   error: string | null;
+  /** Measured while running: how long each agent step took. */
+  timings?: { products: number; lookupMs: number; rankMs: number; quoteMs?: number; totalMs: number } | null;
 }
 
 export interface WarningRecord {

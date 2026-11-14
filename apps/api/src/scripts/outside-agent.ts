@@ -1,4 +1,4 @@
-export {};
+import { createPublicKey, verify } from "node:crypto";
 /**
  * An outside purchasing agent that knows only the published spec (/openapi.json)
  * and its scoped token. It searches, quotes and orders, and shows the gateway's
@@ -14,6 +14,19 @@ async function call(method: string, path: string, body?: unknown, headers: Recor
   const res = await fetch(BASE + path, { method, headers: { Authorization: `Bearer ${TOKEN}`, "Content-Type": "application/json", ...PREVIEW, ...headers }, body: body ? JSON.stringify(body) : undefined });
   return { status: res.status, body: (await res.json()) as any };
 }
+/** Verify a gateway JWS with only the published JWKS: no shared secret, no gateway code. */
+async function verifyJws(token: string, typ: string) {
+  const origin = BASE.replace(/\/gateway\/v1$/, "");
+  const { keys } = (await (await fetch(`${origin}/.well-known/jwks.json`)).json()) as { keys: any[] };
+  const [h, p, sig] = token.split(".");
+  const header = JSON.parse(Buffer.from(h, "base64url").toString());
+  const jwk = keys.find((k) => k.kid === header.kid);
+  if (!jwk || header.alg !== "ES256" || header.typ !== typ) return { ok: false, header };
+  const pub = createPublicKey({ key: { kty: jwk.kty, crv: jwk.crv, x: jwk.x, y: jwk.y }, format: "jwk" });
+  const ok = verify("sha256", Buffer.from(`${h}.${p}`), { key: pub, dsaEncoding: "ieee-p1363" }, Buffer.from(sig, "base64url"));
+  return { ok, header, claims: JSON.parse(Buffer.from(p, "base64url").toString()) };
+}
+
 const log = (title: string, v: unknown) => console.log(`\n== ${title}\n${typeof v === "string" ? v : JSON.stringify(v, null, 1).slice(0, 900)}`);
 
 const spec = await (await fetch(BASE + "/openapi.json", { headers: PREVIEW })).json();
@@ -30,9 +43,14 @@ const delivery = "2026-11-16";
 const q1 = await call("POST", "/quotes", { siteId: site, deliveryDate: delivery, lines: [{ productId: "469363", quantity: 40, outletId: "banquet" }] });
 log("Quote: 40 × Arla lactose-free milk (real stock)", { id: q1.body.id, total: q1.body.totalExVat, outcome: q1.body.outcome, expiresAt: q1.body.expiresAt, approvalsNeeded: q1.body.mandateCheck.approvalsNeeded });
 
+const vq = await verifyJws(q1.body.jws, "aimo-quote+jwt");
+log("Quote signature, checked against /.well-known/jwks.json", { valid: vq.ok, kid: vq.header.kid, total: vq.claims?.total_ex_vat, expires: vq.claims?.exp });
+const tampered = q1.body.jws.replace(/\.([^.]+)\./, (_: string, p: string) => `.${Buffer.from(JSON.stringify({ ...JSON.parse(Buffer.from(p, "base64url").toString()), total_ex_vat: 1 })).toString("base64url")}.`);
+log("Same quote with the total changed to €1", { valid: (await verifyJws(tampered, "aimo-quote+jwt")).ok });
+
 const key = `outside-${q1.body.id}`;
 const o1 = await call("POST", "/orders", { quoteId: q1.body.id }, { "Idempotency-Key": key });
-log(`Order (HTTP ${o1.status})`, { id: o1.body.id, state: o1.body.state, total: o1.body.totalExVat });
+log(`Order (HTTP ${o1.status})`, { id: o1.body.id, state: o1.body.state, total: o1.body.totalExVat, signatureValid: (await verifyJws(o1.body.jws, "aimo-order+jwt")).ok });
 const o2 = await call("POST", "/orders", { quoteId: q1.body.id }, { "Idempotency-Key": key });
 log(`Same order retried (HTTP ${o2.status})`, { sameOrder: o2.body.id === o1.body.id });
 const o3 = await call("POST", "/orders", { quoteId: q1.body.id, approvalId: "apr_other" }, { "Idempotency-Key": key });

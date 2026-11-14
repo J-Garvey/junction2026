@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { NavLink, Route, Routes, useLocation } from "react-router";
 import type { WarningRecord } from "@aimo/contracts";
-import { api, authHooks, type Outlet, type Person, type StatusResp, type SceneKey, type SeedProfile } from "./api";
+import { api, authHooks, type Outlet, type Person, type StatusResp, type SceneKey } from "./api";
 import { Ctx, type AppCtx } from "./ctx";
 import { Icon, Lockup, Mark, type IconName } from "./ui/icons";
 import { AllergyBanner } from "./ui/Banner";
@@ -215,30 +215,10 @@ function ClockBar({ status, onChange }: { status: StatusResp | null; onChange: (
       </span>
       <span className={`stamp ${dm === "fixture" ? "fixture" : "info"}`} title={overlay ? `Fixture: ${overlay}` : undefined}>{dm === "fixture" ? "Fixture" : "Live"}</span>
       {!status.chain.ok && <span className="stamp block">Audit chain broken</span>}
-      {status.seed && (
-        <select
-          className="btn sm ghost"
-          style={{ marginLeft: "auto" }}
-          aria-label="Seed event"
-          title="Reset the demo to this seed"
-          value={status.seed.current}
-          disabled={!!busy}
-          onChange={(ev) => {
-            const profile = ev.target.value as SeedProfile;
-            if (confirm(`Reset the demo to the ${profile} seed? This clears orders, questions and the audit log.`)) run("reset", () => api.reset(profile));
-          }}
-        >
-          {status.seed.profiles.map((p) => (
-            <option key={p} value={p}>
-              {p === "wedding" ? "Wedding (demo)" : "Gala (tests)"}
-            </option>
-          ))}
-        </select>
-      )}
       <button
         type="button"
         className="btn sm ghost"
-        style={status.seed ? undefined : { marginLeft: "auto" }}
+        style={{ marginLeft: "auto" }}
         disabled={!!busy}
         onClick={() => {
           if (confirm("Reset the demo? This clears orders, questions and the audit log.")) run("reset", () => api.reset());

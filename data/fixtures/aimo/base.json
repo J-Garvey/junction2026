@@ -1,7 +1,7 @@
 {
  "name": "base",
- "recordedAt": "2026-11-14T18:33:14.105Z",
- "timeNow": "2026-11-14T20:33:14+0200",
+ "recordedAt": "2026-11-14T20:19:35.432Z",
+ "timeNow": "2026-11-14T22:19:35+0200",
  "availability": {
   "460001": {
    "productId": "460001",
@@ -83132,12 +83132,5 @@
    "netPriceFound": false,
    "error": false
   }
- },
- "added": [
-  {
-   "recordedAt": "2026-11-14T20:20:19.552Z",
-   "timeNow": "2026-11-14T22:20:25+0200",
-   "products": 572
-  }
- ]
+ }
 }

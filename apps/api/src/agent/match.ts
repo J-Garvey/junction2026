@@ -35,18 +35,17 @@ export function shortlist(need: Need): Product[] {
 
 type Scored = { p: Product; l: LookupLine; content: ReturnType<typeof packContent>; pricePerBase: number | null; judgement: ModelJudgement | null; notes: FiredRule[]; pinned: boolean };
 
-/** RANK (SF-06): real stock over unknown, recipe match, reliability band, price per kg or L, then id. */
+/** RANK (SF-06, D32): recipe match, reliability band, price per kg or L, then confirmed stock as the last tie-break, then id. */
 const relBand = (r: number | null) => (r === null ? 1 : r >= FIXED.reliabilityAmber ? 0 : 2);
 const STEPS: [string, (s: Scored) => number | string][] = [
-  ["real stock over unknown", (s) => (s.l.stock.kind === "unknown" ? 1 : 0)],
   ["recipe-approved product", (s) => (s.pinned ? 0 : 1)],
   ["delivery reliability", (s) => relBand(s.p.reliability) * 10 - (s.p.reliability ?? 0)],
-  ["price per kg or L after rounding", (s) => s.pricePerBase ?? Number.MAX_SAFE_INTEGER],
+  ["price per kg or L after rounding", (s) => (s.pricePerBase === null ? Number.MAX_SAFE_INTEGER : Math.round(s.pricePerBase * 100))],
+  ["confirmed stock (tie-break, D32)", (s) => (s.l.stock.kind === "unknown" ? 1 : 0)],
   ["product id (tie-break)", (s) => s.p.id],
 ];
-function compare(a: Scored, b: Scored, urgent = true): number {
-  for (const [name, f] of STEPS) {
-    if (!urgent && name === "real stock over unknown") continue;
+function compare(a: Scored, b: Scored): number {
+  for (const [, f] of STEPS) {
     const x = f(a), y = f(b);
     if (x < y) return -1;
     if (x > y) return 1;
@@ -65,7 +64,7 @@ function decidingStep(a: Scored, b: Scored | undefined): string {
  * and need.rules. `urgent` decides whether a past cut-off matters now; it is
  * always caught (CUT-01), whatever the mock's date says.
  */
-export async function rankNeed(need: Need, list: Product[], pool: Pool): Promise<void> {
+export async function rankNeed(need: Need, list: Product[], pool: Pool, opts: { lockedOk?: boolean } = {}): Promise<void> {
   const at = now();
   need.excluded = [];
   const passing: Scored[] = [];
@@ -79,7 +78,9 @@ export async function rankNeed(need: Need, list: Product[], pool: Pool): Promise
     const pinned = p.id === need.pinnedProductId;
     const diet = dietRules(p, need.constraints, need.groupLabel);
     const hard = [...blocks(diet), ...supplyRules(p, l)];
-    const cut = cutoffRule(p, l, at);
+    // A change to a placed order keeps lines whose cut-off has passed (they are locked, not lost);
+    // the gateway refuses any attempt to change them (CUT-02).
+    const cut = opts.lockedOk && pinned ? null : cutoffRule(p, l, at);
     if (cut) hard.push(cut);
     if (hard.length) {
       need.excluded.push({ productId: p.id, name: p.name, reason: hard[0].message, ruleId: hard[0].ruleId });
@@ -105,10 +106,8 @@ export async function rankNeed(need: Need, list: Product[], pool: Pool): Promise
     }
   }
   // The recipe's own product wins whenever it passes every hard rule (recipe-approved, D6):
-  // anything else is a substitute and asks the chef. Months ahead stock says nothing (D8),
-  // so the stock step only ranks the others when the date is inside the lead time.
-  const urgentNeed = need.neededBy ? (new Date(`${need.neededBy}T00:00:00Z`).getTime() - at.getTime()) / 86_400_000 <= FIXED.urgentDays : false;
-  passing.sort((a, b) => (a.pinned !== b.pinned ? (a.pinned ? -1 : 1) : compare(a, b, urgentNeed)));
+  // anything else is a substitute and asks the chef. Confirmed stock is only the last tie-break (D32).
+  passing.sort(compare);
   need.candidateCount = passing.length;
   need.candidates = passing.map((s, i): Candidate => ({
     productId: s.p.id,

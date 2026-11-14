@@ -45,6 +45,4 @@ export const config = {
     timeoutMs: Number(process.env.CONTEXT_DEV_TIMEOUT_MS ?? 15000),
   },
   testMode: process.env.AIMO_TEST_MODE !== "0",
-  /** Which seed a fresh database starts from: gala (the PRD test event) or wedding (the demo video). */
-  seedProfile: (process.env.AIMO_SEED === "wedding" ? "wedding" : "gala") as "gala" | "wedding",
 };

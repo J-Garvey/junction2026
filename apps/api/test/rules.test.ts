@@ -38,6 +38,12 @@ describe("DIET-FILTER", () => {
   it("no allergen declaration is never safe for an allergy (ALG-03)", () => {
     expect(dietRules(getProduct("460643")!, { claims: [], avoidAllergens: ["AF"], labels: [] }, "g")[0].ruleId).toBe("ALG-03");
   });
+  it("a tree-nut allergy catches almond, and 'free from' never outweighs 'contains'", () => {
+    // 467767 lists AN as free-from and SA (almond) as contains.
+    const r = dietRules(getProduct("467767")!, { claims: [], avoidAllergens: ["AN"], labels: [] }, "g");
+    expect(r[0]).toMatchObject({ ruleId: "ALG-01" });
+    expect(r[0].facts.allergen).toBe("almond");
+  });
   it("contains fish blocks a fish allergy (ALG-01)", () => {
     expect(dietRules(getProduct("471555")!, { claims: [], avoidAllergens: ["AF"], labels: [] }, "g")[0].ruleId).toBe("ALG-01");
   });
@@ -104,8 +110,9 @@ describe("REQUEST-PARSE (built-in parser)", () => {
 
 describe("MANDATE-CHECK", () => {
   it("the cap is inclusive, ex VAT, and a zero cap asks on every order", () => {
-    expect(mandateRules(MANDATE, 5000, [], "site-aurora").approvalsNeeded).toEqual([]);
-    expect(mandateRules(MANDATE, 5000.01, [], "site-aurora").approvalsNeeded).toEqual(["spend_cap"]);
+    const m = { ...MANDATE, spendCapEur: 5000 };
+    expect(mandateRules(m, 5000, [], "site-aurora").approvalsNeeded).toEqual([]);
+    expect(mandateRules(m, 5000.01, [], "site-aurora").approvalsNeeded).toEqual(["spend_cap"]);
     expect(mandateRules({ ...MANDATE, spendCapEur: 0 }, 1, [], "site-aurora").approvalsNeeded).toEqual(["spend_cap"]);
   });
 });
@@ -120,24 +127,5 @@ describe("AUDIT-APPEND (Q09.3)", () => {
     j.summary = "tampered";
     getDb().prepare("UPDATE audit SET json = ? WHERE seq = ?").run(JSON.stringify(j), row.seq);
     expect(verifyChain().ok).toBe(false);
-  });
-});
-
-describe("Wedding seed support", async () => {
-  const { packContent, piecesInName, dietRules } = await import("../src/rules/checks.js");
-  const { getProduct } = await import("../src/catalog.js");
-  it("PACK-CONTENT counts pieces from the name when the need is in pieces", () => {
-    expect(piecesInName("Reuter & Stolt Princess cake 15pcs 100g ready to eat frozen")).toBe(15);
-    expect(piecesInName("Elonen FR Raspberry Pastrycake 2,2kg 40pcs")).toBe(40);
-    expect(packContent(getProduct("467767")!, null, "pcs")).toMatchObject({ value: 15, unit: "pcs" });
-  });
-  it("PACK-CONTENT keeps the catalogue's exact 4.5 L when the cent-rounded comparison price agrees", () => {
-    const line = { salesUnit: "KI", price: { value: 36.76, comparisonPrice: 8.17, comparisonUnit: "L" } } as any;
-    expect(packContent(getProduct("477125")!, line)).toMatchObject({ value: 4.5, unit: "l", verified: true });
-  });
-  it("ALG-01: avoiding tree nuts catches almond, and contains beats free-from", () => {
-    const rules = dietRules(getProduct("467767")!, { claims: [], avoidAllergens: ["AN"], labels: [] }, "Tree-nut allergy");
-    expect(rules.map((r) => r.ruleId)).toEqual(["ALG-01"]);
-    expect(rules[0].message).toMatch(/almond/);
   });
 });

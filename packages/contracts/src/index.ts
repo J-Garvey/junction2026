@@ -155,7 +155,7 @@ export type PreAnswers = z.infer<typeof PreAnswers>;
 
 export const Mandate = z.object({
   id: z.string(),
-  type: z.literal("IntentMandate.standing").describe("AP2-style, not AP2-conformant"),
+  type: z.literal("aimo.mandate.standing.1").describe("The hotel's standing rules. AP2 v0.2 has no field for spend caps, sites or tolerances, so this is our own object, signed the same way"),
   hotelId: z.string(),
   customerNumber: z.string(),
   sites: z.array(z.object({ id: z.string(), name: z.string(), address: z.string() })),
@@ -165,7 +165,7 @@ export const Mandate = z.object({
   holidays: z.array(z.string()),
   preAnswers: PreAnswers,
   version: z.number().int(),
-  signature: z.string().optional(),
+  signature: z.string().optional().describe("Compact JWS (typ aimo-mandate+jwt, alg ES256) over the mandate"),
 });
 export type Mandate = z.infer<typeof Mandate>;
 
@@ -229,6 +229,9 @@ export const Quote = z.object({
   }),
   outcome: Outcome,
   usesFixtures: z.boolean(),
+  unconfirmedStock: z.array(z.string()).default([]).describe("D31: product IDs whose stock Valio Aimo can't confirm. An order must list them in continueWithUnconfirmedStock"),
+  jws: z.string().optional().describe("AP2 v0.2 merchant checkout_jwt: compact JWS, typ aimo-quote+jwt, alg ES256, signed by Valio Aimo. Verify with /.well-known/jwks.json"),
+  checkoutHash: z.string().optional().describe("AP2 checkout_hash: base64url(SHA-256(jws))"),
 });
 export type Quote = z.infer<typeof Quote>;
 
@@ -238,20 +241,21 @@ export const ApprovalBody = z.object({
   quoteId: z.string(),
   fingerprint: z.string(),
   grants: z
-    .array(z.enum(["spend_cap", "unknown_stock", "partial_fill", "overshoot", "price_change", "reliability", "blocked_product"]))
+    .array(z.enum(["spend_cap", "partial_fill", "overshoot", "price_change", "reliability", "blocked_product"]))
     .min(1),
 });
 export type ApprovalBody = z.infer<typeof ApprovalBody>;
 
 export const Approval = z.object({
   id: z.string(),
-  type: z.literal("CartMandate.approval").describe("AP2-style per-order mandate"),
+  type: z.literal("mandate.checkout.1").describe("AP2 v0.2 closed Checkout Mandate: the approver's yes, bound to the quote's checkout_hash. grants is our extension"),
+  checkoutHash: z.string().describe("AP2 checkout_hash of the quote it approves: base64url(SHA-256(quote.jws))"),
   quoteId: z.string(),
   fingerprint: z.string(),
   grants: z.array(z.string()),
   approvedBy: z.object({ personId: z.string(), name: z.string(), role: Role }),
   createdAt: z.string(),
-  signature: z.string(),
+  signature: z.string().describe("Compact JWS (typ aimo-approval+jwt, alg ES256) carrying the closed Checkout Mandate"),
 });
 export type Approval = z.infer<typeof Approval>;
 
@@ -260,6 +264,8 @@ export type Approval = z.infer<typeof Approval>;
 export const OrderCreateBody = z.object({
   quoteId: z.string(),
   approvalId: z.string().optional(),
+  continueWithUnconfirmedStock: z.array(z.string()).optional().describe("D31: product IDs whose stock Valio Aimo can't confirm and the hotel chose to order anyway"),
+  decidedBy: z.string().optional().describe("Who at the hotel made that choice, for the record"),
 });
 
 export const OrderState = z.enum(["placed", "amended", "checked", "locked", "rejected"]);
@@ -287,6 +293,7 @@ export const Order = z.object({
   idempotencyKey: z.string(),
   version: z.number().int(),
   flags: z.array(z.string()),
+  jws: z.string().optional().describe("AP2 v0.2 Checkout Receipt as a compact JWS (typ aimo-order+jwt, alg ES256); verify with /.well-known/jwks.json"),
 });
 export type Order = z.infer<typeof Order>;
 
@@ -301,11 +308,13 @@ export const AmendmentBody = z.object({
     )
     .min(1),
   approvalId: z.string().optional(),
+  continueWithUnconfirmedStock: z.array(z.string()).optional(),
+  decidedBy: z.string().optional(),
 });
 export type AmendmentBody = z.infer<typeof AmendmentBody>;
 
 export const Refusal = z.object({
-  error: z.enum(["mandate_violation", "quote_stale", "cutoff_passed", "hard_rule", "idempotency_conflict", "not_found", "forbidden", "invalid", "upstream_unavailable"]),
+  error: z.enum(["mandate_violation", "stock_unconfirmed", "quote_stale", "cutoff_passed", "hard_rule", "idempotency_conflict", "not_found", "forbidden", "invalid", "upstream_unavailable"]),
   message: z.string(),
   rules: z.array(FiredRule).optional(),
   approvalsNeeded: z.array(z.string()).optional(),
@@ -384,11 +393,13 @@ export const Ingredient = z.object({
   category: z.string().optional(),
   productId: z.string().optional().describe("Recipe-approved product"),
   variants: z.record(z.string(), z.string()).optional().describe("Recipe-approved product per diet group id"),
-  perPortion: Amount.optional(),
-  /** A fixed amount for the whole event, whatever the guest count (e.g. "40 L of milk for the coffee service"). */
-  total: Amount.optional(),
+  perPortion: Amount.optional().describe("Amount per guest; pieces use the pack's piece count"),
+  total: Amount.optional().describe("A fixed total for the event instead of an amount per guest"),
+  claims: z.array(z.string()).optional().describe("Claims this ingredient always needs, e.g. FREE_FROM_LACTOSE"),
+  origin: z.string().optional().describe("Required origin for this ingredient, e.g. fi"),
+  productType: z.string().optional(),
   frozen: z.boolean().optional(),
-}).refine((i) => Boolean(i.perPortion) !== Boolean(i.total), { message: "Give either perPortion or total" });
+});
 export type Ingredient = z.infer<typeof Ingredient>;
 
 export const Dish = z.object({

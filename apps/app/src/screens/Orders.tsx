@@ -36,6 +36,18 @@ export function Orders() {
             <span>Delivery {day(o.deliveryDate)}</span>
             <span>v{o.version}</span>
           </div>
+          <div className="rl small">
+            <span className="row" style={{ gap: 6 }}>
+              {o.jws && (
+                <a href="/.well-known/jwks.json" target="_blank" rel="noreferrer" className="stamp order" title="ES256 signature by Valio Aimo's gateway; verify with the public keys">
+                  Signed
+                </a>
+              )}
+              <a href={`/gateway/v1/orders/${o.id}/peppol`} target="_blank" rel="noreferrer">
+                Peppol XML
+              </a>
+            </span>
+          </div>
           <hr />
           {o.lines.map((l) => (
             <div key={l.lineNo} className={`rline ${l.removed ? "removed" : ""}`}>

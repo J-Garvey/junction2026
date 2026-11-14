@@ -66,6 +66,19 @@ async function applyAnswer(q: Question, p: Person, token: string) {
   } else if (f.kind === "quantity") {
     for (const l of f.lines) for (const n of l.needIds) (q.answer === "keep" ? ov.confirmed : ov.removedNeeds).push(q.answer === "keep" ? `${n}:${l.productId}` : n);
     replan = q.answer === "remove";
+  } else if (f.kind === "stock") {
+    // D31: the person building the order decides; it never goes to the Approver.
+    if (q.answer === "continue") {
+      ov.stockContinued = [...new Set([...(ov.stockContinued ?? []), ...f.lines.map((l: any) => l.productId)])];
+      ov.stockDecidedBy = p.name;
+      for (const l of f.lines) for (const n of l.needIds) ov.confirmed.push(`${n}:${l.productId}`);
+    } else if (q.answer === "confirmed") {
+      ov.useConfirmed = true;
+      replan = true;
+    } else {
+      for (const l of f.lines) for (const n of l.needIds) ov.excluded.push(`${n}:${l.productId}`);
+      replan = true;
+    }
   } else if (f.kind === "approval") {
     return applyApproval(plan, q, p, token);
   }

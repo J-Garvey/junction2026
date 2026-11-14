@@ -76,6 +76,28 @@ export function buildQuestions(plan: Plan & { overrides: any }, quote: Quote): Q
     }));
   }
 
+  // D31: one question to the person building the order for every line whose stock Valio Aimo can't confirm.
+  const unconfirmed = live.filter((l) => l.stock?.kind === "unknown" && quote.unconfirmedStock?.includes(l.productId!) && !(plan.overrides.stockContinued ?? []).includes(l.productId!));
+  if (unconfirmed.length) {
+    const urgentNeeds = plan.urgent ? plan.needs.filter((n) => unconfirmed.some((l) => l.needIds.includes(n.id))) : [];
+    const confirmedCover = urgentNeeds.length
+      ? urgentNeeds.map((n) => n.candidates.filter((c) => c.stock.kind === "known" && c.packContent?.unit === n.amount.unit).reduce((sum, c) => sum + (c.stock.kind === "known" ? c.stock.amount * (c.packContent?.value ?? 0) : 0), 0))
+      : [];
+    const alt = urgentNeeds.length === 1 && confirmedCover[0] > 0 ? { covered: round2(Math.min(confirmedCover[0], urgentNeeds[0].amount.value)), need: urgentNeeds[0].amount.value, unit: urgentNeeds[0].amount.unit } : null;
+    out.push(makeQuestion({
+      ...base, type: "unknown_stock", forRole: "chef", outletId: unconfirmed[0].outletId,
+      title: unconfirmed.length === 1 ? `Continue with ${shortName(unconfirmed[0].productName)}?` : `Continue with ${unconfirmed.length} lines?`,
+      body: `Stock not confirmed: ${unconfirmed.map((l) => shortName(l.productName)).join(", ")}`,
+      facts: { kind: "stock", lines: unconfirmed.map(lineFacts), alternative: alt },
+      ruleIds: ["STK-01"],
+      options: [
+        { id: "continue", label: "Continue", primary: true },
+        ...(alt ? [{ id: "confirmed", label: `Use confirmed stock (${alt.covered} of ${alt.need} ${alt.unit})`, primary: false }] : []),
+        { id: "others", label: "Pick others", primary: false },
+      ],
+    }));
+  }
+
   // Chef: quantity sanity or unverifiable pack size.
   const qty = live.filter((l) => l.rules.some((r) => ["QTY-02", "QTY-03", "QTY-05"].includes(r.ruleId)) && !l.needIds.every((id) => plan.overrides.confirmed.includes(`${id}:${l.productId}`)));
   if (qty.length)
@@ -91,9 +113,7 @@ export function buildQuestions(plan: Plan & { overrides: any }, quote: Quote): Q
   // Approver: one card for every money and policy item on this quote.
   const items: { ruleId: string; text: string; grant: string | null; lines: string[] }[] = [];
   for (const r of quote.mandateCheck.rules) items.push({ ruleId: r.ruleId, text: r.ruleId === "MAN-01" ? `Over cap: ${r.facts.total} of ${r.facts.cap}` : `${r.label}: ${r.facts.product ?? ""}`, grant: r.ruleId === "MAN-01" ? "spend_cap" : r.ruleId === "MAN-02" ? "blocked_product" : null, lines: [] });
-  const unknown = live.filter((l) => l.stock?.kind === "unknown");
-  if (quote.mandateCheck.approvalsNeeded.includes("unknown_stock") && unknown.length)
-    items.push({ ruleId: "STK-01", text: `Unknown stock: ${unknown.map((l) => shortName(l.productName)).join(", ")}`, grant: "unknown_stock", lines: unknown.map((l) => l.id) });
+  const unknown: PlanLine[] = [];
   const softDecided = plan.overrides.approvedSoft.includes(quote.fingerprint);
   if (!softDecided) {
     const partial = live.filter((l) => l.rules.some((r) => r.ruleId === "STK-02"));

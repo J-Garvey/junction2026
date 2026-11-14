@@ -17,9 +17,9 @@ import { messageRoute } from "../agent/judge.js";
 import { newPlan, quoteAndDecide, getPlan, listPlans, mandate, savePlan } from "../agent/plan.js";
 import { questionsFor, allQuestions, getQuestion, canAnswer } from "../agent/questions.js";
 import { answer } from "../agent/answers.js";
-import { addDietGroup, changeGuests, coverageSummary, EditConflict, eventView, finalCheck, listEvents, orderEvent, removeNeed, runCutoff, runViability, warnings, personActor } from "../agent/events.js";
+import { addDietGroup, changeEvent, changeGuests, coverageSummary, EditConflict, eventView, finalCheck, listEvents, orderEvent, removeNeed, runCutoff, runViability, warnings, personActor } from "../agent/events.js";
 import { listRemembered } from "../agent/memory.js";
-import { seedReset, seedProfile, SEED_PROFILES, OUTLETS, OUTSIDE_AGENT_TOKEN, VALIO_VIEWER_TOKEN } from "../seed.js";
+import { seedReset, OUTLETS, OUTSIDE_AGENT_TOKEN, VALIO_VIEWER_TOKEN } from "../seed.js";
 import { gw } from "../agent/gatewayClient.js";
 import { dataMode } from "../aimo/lookup.js";
 import { config } from "../config.js";
@@ -52,7 +52,6 @@ export function appRouter(): Router {
       model: { provider: "openai", model: modelName(), configured: modelConfigured() },
       catalogue: catalogSize(),
       testMode: config.testMode,
-      seed: { current: seedProfile().id, hotelName: seedProfile().hotelName, profiles: Object.keys(SEED_PROFILES) },
       chain: verifyChain(),
     }),
   );
@@ -66,11 +65,10 @@ export function appRouter(): Router {
     res.json({ person: p, token });
   });
 
-  r.post("/reset", (req, res) => {
+  r.post("/reset", (_req, res) => {
     if (!config.testMode) return res.status(403).json({ error: "Test mode only" });
-    const { profile } = z.object({ profile: z.enum(["gala", "wedding"]).optional() }).parse(req.body ?? {});
-    seedReset(profile);
-    res.json({ ok: true, seed: seedProfile().id });
+    seedReset();
+    res.json({ ok: true });
   });
 
   r.use(person);
@@ -144,6 +142,11 @@ export function appRouter(): Router {
     const b = z.object({ guests: z.number().int().min(0), version: z.number() }).parse(req.body);
     res.json(await changeGuests(String(req.params.id), b.guests, b.version, P(req)));
   });
+  // Scene 3 in one step: a new guest count and/or a new allergy (D28 check first, then one change).
+  r.post("/events/:id/change", async (req, res) => {
+    const b = z.object({ guests: z.number().int().min(0).optional(), group: DietGroup.optional(), version: z.number() }).parse(req.body);
+    res.json(await changeEvent(String(req.params.id), { guests: b.guests, group: b.group }, b.version, P(req)));
+  });
   r.post("/events/:id/diet-groups", async (req, res) => {
     const b = z.object({ group: DietGroup, version: z.number() }).parse(req.body);
     res.json(await addDietGroup(String(req.params.id), b.group, b.version, P(req)));
@@ -181,9 +184,18 @@ export function appRouter(): Router {
     const b = ClockSetBody.parse(req.body);
     const before = now().toISOString();
     const s = setClock({ time: b.time, scene: b.scene });
-    if (b.scene) kvSet("dataMode", { mode: b.scene === "live" ? "live" : "fixture", overlay: b.scene === "4" ? seedProfile().finalCheckOverlay : null });
+    if (b.scene) kvSet("dataMode", { mode: b.scene === "live" ? "live" : "fixture", overlay: b.scene === "4" ? "final-check" : null });
     audit({ actor: personActor(P(req)), action: "clock_moved", summary: `Clock moved from ${before} to ${now().toISOString()}${b.scene ? ` (${SCENES[b.scene]?.label ?? b.scene})` : ""}`, details: { scene: b.scene ?? null }, visibility: "shared" });
     res.json({ clock: s, dataMode: kvGet("dataMode") });
+  });
+  // Demo-only safety drill (docs/demo-plan.md): a script posing as an outside agent sends an
+  // order over the budget with no approval. Not part of the product; it shows a real refusal.
+  r.post("/drill", async (_req, res) => {
+    const H = { "Content-Type": "application/json", Authorization: `Bearer ${OUTSIDE_AGENT_TOKEN}`, ...(process.env.PREVIEW_PASSWORD ? { "X-Preview-Password": process.env.PREVIEW_PASSWORD } : {}) };
+    const m = mandate();
+    const q = (await (await fetch(`${config.gatewayUrl}/quotes`, { method: "POST", headers: H, body: JSON.stringify({ siteId: m.sites[0].id, deliveryDate: "2026-11-16", lines: [{ productId: "469672", quantity: 80, outletId: "banquet" }] }) })).json()) as any;
+    const o = await fetch(`${config.gatewayUrl}/orders`, { method: "POST", headers: { ...H, "Idempotency-Key": `drill-${q.id}` }, body: JSON.stringify({ quoteId: q.id }) });
+    res.json({ quote: { id: q.id, total: q.totalExVat, cap: m.spendCapEur }, status: o.status, refusal: await o.json() });
   });
   r.post("/data-mode", (req, res) => {
     const b = z.object({ mode: z.enum(["live", "fixture"]), overlay: z.string().nullable().default(null) }).parse(req.body);

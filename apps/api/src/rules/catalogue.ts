@@ -44,9 +44,9 @@ const LABELS: Record<string, string> = {
   "LBL-01": "Label missing",
   "TYP-01": "Type unsure",
   "TYP-02": "Wrong type",
-  "STK-01": "Unknown stock",
+  "STK-01": "Stock not confirmed",
   "STK-02": "Partial stock",
-  "STK-03": "Risk accepted",
+  "STK-03": "Continued",
   "STK-04": "Not enough stock",
   "STK-05": "Stock info only",
   "DLV-01": "Not deliverable",
@@ -105,9 +105,9 @@ export const RULES: RuleDef[] = [
   R("TYP-01", "Product type", "ask_chef", false, "Model unsure whether the product is the type asked for", "Is {product} the {type} you need? The check was unsure ({probability})."),
   R("TYP-02", "Product type", "order", false, "Model says the product is not the type asked for", "{product} is not {type} ({probability}); left out."),
   // Stock
-  R("STK-01", "Stock", "ask_approver", false, "Stock reported as unknown (sentinel); risk must be accepted (D23)", "Valio Aimo can't confirm stock of {product} ({reason}). Ordering it means accepting that risk."),
+  R("STK-01", "Stock", "ask_chef", false, "Stock reported as unknown (sentinel); the person building the order decides (D31)", "Valio Aimo can't confirm stock for {product}. Continue with it?"),
   R("STK-02", "Stock", "ask_approver", false, "Suitable products together don't cover the need", "Real stock covers {covered} of {need}. {short} would be short."),
-  R("STK-03", "Stock", "order", false, "Unknown-stock risk acceptance carried over", "Unknown-stock risk on {product} was accepted by {by} on {at}."),
+  R("STK-03", "Stock", "order", false, "Hotel chose to continue with unconfirmed stock", "{by} chose to continue with {product} on {at}; its stock is still not confirmed."),
   R("STK-04", "Stock", "block", true, "Ordered quantity exceeds real stock on an urgent delivery", "{product}: {quantity} {unit} ordered, {stock} in stock for {date}."),
   R("STK-05", "Stock", "order", false, "Stock shown as information only, months ahead (D8)", "Today's stock, not a promise for your date: {stock}."),
   // Delivery
