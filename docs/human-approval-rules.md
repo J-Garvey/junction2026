@@ -30,7 +30,7 @@ Valio Aimo said ingredients aren't interchangeable just because they're in the s
 ## Quantity
 
 - **Block:** a product with **no delivery dates**. Empty `scheduleLines` means not deliverable, even if the product has a price.
-- **Block as "confirmed":** stock reported as **unknown**: 999999 on Terminal products, and 9,999,999,999 base units on some Stock products. The agent must not present these as available. A person can choose another product with a real stock figure.
+- **Ask (accept the risk), never confirm:** stock reported as **unknown**: 999999 on Terminal products, and 9,999,999,999 base units on some Stock products. The agent must not present these as available. It may suggest them, ranked below products with a real stock figure and labelled "unknown stock"; the Approver can accept the risk of ordering one, which leaves the stock unknown, not confirmed. (Changed 14 Nov from a block: decision D23 in [prd-context.md](prd-context.md).)
 - **Ask:** **partial availability**: a line can only be part-filled, or all suitable products together don't cover the need.
 - **Ask:** rounding up to whole sales units (which Valio Aimo confirmed customers do) that overshoots the need by more than the hotel's set tolerance.
 - **Ask:** a quantity that looks implausible for the guest count, or a likely unit mix-up (litres vs decilitres, packs vs cases).
