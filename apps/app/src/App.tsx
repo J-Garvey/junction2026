@@ -1,6 +1,6 @@
 /** Shell: sidebar or phone tabs, the "viewing as" switcher (TM-06), the top bar with the profile, the allergy banner,
  * and the person picker with the demo settings (test clock and reset). */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, Route, Routes, useLocation, useNavigate } from "react-router";
 import type { WarningRecord } from "@aimo/contracts";
 import { api, authHooks, type Outlet, type Person, type StatusResp, type SceneKey } from "./api";
@@ -22,8 +22,6 @@ const NAV: [string, IconName, string][] = [
   ["/events", "cal", "Events"],
   ["/requests", "chat", "Requests"],
   ["/orders", "box", "Orders"],
-  ["/audit", "list", "Audit"],
-  ["/rules", "shield", "Rules"],
 ];
 
 export function App() {
@@ -114,7 +112,7 @@ export function App() {
   return (
     <Ctx.Provider value={ctx}>
       <div className="shell">
-        <Sidebar badge={badge} me={ctx.me} people={people} onPick={pick} />
+        <Sidebar badge={badge} me={ctx.me} />
         <div className="main">
           <TopBar status={status} me={ctx.me} onSwitch={() => setNeedPick(true)} />
           <AllergyBanner warnings={warnings} />
@@ -142,7 +140,7 @@ export function App() {
   );
 }
 
-function Sidebar({ badge, me, people, onPick }: { badge: number; me: Person; people: Person[]; onPick: (id: string) => void }) {
+function Sidebar({ badge, me }: { badge: number; me: Person }) {
   const loc = useLocation();
   const basketId = loc.pathname.match(/^\/baskets\/([^/]+)$/)?.[1];
 
@@ -159,17 +157,7 @@ function Sidebar({ badge, me, people, onPick }: { badge: number; me: Person; peo
           </span>
         </div>
       ) : (
-        <label className="acct" title="Viewing as (test session)">
-          <Mark s={20} />
-          <select value={me.id} onChange={(e) => onPick(e.target.value)} aria-label="Viewing as">
-            {people.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}, {p.title}
-              </option>
-            ))}
-          </select>
-          <Icon n="down" s={14} />
-        </label>
+        <div className="side-brand"><Lockup /></div>
       )}
       {NAV.map(([to, ic, l]) => (
         <NavLink key={to} to={to} end={to === "/"} className={({ isActive }) => (isActive ? "on" : "")}>
@@ -223,27 +211,72 @@ function TopBar({ status, me, onSwitch }: { status: StatusResp | null; me: Perso
   return (
     <div className="topbar">
       {status && !status.chain.ok && <span className="stamp block">Audit chain broken</span>}
-      <button type="button" className="profile hide-m" style={{ marginLeft: "auto" }} onClick={onSwitch} title="Switch person">
-        <span className="avatar">{initials(me.name)}</span>
-        <span>
-          <b>{me.name}</b>
-          <span className="small muted">{me.title}</span>
-        </span>
-      </button>
+      <div className="hide-m account-slot"><AccountMenu me={me} onSwitch={onSwitch} /></div>
     </div>
   );
 }
 
 function MobileHead({ me, onSwitch }: { me: Person; onSwitch: () => void }) {
   const loc = useLocation();
-  const title = NAV.find(([to]) => (to === "/" ? loc.pathname === "/" : loc.pathname.startsWith(to)))?.[2] ?? "";
+  const title = NAV.find(([to]) => (to === "/" ? loc.pathname === "/" : loc.pathname.startsWith(to)))?.[2] ?? (loc.pathname.startsWith("/audit") ? "Audit" : loc.pathname.startsWith("/rules") ? "Rules" : "");
   return (
     <div className="mhead">
       <Mark s={20} />
       <h1>{title || "Aimo Copilot"}</h1>
-      <button type="button" className="avatar" onClick={onSwitch} title={`Viewing as ${me.name}`}>
-        {initials(me.name)}
+      <AccountMenu me={me} onSwitch={onSwitch} compact />
+    </div>
+  );
+}
+
+function AccountMenu({ me, onSwitch, compact = false }: { me: Person; onSwitch: () => void; compact?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOutside = (event: MouseEvent) => {
+      if (!ref.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", closeOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
+
+  return (
+    <div className={`account-menu ${compact ? "compact" : ""}`} ref={ref}>
+      <button type="button" className={compact ? "avatar" : "profile"} onClick={() => setOpen((value) => !value)} aria-haspopup="menu" aria-expanded={open} title={`Signed in as ${me.name}`}>
+        <span className={compact ? "" : "avatar"}>{initials(me.name)}</span>
+        {!compact && (
+          <>
+            <span>
+              <b>{me.name}</b>
+              <span className="small muted">{me.title}</span>
+            </span>
+            <Icon n="down" s={14} />
+          </>
+        )}
       </button>
+      {open && (
+        <div className="account-panel" role="menu">
+          <div className="account-current">
+            <span className="avatar">{initials(me.name)}</span>
+            <span>
+              <span className="small muted">Signed in as</span>
+              <b>{me.name}</b>
+              <span className="small muted">{me.title}</span>
+            </span>
+          </div>
+          <NavLink to="/audit" role="menuitem" onClick={() => setOpen(false)}><Icon n="list" s={17} /> Audit log</NavLink>
+          <NavLink to="/rules" role="menuitem" onClick={() => setOpen(false)}><Icon n="shield" s={17} /> Rules</NavLink>
+          <button type="button" className="account-action" role="menuitem" onClick={() => { setOpen(false); onSwitch(); }}><Icon n="users" s={17} /> Switch user</button>
+        </div>
+      )}
     </div>
   );
 }

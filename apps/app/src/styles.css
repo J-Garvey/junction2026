@@ -55,6 +55,7 @@ h4 { font-size: 13px; font-weight: 700; text-transform: uppercase; color: var(--
 .acct-static > span { display: flex; min-width: 0; flex-direction: column; line-height: 1.25; }
 .acct-static b, .acct-static .small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .order-switcher select { font-weight: 700; }
+.side-brand { padding: 4px 8px 14px; }
 .viewing { padding: 4px 8px 10px; }
 .side a { display: flex; align-items: center; gap: 9px; padding: 6px 8px; border-radius: 6px; font-size: 14px; font-weight: 500; color: var(--body); text-decoration: none; }
 .side a.on { background: var(--card); color: var(--ink); font-weight: 600; box-shadow: inset 0 0 0 1px var(--hairline); }
@@ -77,6 +78,14 @@ h4 { font-size: 13px; font-weight: 700; text-transform: uppercase; color: var(--
 .profile { display: flex; align-items: center; gap: 8px; border: 0; background: transparent; padding: 4px 6px; border-radius: 6px; text-align: left; cursor: pointer; line-height: 1.2; }
 .profile:hover { background: var(--soft); }
 .profile b { display: block; font-size: 13px; color: var(--ink); }
+.account-slot { margin-left: auto; }
+.account-menu { position: relative; }
+.account-panel { position: absolute; z-index: 40; top: calc(100% + 6px); right: 0; width: 250px; padding: 6px; border: 1px solid var(--hairline); border-radius: 6px; background: var(--card); box-shadow: 0 8px 24px rgba(35, 37, 29, 0.18); }
+.account-current { display: flex; align-items: center; gap: 10px; padding: 10px; border-bottom: 1px solid var(--hairline-soft); margin-bottom: 4px; }
+.account-current > span:last-child { display: flex; min-width: 0; flex-direction: column; line-height: 1.3; }
+.account-current b { color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-panel a, .account-action { width: 100%; display: flex; align-items: center; gap: 9px; padding: 8px 10px; border: 0; border-radius: 4px; background: transparent; color: var(--body); font-size: 14px; font-weight: 600; text-align: left; text-decoration: none; }
+.account-panel a:hover, .account-action:hover { background: var(--soft); text-decoration: none; }
 
 /* allergy banner */
 .allergy { background: var(--red); color: #fff; }
