@@ -174,7 +174,7 @@ export function ModelStatus({ status }: { status: StatusResp | null }) {
   return (
     <div className="small modelst" title="Which model reads requests and checks product types">
       <span className={`dot ${m.configured ? "ok" : "off"}`} />
-      {m.configured ? `${name}: on` : `${name}: not configured → built-in parser`}
+      {m.configured ? `${name}: on` : `${name}: not configured`}
     </div>
   );
 }

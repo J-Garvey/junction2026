@@ -19,7 +19,7 @@ For development, `pnpm dev` runs the API with `tsx watch` and the Vite app on po
 | `pnpm test` | 35 tests: the live console with a scripted model, rule units, the three PRD test cases end to end (the wedding twice from a fresh reset), and signature checks |
 | `pnpm seed` | Fresh database: one hotel, four people, the mandate, the event, clock at scene 1 |
 | `pnpm agent:demo` | An outside agent that uses only `/openapi.json` and its token: search, quote, order, retry, and the refusals |
-| `pnpm fixtures:record` | Saves real mock responses for the seed pool to `data/fixtures/aimo/base.json` |
+| `pnpm fixtures:record` | Saves real mock responses for the seed pool to `data/fixtures/aimo/base.json`. `-- --add-missing` records only products not yet saved and merges them in |
 
 ### Settings
 

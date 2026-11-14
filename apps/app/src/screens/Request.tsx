@@ -7,11 +7,18 @@ import { useApp, useLoad } from "../ctx";
 import { Composer } from "./Home";
 import { Candidates, LinesList, MoneyView, CutoffBoard, Section, shortfallText } from "../ui/PlanView";
 import { QuestionCard } from "../ui/QuestionCard";
-import { Status, planStatusKind, PLAN_STATUS_TEXT, RuleChip, Fixture } from "../ui/Status";
-import { claimLabel, day, eur, when } from "../format";
+import { Status, planStatusKind, PLAN_STATUS_TEXT, Fixture } from "../ui/Status";
+import { claimLabel, day, eur, when, helsinkiDate, addDays } from "../format";
 
 const UNITS: Unit[] = ["l", "dl", "ml", "kg", "g", "pcs"];
 const CLAIMS = ["FREE_FROM_LACTOSE", "FREE_FROM_GLUTEN", "FREE_FROM_MILK", "FREE_FROM_EGG"];
+/** Needed-by shortcuts, counted from the simulated today. One week is the default. */
+const DATE_PRESETS = [
+  { id: "1d", label: "Tomorrow", days: 1 },
+  { id: "2d", label: "In 2 days", days: 2 },
+  { id: "7d", label: "In a week", days: 7 },
+];
+const DEFAULT_DAYS = 7;
 
 export function Requests() {
   const { data, error } = useLoad(() => api.home(), []);
@@ -45,10 +52,16 @@ export function Requests() {
 export function RequestNew() {
   const loc = useLocation();
   const nav = useNavigate();
+  const { now } = useApp();
   const st = loc.state as { resp?: Extract<MessageResp, { request: SingleRequest }>; text?: string } | null;
-  const [req, setReq] = useState<SingleRequest | null>(st?.resp?.request ?? null);
+  const today = helsinkiDate(now);
+  const initial = st?.resp?.request ?? null;
+  // A date the request itself names ("by Monday") wins; otherwise one week out.
+  const [req, setReq] = useState<SingleRequest | null>(initial && { ...initial, neededBy: initial.neededBy ?? addDays(today, DEFAULT_DAYS) });
+  const [custom, setCustom] = useState(() => Boolean(initial?.neededBy) && !DATE_PRESETS.some((p) => addDays(today, p.days) === initial?.neededBy));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [tried, setTried] = useState(false);
 
   if (!req || !st?.resp)
     return (
@@ -60,8 +73,23 @@ export function RequestNew() {
 
   const setLine = (i: number, patch: Partial<SingleLine>) => setReq({ ...req, lines: req.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)) });
 
+  // REQUEST-VALIDATE's required inputs (REQ-01 to REQ-03), checked before leaving the page.
+  const lineMissing = (l: SingleLine) => ({ product: !l.query.trim(), quantity: !l.quantity || !(l.quantity.amount > 0) });
+  const dateMissing = !req.neededBy || req.neededBy <= today;
+  const missing = [
+    ...(req.lines.length ? [] : ["a product"]),
+    ...req.lines.flatMap((l, i) => {
+      const m = lineMissing(l);
+      const name = l.query.trim() || `line ${i + 1}`;
+      return [...(m.product ? [`the product on line ${i + 1}`] : []), ...(m.quantity ? [`how much ${name}`] : [])];
+    }),
+    ...(dateMissing ? ["a needed-by date after today"] : []),
+  ];
+
   async function quote() {
     if (!req) return;
+    setTried(true);
+    if (missing.length) return;
     setBusy(true);
     setErr(null);
     try {
@@ -78,10 +106,9 @@ export function RequestNew() {
     <div className="page stack-l">
       <div className="msg-me">{req.originalText}</div>
       <div className="card pad stack">
-        {st.resp.note && <div className="callout blue small">Built-in parser</div>}
         {req.lines.map((l, i) => (
           <div key={l.id} className="chipline">
-            <label className="chip">
+            <label className={`chip ${tried && lineMissing(l).quantity ? "missing" : ""}`}>
               <span className="chip-k">Quantity</span>
               <input
                 type="number"
@@ -96,7 +123,7 @@ export function RequestNew() {
                 ))}
               </select>
             </label>
-            <label className="chip">
+            <label className={`chip ${tried && lineMissing(l).product ? "missing" : ""}`}>
               <span className="chip-k">Product</span>
               <input value={l.query} onChange={(e) => setLine(i, { query: e.target.value })} style={{ width: 110 }} />
             </label>
@@ -125,13 +152,35 @@ export function RequestNew() {
 
           </div>
         ))}
-        <div className="chipline">
-          <label className="chip">
-            <span className="chip-k">By</span>
-            <input type="date" value={req.neededBy ?? ""} onChange={(e) => setReq({ ...req, neededBy: e.target.value || null })} />
+        <div className={`chipline ${tried && dateMissing ? "missing" : ""}`} role="group" aria-label="Needed by">
+          <span className="chip-k">Needed by</span>
+          {DATE_PRESETS.map((p) => {
+            const d = addDays(today, p.days);
+            const on = !custom && req.neededBy === d;
+            return (
+              <button key={p.id} type="button" className={`datebtn ${on ? "on" : ""}`} aria-pressed={on} onClick={() => { setCustom(false); setReq({ ...req, neededBy: d }); }}>
+                <span>{p.label}</span>
+                <span className="small muted">{day(d)}</span>
+              </button>
+            );
+          })}
+          <label className={`datebtn ${custom ? "on" : ""}`}>
+            <span>Custom</span>
+            <input
+              type="date"
+              aria-label="Custom date"
+              min={today}
+              value={custom ? req.neededBy ?? "" : ""}
+              onFocus={() => setCustom(true)}
+              onChange={(e) => { setCustom(true); setReq({ ...req, neededBy: e.target.value || null }); }}
+            />
           </label>
-
         </div>
+        {tried && missing.length > 0 && (
+          <div className="callout red small" role="alert">
+            Add {missing.length > 1 ? `${missing.slice(0, -1).join(", ")} and ${missing[missing.length - 1]}` : missing[0]} to get a quote.
+          </div>
+        )}
         {err && <div className="callout red small">{err}</div>}
         <div className="row">
           <button type="button" className="btn primary" disabled={busy} onClick={quote}>
@@ -167,9 +216,7 @@ export function Outcome({ plan }: { plan: Plan }) {
       {plan.inputRules.filter((r) => r.outcome !== "order").length > 0 && (
         <div className="row small" style={{ gap: 6, marginTop: 6, flexWrap: "wrap" }}>
           {plan.inputRules.filter((r) => r.outcome !== "order").map((r, i) => (
-            <span key={i} title={r.message}>
-              <RuleChip id={r.ruleId} /> {r.label}
-            </span>
+            <span key={i}>{r.message}</span>
           ))}
         </div>
       )}

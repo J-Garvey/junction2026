@@ -8,7 +8,7 @@ import type { Plan, PlanLine, Question, QuestionType, Quote } from "@aimo/contra
 import { getDb, allJson, getJson, tx } from "../db.js";
 import { nowIso, now } from "../clock.js";
 import { audit, AGENT } from "../audit.js";
-import { newId, eur, parseAimoTime, round2, shortName } from "../util.js";
+import { newId, eur, parseAimoTime, round2, shortName, helsinkiStartOfDay } from "../util.js";
 import { allPeople, type Person } from "../identity.js";
 import { specCompare } from "./sidebyside.js";
 import { getProduct } from "../catalog.js";
@@ -46,7 +46,10 @@ const lineFacts = (l: PlanLine) => ({ lineId: l.id, productId: l.productId, prod
 export function buildQuestions(plan: Plan & { overrides: any }, quote: Quote): Question[] {
   const out: Question[] = [];
   const live = plan.lines.filter((l) => !l.removed && l.productId);
-  const deadline = earliestCutoff(live);
+  // Answer in time for both the order cut-off and the date the goods are needed, whichever comes first.
+  const needed = plan.neededBy ? helsinkiStartOfDay(plan.neededBy).toISOString() : null;
+  const cut = earliestCutoff(live);
+  const deadline = [cut, needed].filter((d): d is string => Boolean(d)).sort()[0] ?? null;
   const base = { planId: plan.id, eventId: plan.eventId, quoteId: quote.id, fingerprint: quote.fingerprint, deadline };
 
   // Chef: product type unsure (one card for all such lines).
