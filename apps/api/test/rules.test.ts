@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll } from "vitest";
 process.env.AIMO_DB = ":memory:";
 process.env.OPENAI_API_KEY = "";
 const { getProduct } = await import("../src/catalog.js");
-const { dietRules, stockCheck, cutoffRule, packContent, mandateRules } = await import("../src/rules/checks.js");
+const { dietRules, stockCheck, cutoffRule, earliestDelivery, packContent, mandateRules } = await import("../src/rules/checks.js");
 const { resolveOutcome, fire, RULES } = await import("../src/rules/catalogue.js");
 const { packRound } = await import("../src/agent/match.js");
 const { rulesParse, quantitySanity, toBase } = await import("../src/agent/parse.js");
@@ -65,6 +65,13 @@ describe("STOCK-CHECK and CUTOFF-CHECK", () => {
   it("a passed cut-off is caught even though the mock still shows Monday", () => {
     expect(cutoffRule({ name: "x" }, look(), new Date("2026-11-15T16:00:00Z"))?.ruleId).toBe("CUT-01");
     expect(cutoffRule({ name: "x" }, look(), new Date("2026-11-15T14:00:00Z"))).toBeNull();
+  });
+  it("earliest delivery keeps the offered date, or moves past a passed cut-off (DLV-06)", () => {
+    const days = [1, 2, 3, 4, 5];
+    expect(earliestDelivery(look(), new Date("2026-11-15T14:00:00Z"), days, [])).toBe("2026-11-16");
+    // Sun 17:00 cut-off passed: Tuesday's cut-off is Mon 17:00, still ahead.
+    expect(earliestDelivery(look(), new Date("2026-11-15T16:00:00Z"), days, [])).toBe("2026-11-17");
+    expect(earliestDelivery(look(), new Date("2026-11-15T16:00:00Z"), days, ["2026-11-17"])).toBe("2026-11-18");
   });
 });
 

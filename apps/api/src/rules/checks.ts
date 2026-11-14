@@ -94,6 +94,26 @@ export function cutoffRule(p: { name: string }, l: LookupLine, now: Date): Fired
   return null;
 }
 
+/**
+ * EARLIEST-DELIVERY: the first date this product can still arrive. A cut-off that
+ * hasn't passed keeps the date Valio Aimo offered. A passed one moves forward whole
+ * days with its delivery date until the cut-off is in the future again. That is an
+ * estimate: the mock returns one schedule line only.
+ */
+export function earliestDelivery(l: LookupLine, now: Date, deliveryDays: number[], holidays: string[]): string | null {
+  if (!l.availableDate) return null;
+  const c = parseAimoTime(l.closingTime);
+  if (!c || c.getTime() > now.getTime()) return l.availableDate;
+  const base = new Date(`${l.availableDate}T12:00:00Z`).getTime();
+  for (let i = 1; i <= 60; i++) {
+    const d = new Date(base + i * 86_400_000);
+    const date = d.toISOString().slice(0, 10);
+    if (!deliveryDays.includes(d.getUTCDay()) || holidays.includes(date)) continue;
+    if (c.getTime() + i * 86_400_000 > now.getTime()) return date;
+  }
+  return null;
+}
+
 export function hoursLeft(l: LookupLine, now: Date): number | null {
   const c = parseAimoTime(l.closingTime);
   return c ? (c.getTime() - now.getTime()) / 3_600_000 : null;

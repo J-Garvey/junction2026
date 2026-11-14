@@ -30,6 +30,8 @@ export type Overrides = {
   stockDecidedBy?: string;
   useConfirmed?: boolean; // urgent need: the person chose the split across confirmed stock instead
   stockBlind?: boolean; // a change to a placed order rescales the same products; stock is the final check's job
+  accepted?: boolean; // single request: the person approved adding the proposed products to the quote
+  chosen?: string[]; // "needId:productId" the person picked from the alternatives
 };
 export type StoredPlan = Plan & { overrides: Overrides; event?: EventSpec | null; questionsAnswered: number };
 
@@ -339,12 +341,19 @@ export async function runPipeline(plan: StoredPlan): Promise<StoredPlan> {
   for (const n of needs) {
     n.rules = n.rules.filter((r) => r.ruleId === "DLV-04" || r.ruleId === "QTY-02");
     const list = lists.get(n.id)!.filter((p) => !ov.excluded.includes(`${n.id}:${p.id}`));
-    await rankNeed(n, list, pool, { lockedOk: ov.stockBlind });
+    await rankNeed(n, list, pool, { lockedOk: ov.stockBlind, deliveryDays: m.deliveryDays, holidays: m.holidays });
     // A chef's confirmation removes the type question for that product.
     for (const c of n.candidates) if (ov.confirmed.includes(`${n.id}:${c.productId}`)) c.notes = c.notes.filter((r) => r.ruleId !== "TYP-01");
+    // An alternative the person picked goes first, so it fills the line.
+    const pick = n.candidates.find((c) => (ov.chosen ?? []).includes(`${n.id}:${c.productId}`));
+    if (pick) n.candidates = [pick, ...n.candidates.filter((c) => c !== pick)];
   }
   const tRank = performance.now();
   plan.needs = needs;
+  // One date for the whole plan: the latest of the needs' earliest dates, so every late need fits.
+  const late = needs.filter((n) => n.rules.some((r) => r.ruleId === "DLV-06"));
+  const earliest = late.map((n) => n.earliestDelivery).filter((d): d is string => Boolean(d)).sort();
+  plan.tooLate = late.length ? { neededBy: late[0].neededBy!, earliest: earliest.length === late.length ? earliest[earliest.length - 1] : null } : null;
   const built = buildLines(needs, plan.urgent && !ov.stockBlind, ov, m);
   for (const l of built.lines) {
     if (l.productId && l.needIds.every((id) => ov.confirmed.includes(`${id}:${l.productId}`))) l.rules = l.rules.filter((r) => r.ruleId !== "SUB-01" && r.ruleId !== "TYP-01");
@@ -386,6 +395,7 @@ export function verdictSummary(p: Plan): string {
 export async function quoteAndDecide(plan: StoredPlan, personToken?: string): Promise<StoredPlan> {
   plan.stage = "order";
   plan.error = null;
+  plan.proposal = false;
   if (plan.kind === "single") {
     plan.inputRules = checkSingle(plan.request!);
     if (plan.inputRules.length) {
@@ -404,6 +414,15 @@ export async function quoteAndDecide(plan: StoredPlan, personToken?: string): Pr
     return plan;
   }
   expireOpenQuestions(plan.id, "replaced");
+  if (plan.tooLate) {
+    const t = plan.tooLate;
+    plan.status = "blocked";
+    plan.quoteId = null;
+    plan.summary = t.earliest ? `No products available for delivery in time. Earliest delivery: ${fmtHelsinki(`${t.earliest}T12:00:00Z`, false)}.` : "No products available for delivery in time.";
+    audit({ actor: AGENT, action: "line_verdict_set", summary: `Not in time: needed by ${t.neededBy}, earliest ${t.earliest ?? "unknown"}`, eventId: plan.eventId, ruleIds: ["DLV-06"], details: { planId: plan.id, ...t }, visibility: "hotel" });
+    savePlan(plan);
+    return plan;
+  }
   const live = plan.lines.filter((l) => !l.removed);
   const red = live.filter((l) => l.verdict === "red");
   // Q05.3: an order can't go in while a line is blocked. The chef fixes or removes it first.
@@ -462,6 +481,14 @@ export async function quoteAndDecide(plan: StoredPlan, personToken?: string): Pr
     savePlan(plan);
     return plan;
   }
+  // A single request stops here until the person approves adding the products to the quote.
+  if (plan.kind === "single" && !plan.overrides.accepted) {
+    plan.status = "waiting";
+    plan.proposal = true;
+    plan.summary = "Ready to add to the quote";
+    savePlan(plan);
+    return plan;
+  }
   const questions = buildQuestions(plan, quote);
   plan.questionIds = questions.map((q) => q.id);
   if (!questions.length) {
@@ -512,7 +539,7 @@ export function newPlan(kind: "single" | "event", by: { personId: string; name: 
   return {
     id: newId("plan"), kind, eventId: null, title: "", createdAt: nowIso(), createdBy: by, siteId: m.sites[0].id, outletId, neededBy: null, deliveryDate: null, urgent: false,
     stage: "order", status: "needs_input", request: null, inputRules: [], needs: [], lines: [], quoteId: null, fingerprint: null, totalExVat: null, approvalsNeeded: [],
-    approvalId: null, orderIds: [], idemKey: newId("idem"), usesFixtures: false, note: null, summary: "", questionIds: [], shortfall: null, error: null,
+    approvalId: null, orderIds: [], idemKey: newId("idem"), usesFixtures: false, note: null, summary: "", questionIds: [], shortfall: null, tooLate: null, error: null,
     overrides: emptyOverrides(), event: null, questionsAnswered: 0, ...extra,
   };
 }

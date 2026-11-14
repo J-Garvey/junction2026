@@ -54,6 +54,7 @@ const LABELS: Record<string, string> = {
   "DLV-03": "Arrives late",
   "DLV-04": "Date moved",
   "DLV-05": "Site not allowed",
+  "DLV-06": "Not in time",
   "CUT-01": "Cut-off passed",
   "CUT-02": "Locked",
   "PRC-01": "No price",
@@ -116,6 +117,7 @@ export const RULES: RuleDef[] = [
   R("DLV-03", "Delivery", "ask_approver", false, "Offered delivery date is after the needed-by date", "{product} arrives {available}, after it is needed on {neededBy}."),
   R("DLV-04", "Delivery", "order", false, "Needed-by date moved to an agreed delivery day", "Needed by {neededBy}: moved back from {original}, which isn't a delivery day."),
   R("DLV-05", "Delivery", "block", true, "Delivery site not in the hotel's mandate", "Site {site} is not one of the hotel's delivery sites."),
+  R("DLV-06", "Delivery", "block", true, "Every product that passes the other checks misses the needed-by date (arrives late or its cut-off has passed)", "No products available for delivery by {neededByText}. The earliest delivery is {earliestText}."),
   // Cut-off
   R("CUT-01", "Cut-off", "block", true, "Order cut-off has passed, whatever date the mock shows", "The cut-off for {product} was {cutoff}. It has passed, although the mock still shows {available}."),
   R("CUT-02", "Cut-off", "block", true, "Change requested after the line's cut-off", "{product} can't change: its cut-off was {cutoff}."),

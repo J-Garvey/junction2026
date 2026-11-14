@@ -350,6 +350,7 @@ export const AuditAction = z.enum([
   "model_judgement",
   "gateway_error",
   "seed_reset",
+  "basket_created",
 ]);
 export type AuditAction = z.infer<typeof AuditAction>;
 
