@@ -35,7 +35,7 @@ export type Constraints = z.infer<typeof Constraints>;
 // ---------- catalogue (PRODUCT-SEARCH, VA-01) ----------
 
 export const ProductSearchQuery = z.object({
-  q: z.string().optional().describe("Text matched against the English and Finnish names"),
+  q: z.string().optional().describe("What the product is, read against the English and Finnish names: 'cheese' finds cheeses, not cheesecake"),
   category: z.string().optional().describe("Category code or prefix, e.g. 10400"),
   claims: z.array(z.string()).optional().describe("Every listed claim must be present"),
   excludeAllergens: z.array(z.string()).optional().describe("Products that contain or may contain these, or have no allergen declaration, are excluded"),

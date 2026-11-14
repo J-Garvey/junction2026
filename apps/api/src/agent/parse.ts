@@ -10,6 +10,7 @@ import { now } from "../clock.js";
 import { fire } from "../rules/catalogue.js";
 import { isoDate } from "../util.js";
 import { structured, ModelUnavailable } from "./openai.js";
+import { QUERY_FORMS } from "../search.js";
 
 /** Known product words: the type asked for and a category hint (CATEGORY-HINT, deterministic tier). */
 export const PRODUCT_WORDS: { re: RegExp; word: string; type: string | null; category: string | null }[] = [
@@ -26,6 +27,21 @@ export const PRODUCT_WORDS: { re: RegExp; word: string; type: string | null; cat
   { re: /\beggs?\b/, word: "eggs", type: "eggs", category: null },
   { re: /\bbread\b/, word: "bread", type: null, category: null },
 ];
+
+/**
+ * The product word only counts as the head of the phrase: "cream cheese" is a cheese, not
+ * cream, and gets no cream category. Form words may follow ("salmon fillet").
+ */
+export function productWord(phrase: string): (typeof PRODUCT_WORDS)[number] | undefined {
+  const s = phrase.toLowerCase();
+  for (const w of PRODUCT_WORDS) {
+    const m = s.match(w.re);
+    if (!m) continue;
+    const rest = s.slice(m.index! + m[0].length).split(/[^\p{L}]+/u).filter(Boolean);
+    if (rest.every((r) => QUERY_FORMS.has(r))) return w;
+  }
+  return undefined;
+}
 
 const CLAIM_WORDS: [RegExp, string][] = [
   [/lactose[- ]?free|laktoositon/, "FREE_FROM_LACTOSE"],
@@ -88,17 +104,18 @@ export function rulesParse(text: string): Omit<SingleRequest, "siteId" | "outlet
     const quantity: Amount | null = q ? { amount: Number(q[1].replace(/\s/g, "").replace(",", ".")), unit: UNIT_MAP[q[2]] ?? "pcs" } : null;
     const claims = CLAIM_WORDS.filter(([re]) => re.test(s)).map(([, c]) => c);
     const pid = s.match(/\b(4\d{5})\b/);
-    const pw = PRODUCT_WORDS.find((w) => w.re.test(s));
     const leftover = s
       .replace(/(\d[\d\s]*(?:[.,]\d+)?)\s*(litres?|liters?|ltr|l|kg|kilos?|grams?|g|ml|dl|pcs|pieces?|pc)\b/, "")
       .replace(/lactose[- ]?free|gluten[- ]?free|vegan|milk[- ]?free|\bof\b|\bi need\b|\bwe need\b|\bplease\b|\border\b/g, "")
       .replace(/\s+/g, " ")
       .trim();
+    const pw = productWord(leftover || s);
     if (!pw && !pid && !leftover) continue;
     lines.push({
       id: lineId(),
       text: raw.trim(),
-      query: pw?.word ?? leftover,
+      // "salmon fillet" keeps its form word for the search; "lactose-free milk" is just milk.
+      query: pw && (!leftover || leftover.endsWith(pw.word)) ? pw.word : leftover,
       productType: pw?.type ?? null,
       category: pw?.category ?? null,
       productId: pid?.[1] ?? null,
@@ -148,7 +165,7 @@ export async function parseRequest(text: string): Promise<{ request: Omit<Single
     });
     const date = resolveDate(r.neededByText ?? text);
     const lines: SingleLine[] = r.lines.map((l) => {
-      const pw = PRODUCT_WORDS.find((w) => w.re.test(String(l.productWord).toLowerCase()));
+      const pw = productWord(String(l.productWord));
       return {
         id: lineId(),
         text: l.text,

@@ -6,7 +6,7 @@
  * `--add-missing` records only products not yet in base.json and merges them in,
  * so new products join without moving the figures existing tests were written on.
  */
-import { searchProducts } from "../catalog.js";
+import { productsMentioning, searchProducts } from "../catalog.js";
 import { fetchRaw, loadFixture, saveFixture } from "../aimo/lookup.js";
 
 export const FIXTURE_CATEGORIES = ["10400", "10401", "10500", "10501", "18701", "17421", "41760", "10900", "41764", "21380", "41720", "21140", "41763", "22300", "85028", "18701"];
@@ -16,7 +16,7 @@ export const FIXTURE_QUERIES = ["salmon"];
 const addMissing = process.argv.includes("--add-missing");
 const ids = new Set<string>();
 for (const c of FIXTURE_CATEGORIES) for (const p of searchProducts({ category: c, limit: 50_000 } as any)) ids.add(p.id);
-for (const q of FIXTURE_QUERIES) for (const p of searchProducts({ q, limit: 50_000 } as any)) ids.add(p.id);
+for (const q of FIXTURE_QUERIES) for (const p of productsMentioning(q)) ids.add(p.id);
 
 const base = addMissing ? loadFixture("base") : null;
 if (addMissing && !base) throw new Error("--add-missing needs an existing base.json");

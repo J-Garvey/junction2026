@@ -10,7 +10,9 @@
     "fixtures:record": "tsx src/scripts/record-fixtures.ts",
     "agent:demo": "tsx src/scripts/outside-agent.ts",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit -p ."
+    "typecheck": "tsc --noEmit -p .",
+    "search:check": "tsx src/scripts/search-check.ts",
+    "search:audit": "tsx src/scripts/search-audit.ts"
   },
   "dependencies": {
     "@aimo/contracts": "workspace:*",

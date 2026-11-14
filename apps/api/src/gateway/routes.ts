@@ -6,7 +6,7 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import { z } from "zod";
 import { AmendmentBody, ApprovalBody, LookupBody, OrderCreateBody, ProductSearchQuery, QuoteCreateBody } from "@aimo/contracts";
 import { resolveToken, tokenFrom, type Identity } from "../identity.js";
-import { searchProducts, getProduct } from "../catalog.js";
+import { searchMatches, getProduct } from "../catalog.js";
 import { lookup, UpstreamError } from "../aimo/lookup.js";
 import { amendOrder, createApproval, createQuote, getMandate, getOrder, getQuote, GatewayRefusal, listOrders, placeOrder } from "./service.js";
 import { auditView, verifyChain } from "../audit.js";
@@ -52,7 +52,8 @@ export function gatewayRouter(): Router {
       labels: csv(req.query.labels),
       limit: req.query.limit ? Number(req.query.limit) : 50,
     });
-    res.json({ products: searchProducts(q), source: "local catalogue (data/products_slim.jsonl)" });
+    const ms = searchMatches(q);
+    res.json({ products: ms.map((m) => m.product), relevance: ms.map((m) => ({ productId: m.product.id, tier: m.tier, role: m.role })), source: "local catalogue (data/products_slim.jsonl)" });
   });
   r.get("/products/:id", (req, res) => {
     const p = getProduct(String(req.params.id));
