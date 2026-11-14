@@ -198,9 +198,13 @@ function OrderSwitcher({ currentId }: { currentId?: string }) {
 
   return (
     <div className="order-switcher" ref={ref}>
-      <button type="button" className="order-switcher-trigger" onClick={() => setOpen((value) => !value)} aria-haspopup="menu" aria-expanded={open}>
-        <b>{current?.name ?? (currentId ? "Loading order…" : "My orders")}</b>
-        <Icon n="down" s={12} />
+      <button type="button" className="profile order-switcher-trigger" onClick={() => setOpen((value) => !value)} aria-haspopup="menu" aria-expanded={open}>
+        <span className="avatar"><Icon n="box" s={14} /></span>
+        <span>
+          <b>{current?.name ?? (currentId ? "Loading order…" : "My orders")}</b>
+          <span className="small muted">{currentId ? "Current order" : "Projects"}</span>
+        </span>
+        <Icon n="down" s={14} />
       </button>
       {open && (
         <div className="order-switcher-menu" role="menu" aria-label="Switch order">
