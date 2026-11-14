@@ -18,7 +18,7 @@ export function BasketsHome() {
   const { data, error, loading } = useLoad(() => api.baskets(), []);
   const baskets = [...(data?.baskets ?? [])].sort((a, b) => a.deliveryDate.localeCompare(b.deliveryDate));
   return (
-    <div className="page stack-l">
+    <div className="page orders-page stack-l">
       <h1>Orders</h1>
       {error && <div className="callout red">{error}</div>}
       {loading && !data && <div className="muted small">Loading…</div>}

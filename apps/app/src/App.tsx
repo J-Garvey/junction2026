@@ -1,4 +1,4 @@
-/** Shell: sidebar or phone tabs, the "viewing as" switcher (TM-06), the top bar with the profile, the allergy banner,
+/** Shell: the order-first main view, phone tabs, the top bar with the profile, the allergy banner,
  * and the person picker with the demo settings (test clock and reset). */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, Route, Routes, useLocation } from "react-router";
@@ -112,7 +112,6 @@ export function App() {
   return (
     <Ctx.Provider value={ctx}>
       <div className="shell">
-        <Sidebar badge={badge} me={ctx.me} />
         <div className="main">
           <TopBar status={status} me={ctx.me} onSwitch={() => setNeedPick(true)} />
           <AllergyBanner warnings={warnings} />
