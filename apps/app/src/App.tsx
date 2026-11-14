@@ -199,16 +199,11 @@ function OrderSwitcher({ currentId }: { currentId?: string }) {
   return (
     <div className="order-switcher" ref={ref}>
       <button type="button" className="profile order-switcher-trigger" onClick={() => setOpen((value) => !value)} aria-haspopup="menu" aria-expanded={open}>
-        <span className="avatar"><Icon n="box" s={14} /></span>
-        <span>
-          <b>{current?.name ?? (currentId ? "Loading order…" : "My orders")}</b>
-          <span className="small muted">{currentId ? "Current order" : "Projects"}</span>
-        </span>
+        <b>{current?.name ?? (currentId ? "Loading…" : "My orders")}</b>
         <Icon n="down" s={14} />
       </button>
       {open && (
         <div className="order-switcher-menu" role="menu" aria-label="Switch order">
-          <div className="order-switcher-heading">Orders</div>
           <div className="order-switcher-list">
             {orders.map((order) => (
               <Link key={order.id} to={`/baskets/${order.id}`} role="menuitem" className={order.id === currentId ? "selected" : ""} onClick={() => setOpen(false)}>
@@ -222,7 +217,7 @@ function OrderSwitcher({ currentId }: { currentId?: string }) {
             ))}
           </div>
           <Link to="/" role="menuitem" className="order-switcher-all" onClick={() => setOpen(false)}>
-            All orders
+            View all
           </Link>
         </div>
       )}
