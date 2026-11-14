@@ -12,8 +12,8 @@ We're choosing between **A. Independent restaurants**, **B. Hotel & restaurant c
 
 Ask **Hanna Forsström or Pirjo Kaartinen** (commercial mentors):
 
-1. **Roughly what share of Valio Aimo's revenue, and of its margin, comes from A, B, C and E?** A ranking is fine if exact numbers are confidential. *Why we ask:* this is the biggest unknown in our comparison. A segment that's large but low-margin, or small but growing fast, changes the answer.
-2. **Which of these four would you most want to win or protect over the next 2–3 years, and why?** *Why we ask:* the judges are Valio Aimo, so their own priority carries real weight.
+1. **Roughly what share of Valio Aimo's revenue, and of its margin, comes from A, B, C and E?** A ranking is fine if exact numbers are confidential. *Why we ask:* this is the biggest unknown in our comparison. A segment that's large but low-margin, or small but growing fast, changes the answer. **[partly answered, 14 Nov, [06](06-valio-aimo-conversation-2026-11-14.md)]** Revenue is concentrated in large hotel chains; no split given.
+2. **Which of these four would you most want to win or protect over the next 2–3 years, and why?** *Why we ask:* the judges are Valio Aimo, so their own priority carries real weight. **[answered, 14 Nov, [06](06-valio-aimo-conversation-2026-11-14.md)]** Hotels first, then restaurants; the agent fits hotel catering and event orders.
 3. **Who would pay for this, and how?** Would Valio Aimo fund it as a service to keep customers, or would customers pay (subscription, per order)? Which of the four would actually pay? *Why we ask:* we dropped F and G partly for unwillingness to pay, so we should test the same thing on the shortlist.
 
 ### 2. Strategy and competition (commercial mentors)
@@ -87,7 +87,7 @@ Ask **Hanna Forsström or Pirjo Kaartinen** (commercial mentors):
 
 ### 8. Online sales: Minni Ruhtinas
 
-37. What are the **order cut-off times and lead times** by product category or route? *Partly known:* the API returns a per-product `closingTime` (Monday delivery: most Stock Sun 17:00, some Stock Fri 13:00, Terminal 10–12 Nov, already past yet still offered). Publicly: delivery on agreed delivery days, orders editable until picking starts, recurring orders take 7 days to change. Also ask: what should an agent do when the cut-off has passed?
+37. What are the **order cut-off times and lead times** by product category or route? *Partly known:* the API returns a per-product `closingTime` (Monday delivery: most Stock Sun 17:00, some Stock Fri 13:00, Terminal 10–12 Nov, already past yet still offered). Publicly: delivery on agreed delivery days, orders editable until picking starts, recurring orders take 7 days to change. Also ask: what should an agent do when the cut-off has passed? **[partly answered, 14 Nov, [06](06-valio-aimo-conversation-2026-11-14.md)]** Lead times are product-line specific, next day to about 4 days, with the cut-off shown per product in the webshop (e.g. 17:00 today for tomorrow). Orders placed early for an event can be amended until the cut-off.
 38. What is your **fill rate**? Complements Q28.
 39. How does the customer **learn about a substitution**, and when?
 
@@ -96,9 +96,9 @@ Ask **Hanna Forsström or Pirjo Kaartinen** (commercial mentors):
 40. What data must **stay hidden** from external agents? *(The brief names only categories: "real systems, confidential data or the marketplace roadmap".)*
 41. How should an agent **prove it acts for a specific customer**?
 42. How are **stock, price and origin data verified** today? Complements Q31.
-43. What does **`allowedLotSize` 0.01** mean (it's on 96% of products)? Can a buyer really order 0.01 of a case? *(The schema defines it as the order step in sales units; the API does not use it.)*
+43. What does **`allowedLotSize` 0.01** mean (it's on 96% of products)? Can a buyer really order 0.01 of a case? *(The schema defines it as the order step in sales units; the API does not use it.)* **[partly answered, 14 Nov, [06](06-valio-aimo-conversation-2026-11-14.md)]** Customers buy whole units: 1.5 needed means buying 2.
 44. ~~A **Terminal** product always reports `availableAmount` 999999. Does that mean "always fillable" or "unknown"?~~ **[answered]** Unknown: the API spec says "actual value is not known". New question instead: some Stock products return 9,999,999,999 base units; does that also mean unknown?
-45. What do the **unit codes** (KI, ST, PAK, KRS, …), **temperature classes 1–9** and **category codes** officially mean? *(Allergen, claim, label and nutrient codes are now verified against GS1. Units are inferred from the data, except ST; temperature and category codes are undocumented.)*
+45. What do the **unit codes** (KI, ST, PAK, KRS, …), **temperature classes 1–9** and **category codes** officially mean? *(Allergen, claim, label and nutrient codes are now verified against GS1. Units are inferred from the data, except ST; temperature and category codes are undocumented.)* **[partly answered, 14 Nov, [06](06-valio-aimo-conversation-2026-11-14.md)]** The 5-digit category codes are SAP-defined; their names are still not in the data.
 
 ### 10. From the spike-order research ([05](05-spike-orders-under-time-pressure.md))
 

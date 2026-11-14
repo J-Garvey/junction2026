@@ -43,6 +43,7 @@ Reference request: "I need 1,000 litres of lactose-free milk by Monday. Find an 
 | `research/03-data-profile.md` | Data coverage and API behaviour |
 | `research/04-segment-research-chain-first.md` | Chain-first segment research, order-quantity primer |
 | `research/05-spike-orders-under-time-pressure.md` | Which customers place large, urgent, variable orders; best-fit segments for the agent; how wholesalers and ordering tools handle rush orders |
+| `research/06-valio-aimo-conversation-2026-11-14.md` | First-hand notes from Valio Aimo (14 Nov): hotels first, catering/event orders, substitution pitfalls, lead times |
 | `research/notes/spike-orders/` | Cited source notes behind research/05 |
 | `research/mentor-questions.md` | The single list of mentor questions (Q1–49) |
 | `docs/data-dictionary.md` | Every field of the slim dataset, code glossaries, measured facts |

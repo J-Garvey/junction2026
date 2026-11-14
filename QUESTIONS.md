@@ -31,7 +31,9 @@ This is the biggest disagreement between the two research passes.
 
 **New evidence (14 Nov):** [research/05](research/05-spike-orders-under-time-pressure.md) looked for customers with large, urgent, variable orders where speed and accuracy beat price. It rates **event and venue caterers** and **conference and banquet hotels outside S Group** (especially Lapland in December) highest. Its reason is that the urgent order is the correction when the final headcount and diet list arrive 1–3 days before service. Arenas, festival vendors and municipal kitchens under surge come next; cruise, ferry, airline and rail catering fit poorly. This supports chains and hotels, and adds event caterers, a segment neither earlier pass considered on its own.
 
-**Decision:** _open_
+**Valio Aimo's answer (14 Nov, [research/06](research/06-valio-aimo-conversation-2026-11-14.md)):** **hotels first, then restaurants**; revenue is concentrated in large hotel chains. Within hotels, the agent should handle **catering and event orders** (weddings, dinners, large functions). Daily breakfast orders are already templated and automated. This matches research/05, and it is the mentor answer this question was waiting for. What's left for the team is confirming it as the decision and choosing whether restaurants are in scope for the demo.
+
+**Decision:** _open. Proposed: hotel catering and event orders, per Valio Aimo, 14 Nov. Confirm as a team._
 
 ---
 

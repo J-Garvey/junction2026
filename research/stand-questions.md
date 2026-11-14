@@ -12,6 +12,7 @@ Ask in this order. Write each answer, who said it and the time under the questio
 - *Decides:* QUESTIONS.md item 1 (segment). The repo has two research passes that disagree; this is what settles it.
 - *Listen for:* a ranking, even without numbers. If they name one, ask its block of questions in mentor-questions.md (Q8–24).
 - *Who:* Hanna Forsström, Pirjo Kaartinen.
+- **Answer (14 Nov, Valio Aimo, speaker not recorded; [06](06-valio-aimo-conversation-2026-11-14.md)):** hotels first, then restaurants. Revenue is concentrated in large hotel chains. Within hotels, the agent fits **catering and event orders** (weddings, dinners, large functions), not the templated daily breakfast order. No revenue split given.
 
 **2. In production, who would pay for an agent like this: Valio Aimo, as a service to keep customers, or the customers themselves?**
 - *Decides:* QUESTIONS.md item 2 (who pays), and how we pitch it.
@@ -22,6 +23,7 @@ Ask in this order. Write each answer, who said it and the time under the questio
 
 **4. When an order needs human sign-off, who signs: someone at the customer, someone at Valio Aimo, or either?**
 - *Decides:* who the approval screen and audit trail are for (20% criterion). The brief only says "a human".
+- **Partly answered (14 Nov, [06](06-valio-aimo-conversation-2026-11-14.md)):** the hotel places the order and its event clients never deal with Valio Aimo, so the buyer-side approver is someone at the hotel. Whether Valio Aimo also signs anything is still open.
 
 **5. What should trigger a sign-off?** The brief gives "spend threshold" as an example, but we've heard spend limits aren't a real pain point. What would actually make a buyer want to approve an order by hand?
 - *Decides:* the guardrail model. The repo currently holds both views.
@@ -45,6 +47,7 @@ Ask in this order. Write each answer, who said it and the time under the questio
 
 **11. `allowedLotSize` is 0.01 on 96% of products. Can a buyer really order 0.01 of a case, or should we round to whole sales units?**
 - *Decides:* quantity rounding in every order.
+- **Partly answered (14 Nov, [06](06-valio-aimo-conversation-2026-11-14.md)):** products are sold in batches, and a customer who needs 1.5 units buys 2. So round up to whole sales units. What 0.01 itself means is still unexplained.
 
 **12. In production, how would an agent prove it acts for a specific customer, and what would it then see differently (its own prices, a contract assortment)? How long does a quoted price hold?**
 - *Decides:* the identity and trust part of the design, and the "credible path to production" story (15% criterion). The mock ignores the customer, so we can't see this ourselves.
@@ -56,6 +59,7 @@ Ask in this order. Write each answer, who said it and the time under the questio
 
 **14. When an item runs short at picking, who chooses the substitute, and when and how is the customer told?**
 - *Decides:* what our substitution flow replaces or improves. The webshop only *suggests* substitutes; what happens after the order is not public.
+- **Context, not an answer (14 Nov, [06](06-valio-aimo-conversation-2026-11-14.md)):** substitutions are "a real operational problem" when stock runs out. Ingredients are not interchangeable by category: two "blue milks" can behave differently in a recipe, and sugar with additives can break bakery recipes. Who picks the substitute and how the customer is told is still open.
 
 **15. Do any customers already order system-to-system: EDI, Jamix, CGI Aromi or another kitchen system?**
 - *Decides:* the production-path story. Nothing about this is public.
