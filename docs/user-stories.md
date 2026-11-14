@@ -1,8 +1,8 @@
 # User stories
 
-> **What this is:** the story backlog the PRD agent builds from, grouped by avatar and sorted by importance. Each story is one sentence, **"X so that Y"**: what the avatar does or gets, and why it matters to them. Every story names what it rests on: a team decision (**D1** to **D17**, in [prd-context.md](prd-context.md)), the brief, the data or a research file.
+> **What this is:** the story backlog the PRD agent builds from, grouped by avatar and sorted by importance. Each story is one sentence, **"X so that Y"**: what the avatar does or gets, and why it matters to them. Every story names what it rests on: a team decision (**D1** to **D25**, in [prd-context.md](prd-context.md)), the brief, the data or a research file.
 >
-> It replaces [hotel-catering-user-stories.md](hotel-catering-user-stories.md) (US01 to US12) as the PRD's input. That file is kept as history: its Purchasing Manager role, supermarket top-up and multi-channel demo were dropped or parked on 14 Nov (D1, D2).
+> It replaces [hotel-catering-user-stories.md](hotel-catering-user-stories.md) (US01 to US12) as the PRD's input. That file is kept as history. Since then (14 Nov): voice calls, SMS and WhatsApp are **cut** (email updates stay an add-on, CH-A6); the supermarket top-up is a **non-core add-on** (CH-A12); the Purchasing Manager is **kept for now as an optional role** (prd-context D1, D2, D15–D22).
 
 ## How to read it
 
@@ -11,8 +11,11 @@
 | Avatar | Who | Role in one line |
 |---|---|---|
 | **Chef** (CH) | Banquet or executive chef, or a bar manager | Says what the event needs; answers recipe questions; never commits money |
-| **Approver** (AP) | F&B Director or finance manager | Sets the hotel's rules once; signs off only what breaks them |
+| **Approver** (AP) | F&B Director or finance manager: in charge of finances | Sets the hotel's rules once; signs off only what breaks them |
 | **Valio Aimo** (VA) | The wholesaler, through the Agent Gateway API, plus its rep | Answers lookups and quotes, takes orders, enforces the hotel's mandate, keeps the audit log |
+| **Purchasing Manager** (optional) | A separate buyer, where the hotel has one | Decides what is bought and how much, with maximum authority for now (D20). No stories yet |
+
+The hotel acts as one entity: the product doesn't verify individual people or permissions (D17). The core is how the hotel can trust the agent to spend (D15), and most food orders are approved automatically (D16).
 
 Preference stories (**PF**) belong to the Chef, the Approver or both, as marked.
 
@@ -119,10 +122,10 @@ Add-ons and parked stories are listed at the end of each avatar's section.
 - Below the confidence threshold, the line becomes a question to the chef, not a pick.
 
 **CH-04** Get my per-portion amounts as whole packs so that the order is something Valio Aimo can actually pick.
-*S1, S2 · research/06, GROUND_TRUTH 4.4, D17*
+*S1, S2 · research/06, GROUND_TRUTH 4.4, D25*
 - Uses the availability API's `salesUnit`, not the catalogue's.
 - Litres or kg per pack come from `catalogPrice / comparisonPrice` when the API gives it; otherwise from the formula, and the line goes amber.
-- **Rounding policy (D17):**
+- **Rounding policy (D25):**
   1. Combine the same product across dishes first (CH-12), then round the total once. Never round per dish.
   2. Round up to whole sales units by default (1.5 needed means 2). Never round down automatically.
   3. If the same product comes in several pack sizes with identical spec, pick the mix with the least overshoot (23 L needed: 2 × 10 L + 3 × 1 L, not 3 × 10 L). No human needed.
@@ -132,11 +135,11 @@ Add-ons and parked stories are listed at the end of each avatar's section.
 - Shows the overshoot on every rounded line.
 
 **CH-05** Still see products with unknown stock, flagged as unknown and needing approval, so that I keep options without ever mistaking them for confirmed stock.
-*S1, S4, M · GROUND_TRUTH 3 · D15*
+*S1, S4, M · GROUND_TRUTH 3 · D23*
 - 999999 on Terminal products and 9,999,999,999 base units (scaled) on Stock products both display as "unknown stock".
 - They are suggested, but ranked below any product with a real stock figure that passes the same rules.
 - Ordering one needs the Approver to **accept the unknown-stock risk** (AP-13). That approval never turns the stock into "confirmed": the line stays labelled unknown.
-- At the final check such a line shows "covered at risk: unknown stock, accepted by [name] on [date]", never plain "covered".
+- At the final check such a line shows "covered at risk: unknown stock, accepted by the Approver on [date]", never plain "covered".
 - This matters for the milk case: 20 of the lactose-free milks are Terminal. [API, GROUND_TRUTH 4.3]
 
 **CH-06** Judge a substitute side by side with one yes/no question so that I can decide fast whether my dish still works.
@@ -221,17 +224,18 @@ Add-ons and parked stories are listed at the end of each avatar's section.
 | CH-A3 | Get compatibility tags suggested ahead of time so that fewer substitutes need my answer | D6 |
 | CH-A4 | Subtract stock the hotel already has so that we don't buy what's already in the store room | old US02; chef interview Q12 |
 | CH-A5 | Set a buffer above the confirmed count, per dish, so that late extra guests don't run us short | research/07 open; chef interview Q11 |
-| CH-A6 | Send requests and get updates by email, SMS or phone so that I can use the agent mid-service | ICP.md |
+| CH-A6 | Send requests and get updates by email so that I can use the agent mid-service | ICP.md |
 | CH-A7 | Get a reminder, then have my named backup (e.g. sous chef) asked, so that a question never dies because I'm busy | D9 |
-| CH-A8 | Start from a standard forecast for typical event sizes, then adjust, so that a bar manager without recipes can still order fast | research/08 (Owen) |
-| CH-A9 | Check what arrived against the order before prep so that a short delivery is caught while there's time to react | old US11 |
+| CH-A12 | Fill a small gap from an external partner shop (supermarket, Valio Aimo partner or local store, e.g. small alcohol purchases), clearly labelled as externally sourced, so that a short line is still covered | D21: non-core; no per-line Valio Aimo approval; same hotel rules |
+| CH-A13 | Start from a standard forecast for typical event sizes, then adjust, so that a bar manager without recipes can still order fast | research/08 (Owen) |
+| CH-A14 | Check what arrived against the order before prep so that a short delivery is caught while there's time to react | old US11 |
 
 ### Parked
 
 | ID | Story | Why parked |
 |---|---|---|
 | CH-P1 | Handle a client's change in the last 1–3 days before the event so that very late changes are covered | Low confidence it reaches Valio Aimo [OPEN]; same mechanism as S3 (D4) |
-| CH-P2 | Fill a small gap from a supermarket that ships to the venue so that a short line is still covered | No supermarket data; spend leaves Valio Aimo (D2) |
+| CH-P2 | Use the agent by voice call, SMS or WhatsApp: call in or text a change, get a shortfall call, answer a swap in WhatsApp (former CH-A8 to CH-A11, added 14 Nov) | Cut on 14 Nov: not enough value for the effort and the approval risk; the product aims for one decision per event, made in the app. Full text in git history (commit 1b64da9) |
 
 ---
 
@@ -255,7 +259,7 @@ Add-ons and parked stories are listed at the end of each avatar's section.
 - For the milk case: the products with real stock figures, their litres and total, and the rest named "unknown stock".
 
 **AP-04** See no approve option on blocked lines so that I can't accidentally waive a diet rule or confirm unknown stock.
-*S1–S4 · approval rules · D15*
+*S1–S4 · approval rules · D23*
 - Blocked: allergen or diet failure, no delivery dates, price `error: true`, past cut-off.
 - Unknown stock is **not** blocked: it is a separate question asking me to accept the risk (AP-13), and it is never shown as confirmed.
 - Each blocked line says what would unblock it (a different product or a different request).
@@ -272,9 +276,9 @@ Add-ons and parked stories are listed at the end of each avatar's section.
 - The mandate is registered with the gateway (VA-04), not only kept by the agent.
 
 **AP-13** Accept or refuse the risk of ordering a product with unknown stock so that we can still order it, knowingly.
-*S2, S4, M · D15*
+*S2, S4, M · D23*
 - The question says plainly: "Valio Aimo cannot confirm stock for [product]. Order it anyway?" and names any known-stock alternative.
-- A yes means "accept the risk", never "stock confirmed". The line keeps its "unknown stock" label everywhere, and the audit records who accepted it.
+- A yes means "accept the risk", never "stock confirmed". The line keeps its "unknown stock" label everywhere, and the audit records that the Approver accepted it (roles, not individuals: D17).
 - A pre-answer (AP-11) can cover it, e.g. "accept unknown stock on approved products under €200".
 
 ### P1
@@ -317,18 +321,19 @@ Add-ons and parked stories are listed at the end of each avatar's section.
 | ID | Story | Basis |
 |---|---|---|
 | AP-A1 | Choose a detailed or a "just handle it" explanation mode so that the agent explains as much as I want | research/06 |
-| AP-A2 | Edit the mandate in the product so that I can change our rules without a developer | D11 |
-| AP-A3 | See a partner-sourcing request's status ("awaiting Valio Aimo") on my order so that I know what Valio Aimo is still working on | D2, D3 |
+| AP-A2 | Set up our hotel in the app ourselves (sites, roles, per-order spend cap, approved products, tolerances) so that we can start without Valio Aimo onboarding us | D18, D19 |
+| AP-A3 | See which lines are externally sourced, and from where, on my order so that I know what isn't coming from Valio Aimo | D21 |
 | AP-A4 | Review an event's purchasing cost and issues afterwards so that the next event is cheaper and smoother | old US12 |
 | AP-A5 | Name a backup for each role so that questions still get answered when someone is away | D9 |
-| AP-A6 | See an event's likely over-ordering (rounding overshoot and leftovers) so that we waste less food and money next time | ICP.md "potential over-ordering" |
+| AP-A8 | See an event's likely over-ordering (rounding overshoot and leftovers) so that we waste less food and money next time | ICP.md "potential over-ordering" |
 
 ### Parked
 
 | ID | Story | Why parked |
 |---|---|---|
+| AP-P2 | Review phone decisions, or approve a quote from an SMS or WhatsApp link (former AP-A6, AP-A7, added 14 Nov) | Cut on 14 Nov with the other channels; see CH-P2. Full text in git history (commit 1b64da9) |
 | AP-P1 | Pick which wholesaler gets the order so that we get the best offer | Valio Aimo only; a buyer agent comparing wholesalers is the marketplace the brief rules out (D2) |
-| AP-P2 | Get warned when a recurring weekly order drifts (portions creeping up, cost rising) so that it isn't renewed blindly | A brief scenario, but recurring orders like breakfast are already templated and outside our event segment (research/06) |
+| AP-P3 | Get warned when a recurring weekly order drifts (portions creeping up, cost rising) so that it isn't renewed blindly | A brief scenario, but recurring orders like breakfast are already templated and outside our event segment (research/06) |
 
 ---
 
@@ -382,6 +387,7 @@ Add-ons and parked stories are listed at the end of each avatar's section.
 **VA-11** Require every call to name the hotel, site and role so that I can check it against the mandate.
 *all · D11, GROUND_TRUTH 7*
 - A header for Junction; OAuth 2.0 Token Exchange (`act` claim) named as the production path.
+- Identifies the hotel only: the hotel acts as one entity, and individual people aren't verified (D17).
 
 **VA-12** Send unresolved-at-cut-off flags to the rep so that they can call the hotel before picking.
 *S4 · D9*
@@ -395,7 +401,7 @@ Add-ons and parked stories are listed at the end of each avatar's section.
 
 | ID | Story | Basis |
 |---|---|---|
-| VA-A1 | Receive and approve or decline partner-sourcing requests for very large orders so that I fill what my catalogue can't, on my terms | D2, D3 |
+| VA-A1 | See externally sourced lines on a hotel's order, labelled with their source, so that I know what my catalogue didn't cover | D21: no per-line approval by Valio Aimo |
 | VA-A2 | Give reps a screen for flags and sourcing requests so that nothing waits unseen in a log | D9 |
 | VA-A3 | Show a carbon range per line (product-group averages, labelled as such) so that hotels can weigh sustainability, not only price | BRIEF optional |
 | VA-A4 | Suggest seasonal or new products to the buyer's agent so that I can sell, not only answer | BRIEF scenario |
@@ -438,6 +444,7 @@ A constraint stated for an event, such as "lactose-free for 40 guests", becomes 
 *all · Jack 14 Nov*
 - Examples: carbon (once carbon data is in, VA-A3), preferred brands, origin such as "Finnish fish only", how to weigh price against delivery reliability, and pre-answers (AP-11).
 - Profile preferences are the hotel agent's; they are separate from the mandate the gateway enforces.
+- For Junction the profile can be pre-filled; the settings screens are non-core (D18).
 
 **PF-03** Override any profile setting for one event or one request so that an unusual event doesn't mean changing the profile.
 *S1, S3, M · Jack 14 Nov*
@@ -483,10 +490,10 @@ Not tied to one avatar, but every scene depends on them.
 **SF-06** Rank candidates good-better-best in one fixed order so that the same request always gives the same pick and the pick can be explained.
 *P0 · BRIEF response logic*
 - Only candidates that pass every hard rule are ranked. Then, in order:
-  1. real stock figure over unknown stock (D15);
+  1. real stock figure over unknown stock (D23);
   2. recipe-approved or brand-matching over not;
   3. higher delivery reliability (unknown sorts below known-good, above known-poor);
-  4. lower total price per kg or L after pack rounding (D17);
+  4. lower total price per kg or L after pack rounding (D25);
   5. labels, origin and carbon, as the hotel's preferences weigh them (PF-02).
 - Ties keep a stable order (product ID), so the same input always gives the same result.
 - The audit shows which step decided the pick.

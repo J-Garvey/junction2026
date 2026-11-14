@@ -11,7 +11,7 @@
 
 Use a hotel kitchen dealing with a late change to a conference or banquet as the first demo case. The external agent acts for the hotel. The challenge calls for structured catalog, price and availability lookup, an order at the returned fixed price, and rules for when a human must approve. Keep orders, approvals and receipts in the prototype. Use a documented interface that another agent can call.
 
-The product scope also covers supermarket dropshipping for small parts of large orders and AI agents for email, SMS, and phone calls. Use the same hotel order and approval rules across channels. See the [product scope](ICP.md#6-our-product-opportunity).
+Build the core first. **External sourcing** (for example a supermarket filling a small gap in a large Valio Aimo order) is a **non-core add-on**: build it only after the core works, with simulated offers and the same hotel rules and approvals. **Voice calls, SMS and WhatsApp are cut**: don't build them. Email updates stay a non-core add-on. See the [product scope](ICP.md#6-our-product-opportunity) and [docs/prd-context.md](docs/prd-context.md).
 
 The brief's example asks for 1,000 L of lactose-free milk by Monday. Show a clear outcome: an order placed within the buyer's authority, a basket awaiting approval, or a short explanation of what cannot be filled. Treat the demo's spend cap, approved products, delivery site and approval roles as explicit fixture policy. A manager can approve a change the hotel permits. Approval cannot confirm unknown stock or waive a dietary rule.
 
@@ -40,7 +40,7 @@ python3 scripts/aimo_api.py availability 2026-11-16 464306 463038 469363
 
 ## Decide when to stop for a human
 
-[docs/human-approval-rules.md](docs/human-approval-rules.md) lists the edge cases that end in an order, a question for the hotel, or a block. Allergen and diet failures, missing delivery dates and passed cut-offs are never approved through. Unknown stock is never shown as confirmed, but the Approver can accept the risk of ordering it (decision D15 in [docs/prd-context.md](docs/prd-context.md)).
+[docs/human-approval-rules.md](docs/human-approval-rules.md) lists the edge cases that end in an order, a question for the hotel, or a block. Allergen and diet failures, missing delivery dates and passed cut-offs are never approved through. Unknown stock is never shown as confirmed, but the Approver can accept the risk of ordering it (decision D23 in [docs/prd-context.md](docs/prd-context.md)).
 
 ## Verify the demo
 
