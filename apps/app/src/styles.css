@@ -203,6 +203,7 @@ table.t tr:last-child td { border-bottom: 0; }
 .field input, .field select, .sminput, .search { height: 36px; border: 1px solid var(--hairline); border-radius: 6px; padding: 0 10px; background: var(--card); }
 .sminput { width: 80px; height: 32px; }
 .search { margin-left: auto; width: 200px; }
+.audit-filter { margin-left: 0; }
 
 /* chips (UI-04) */
 .chipline { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--hairline-soft); }

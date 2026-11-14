@@ -9,33 +9,22 @@ import { when, fi, ROLE_LABEL } from "../format";
 export function Audit() {
   const [sp] = useSearchParams();
   const eventId = sp.get("eventId") ?? undefined;
-  const [viewer, setViewer] = useState<"hotel" | "valio">("hotel");
   const [q, setQ] = useState("");
-  const { data, error, loading } = useLoad(() => api.audit(viewer, eventId), [viewer, eventId]);
+  const { data, error, loading } = useLoad(() => api.audit("hotel", eventId), [eventId]);
   const entries = (data?.entries ?? []).filter((e) => !q || `${e.summary} ${e.action} ${e.actor.name} ${e.ruleIds.join(" ")}`.toLowerCase().includes(q.toLowerCase()));
 
   return (
     <div className="page stack-l">
-      <div className="row" style={{ flexWrap: "wrap", justifyContent: "space-between" }}>
+      <div className="row" style={{ flexWrap: "wrap" }}>
         <div>
           <h1>Audit log</h1>
           {eventId && (
             <Link to="/audit" className="small">All entries</Link>
           )}
         </div>
-        <label className="row small" style={{ gap: 8, cursor: "pointer" }}>
-          <input type="checkbox" checked={viewer === "valio"} onChange={(e) => setViewer(e.target.checked ? "valio" : "hotel")} />
-          Valio Aimo view
-        </label>
       </div>
       <div className="row" style={{ flexWrap: "wrap" }}>
-        {data && (
-          <span className={`stamp ${data.chain.ok ? "order" : "block"}`}>
-            {data.chain.ok ? "Chain intact" : `Chain broken at #${data.chain.brokenAt}`}
-          </span>
-        )}
-
-        <input className="search" placeholder="Filter" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input className="search audit-filter" placeholder="Filter" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
       {error && <div className="callout red">{error}</div>}
       {loading && !data && <div className="muted">Loading…</div>}
@@ -46,7 +35,6 @@ export function Audit() {
               <th>Time</th>
               <th>Who</th>
               <th>What</th>
-              <th className="hide-m">Seen by</th>
             </tr>
           </thead>
           <tbody>
@@ -78,14 +66,11 @@ export function Audit() {
                   )}
 
                 </td>
-                <td className="hide-m">
-                  <span className={`stamp ${e.visibility === "shared" ? "info" : "unknown"}`}>{e.visibility === "shared" ? "Shared" : "Hotel"}</span>
-                </td>
               </tr>
             ))}
             {data && !entries.length && (
               <tr>
-                <td colSpan={4} className="muted">
+                <td colSpan={3} className="muted">
                   No entries.
                 </td>
               </tr>
