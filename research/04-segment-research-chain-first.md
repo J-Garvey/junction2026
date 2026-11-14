@@ -2,7 +2,7 @@
 
 Nov 14, 2026 · Darragh Evanson
 
-> **Status:** a separate research pass from [01-customer-options-brief.md](01-customer-options-brief.md). It recommends **hotel and restaurant chains first, public kitchens a close second**. 01 has since shortlisted A, B, C and E and ruled public kitchens out. Which view holds is a team decision; see "Open decisions" in the [README](../README.md).
+> **Status:** a separate research pass from [01-customer-options-brief.md](01-customer-options-brief.md). It recommends **hotel and restaurant chains first, public kitchens a close second**. 01 has since shortlisted A, B, C and E and ruled public kitchens out. Which view holds is a team decision; see question 1 in [QUESTIONS.md](../QUESTIONS.md).
 > Converted from the original text export (`docs/research-export.txt`). The mentor questions moved to [mentor-questions.md](mentor-questions.md). Facts the challenge data has since answered are marked **[now known]**.
 
 ## What to know

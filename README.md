@@ -7,23 +7,27 @@ How can a food-service wholesaler let autonomous purchasing agents find products
 ## Status
 
 - ✅ Challenge material, data and mock API in the repo; API calls verified
-- ✅ Two research passes on customer segments (see "Open decisions": they disagree)
+- ✅ Two research passes on customer segments (they disagree; see [QUESTIONS.md](QUESTIONS.md))
 - ⏳ Ask the mentors ([research/mentor-questions.md](research/mentor-questions.md)), then pick a segment
 - ⬜ Guardrails design (deliberately later)
 - ⬜ Build
 
 ## Open decisions (team)
 
-These have no single right answer. Both positions are in the repo.
+Three decisions have no single right answer. **[QUESTIONS.md](QUESTIONS.md)** sets out both positions for each:
 
-1. **Which customer segment first.** [04](research/04-segment-research-chain-first.md) recommends **hotel and restaurant chains**, with public kitchens a close second and independents last. [01](research/01-customer-options-brief.md) keeps a **shortlist of independents, chains, contract caterers and private care homes**, and says the team ruled public kitchens out. Chains are the only segment both rank highly.
-2. **Who pays:** the wholesaler (the kitchen owner is the user) or the kitchens themselves. Mentor question Q3.
-3. **Whether credentials and data stay committed.** `.env` (API key, portal password) and `data/` are in the repo, which is private. `.gitignore` lists `.env`, but git keeps tracking a file once committed, so that line has no effect until `.env` is removed with `git rm --cached .env`.
+1. Which customer segment to build for first (the two research passes disagree).
+2. Who pays: the wholesaler or the kitchens.
+3. Whether the API key, portal password and data stay committed.
+
+What changed when the two uploads were merged is in **[CHANGES.md](CHANGES.md)**.
 
 ## Repo map
 
 | Path | What's there |
 |---|---|
+| [QUESTIONS.md](QUESTIONS.md) | Open team decisions, with both positions for each |
+| [CHANGES.md](CHANGES.md) | Every change made when the two uploads were merged |
 | [CLAUDE.md](CLAUDE.md) | Compact context for AI coding agents: goal, judging, API behaviour, design constraints |
 | [challenge/brief.txt](challenge/brief.txt) | The full challenge text, including judging criteria (credentials removed; see `.env`) |
 | [challenge/resources.md](challenge/resources.md) | Data downloads, API docs and auth, mentors |

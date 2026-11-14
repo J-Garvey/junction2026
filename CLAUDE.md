@@ -50,13 +50,15 @@ Reference request: "I need 1,000 litres of lactose-free milk by Monday. Find an 
 | `scripts/build_slim.py` | Rebuilds `data/` from the raw files |
 | `scripts/fetch_raw.sh` | Downloads the raw 87 MB catalogue and CSVs into `data/raw/` |
 | `scripts/profile_products.py` | Data-coverage profile from the raw files |
+| `.env` | `AIMO_API_KEY`, `AIMO_PORTAL_PASSWORD` |
+| `QUESTIONS.md` | Open team decisions |
+| `CHANGES.md` | What changed when the two uploads were merged |
 
 ## Product direction
 - Output is either a buy order or one clear question for the owner, as complex as it needs to be and no more. The goal is saving the owner's time.
 - How often the agent asks is tuned per customer risk profile and situation. The agent must not make mistakes.
 - Guardrails are designed separately, later. Mentors said € spend limits are not an expected pain point.
-- Aim: sellable to Valio Aimo or a similar wholesaler after Junction. Segment and payer are open team decisions (see README).
-| `.env` | `AIMO_API_KEY`, `AIMO_PORTAL_PASSWORD` |
+- Aim: sellable to Valio Aimo or a similar wholesaler after Junction. Segment and payer are open team decisions (see `QUESTIONS.md`).
 
 ## Mock API
 Base `https://junction26.valioaimo.fi`. Header `X-API-Key`. Docs at `/docs`, `/redoc`.
