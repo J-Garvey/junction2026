@@ -100,6 +100,13 @@ Ask **Hanna Forsström or Pirjo Kaartinen** (commercial mentors):
 44. ~~A **Terminal** product always reports `availableAmount` 999999. Does that mean "always fillable" or "unknown"?~~ **[answered]** Unknown: the API spec says "actual value is not known". New question instead: some Stock products return 9,999,999,999 base units; does that also mean unknown?
 45. What do the **unit codes** (KI, ST, PAK, KRS, …), **temperature classes 1–9** and **category codes** officially mean? *(Allergen, claim, label and nutrient codes are now verified against GS1. Units are inferred from the data, except ST; temperature and category codes are undocumented.)*
 
+### 10. From the spike-order research ([05](05-spike-orders-under-time-pressure.md))
+
+46. Is there a process for **large or event orders** (a quote, stock reservation, or a sales contact) that isn't published? *Why we ask:* no Finnish wholesaler publishes one, and an event's base order may exceed shelf stock (8,500 of ~30,000 SKUs are on the shelf in Espoo).
+47. Can a customer get a **delivery outside its agreed delivery days**, or a same-day delivery, and at what fee? *Why we ask:* the headcount correction lands 1–3 days before an event; today the only same-day route is Tilaa & Nouda pickup in Helsinki.
+48. Is the **~99% delivery reliability** measured per delivery or per order line? *Why we ask:* per delivery, a 100-line event order could still miss several lines.
+49. When a Tilaa & Nouda line is out of stock it's removed without a substitute. Would Valio Aimo **want an agent to offer a checked substitute** (same allergens and spec) instead? *Why we ask:* that is the agent's main "one clear question" moment.
+
 ### Junction organisers (not Valio Aimo)
 
 - What are the submission rules and format? **[deadline answered]** Final submissions Sun 15 Nov 10:00 (junction2026.com/about.md). Format and required artefacts are not public.
