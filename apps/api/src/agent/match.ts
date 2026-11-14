@@ -6,10 +6,11 @@
 import type { Candidate, FiredRule, LookupLine, Need, PlanLine, Product, StatusLabel, Verdict, BaseUnit, ModelJudgement } from "@aimo/contracts";
 import { getProduct, searchProducts } from "../catalog.js";
 import { fire, FIXED, RULE_INDEX } from "../rules/catalogue.js";
-import { cutoffRule, dietRules, packContent, reliabilityRules, supplyRules, blocks } from "../rules/checks.js";
+import { cutoffRule, dietRules, earliestDelivery, packContent, reliabilityRules, supplyRules, blocks } from "../rules/checks.js";
 import { typeCheck } from "./judge.js";
-import { round2, eur } from "../util.js";
+import { round2, eur, fmtHelsinki } from "../util.js";
 import { now } from "../clock.js";
+import { brief, logSearch } from "../searchlog.js";
 import type { PreAnswers } from "@aimo/contracts";
 
 /** Categories where claims can't tell product types apart, so TYPE-CHECK runs (Q02.1 step 4). */
@@ -29,7 +30,9 @@ export function shortlist(need: Need): Product[] {
   }
   const base = { category: need.category ?? undefined, claims: claims.filter((c) => c !== "FREE_FROM_MILK"), limit: FIXED.searchLimit };
   let list = searchProducts({ ...base, q: need.query });
-  if (!list.length && need.category) list = searchProducts(base);
+  const fellBack = !list.length && !!need.category;
+  if (fellBack) list = searchProducts(base);
+  logSearch({ source: "shortlist", query: { need: need.label, text: need.text, q: need.query, ...base }, interpreted: { count: list.length, fellBackToCategory: fellBack, top: brief(list) } });
   return list;
 }
 
@@ -64,10 +67,13 @@ function decidingStep(a: Scored, b: Scored | undefined): string {
  * and need.rules. `urgent` decides whether a past cut-off matters now; it is
  * always caught (CUT-01), whatever the mock's date says.
  */
-export async function rankNeed(need: Need, list: Product[], pool: Pool, opts: { lockedOk?: boolean } = {}): Promise<void> {
+export async function rankNeed(need: Need, list: Product[], pool: Pool, opts: { lockedOk?: boolean; deliveryDays?: number[]; holidays?: string[] } = {}): Promise<void> {
   const at = now();
   need.excluded = [];
-  const passing: Scored[] = [];
+  need.earliestDelivery = null;
+  let passing: Scored[] = [];
+  // Products whose only fault is a passed cut-off: a later date would fix them.
+  const cutOnly: LookupLine[] = [];
   let lastFilter = "the catalogue search";
   // Type check only where claims can't separate types.
   let judgements = new Map<string, ModelJudgement>();
@@ -82,6 +88,7 @@ export async function rankNeed(need: Need, list: Product[], pool: Pool, opts: { 
     // the gateway refuses any attempt to change them (CUT-02).
     const cut = opts.lockedOk && pinned ? null : cutoffRule(p, l, at);
     if (cut) hard.push(cut);
+    if (cut && hard.length === 1) cutOnly.push(l);
     if (hard.length) {
       need.excluded.push({ productId: p.id, name: p.name, reason: hard[0].message, ruleId: hard[0].ruleId });
       lastFilter = RULE_INDEX.get(hard[0].ruleId)?.area.toLowerCase() ?? hard[0].ruleId;
@@ -108,6 +115,18 @@ export async function rankNeed(need: Need, list: Product[], pool: Pool, opts: { 
   // The recipe's own product wins whenever it passes every hard rule (recipe-approved, D6):
   // anything else is a substitute and asks the chef. Confirmed stock is only the last tie-break (D32).
   passing.sort(compare);
+  // NOT-IN-TIME (DLV-06): nothing that passes every other check arrives by the needed-by date.
+  // One clear rule with the earliest date replaces the per-product reasons.
+  const nb = need.neededBy;
+  if (nb && !opts.lockedOk && (passing.length || cutOnly.length) && passing.every((s) => s.l.availableDate && s.l.availableDate > nb)) {
+    const dates = [...passing.map((s) => s.l), ...cutOnly].map((l) => earliestDelivery(l, at, opts.deliveryDays ?? [1, 2, 3, 4, 5], opts.holidays ?? [])).filter((d): d is string => Boolean(d)).sort();
+    for (const s of passing) need.excluded.push({ productId: s.p.id, name: s.p.name, reason: `Arrives ${s.l.availableDate}, after ${nb}`, ruleId: "DLV-03" });
+    passing = [];
+    need.earliestDelivery = dates[0] ?? null;
+    const day = (d: string) => fmtHelsinki(`${d}T12:00:00Z`, false);
+    need.rules = need.rules.filter((r) => r.ruleId !== "CUT-01");
+    need.rules.push(fire("DLV-06", { need: need.label, neededBy: nb, neededByText: day(nb), earliest: need.earliestDelivery, earliestText: need.earliestDelivery ? day(need.earliestDelivery) : "not known yet" }));
+  }
   need.candidateCount = passing.length;
   need.candidates = passing.map((s, i): Candidate => ({
     productId: s.p.id,
@@ -129,7 +148,7 @@ export async function rankNeed(need: Need, list: Product[], pool: Pool, opts: { 
     judgement: s.judgement,
     notes: s.notes,
   }));
-  if (!passing.length) {
+  if (!passing.length && !need.rules.some((r) => r.ruleId === "DLV-06")) {
     const ruleNames = [...(need.constraints.claims ?? []), ...(need.constraints.avoidAllergens ?? []).map((a) => `no ${a}`)].join(", ") || "delivery and price checks";
     need.rules.push(fire("DIET-04", { need: need.label, rules: ruleNames, filter: lastFilter }));
   } else if (need.pinnedProductId && passing[0].p.id !== need.pinnedProductId) {

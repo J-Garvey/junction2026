@@ -55,9 +55,11 @@ export function QuestionCard({ q: initial, compact, onAnswered }: { q: Question;
     <article className={`qcard ${q.state}`} aria-label={q.title}>
       <header className="qhead">
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="row" style={{ gap: 6, flexWrap: "wrap", marginBottom: 4 }}>
-            {q.state === "waiting" ? <Status k="waiting" role="chef" /> : answered ? <span className="stamp order">{q.state === "answered" ? "Answered" : q.state === "expired" ? "Expired" : "Replaced"}</span> : <Status k="waiting" role={q.forRole} />}
-          </div>
+          {!(mine && q.state === "open") && (
+            <div className="row" style={{ gap: 6, flexWrap: "wrap", marginBottom: 4 }}>
+              {q.state === "waiting" ? <Status k="waiting" role="chef" /> : answered ? <span className="stamp order">{q.state === "answered" ? "Answered" : q.state === "expired" ? "Expired" : "Replaced"}</span> : <Status k="waiting" role={q.forRole} />}
+            </div>
+          )}
           <h3 className="qtitle">{q.title}</h3>
         </div>
         {q.deadline && !answered && (

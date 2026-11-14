@@ -1,7 +1,7 @@
 /** Plan lines, candidates, the dish and money views, the cut-off board and the change view. */
 import { useState, type ReactNode } from "react";
 import type { Need, Plan, PlanLine, StatusLabel, WarningRecord } from "@aimo/contracts";
-import { countdown, eur, qty, when, fi, plural } from "../format";
+import { countdown, day, eur, qty, when, fi, plural } from "../format";
 import { useApp, outletName } from "../ctx";
 import type { DiffLine } from "../api";
 import { Status, Fixture } from "./Status";
@@ -229,16 +229,28 @@ export function CutoffBoard({ lines }: { lines: PlanLine[] }) {
   return (
     <div className="board" role="table" aria-label="Order cut-offs">
       {rows.map(([k, ls]) => {
-        const cd = k === "none" ? { text: "No cut-off", past: false } : countdown(k, now);
+        const cd = k === "none" ? null : countdown(k, now);
+        const dates = [...new Set(ls.map((l) => l.availableDate).filter((d): d is string => !!d))];
+        const arrives = dates.length ? dates.map(day).join(", ") : "no delivery date";
         return (
           <div key={k} className="br" role="row">
-            <span className="trunc">
-              {plural(ls.length, "line")}
+            <span className="what">
+              {!cd ? (
+                <>No order cut-off: these lines cannot be delivered</>
+              ) : cd.past ? (
+                <>
+                  <Icon n="lock" s={12} /> Cut-off passed <span className="t">{when(k)}</span>: too late for on-time delivery
+                </>
+              ) : (
+                <>
+                  Order by <span className="t">{when(k)}</span>
+                </>
+              )}
+              <span className="sub">
+                {plural(ls.length, "line")} · delivery {arrives}
+              </span>
             </span>
-            <span className="t">{k === "none" ? "–" : when(k)}</span>
-            <span className={cd.past ? "gone" : "left"}>
-              {cd.past && <Icon n="lock" s={12} />} {cd.past ? "Locked" : cd.text}
-            </span>
+            <span className={!cd || cd.past ? "gone" : "left"}>{!cd ? "–" : cd.past ? "Locked" : `in ${cd.text}`}</span>
           </div>
         );
       })}

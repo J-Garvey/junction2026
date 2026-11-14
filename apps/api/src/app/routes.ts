@@ -13,6 +13,7 @@ import { kvGet, kvSet } from "../db.js";
 import { RULES, FIXED } from "../rules/catalogue.js";
 import { getProduct, catalogSize } from "../catalog.js";
 import { parseRequest } from "../agent/parse.js";
+import { logSearch } from "../searchlog.js";
 import { messageRoute } from "../agent/judge.js";
 import { newPlan, quoteAndDecide, getPlan, listPlans, mandate, savePlan } from "../agent/plan.js";
 import { questionsFor, allQuestions, getQuestion, canAnswer } from "../agent/questions.js";
@@ -95,6 +96,7 @@ export function appRouter(): Router {
     }
     if (route.route === "neither") return res.json({ route: "neither", message: "I can take a new request or a change to an event." });
     const parsed = await parseRequest(text);
+    logSearch({ source: "request_parse", query: text, interpreted: { route: route.route, parsedBy: parsed.request.parsedBy, note: parsed.note, neededBy: parsed.request.neededBy, neededByText: parsed.request.neededByText, lines: parsed.request.lines } });
     audit({ actor: personActor(P(req)), action: "request_parsed", summary: `Parsed "${text.slice(0, 80)}" into ${parsed.request.lines.length} line(s) (${parsed.request.parsedBy})`, details: { request: parsed.request }, visibility: "hotel", judgements: route.judgement ? [route.judgement] : [] });
     res.json({ route: route.route === "unsure" ? "new_request_unsure" : "new_request", request: { ...parsed.request, siteId: mandate().sites[0].id, outletId: P(req).outlets[0] ?? "banquet" }, note: parsed.note });
   });
