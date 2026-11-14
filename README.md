@@ -11,6 +11,7 @@ How can a food-service wholesaler let autonomous purchasing agents find products
 - ⏰ **Final submission deadline: Sun 15 Nov 2026, 10:00**
 - ✅ Two research passes on customer segments (they disagree; see [QUESTIONS.md](QUESTIONS.md))
 - ✅ Research on urgent, large, variable orders: event caterers and banquet venues fit best ([research/05](research/05-spike-orders-under-time-pressure.md))
+- ✅ Talked to Valio Aimo: **hotels first, then restaurants; target hotel catering and event orders** ([research/06](research/06-valio-aimo-conversation-2026-11-14.md))
 - ⏳ Ask the mentors ([research/stand-questions.md](research/stand-questions.md) first), then pick a segment
 - ⬜ Guardrails design (deliberately later)
 - ⬜ Build
@@ -42,6 +43,7 @@ What changed when the two uploads were merged is in **[CHANGES.md](CHANGES.md)**
 | [research/03-data-profile.md](research/03-data-profile.md) | What the data covers and where it's thin; API behaviour |
 | [research/04-segment-research-chain-first.md](research/04-segment-research-chain-first.md) | The chain-first research pass, the order-quantity primer and kitchen-system notes |
 | [research/05-spike-orders-under-time-pressure.md](research/05-spike-orders-under-time-pressure.md) | Which customers place large, urgent, one-off orders where speed and accuracy beat price, and which fit the agent best. Source notes in [research/notes/spike-orders/](research/notes/spike-orders/) |
+| [research/06-valio-aimo-conversation-2026-11-14.md](research/06-valio-aimo-conversation-2026-11-14.md) | **Notes from talking to Valio Aimo (14 Nov):** target segment, hotel ordering patterns, substitution pitfalls, lead times and cut-offs, agent explanation modes |
 | [research/stand-questions.md](research/stand-questions.md) | **Take this to the Valio Aimo stand:** the 15 questions only they can answer, in priority order |
 | [research/mentor-questions.md](research/mentor-questions.md) | The single list of 49 mentor questions, with what's already answered |
 | [docs/data-dictionary.md](docs/data-dictionary.md) | Every field of the slim dataset, quantity conversion, code glossaries (unverified) |
