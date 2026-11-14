@@ -52,6 +52,10 @@ const CLAIM_WORDS: [RegExp, string][] = [
 
 const UNIT_MAP: Record<string, Unit> = { l: "l", litre: "l", litres: "l", liter: "l", liters: "l", ltr: "l", kg: "kg", kilo: "kg", kilos: "kg", g: "g", gram: "g", grams: "g", ml: "ml", dl: "dl", pcs: "pcs", pieces: "pcs", piece: "pcs", pc: "pcs" };
 
+const UNIT_AMOUNT = /(\d[\d\s]*(?:[.,]\d+)?)\s*(litres?|liters?|ltr|l|kg|kilos?|grams?|g|ml|dl|pcs|pieces?|pc)\b/;
+/** A number on its own, with an optional "x" either side; not a 6-digit product code or a day of the month. */
+const BARE_COUNT = /(?:\bx\s*)?(?<![\d.,/-])(\d{1,5}(?:[.,]\d+)?)(?![\d.,/-])(?!\s*(?:\.|st|nd|rd|th)?\s*(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec))(?:\s*x\b)?/;
+
 const DAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 
 /** A relative date ("Monday") resolves to the next one and is shown back in the chips (Q01.5). */
@@ -100,12 +104,16 @@ export function rulesParse(text: string): Omit<SingleRequest, "siteId" | "outlet
   const lines: SingleLine[] = [];
   for (const raw of parts) {
     const s = raw.toLowerCase();
-    const q = s.match(/(\d[\d\s]*(?:[.,]\d+)?)\s*(litres?|liters?|ltr|l|kg|kilos?|grams?|g|ml|dl|pcs|pieces?|pc)\b/);
-    const quantity: Amount | null = q ? { amount: Number(q[1].replace(/\s/g, "").replace(",", ".")), unit: UNIT_MAP[q[2]] ?? "pcs" } : null;
+    const q = s.match(UNIT_AMOUNT);
+    // A bare count ("10 cheese", "12 x birthday cakes") is pieces; no number at all is one piece.
+    const count = q ? null : s.match(BARE_COUNT);
+    const quantity: Amount = q
+      ? { amount: Number(q[1].replace(/\s/g, "").replace(",", ".")), unit: UNIT_MAP[q[2]] ?? "pcs" }
+      : { amount: count ? Number(count[1].replace(",", ".")) : 1, unit: "pcs" };
     const claims = CLAIM_WORDS.filter(([re]) => re.test(s)).map(([, c]) => c);
     const pid = s.match(/\b(4\d{5})\b/);
     const leftover = s
-      .replace(/(\d[\d\s]*(?:[.,]\d+)?)\s*(litres?|liters?|ltr|l|kg|kilos?|grams?|g|ml|dl|pcs|pieces?|pc)\b/, "")
+      .replace(q ? UNIT_AMOUNT : BARE_COUNT, "")
       .replace(/lactose[- ]?free|gluten[- ]?free|vegan|milk[- ]?free|\bof\b|\bi need\b|\bwe need\b|\bplease\b|\border\b/g, "")
       .replace(/\s+/g, " ")
       .trim();
@@ -173,7 +181,8 @@ export async function parseRequest(text: string): Promise<{ request: Omit<Single
         productType: l.productType ?? pw?.type ?? null,
         category: pw?.category ?? null,
         productId: l.productId && /^\d{6}$/.test(l.productId) ? l.productId : null,
-        quantity: typeof l.amount === "number" && l.unit ? { amount: l.amount, unit: l.unit } : null,
+        // A count without a unit is pieces; no amount at all is one piece.
+        quantity: typeof l.amount === "number" ? { amount: l.amount, unit: l.unit ?? "pcs" } : { amount: 1, unit: "pcs" },
         constraints: { claims: l.claims ?? [], avoidAllergens: l.avoidAllergens ?? [], labels: [] },
       };
     });

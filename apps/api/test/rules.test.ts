@@ -108,10 +108,28 @@ describe("REQUEST-PARSE (built-in parser)", () => {
     expect(r.lines[0].constraints.claims).toEqual(["FREE_FROM_LACTOSE"]);
     expect(r.lines[0].productType).toBe("plain drinking milk");
   });
-  it("splits two items and never invents a quantity", () => {
+  it("splits two items and defaults a missing number to one piece", () => {
     const r = rulesParse("milk and cream by Monday");
     expect(r.lines).toHaveLength(2);
-    expect(r.lines.every((l) => l.quantity === null)).toBe(true);
+    expect(r.lines.every((l) => l.quantity?.amount === 1 && l.quantity.unit === "pcs")).toBe(true);
+  });
+  it("reads a bare count as pieces and keeps the number out of the product", () => {
+    for (const [text, amount, query] of [
+      ["10 cheese", 10, "cheese"],
+      ["12 birthday cakes", 12, "birthday cakes"],
+      ["12 x birthday cakes by Monday", 12, "birthday cakes"],
+      ["birthday cake x 3", 3, "birthday cake"],
+      ["birthday cake", 1, "birthday cake"],
+    ] as const) {
+      const l = rulesParse(text).lines[0];
+      expect(l.quantity).toEqual({ amount, unit: "pcs" });
+      expect(l.query).toBe(query);
+    }
+  });
+  it("doesn't read a date or product code as a count", () => {
+    expect(rulesParse("cheese by 2026-11-16").lines[0].quantity).toEqual({ amount: 1, unit: "pcs" });
+    expect(rulesParse("cheese for 16 Nov").lines[0].quantity).toEqual({ amount: 1, unit: "pcs" });
+    expect(rulesParse("4 x 464306").lines[0]).toMatchObject({ productId: "464306", quantity: { amount: 4, unit: "pcs" } });
   });
 });
 
