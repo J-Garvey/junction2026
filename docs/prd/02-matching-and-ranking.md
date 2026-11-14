@@ -70,19 +70,19 @@ Each function is one problem that can be built and tested alone. "Deterministic 
   - Vegan: has claim `VEGAN`.
   - Allergy to X: the product has an allergen declaration, and X is in neither CONTAINS nor MAY_CONTAIN.
   - A product that claims lactose-free but lists lactose as CONTAINS (4 known products) fails.
-- **Answer:** _open_
+- **Answer:** **Signed off** (Darragh, 14 Nov): agreed, with one addition. Lactose-free, gluten-free and vegan rows as recommended. **Allergic to X:** the product must have an allergen declaration, and X must not be listed as CONTAINS, MAY_CONTAIN **or UNDECLARED**. The 4 products that claim lactose-free but list lactose fail.
 
 **Q02.4 How does delivery reliability order candidates?**
 - Recommended: three bands. Known and 0.95 or above ranks first, unknown second, known and below 0.95 last. Inside a band, higher is better, compared to two decimal places.
-- **Answer:** _open_
+- **Answer:** **Signed off, changed** (Darragh, 14 Nov): **unreliable is 90% or lower** (not below 0.95). Other ranking factors can come before reliability where needed; reliability is not automatically the first sort key.
 
 **Q02.5 Where do "recipe-approved" and "brand match" come from?**
 - Recommended: a brand or product ID written on the recipe line, plus the remembered substitute approvals from chunk 07. Nothing is inferred.
-- **Answer:** _open_
+- **Answer:** **Signed off** (Darragh, 14 Nov): agreed as recommended.
 
 **Q02.6 How many candidates does the user see?**
 - Recommended: three, labelled best, better and good, with the ranking step that separated them. The rest sit behind "more options".
-- **Answer:** _open_
+- **Answer:** **Signed off, changed** (Darragh, 14 Nov): **don't label** the options best, better and good. Show them in the order the agent thinks is best, but make the trade-offs between them clearer, without an obvious ranking the reviewer would just pick. **Highlight one only if there is a clear winner.**
 
 **Q02.7 How is price compared when the API gives no comparison price?** This happens on 164 of 999 priced products.
 - Recommended: compute price per kg or L from the pack content. If that can't be computed either, the product ranks last in the price step and its line is amber.
