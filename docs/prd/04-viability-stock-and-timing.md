@@ -58,11 +58,11 @@ Each function is one problem that can be built and tested alone. "Deterministic 
 
 **Q04.4 Which days can the hotel receive deliveries, and which holidays count?**
 - Recommended: the mandate fixture lists Monday to Friday as agreed delivery days, plus a short list of Finnish public holidays for the test period. A needed-by date that falls on any other day moves to the delivery day before it, and that move is shown.
-- **Answer:** **Answered** (Darragh, 14 Nov): delivery days are **set by the venue** as its availability to receive. Default is Monday to Friday. Saturday and Sunday are one easy setting to switch on. Public holidays are blocked.
+- **Answer:** **Answered** (Darragh, 14 Nov): delivery days are **set by the venue** as its availability to receive. Default is Monday to Friday. Saturday and Sunday are one easy setting to switch on. Public holidays are blocked. **Settings screen** (Darragh, 14 Nov): each weekday is its own toggle square (Monday to Friday on by default), plus a checkbox for receiving on public holidays (off by default). See Q05.10 rows 8 and 8a.
 
 **Q04.5 Does very poor delivery reliability do more than turn a line amber?** Twelve products have a reliability of 0.0.
 - Recommended: below 0.80, the line also raises a question when the order is placed: "This product was delivered as ordered only X% of the time. Order it anyway?"
-- **Answer:** **Answered** (Darragh, 14 Nov): yes, but the threshold is **90%**: below 90% delivered as ordered, ordering asks. This is a default and must be easy to change, especially from the place where the line is flagged.
+- **Answer:** **Answered** (Darragh, 14 Nov): yes, but the threshold is **90%**: below 90% delivered as ordered, ordering asks. This is a default and must be easy to change, especially from the place where the line is flagged. The warning colour uses **the same number**, tied to it directly, and isn't a separate setting (Q05.10 row 14).
 
 **Q04.6 Once someone continues with unconfirmed stock, does the final check ask again?** (Reworded on 14 Nov for D31. Darragh's answer was given to the earlier wording and still applies.)
 - Recommended: no. The choice stays with the line. The final check restates it as "stock not confirmed, continued by [person] on [date]". It asks again only if the product or quantity changed.
@@ -80,7 +80,7 @@ Each function is one problem that can be built and tested alone. "Deterministic 
 | Case | Proposed rule | Ruling |
 |---|---|---|
 | Stock amount is 0 and there is no available date | Treated as not available now; amber months ahead, a shortfall when urgent | Agreed (Darragh, 14 Nov) |
-| Real stock covers part of the need | Partial availability: a partial-fill question (chunk 06) | **Changed** (Darragh, 14 Nov): ask, but assume the partial delivery will be rejected. With the question, suggest a substitute that can be ordered in the full quantity, and offer three options: partial, partial plus substitute, or substitute only |
+| Real stock covers part of the need | Partial availability: a partial-fill question (chunk 06) | **Changed** (Darragh, 14 Nov): ask, but assume the partial delivery will be rejected. With the question, suggest a substitute that can be ordered in the full quantity, and offer three options: partial, partial plus substitute, or substitute only. The substitute in "partial plus substitute" can differ from the one in "substitute only", since it only has to cover the difference; "substitute only" must cover the whole quantity by itself. This can never be pre-answered (Q05.10 row 5) |
 | `salesBlock` is true (never seen in the mock) | Not deliverable | Agreed (Darragh, 14 Nov) |
 | The service date is a Sunday or a holiday | Needed-by moves back to the last agreed delivery day | **Depends on the hotel's settings** (Darragh, 14 Nov): it follows the delivery days the venue has set (Q04.4) |
 | The chef changes a dish after viability ran | Only the changed lines are re-checked; the rest keep their verdict | Agreed (Darragh, 14 Nov) |

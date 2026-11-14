@@ -85,6 +85,7 @@ Each function is one problem that can be built and tested alone. "Deterministic 
 - Recommended: two checks only, both ending in a question that names the suspected slip.
   - A single ingredient above 1 kg or 1 L per guest, or below 1 g or 1 ml per guest.
   - A line total that is 10, 100 or 1,000 times what amount-per-portion × guests gives.
+- **Input from Darragh (14 Nov):** a fuller design is proposed in [chunk 05, Q05.10, "Quantity anomaly check"](05-rules-mandate-and-preferences.md): per-guest history, trend and typo patterns, Low / Medium / High scrutiny, and review by a more capable AI model. For this chunk's owner to accept or adjust.
 - **Answer:** _open_
 
 ## Edge cases to rule on
