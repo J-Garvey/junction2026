@@ -199,12 +199,8 @@ function OrderSwitcher({ currentId }: { currentId: string }) {
   return (
     <div className="order-switcher" ref={ref}>
       <button type="button" className="order-switcher-trigger" onClick={() => setOpen((value) => !value)} aria-haspopup="menu" aria-expanded={open}>
-        <span className="order-switcher-mark"><Icon n="box" s={16} /></span>
-        <span className="order-switcher-copy">
-          <span className="order-switcher-label">Current order</span>
-          <b>{current?.name ?? "Loading order…"}</b>
-        </span>
-        <Icon n="down" s={14} />
+        <b>{current?.name ?? "Loading order…"}</b>
+        <Icon n="down" s={12} />
       </button>
       {open && (
         <div className="order-switcher-menu" role="menu" aria-label="Switch order">
@@ -222,9 +218,7 @@ function OrderSwitcher({ currentId }: { currentId: string }) {
             ))}
           </div>
           <Link to="/" role="menuitem" className="order-switcher-all" onClick={() => setOpen(false)}>
-            <span className="order-switcher-all-icon"><Icon n="box" s={15} /></span>
-            <span><b>All orders</b><small>View and create orders</small></span>
-            <Icon n="chev" s={15} />
+            All orders
           </Link>
         </div>
       )}
@@ -250,7 +244,12 @@ function TopBar({ status, me, onSwitch }: { status: StatusResp | null; me: Perso
 
   return (
     <div className="topbar">
-      {basketId && <OrderSwitcher currentId={decodeURIComponent(basketId)} />}
+      {basketId && (
+        <div className="order-switcher-slot">
+          <Link to="/" className="order-switcher-back" aria-label="Close order" title="Back to all orders"><Icon n="x" s={15} /></Link>
+          <OrderSwitcher currentId={decodeURIComponent(basketId)} />
+        </div>
+      )}
       {status && !status.chain.ok && <span className="stamp block">Audit chain broken</span>}
       <div className="hide-m account-slot"><AccountMenu me={me} onSwitch={onSwitch} /></div>
     </div>
