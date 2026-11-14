@@ -26,10 +26,14 @@ export type Overrides = {
   removedNeeds: string[];
   keepShort: boolean;
   approvedSoft: string[]; // agent-side approver items already decided, by fingerprint
+  stockContinued?: string[]; // D31: products the person chose to continue with despite unconfirmed stock
+  stockDecidedBy?: string;
+  useConfirmed?: boolean; // urgent need: the person chose the split across confirmed stock instead
+  stockBlind?: boolean; // a change to a placed order rescales the same products; stock is the final check's job
 };
 export type StoredPlan = Plan & { overrides: Overrides; event?: EventSpec | null; questionsAnswered: number };
 
-export const emptyOverrides = (): Overrides => ({ confirmed: [], excluded: [], removedNeeds: [], keepShort: false, approvedSoft: [] });
+export const emptyOverrides = (): Overrides => ({ confirmed: [], excluded: [], removedNeeds: [], keepShort: false, approvedSoft: [], stockContinued: [], useConfirmed: false });
 
 export function mandate(): Mandate {
   return getJson<Mandate>("mandates", HOTEL_ID, "hotel_id")!;
@@ -116,32 +120,44 @@ export function needsFromEvent(e: EventSpec, m: Mandate, removed: string[]): Nee
       for (const g of groups) {
         const id = `${dish.id}:${ing.id}:${g.id}`;
         if (removed.includes(id) || g.count <= 0) continue;
-        const pp = toBase(ing.perPortion);
+        // A fixed total belongs to the whole event, so it is one need, carried by the unrestricted group.
+        if (ing.total && g.id !== "regular") continue;
         const pinnedId = ing.variants?.[g.id] ?? ing.productId ?? null;
         const pinned = pinnedId ? getProduct(pinnedId) : null;
         const frozen = Boolean(ing.frozen ?? pinned?.temperature === 7);
         const nb = neededBy(e.serviceDate, frozen, m);
+        const amount = ing.total ? toBase(ing.total) : (() => {
+          const pp = toBase(ing.perPortion ?? { amount: 0, unit: "pcs" });
+          return { value: +(pp.value * g.count).toFixed(4), unit: pp.unit };
+        })();
+        const constraints: Constraints = {
+          claims: [...new Set([...(g.constraints.claims ?? []), ...(ing.claims ?? [])])],
+          avoidAllergens: g.constraints.avoidAllergens ?? [],
+          labels: g.constraints.labels ?? [],
+          origin: ing.origin ?? g.constraints.origin,
+        };
         out.push(
           emptyNeed({
             id,
-            label: `${ing.text} · ${dish.name} · ${g.label} (${g.count})`,
+            label: `${ing.text} · ${dish.name}${ing.total ? "" : ` · ${g.label} (${g.count})`}`,
             text: ing.text,
             dishId: dish.id,
             dishName: dish.name,
             ingredientId: ing.id,
             groupId: g.id,
             groupLabel: `${g.label} guests`,
-            guests: g.count,
-            perPortion: ing.perPortion,
+            guests: ing.total ? null : g.count,
+            perPortion: ing.perPortion ?? null,
             outletId: dish.outletId,
-            amount: { value: +(pp.value * g.count).toFixed(4), unit: pp.unit },
-            constraints: g.constraints,
+            amount,
+            constraints,
             query: ing.query ?? ing.text,
             category: ing.category ?? pinned?.category ?? null,
+            productType: ing.productType ?? null,
             pinnedProductId: pinnedId,
             neededBy: nb.date,
             frozen,
-            rules: [...nb.rules, ...quantitySanity(ing.text, ing.perPortion, g.count)],
+            rules: [...nb.rules, ...(ing.perPortion ? quantitySanity(ing.text, ing.perPortion, g.count) : [])],
           }),
         );
       }
@@ -186,7 +202,15 @@ function buildLines(needs: Need[], urgent: boolean, ov: Overrides, m: Mandate): 
       combined.set(k, e);
       continue;
     }
-    // Urgent allocation across products.
+    // Urgent (D32): the best-ranked product takes the whole need, even if its stock is unconfirmed;
+    // the person is then asked whether to continue (D31), with the confirmed-stock split as the alternative.
+    const best = n.candidates[0];
+    if (best.stock.kind === "unknown" && !ov.useConfirmed && best.packContent && best.packContent.unit === n.amount.unit) {
+      const packs = Math.ceil(n.amount.value / best.packContent.value - 1e-9);
+      lines.push(makeLine(best, [n], n.amount.value, packs, n.amount.unit, "primary", m));
+      continue;
+    }
+    // Otherwise fill from confirmed stock in rank order, then the best unconfirmed product for the rest.
     let remaining = n.amount.value;
     let covered = 0;
     for (const c of n.candidates) {
@@ -203,7 +227,7 @@ function buildLines(needs: Need[], urgent: boolean, ov: Overrides, m: Mandate): 
     if (remaining > 1e-9) {
       shortfall = { need: n.amount.value, covered: round2(covered), unit: n.amount.unit };
       const unknown = n.candidates.find((c) => c.stock.kind === "unknown" && c.packContent && c.packContent.unit === n.amount.unit);
-      if (unknown && !ov.keepShort) {
+      if (unknown && !ov.keepShort && !ov.useConfirmed) {
         const packs = Math.ceil(remaining / unknown.packContent!.value - 1e-9);
         lines.push(makeLine(unknown, [n], remaining, packs, n.amount.unit, "unknown_fill", m));
       }
@@ -310,12 +334,12 @@ export async function runPipeline(plan: StoredPlan): Promise<StoredPlan> {
   for (const n of needs) {
     n.rules = n.rules.filter((r) => r.ruleId === "DLV-04" || r.ruleId === "QTY-02");
     const list = lists.get(n.id)!.filter((p) => !ov.excluded.includes(`${n.id}:${p.id}`));
-    await rankNeed(n, list, pool);
+    await rankNeed(n, list, pool, { lockedOk: ov.stockBlind });
     // A chef's confirmation removes the type question for that product.
     for (const c of n.candidates) if (ov.confirmed.includes(`${n.id}:${c.productId}`)) c.notes = c.notes.filter((r) => r.ruleId !== "TYP-01");
   }
   plan.needs = needs;
-  const built = buildLines(needs, plan.urgent, ov, m);
+  const built = buildLines(needs, plan.urgent && !ov.stockBlind, ov, m);
   for (const l of built.lines) {
     if (l.productId && l.needIds.every((id) => ov.confirmed.includes(`${id}:${l.productId}`))) l.rules = l.rules.filter((r) => r.ruleId !== "SUB-01" && r.ruleId !== "TYP-01");
     Object.assign(l, verdictOf(l, plan.urgent));
@@ -445,7 +469,8 @@ export async function quoteAndDecide(plan: StoredPlan, personToken?: string): Pr
 /** ORDER-PLACE from the hotel side, with the plan's idempotency key, so a retry is one order. */
 export async function placeFromPlan(plan: StoredPlan, approvalId: string | undefined): Promise<StoredPlan> {
   try {
-    const o = await gw.order(plan.quoteId!, plan.idemKey, approvalId);
+    const continued = [...new Set(plan.lines.filter((l) => l.productId && l.stock?.kind === "unknown" && (plan.overrides.stockContinued ?? []).includes(l.productId)).map((l) => l.productId!))];
+    const o = await gw.order(plan.quoteId!, plan.idemKey, approvalId, continued, plan.overrides.stockDecidedBy);
     plan.orderIds = [...new Set([...plan.orderIds, o.id])];
     plan.status = "ordered";
     plan.approvalId = approvalId ?? null;

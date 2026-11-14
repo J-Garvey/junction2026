@@ -38,6 +38,12 @@ describe("DIET-FILTER", () => {
   it("no allergen declaration is never safe for an allergy (ALG-03)", () => {
     expect(dietRules(getProduct("460643")!, { claims: [], avoidAllergens: ["AF"], labels: [] }, "g")[0].ruleId).toBe("ALG-03");
   });
+  it("a tree-nut allergy catches almond, and 'free from' never outweighs 'contains'", () => {
+    // 467767 lists AN as free-from and SA (almond) as contains.
+    const r = dietRules(getProduct("467767")!, { claims: [], avoidAllergens: ["AN"], labels: [] }, "g");
+    expect(r[0]).toMatchObject({ ruleId: "ALG-01" });
+    expect(r[0].facts.allergen).toBe("almond");
+  });
   it("contains fish blocks a fish allergy (ALG-01)", () => {
     expect(dietRules(getProduct("471555")!, { claims: [], avoidAllergens: ["AF"], labels: [] }, "g")[0].ruleId).toBe("ALG-01");
   });
@@ -104,8 +110,9 @@ describe("REQUEST-PARSE (built-in parser)", () => {
 
 describe("MANDATE-CHECK", () => {
   it("the cap is inclusive, ex VAT, and a zero cap asks on every order", () => {
-    expect(mandateRules(MANDATE, 5000, [], "site-aurora").approvalsNeeded).toEqual([]);
-    expect(mandateRules(MANDATE, 5000.01, [], "site-aurora").approvalsNeeded).toEqual(["spend_cap"]);
+    const m = { ...MANDATE, spendCapEur: 5000 };
+    expect(mandateRules(m, 5000, [], "site-aurora").approvalsNeeded).toEqual([]);
+    expect(mandateRules(m, 5000.01, [], "site-aurora").approvalsNeeded).toEqual(["spend_cap"]);
     expect(mandateRules({ ...MANDATE, spendCapEur: 0 }, 1, [], "site-aurora").approvalsNeeded).toEqual(["spend_cap"]);
   });
 });

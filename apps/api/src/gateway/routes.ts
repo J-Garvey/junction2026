@@ -85,7 +85,7 @@ export function gatewayRouter(): Router {
   r.post("/approvals", (req, res) => res.status(201).json(createApproval(req.identity!, parse(ApprovalBody, req.body))));
   r.post("/orders", async (req, res) => {
     const b = parse(OrderCreateBody, req.body);
-    const out = await placeOrder(req.identity!, b.quoteId, req.header("idempotency-key") ?? "", b.approvalId);
+    const out = await placeOrder(req.identity!, b.quoteId, req.header("idempotency-key") ?? "", b.approvalId, undefined, { continueWith: b.continueWithUnconfirmedStock, decidedBy: b.decidedBy });
     res.status(out.replay ? 200 : 201).json(out.order);
   });
   r.get("/orders", (req, res) => {

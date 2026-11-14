@@ -17,7 +17,7 @@ import { messageRoute } from "../agent/judge.js";
 import { newPlan, quoteAndDecide, getPlan, listPlans, mandate, savePlan } from "../agent/plan.js";
 import { questionsFor, allQuestions, getQuestion, canAnswer } from "../agent/questions.js";
 import { answer } from "../agent/answers.js";
-import { addDietGroup, changeGuests, coverageSummary, EditConflict, eventView, finalCheck, listEvents, orderEvent, removeNeed, runCutoff, runViability, warnings, personActor } from "../agent/events.js";
+import { addDietGroup, changeEvent, changeGuests, coverageSummary, EditConflict, eventView, finalCheck, listEvents, orderEvent, removeNeed, runCutoff, runViability, warnings, personActor } from "../agent/events.js";
 import { listRemembered } from "../agent/memory.js";
 import { seedReset, OUTLETS, OUTSIDE_AGENT_TOKEN, VALIO_VIEWER_TOKEN } from "../seed.js";
 import { gw } from "../agent/gatewayClient.js";
@@ -141,6 +141,11 @@ export function appRouter(): Router {
   r.post("/events/:id/guests", async (req, res) => {
     const b = z.object({ guests: z.number().int().min(0), version: z.number() }).parse(req.body);
     res.json(await changeGuests(String(req.params.id), b.guests, b.version, P(req)));
+  });
+  // Scene 3 in one step: a new guest count and/or a new allergy (D28 check first, then one change).
+  r.post("/events/:id/change", async (req, res) => {
+    const b = z.object({ guests: z.number().int().min(0).optional(), group: DietGroup.optional(), version: z.number() }).parse(req.body);
+    res.json(await changeEvent(String(req.params.id), { guests: b.guests, group: b.group }, b.version, P(req)));
   });
   r.post("/events/:id/diet-groups", async (req, res) => {
     const b = z.object({ group: DietGroup, version: z.number() }).parse(req.body);

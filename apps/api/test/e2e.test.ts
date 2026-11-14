@@ -42,133 +42,150 @@ async function gateway(method: string, path: string, body?: unknown, headers: Re
 
 async function fresh() {
   await fetch(`${BASE}/api/reset`, { method: "POST" });
-  const anna = await new Client("p-anna").login();
+  const anna = await new Client("p-aino").login();
   const mikko = await new Client("p-mikko").login();
-  const sara = await new Client("p-sara").login();
+  const sara = await new Client("p-sanna").login();
   const jonas = await new Client("p-jonas").login();
   return { anna, mikko, sara, jonas };
 }
 
-async function milkCase() {
+async function milkCase(choice: "continue" | "confirmed") {
   const { anna, sara, jonas } = await fresh();
   await anna.call("POST", "/clock", { time: "2026-11-14T10:00:00Z" });
   await anna.call("POST", "/data-mode", { mode: "fixture", overlay: null });
   const m = await anna.call("POST", "/messages", { text: "I need 1,000 litres of lactose-free milk by Monday" });
   const r = await anna.call("POST", "/requests", { request: m.request });
-  const plan = r.plan;
-  const q = r.questions.find((x: any) => x.forRole === "approver");
-  const chefTry = await anna.call("POST", `/questions/${q.id}/answer`, { optionId: "approve" });
-  const a = await sara.call("POST", `/questions/${q.id}/answer`, { optionId: "approve" });
-  const second = await jonas.call("POST", `/questions/${q.id}/answer`, { optionId: "reject" });
+  const stockQ = r.questions.find((x: any) => x.type === "unknown_stock");
+  const approverTry = await sara.call("POST", `/questions/${stockQ.id}/answer`, { optionId: "continue" });
+  const a = await anna.call("POST", `/questions/${stockQ.id}/answer`, { optionId: choice });
+  let after = a.plan;
+  let approval: any = null;
+  if (choice === "confirmed") {
+    const pq = (await sara.call("GET", "/home")).questions.find((x: any) => x.forRole === "approver");
+    approval = await sara.call("POST", `/questions/${pq.id}/answer`, { optionId: "approve" });
+    after = approval.plan;
+  }
+  const second = await jonas.call("POST", `/questions/${stockQ.id}/answer`, { optionId: "others" });
   const orders = (await anna.call("GET", "/orders")).orders;
-  return { plan, q, chefTry, a, second, orders };
+  return { plan: r.plan, stockQ, approverTry, a, after, approval, second, orders };
 }
 
 async function eventCase() {
   const { anna, mikko, sara, jonas } = await fresh();
-  const v = async () => (await anna.call("GET", "/events/evt-gala")).event.version;
+  const aino = anna;
+  const sanna = sara;
+  const v = async () => (await aino.call("GET", "/events/evt-wedding")).event.version;
   const out: Record<string, any> = {};
-  await anna.call("POST", "/clock", { scene: "1" });
-  out.viability = (await anna.call("POST", "/events/evt-gala/viability")).plan;
-  await anna.call("POST", "/clock", { scene: "2" });
-  out.blocked = (await anna.call("POST", "/events/evt-gala/order")).plan;
-  out.staleEdit = await mikko.call("POST", "/events/evt-gala/remove-need", { needId: "coffee:cmilk:vegan", version: 0 });
-  await mikko.call("POST", "/events/evt-gala/remove-need", { needId: "coffee:cmilk:vegan", version: await v() });
-  out.order = (await anna.call("POST", "/events/evt-gala/order")).plan;
-  out.saraQs = (await sara.call("GET", "/home")).questions;
-  out.annaQs = (await anna.call("GET", "/home")).questions;
-  out.approved = await sara.call("POST", `/questions/${out.saraQs[0].id}/answer`, { optionId: "approve" });
-  await anna.call("POST", "/clock", { scene: "3" });
-  out.g510 = await anna.call("POST", "/events/evt-gala/guests", { guests: 510, version: await v() });
-  out.g600 = await anna.call("POST", "/events/evt-gala/guests", { guests: 600, version: await v() });
-  out.change = await jonas.call("POST", `/questions/${out.g600.questionId}/answer`, { optionId: "approve" });
-  out.allergy = await anna.call("POST", "/events/evt-gala/diet-groups", { group: { id: "fish", label: "Fish allergy", count: 12, constraints: { claims: [], avoidAllergens: ["AF"], labels: [] }, standing: false }, version: await v() });
-  await anna.call("POST", "/clock", { scene: "4" });
-  out.final = (await anna.call("POST", "/events/evt-gala/final-check")).finalCheck;
-  out.subQ = (await anna.call("GET", "/home")).questions.find((q: any) => q.type === "substitute");
+  await aino.call("POST", "/clock", { scene: "1" });
+  out.viability = (await aino.call("POST", "/events/evt-wedding/viability")).plan;
+  await aino.call("POST", "/clock", { scene: "2" });
+  out.order = (await aino.call("POST", "/events/evt-wedding/order")).plan;
+  out.ainoQs = (await aino.call("GET", "/home")).questions;
+  out.sannaBefore = (await sanna.call("GET", "/home")).questions.filter((q: any) => q.state === "open");
   out.mikkoQs = (await mikko.call("GET", "/home")).questions;
-  out.useSub = await anna.call("POST", `/questions/${out.subQ.id}/answer`, { optionId: "use" });
-  await anna.call("POST", "/clock", { time: "2026-11-15T15:30:00Z" });
-  out.cutoff = await anna.call("POST", "/events/evt-gala/cutoff");
-  out.view = await sara.call("GET", "/events/evt-gala");
-  out.orders = (await anna.call("GET", "/orders?eventId=evt-gala")).orders;
-  out.valio = await sara.call("GET", "/audit?viewer=valio");
+  out.cont = await aino.call("POST", `/questions/${out.ainoQs[0].id}/answer`, { optionId: "continue" });
+  out.sannaQs = (await sanna.call("GET", "/home")).questions;
+  out.approved = await sanna.call("POST", `/questions/${out.sannaQs[0].id}/answer`, { optionId: "approve" });
+  out.late = await jonas.call("POST", `/questions/${out.sannaQs[0].id}/answer`, { optionId: "reject" });
+  out.staleEdit = await aino.call("POST", "/events/evt-wedding/change", { guests: 200, version: 0 });
+  await aino.call("POST", "/clock", { scene: "3" });
+  out.change = await aino.call("POST", "/events/evt-wedding/change", { guests: 194, group: { id: "onni", label: "Tree nuts (Onni)", count: 1, constraints: { claims: [], avoidAllergens: ["AN"], labels: [] }, standing: false }, version: await v() });
+  out.allergyQs = (await aino.call("GET", "/home")).questions.filter((q: any) => q.type === "allergy_conflict");
+  for (const q of out.allergyQs) await aino.call("POST", `/questions/${q.id}/answer`, { optionId: q.options[0].id });
+  out.changeQs = (await sanna.call("GET", "/home")).questions.filter((q: any) => q.type === "change_outside_tolerance");
+  out.changeOk = await sanna.call("POST", `/questions/${out.changeQs[0].id}/answer`, { optionId: "approve" });
+  await aino.call("POST", "/clock", { scene: "4" });
+  out.g188 = await aino.call("POST", "/events/evt-wedding/change", { guests: 188, version: await v() });
+  out.final = (await aino.call("POST", "/events/evt-wedding/final-check")).finalCheck;
+  out.subQ = (await aino.call("GET", "/home")).questions.find((q: any) => q.type === "substitute");
+  const pick = out.subQ.facts.candidates.findIndex((c: any) => c.productId === "464194");
+  out.useSub = await aino.call("POST", `/questions/${out.subQ.id}/answer`, { optionId: `use_${Math.max(0, pick)}` });
+  out.view = await sanna.call("GET", "/events/evt-wedding");
+  out.orders = (await aino.call("GET", "/orders?eventId=evt-wedding")).orders;
+  out.valio = await sanna.call("GET", "/audit?viewer=valio");
   return out;
 }
 
-describe("Test case 2: the brief's milk request", () => {
-  it("splits real stock across products and offers unknown stock as a risk for one Approver yes", async () => {
-    const r = await milkCase();
+describe("Test case 2: the brief's milk request (D31, D32)", () => {
+  it("picks the best milk on reliability and price and asks the chef to continue with unconfirmed stock", async () => {
+    const r = await milkCase("continue");
     expect(r.plan.urgent).toBe(true);
-    expect(r.plan.status).toBe("waiting");
-    const real = r.plan.lines.filter((l: any) => l.stock?.kind === "known");
-    expect(real.map((l: any) => l.productId).sort()).toEqual(["462775", "469363"]);
-    expect(real.reduce((s: number, l: any) => s + l.quantity, 0)).toBe(435);
-    const unknown = r.plan.lines.filter((l: any) => l.stock?.kind === "unknown");
-    expect(unknown).toHaveLength(1);
-    expect(unknown[0].status).toBe("unknown_stock");
-    expect(r.plan.lines.every((l: any) => !["463380", "462626", "464237", "463203"].includes(l.productId))).toBe(true); // no coffee milk or creamers
-    expect(r.q.ruleIds).toEqual(expect.arrayContaining(["STK-01", "STK-02"]));
-    expect(r.chefTry.status).toBe(409);
+    expect(r.plan.lines).toHaveLength(1);
+    expect(r.plan.lines[0]).toMatchObject({ productId: "464306", quantity: 1000, status: "unknown_stock" });
+    expect(r.stockQ).toMatchObject({ forRole: "chef", ruleIds: ["STK-01"] });
+    expect(r.stockQ.options.map((o: any) => o.id)).toEqual(["continue", "confirmed", "others"]);
+    expect(r.approverTry.status).toBe(409);
     expect(r.a.plan.status).toBe("ordered");
     expect(r.second.status).toBe(409);
-    expect(r.second.reason).toMatch(/Answered by Sara Nieminen/);
+    expect(r.second.reason).toMatch(/Answered by Aino/);
     expect(r.orders).toHaveLength(1);
-    expect(r.orders[0].lines.find((l: any) => l.stock.kind === "unknown").riskAccepted.by).toBe("Sara Nieminen");
+    expect(r.orders[0].lines[0].riskAccepted.by).toBe("Aino");
+  });
+  it("offers the confirmed-stock split instead: 435 of 1,000 L, approved as a partial fill", async () => {
+    const r = await milkCase("confirmed");
+    const lines = r.after.lines.filter((l: any) => l.productId);
+    expect(lines.map((l: any) => l.productId).sort()).toEqual(["462775", "469363"]);
+    expect(lines.reduce((s: number, l: any) => s + l.quantity, 0)).toBe(435);
+    expect(r.approval.ok).toBe(true);
+    expect(r.orders).toHaveLength(1);
+    expect(r.orders[0].lines.every((l: any) => l.stock.kind === "known")).toBe(true);
   });
 });
 
-describe("Test case 1: the hotel event through four scenes", () => {
+describe("Test case 1: the wedding through four scenes (docs/demo-plan.md)", () => {
   let a: Record<string, any>;
   let b: Record<string, any>;
   beforeAll(async () => {
     a = await eventCase();
     b = await eventCase();
   });
-  it("scene 1: green, amber and red lines, each with a reason; no stock counted", () => {
-    const v = a.viability.lines.map((l: any) => l.verdict);
-    expect(v).toContain("green");
-    expect(v).toContain("amber");
-    expect(v).toContain("red");
-    const red = a.viability.lines.find((l: any) => l.verdict === "red");
-    expect(red.rules.map((r: any) => r.ruleId)).toContain("DIET-04");
-    expect(a.viability.lines.find((l: any) => l.productId === "461088").status).toBe("unknown_stock");
-    const frozen = a.viability.needs.find((n: any) => n.id === "soup:salmon:regular");
-    expect(frozen.neededBy).toBe("2026-11-16");
+  it("scene 1: verdicts months ahead; stock is information only", () => {
+    expect(a.viability.lines).toHaveLength(7);
+    expect(a.viability.lines.find((l: any) => l.productId === "469672").verdict).toBe("green");
+    expect(a.viability.lines.find((l: any) => l.productId === "467767").status).toBe("unknown_stock");
+    const milk = a.viability.lines.find((l: any) => l.needIds.includes("coffee:milk:regular"));
+    expect(milk.productId).toBe("464306"); // D32: Valio Eila wins on reliability and price
   });
-  it("scene 2: a blocked line stops the order; one Approver card for unknown stock; outlets routed", () => {
-    expect(a.blocked.status).toBe("blocked");
-    expect(a.staleEdit.status).toBe(409);
-    expect(a.order.status).toBe("waiting");
-    expect(a.saraQs).toHaveLength(1);
-    expect(a.saraQs[0].ruleIds).toContain("STK-01");
-    expect(a.annaQs).toHaveLength(0);
+  it("scene 2: the plan's quantities and €2,003.37; Aino continues with 4 lines, then one card for Sanna", () => {
+    const q = (id: string) => a.order.lines.find((l: any) => l.productId === id)?.quantity;
+    expect([q("469672"), q("460541"), q("464727"), q("467767"), q("460617"), q("464306"), q("477125")]).toEqual([31, 3, 45, 12, 1, 40, 5]);
+    expect(a.order.totalExVat).toBe(2003.37);
+    expect(a.ainoQs).toHaveLength(1);
+    expect(a.ainoQs[0]).toMatchObject({ type: "unknown_stock", forRole: "chef" });
+    expect(a.ainoQs[0].facts.lines).toHaveLength(4);
+    expect(a.sannaBefore).toHaveLength(0); // the chef answers first (D6)
+    expect(a.sannaQs).toHaveLength(1);
+    expect(a.sannaQs[0].ruleIds).toContain("MAN-01");
     expect(a.approved.plan.status).toBe("ordered");
+    expect(a.late.status).toBe(409);
+    expect(a.staleEdit.status).toBe(409);
   });
-  it("scene 3: +2% applied with no question; +18% asks once; a late allergy warns and keeps the line", () => {
-    expect(a.g510.applied).toBe(true);
-    expect(a.g600.applied).toBe(false);
-    expect(a.change.ok).toBe(true);
-    expect(a.allergy.warnings).toHaveLength(1);
-    expect(a.allergy.warnings[0].text).toMatch(/contains fish\. 12 guests must avoid it\. Still in the order\./);
+  it("scene 3: the allergy is checked first; almond counts as a tree nut; one card for Sanna", () => {
+    expect(a.change.held).toBe(true);
+    const cake = a.allergyQs.find((q: any) => q.facts.productId === "467767");
+    expect(cake.body).toMatch(/Contains almond/);
+    expect(cake.options[0].id).toBe("replace_0");
+    expect(a.changeQs).toHaveLength(1);
+    expect(a.changeQs[0].ruleIds).toContain("CHG-02");
+    expect(a.changeOk.ok).toBe(true);
   });
-  it("scene 4: the final check finds the shortfall; the chef gets a side-by-side with the cut-off as deadline", () => {
+  it("scene 4: no-shows need nobody; the final check keeps 37 L and fills 10 L; ready with 5 unconfirmed", () => {
+    expect(a.g188.applied).toBe(true);
     expect(a.final.lines.find((l: any) => l.productId === "464727").result).toBe("short");
-    expect(a.final.lines.some((l: any) => l.result === "covered_at_risk")).toBe(true);
-    expect(a.subQ.facts.sideBySide.length).toBeGreaterThan(5);
-    expect(a.subQ.deadline).toBe("2026-11-15T15:00:00.000Z");
-    expect(a.mikkoQs.some((q: any) => q.id === a.subQ.id)).toBe(false);
+    expect(a.subQ.body).toMatch(/37 of 47 in stock · 10 l to fill/);
+    expect(a.subQ.facts.candidates.map((c: any) => c.productId)).toContain("464194");
     const o = a.orders[0];
-    expect(o.lines.find((l: any) => l.productId === "464727").removed).toBe(true);
+    const qty = (id: string) => o.lines.find((l: any) => l.productId === id && !l.removed)?.quantity;
+    expect(qty("464727")).toBe(37);
+    expect(qty("464194")).toBe(10);
+    expect(qty("469672")).toBe(32);
+    expect(a.view.coverage).toMatchObject({ level: "at_risk", text: "Ready · 5 stock not confirmed" });
   });
-  it("silence never changes the order; Valio Aimo is told; it sees no guest details", () => {
-    expect(a.cutoff.flags.length).toBe(1);
-    expect(a.view.coverage.level).toBe("warning");
-    expect(a.view.decisions.decisions).toBe(3);
+  it("Valio Aimo sees the sale and the flags, never the allergy or the guests", () => {
     const shared = a.valio.entries;
     expect(shared.every((e: any) => e.visibility === "shared")).toBe(true);
-    expect(shared.some((e: any) => e.action === "flag_sent_to_valio_aimo")).toBe(true);
-    expect(JSON.stringify(shared)).not.toMatch(/Fish allergy|guests at/);
+    expect(shared.some((e: any) => e.action === "order_placed")).toBe(true);
+    expect(JSON.stringify(shared)).not.toMatch(/Onni|tree nut|almond/i);
     expect(a.valio.chain.ok).toBe(true);
   });
   it("repeats: two runs from a fresh reset give the same result", () => {
@@ -179,6 +196,39 @@ describe("Test case 1: the hotel event through four scenes", () => {
       c: x.view.coverage,
     });
     expect(shape(b)).toEqual(shape(a));
+  });
+});
+
+describe("Signatures anyone can verify (RFC 7515 / 7517, ES256, AP2 v0.2 shapes)", () => {
+  it("quotes and orders verify against the published JWKS; a changed payload does not", async () => {
+    const { createPublicKey, verify } = await import("node:crypto");
+    const { anna } = await fresh();
+    await anna.call("POST", "/clock", { time: "2026-11-14T10:00:00Z" });
+    const jwks = (await (await fetch(`${BASE}/.well-known/jwks.json`)).json()) as { keys: any[] };
+    expect(jwks.keys[0]).toMatchObject({ kty: "EC", crv: "P-256", alg: "ES256", use: "sig" });
+    const check = (token: string, typ: string) => {
+      const [h, p, sig] = token.split(".");
+      const header = JSON.parse(Buffer.from(h, "base64url").toString());
+      const jwk = jwks.keys.find((k) => k.kid === header.kid);
+      const pub = createPublicKey({ key: { kty: jwk.kty, crv: jwk.crv, x: jwk.x, y: jwk.y }, format: "jwk" });
+      return header.alg === "ES256" && header.typ === typ && verify("sha256", Buffer.from(`${h}.${p}`), { key: pub, dsaEncoding: "ieee-p1363" }, Buffer.from(sig, "base64url"));
+    };
+    const q = await gateway("POST", "/quotes", { siteId: "site-aurora", deliveryDate: "2026-11-16", lines: [{ productId: "469363", quantity: 10, outletId: "banquet" }] });
+    expect(check(q.body.jws, "aimo-quote+jwt")).toBe(true);
+    expect(check(q.body.jws, "aimo-order+jwt")).toBe(false);
+    const [h, p, sig] = q.body.jws.split(".");
+    const forged = { ...JSON.parse(Buffer.from(p, "base64url").toString()), total_ex_vat: 1 };
+    expect(check(`${h}.${Buffer.from(JSON.stringify(forged)).toString("base64url")}.${sig}`, "aimo-quote+jwt")).toBe(false);
+    const o = await gateway("POST", "/orders", { quoteId: q.body.id }, { "Idempotency-Key": "sig-1" });
+    expect(check(o.body.jws, "aimo-order+jwt")).toBe(true);
+    const claims = JSON.parse(Buffer.from(o.body.jws.split(".")[1], "base64url").toString());
+    expect(claims.quote_jti).toBe(q.body.id);
+    const { createHash } = await import("node:crypto");
+    expect(q.body.checkoutHash).toBe(createHash("sha256").update(q.body.jws).digest("base64url"));
+    expect(claims).toMatchObject({ status: "Success", reference: q.body.checkoutHash, order_id: o.body.id });
+    const cat = await fetch(`${BASE}/.well-known/api-catalog`);
+    expect(cat.headers.get("content-type")).toContain("application/linkset+json");
+    expect(((await cat.json()) as any).linkset[0]["service-desc"][0].href).toMatch(/openapi\.json$/);
   });
 });
 
@@ -197,7 +247,7 @@ describe("Test case 3: blocked paths no approval can push through", () => {
     await anna.call("POST", "/clock", { time: "2026-11-14T10:00:00Z" });
     const q = await gateway("POST", "/quotes", { siteId: "site-aurora", deliveryDate: "2026-11-16", lines: [{ productId: "475797", quantity: 5, outletId: "banquet", requires: { claims: ["FREE_FROM_LACTOSE"], avoidAllergens: [], labels: [] } }] });
     expect(q.body.lines[0].rules.map((r: any) => r.ruleId)).toContain("DIET-01");
-    const token = (await (await fetch(`${BASE}/api/session`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ personId: "p-sara" }) })).json()).token;
+    const token = (await (await fetch(`${BASE}/api/session`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ personId: "p-sanna" }) })).json()).token;
     const ap = await fetch(`${BASE}/gateway/v1/approvals`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ quoteId: q.body.id, fingerprint: q.body.fingerprint, grants: ["spend_cap"] }) });
     expect(ap.status).toBe(409);
     expect(((await ap.json()) as any).error).toBe("hard_rule");
@@ -209,7 +259,7 @@ describe("Test case 3: blocked paths no approval can push through", () => {
     expect(q.body.mandateCheck.approvalsNeeded).toEqual(["spend_cap"]);
     const refused = await gateway("POST", "/orders", { quoteId: q.body.id }, { "Idempotency-Key": "cap-1" });
     expect(refused.body.error).toBe("mandate_violation");
-    const login = await (await fetch(`${BASE}/api/session`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ personId: "p-sara" }) })).json();
+    const login = await (await fetch(`${BASE}/api/session`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ personId: "p-sanna" }) })).json();
     const ap = (await (await fetch(`${BASE}/gateway/v1/approvals`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${(login as any).token}` }, body: JSON.stringify({ quoteId: q.body.id, fingerprint: q.body.fingerprint, grants: ["spend_cap"] }) })).json()) as any;
     const ok = await gateway("POST", "/orders", { quoteId: q.body.id, approvalId: ap.id }, { "Idempotency-Key": "cap-2" });
     expect(ok.status).toBe(201);

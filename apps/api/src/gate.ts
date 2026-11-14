@@ -37,7 +37,8 @@ export function gateRouter(): Router {
 }
 
 export function gate(req: Request, res: Response, next: NextFunction) {
-  if (!password() || req.path === "/healthz" || req.path === "/login") return next();
+  // Discovery and public keys stay public so any agent can verify what the gateway signs.
+  if (!password() || req.path === "/healthz" || req.path === "/login" || req.path.startsWith("/.well-known/")) return next();
   if (hasCookie(req)) return next();
   const h = req.header("x-preview-password");
   if (h && same(h, password())) return next();

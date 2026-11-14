@@ -46,6 +46,8 @@ export const eur = (n: number) => `€${n.toLocaleString("en-GB", { minimumFract
 export function shortName(name: string): string {
   const s = name
     .replace(/[®™]/g, "")
+    // Marketing sub-brands that crowd out the product (e.g. "Hyvä suomalainen Arki").
+    .replace(/\b(Hyvä suomalainen|Arki|Keittiön|food service)\b/gi, "")
     .replace(/^\d+\s*x\s*/i, "")
     .replace(/\b\d+([.,]\d+)?\s*(x\s*\d+([.,]\d+)?\s*)?(l|dl|ml|cl|g|kg|%|pcs|kpl)\b/gi, "")
     .replace(/\b(UHT|ESL|appr\.?|approx\.?|ca\.?)\b/gi, "")

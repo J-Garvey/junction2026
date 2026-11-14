@@ -22,6 +22,12 @@ Stated assumptions about the upstream mock (see GROUND_TRUTH.md):
 - Prices are \`catalogPrice.value\` per sales unit, ex VAT. Orders are only created from a quote, at its fixed prices.
 - Every lookup value says whether it came from the live mock or a saved fixture.
 
+**Signatures.** Quotes, orders, approvals and the standing mandate carry a compact JWS (RFC 7515) signed with ES256 (ECDSA P-256), typed \`aimo-quote+jwt\`, \`aimo-order+jwt\`, \`aimo-approval+jwt\` and \`aimo-mandate+jwt\` (RFC 8725 §3.11). The payload is a JWT claim set (RFC 7519) in JCS order (RFC 8785). Verify with the public keys at \`/.well-known/jwks.json\` (RFC 7517; kid is the RFC 7638 thumbprint). No shared secret is needed.
+
+**AP2 v0.2 alignment.** A quote's \`jws\` is the merchant-signed \`checkout_jwt\` and \`checkoutHash\` is its \`checkout_hash\` (base64url SHA-256). An approval is a closed Checkout Mandate (\`vct: "mandate.checkout.1"\`) bound to that hash; its \`grants\` list is our extension. An order's \`jws\` carries a Checkout Receipt (\`status\`, \`reference\` = the quote's checkout_hash, \`order_id\`). No Payment Mandates: B2B foodservice is invoiced on account. The standing mandate (spend cap, sites, tolerances) has no AP2 field and is our own object. Deviation: AP2 has the user sign the closed mandate on a trusted surface; here the gateway signs it as the record of the approver's authenticated decision.
+
+**Discovery.** \`/.well-known/api-catalog\` (RFC 9727) links this spec.
+
 Refusals are HTTP 409 with a machine-readable \`error\`: \`mandate_violation\`, \`quote_stale\`, \`cutoff_passed\`, \`hard_rule\`. A retry with the same \`Idempotency-Key\` returns the same order; the same key with a different body gives 422.
 `.trim();
 

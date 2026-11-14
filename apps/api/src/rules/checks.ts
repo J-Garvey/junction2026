@@ -16,6 +16,19 @@ export const ALLERGEN_NAMES: Record<string, string> = {
 };
 export const allergenName = (c: string) => ALLERGEN_NAMES[c] ?? c;
 
+/**
+ * An allergy names a family; the data codes members separately. "Tree nuts" (AN) must
+ * also catch almond (SA) and the other individual nuts, and "cereals containing gluten"
+ * (AW) must catch wheat, rye and the rest. A "free from" entry never outweighs a
+ * "contains" entry: only CONTAINS and MAY_CONTAIN are read here.
+ */
+const FAMILIES: Record<string, string[]> = {
+  AN: ["AN", "SA", "SC", "SH", "SW", "SP", "ST", "SM", "SR"],
+  AW: ["AW", "UW", "GB", "NR", "GO", "GS", "GK"],
+  AM: ["AM", "ML"],
+};
+export const expandAllergens = (codes: string[]) => [...new Set(codes.flatMap((c) => FAMILIES[c] ?? [c]))];
+
 /** Allergen codes whose absence confirms a diet when the claim is missing (Q02.3, declaration path). */
 const DIET_CODES: Record<string, string[]> = {
   FREE_FROM_LACTOSE: ["AM", "ML"],
@@ -50,12 +63,10 @@ export function dietRules(p: Product, c: Constraints, group: string): FiredRule[
     }
     out.push(fire("DIET-01", { product: name, productId: p.id, claim: CLAIM_LABEL[claim] ?? claim, group }));
   }
-  for (const a of c.avoidAllergens ?? []) {
+  const asked = c.avoidAllergens ?? [];
+  if (asked.length && !p.hasAllergenData) out.push(fire("ALG-03", { product: name, productId: p.id, group, allergen: asked.map(allergenName).join(", ") }));
+  else for (const a of expandAllergens(asked)) {
     if (a === "X99") continue;
-    if (!p.hasAllergenData) {
-      out.push(fire("ALG-03", { product: name, productId: p.id, group, allergen: allergenName(a) }));
-      break;
-    }
     if (p.contains.includes(a)) out.push(fire("ALG-01", { product: name, productId: p.id, allergen: allergenName(a), code: a, group }));
     else if (p.mayContain.includes(a)) out.push(fire("ALG-02", { product: name, productId: p.id, allergen: allergenName(a), code: a, group }));
   }
@@ -121,7 +132,27 @@ export function priceValidityRule(p: { name: string }, l: LookupLine, deliveryDa
  * comparison price; fall back to the catalogue formula and mark it unverified.
  */
 export type PackContent = { value: number; unit: BaseUnit; verified: boolean; source: string; rules: FiredRule[] };
-export function packContent(p: Product, l: LookupLine | null): PackContent | null {
+
+/**
+ * Pieces per sales unit, for recipes counted in pieces ("one slice each"). The count comes
+ * from the name ("15pcs", "40 kpl"); it is trusted only when the price API's kg per pack
+ * agrees with the name's own weight, so a guessed count is never used silently.
+ */
+export function piecesPerPack(p: Product, l: LookupLine | null): PackContent | null {
+  const m = p.name.match(/(\d+)\s*(?:pcs|kpl|pieces|port\.?)\b/i) ?? p.name.match(/\b(\d+)\s*x\s*\d/i);
+  if (!m) return p.catalogueSalesUnit === "ST" ? { value: 1, unit: "pcs", verified: true, source: "sold by the piece", rules: [] } : null;
+  const n = Number(m[1]);
+  const pr = l?.price;
+  const apiKg = pr && pr.comparisonPrice && pr.comparisonUnit === "KG" ? pr.value / pr.comparisonPrice : null;
+  const total = p.name.match(/(\d+(?:[.,]\d+)?)\s*kg\b/i);
+  const each = p.name.match(/(\d+)\s*g\b/i);
+  const nameKg = total ? Number(total[1].replace(",", ".")) : each ? (Number(each[1]) * n) / 1000 : null;
+  const verified = apiKg !== null && nameKg !== null && Math.abs(apiKg - nameKg) / apiKg <= FIXED.packDisagreePct / 100;
+  return { value: n, unit: "pcs", verified, source: verified ? `${n} pieces, name checked against the price API (${round2(apiKg!)} kg)` : `${n} pieces, from the name only`, rules: verified ? [] : [fire("QTY-03", { product: p.name, content: `${n} pcs` })] };
+}
+
+export function packContent(p: Product, l: LookupLine | null, wantUnit?: BaseUnit): PackContent | null {
+  if (wantUnit === "pcs") return piecesPerPack(p, l);
   const su = l?.salesUnit ?? p.catalogueSalesUnit;
   if (su === "KG") return { value: 1, unit: "kg", verified: true, source: "sales unit is KG", rules: [] };
   if (su === "L") return { value: 1, unit: "l", verified: true, source: "sales unit is L", rules: [] };
@@ -134,6 +165,10 @@ export function packContent(p: Product, l: LookupLine | null): PackContent | nul
     const rules: FiredRule[] = [];
     if (formula && formula.unit === unit && Math.abs(formula.value - api) / api > FIXED.packDisagreePct / 100)
       rules.push(fire("QTY-04", { product: p.name, formula: `${formula.value} ${unit}`, api: `${round2(api)} ${unit}` }));
+    // The comparison price is rounded to cents, so the ratio drifts (4.4993 L for a 6 × 0.75 L case).
+    // When the catalogue's exact content agrees within 5%, use it: same evidence, no rounding error.
+    if (formula && formula.unit === unit && Math.abs(formula.value - api) / api <= FIXED.packDisagreePct / 100)
+      return { value: formula.value, unit, verified: true, source: `catalogue ${formula.value} ${unit}, confirmed by catalogPrice ÷ comparisonPrice (${round2(api)})`, rules };
     return { value: +api.toFixed(4), unit, verified: true, source: "catalogPrice ÷ comparisonPrice", rules };
   }
   if (formula) return { value: formula.value, unit: formula.unit, verified: formula.unit === "pcs", source: "catalogue net content × units", rules: formula.unit === "pcs" ? [] : [fire("QTY-03", { product: p.name, content: `${formula.value} ${formula.unit}` })] };

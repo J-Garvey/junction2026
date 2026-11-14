@@ -11,8 +11,8 @@ import { lookup, UpstreamError } from "../aimo/lookup.js";
 import { fire, resolveOutcome, FIXED } from "../rules/catalogue.js";
 import { cutoffRule, dietRules, mandateRules, priceValidityRule, stockCheck, supplyRules } from "../rules/checks.js";
 import { audit, GATEWAY, type Actor } from "../audit.js";
-import { hmac, newId, round2, sha256, stableStringify, parseAimoTime, eur } from "../util.js";
-import { config } from "../config.js";
+import { newId, round2, sha256, stableStringify, parseAimoTime, eur } from "../util.js";
+import { signJwt, verifyJwt, jcs, checkoutHash } from "./keys.js";
 import type { Identity } from "../identity.js";
 import { actorOf } from "../identity.js";
 
@@ -24,13 +24,37 @@ export class GatewayRefusal extends Error {
 
 // ---------- mandate (AP-06, MANDATE-SIGN) ----------
 
-export function signObject(o: Record<string, unknown>): string {
-  const { signature, ...rest } = o;
-  return hmac(config.signingKey, stableStringify(rest));
+/** Approvals are valid only with a JWS this gateway signed that names the same quote, fingerprint and grants. */
+export function approvalValid(a: Approval): boolean {
+  const c = verifyJwt(a.signature, "aimo-approval+jwt");
+  return Boolean(c && c.vct === "mandate.checkout.1" && c.quote_id === a.quoteId && c.checkout_hash === a.checkoutHash && c.fingerprint === a.fingerprint && jcs([...c.grants].sort()) === jcs([...a.grants].sort()));
 }
-export function verifySignature(o: Record<string, unknown> & { signature?: string }): boolean {
-  return Boolean(o.signature) && signObject(o) === o.signature;
-}
+
+const quoteClaims = (q: Quote) => ({
+  quote_id: q.id,
+  fingerprint: q.fingerprint,
+  site: q.siteId,
+  delivery_date: q.deliveryDate,
+  currency: "EUR",
+  total_ex_vat: q.totalExVat,
+  approvals_needed: q.mandateCheck.approvalsNeeded,
+  lines: q.lines.map((l) => ({ product_id: l.productId, outlet: l.outletId, quantity: l.quantity, sales_unit: l.salesUnit, unit_price: l.unitPrice, cutoff: l.closingTime, stock: l.stock.kind, source: l.source })),
+});
+const orderClaims = (o: Order) => ({
+  // AP2 v0.2 Checkout Receipt fields: status, reference (the quote's checkout_hash), order_id.
+  status: "Success",
+  reference: (getJson<Quote>("quotes", o.quoteId)?.checkoutHash) ?? null,
+  order_id: o.id,
+  version: o.version,
+  quote_jti: o.quoteId,
+  approval_id: o.approvalId,
+  site: o.siteId,
+  delivery_date: o.deliveryDate,
+  currency: "EUR",
+  total_ex_vat: o.totalExVat,
+  lines: o.lines.filter((l) => !l.removed).map((l) => ({ product_id: l.productId, outlet: l.outletId, quantity: l.quantity, sales_unit: l.salesUnit, unit_price: l.unitPrice, risk_accepted: Boolean(l.riskAccepted) })),
+});
+export const signOrder = (o: Order): Order => ({ ...o, jws: signJwt("aimo-order+jwt", orderClaims({ ...o, jws: undefined }), { sub: o.hotelId, jti: `${o.id}.v${o.version}` }) });
 
 export function getMandate(hotelId: string): Mandate {
   const m = getJson<Mandate>("mandates", hotelId, "hotel_id");
@@ -38,8 +62,8 @@ export function getMandate(hotelId: string): Mandate {
   return m;
 }
 export function putMandate(m: Mandate): Mandate {
-  const signed = { ...m, signature: undefined } as Mandate;
-  signed.signature = signObject(signed as any);
+  const { signature: _old, ...body } = m;
+  const signed = { ...body, signature: signJwt("aimo-mandate+jwt", { mandate: body }, { sub: m.hotelId, jti: `${m.id}.v${m.version}` }) } as Mandate;
   getDb().prepare("INSERT INTO mandates (hotel_id, json) VALUES (?, ?) ON CONFLICT(hotel_id) DO UPDATE SET json = excluded.json").run(m.hotelId, JSON.stringify(signed));
   return signed;
 }
@@ -107,12 +131,11 @@ function buildQuote({ hotelId, body, lookups, amendsOrderId, fixedPrices }: Buil
   const totalExVat = round2(lines.reduce((s, l) => s + (l.lineTotal ?? 0), 0));
   const totalVat = round2(lines.reduce((s, l) => s + ((l.lineTotal ?? 0) * (l.taxRate ?? 0)) / 100, 0));
   const mc = mandateRules(mandate, totalExVat, lines.map((l) => ({ id: l.productId, name: l.productName })), body.siteId);
-  // Unknown stock needs the Approver to accept the risk (D23), unless a pre-answer covers the line.
-  const unknownLines = lines.filter((l) => l.rules.some((r) => r.ruleId === "STK-01"));
+  // D31: unconfirmed stock is the hotel's call, made by the person building the order, not an Approver's.
+  // The order must name each such product, unless a pre-answer covers the line.
   const cap = mandate.preAnswers.unknownStockMaxLineEur;
-  const uncovered = unknownLines.filter((l) => cap === null || (l.lineTotal ?? Infinity) > cap);
+  const unconfirmedStock = [...new Set(lines.filter((l) => l.stock.kind === "unknown" && (cap === null || (l.lineTotal ?? Infinity) > cap)).map((l) => l.productId))];
   const approvalsNeeded = [...mc.approvalsNeeded];
-  if (uncovered.length) approvalsNeeded.push("unknown_stock");
   if (lines.some((l) => l.rules.some((r) => r.ruleId === "PRC-02"))) approvalsNeeded.push("price_change");
   const allRules = [...lines.flatMap((l) => l.rules), ...mc.rules];
   const blocked = allRules.some((r) => r.outcome === "block");
@@ -135,6 +158,7 @@ function buildQuote({ hotelId, body, lookups, amendsOrderId, fixedPrices }: Buil
     mandateCheck: { pass: mc.rules.length === 0, rules: mc.rules, approvalsNeeded },
     outcome: blocked ? "block" : approvalsNeeded.length ? "ask_approver" : "order",
     usesFixtures: lines.some((l) => l.source === "fixture"),
+    unconfirmedStock,
     ...(amendsOrderId ? { amendsOrderId } : {}),
   } as Quote;
 }
@@ -161,6 +185,8 @@ export async function createQuote(id: Identity, body: QuoteCreateBody, actor?: A
     throw new GatewayRefusal(403, { error: "forbidden", message: `Site ${body.siteId} is not one of this hotel's delivery sites`, rules: [fire("DLV-05", { site: body.siteId })] });
   const { map, fallback } = await lookupMap(body.lines.map((l) => l.productId), body.deliveryDate);
   const q = buildQuote({ hotelId, body, lookups: map });
+  q.jws = signJwt("aimo-quote+jwt", quoteClaims(q), { sub: q.hotelId, expiresAt: q.expiresAt, jti: q.id });
+  q.checkoutHash = checkoutHash(q.jws);
   getDb().prepare("INSERT INTO quotes (id, json, created_at) VALUES (?, ?, ?)").run(q.id, JSON.stringify(q), q.createdAt);
   audit({
     actor: actor ?? actorOf(id),
@@ -197,15 +223,22 @@ export function createApproval(id: Identity, body: ApprovalBody): Approval {
   }
   const a: Approval = {
     id: newId("apr"),
-    type: "CartMandate.approval",
+    type: "mandate.checkout.1",
     quoteId: q.id,
+    checkoutHash: q.checkoutHash ?? checkoutHash(q.jws ?? ""),
     fingerprint: q.fingerprint,
     grants: [...body.grants].sort(),
     approvedBy: { personId: id.person.id, name: id.person.name, role: "approver" },
     createdAt: nowIso(),
     signature: "",
   };
-  a.signature = signObject(a as any);
+  // AP2 v0.2 closed Checkout Mandate. In AP2 the user signs it on a trusted surface; here the gateway signs it
+  // as the record of the approver's authenticated decision (production path: the approver's own passkey).
+  a.signature = signJwt(
+    "aimo-approval+jwt",
+    { vct: "mandate.checkout.1", checkout_jwt: q.jws, checkout_hash: a.checkoutHash, approval_id: a.id, quote_id: a.quoteId, fingerprint: a.fingerprint, grants: a.grants, approved_by: a.approvedBy },
+    { sub: q.hotelId, expiresAt: q.expiresAt, jti: a.id },
+  );
   getDb().prepare("INSERT INTO approvals (id, quote_id, json) VALUES (?, ?, ?)").run(a.id, q.id, JSON.stringify(a));
   audit({
     actor: actorOf(id),
@@ -241,17 +274,18 @@ function approvalCovers(q: Quote, approvalId: string | undefined): { ok: boolean
   if (!approvalId) return { ok: false, reason: "no approval presented" };
   const a = getJson<Approval>("approvals", approvalId);
   if (!a) return { ok: false, reason: "approval not found" };
-  if (!verifySignature(a as any)) return { ok: false, reason: "approval signature invalid" };
+  if (!approvalValid(a)) return { ok: false, reason: "approval signature invalid" };
   if (a.fingerprint !== q.fingerprint) return { ok: false, reason: "approval is for a different quote version" };
   const missing = needed.filter((n) => !a.grants.includes(n));
   if (missing.length) return { ok: false, reason: `approval doesn't cover ${missing.join(", ")}` };
   return { ok: true };
 }
 
-export async function placeOrder(id: Identity, quoteId: string, idemKey: string, approvalId?: string, actor?: Actor): Promise<{ order: Order; replay: boolean }> {
+export async function placeOrder(id: Identity, quoteId: string, idemKey: string, approvalId?: string, actor?: Actor, stock: { continueWith?: string[]; decidedBy?: string } = {}): Promise<{ order: Order; replay: boolean }> {
   const hotelId = requireHotel(id);
   if (!idemKey) throw new GatewayRefusal(400, { error: "invalid", message: "Idempotency-Key header is required" });
-  const bodyHash = sha256(stableStringify({ quoteId, approvalId: approvalId ?? null, hotelId }));
+  const continued = [...new Set(stock.continueWith ?? [])].sort();
+  const bodyHash = sha256(stableStringify({ quoteId, approvalId: approvalId ?? null, hotelId, continued }));
   const existing = getDb().prepare("SELECT json, body_hash FROM orders WHERE idem_key = ?").get(idemKey) as { json: string; body_hash: string } | undefined;
   if (existing) {
     if (existing.body_hash !== bodyHash) throw new GatewayRefusal(422, { error: "idempotency_conflict", message: "This Idempotency-Key was used with a different body; the first order is untouched" });
@@ -276,6 +310,13 @@ export async function placeOrder(id: Identity, quoteId: string, idemKey: string,
     const cutoff = changes.some((c) => c.field === "cutoff");
     refuse(409, { error: cutoff ? "cutoff_passed" : "quote_stale", message: cutoff ? "A cut-off passed since the quote" : "Terms changed since the quote", changes, newQuoteId: nq.id });
   }
+  const missingStock = (q.unconfirmedStock ?? []).filter((p) => !continued.includes(p));
+  if (missingStock.length)
+    refuse(409, {
+      error: "stock_unconfirmed",
+      message: `Valio Aimo can't confirm stock for ${missingStock.join(", ")}. List them in continueWithUnconfirmedStock to order anyway.`,
+      rules: q.lines.filter((l) => missingStock.includes(l.productId)).flatMap((l) => l.rules.filter((r) => r.ruleId === "STK-01")),
+    });
   const cover = approvalCovers(q, approvalId);
   if (!cover.ok)
     refuse(409, { error: "mandate_violation", message: `This order needs an approval bound to quote ${q.id} (${cover.reason})`, rules: q.mandateCheck.rules, approvalsNeeded: q.mandateCheck.approvalsNeeded });
@@ -292,7 +333,7 @@ export async function placeOrder(id: Identity, quoteId: string, idemKey: string,
       (l): OrderLine => ({
         ...l,
         removed: false,
-        riskAccepted: l.stock.kind === "unknown" ? (approval ? { by: approval.approvedBy.name, at: approval.createdAt } : { by: "pre-answer", at: at.toISOString() }) : null,
+        riskAccepted: l.stock.kind === "unknown" ? { by: continued.includes(l.productId) ? stock.decidedBy ?? by.name : "pre-answer", at: at.toISOString() } : null,
       }),
     ),
     totalExVat: q.totalExVat,
@@ -305,6 +346,7 @@ export async function placeOrder(id: Identity, quoteId: string, idemKey: string,
     flags: [],
   };
   tx(() => {
+    Object.assign(order, signOrder(order));
     getDb().prepare("INSERT INTO orders (id, quote_id, event_id, idem_key, body_hash, json) VALUES (?, ?, ?, ?, ?, ?)").run(order.id, q.id, q.eventId, idemKey, bodyHash, JSON.stringify(order));
   });
   audit({
@@ -377,43 +419,52 @@ export async function amendOrder(id: Identity, orderId: string, body: AmendmentB
   if (!lines.length) throw new GatewayRefusal(422, { error: "invalid", message: "An amendment can't remove every line; cancel the order instead" });
   const { map } = await lookupMap(lines.map((l) => l.productId), o.deliveryDate);
   const q = buildQuote({ hotelId, body: { siteId: o.siteId, deliveryDate: o.deliveryDate, eventId: o.eventId ?? undefined, lines }, lookups: map, amendsOrderId: o.id, fixedPrices });
-  // Risk accepted earlier stays with an unchanged line (Q04.6): don't ask again for it.
-  // ...and within the hotel's guest-change tolerance (at least one pack), so a small change doesn't re-ask.
-  const mandate = getMandate(hotelId);
-  const tol = mandate.preAnswers.guestChangeMaxPct / 100;
-  const withinTol = (prev: number, nxt: number) => Math.abs(nxt - prev) <= Math.max(1, Math.ceil(prev * tol));
-  const carried = new Set([...current].filter(([k, l]) => next.has(k) && l.riskAccepted && withinTol(l.quantity, next.get(k)!)).map(([k]) => k));
-  const newUnknown = q.lines.filter((l) => l.stock.kind === "unknown" && !carried.has(key(l.productId, l.outletId)));
-  const capCovers = (l: QuoteLine) => mandate.preAnswers.unknownStockMaxLineEur !== null && (l.lineTotal ?? Infinity) <= mandate.preAnswers.unknownStockMaxLineEur;
-  q.mandateCheck.approvalsNeeded = q.mandateCheck.approvalsNeeded.filter((n) => n !== "unknown_stock");
-  if (newUnknown.some((l) => !capCovers(l))) q.mandateCheck.approvalsNeeded.push("unknown_stock");
+  // A spend-cap approval already covers the order up to its current total: an amendment that
+  // doesn't raise the total needs no new one (edge case in chunk 05: only going over asks again).
+  if (q.totalExVat <= o.totalExVat) {
+    q.mandateCheck.approvalsNeeded = q.mandateCheck.approvalsNeeded.filter((n) => n !== "spend_cap");
+    q.mandateCheck.rules = q.mandateCheck.rules.filter((r) => r.ruleId !== "MAN-01");
+  }
+  // D31: a product the hotel already chose to continue with stays continued (Q04.6); only new ones need the choice.
+  const alreadyContinued = new Set(o.lines.filter((l) => l.riskAccepted).map((l) => l.productId));
+  const continued = new Set([...(body.continueWithUnconfirmedStock ?? []), ...alreadyContinued]);
+  q.unconfirmedStock = (q.unconfirmedStock ?? []).filter((p) => !alreadyContinued.has(p));
   // A past cut-off blocks only the lines this amendment changes or adds; locked lines stay as they are.
   const touched = new Set(body.changes.map((c) => key(c.productId, c.outletId)));
-  const blocked = q.lines.flatMap((l) => l.rules.filter((r) => r.outcome === "block" && (r.ruleId !== "CUT-01" || touched.has(key(l.productId, l.outletId)))));
+  // Stock is checked only where the amendment asks for more than before; a decrease never makes a shortage worse.
+  const grew = (l: QuoteLine) => (current.get(key(l.productId, l.outletId))?.quantity ?? 0) < l.quantity;
+  const blocked = q.lines.flatMap((l) =>
+    l.rules.filter((r) => r.outcome === "block" && (r.ruleId === "CUT-01" ? touched.has(key(l.productId, l.outletId)) : r.ruleId === "STK-04" ? grew(l) : true)),
+  );
   q.outcome = blocked.length ? "block" : q.mandateCheck.approvalsNeeded.length ? "ask_approver" : "order";
+  q.jws = signJwt("aimo-quote+jwt", quoteClaims(q), { sub: q.hotelId, expiresAt: q.expiresAt, jti: q.id });
+  q.checkoutHash = checkoutHash(q.jws);
   getDb().prepare("INSERT INTO quotes (id, json, created_at) VALUES (?, ?, ?)").run(q.id, JSON.stringify(q), q.createdAt);
   if (blocked.length) throw new GatewayRefusal(409, { error: "hard_rule", message: blocked.map((r) => r.message).join(" "), rules: blocked });
+  const missingStock = q.unconfirmedStock.filter((p) => !continued.has(p));
+  if (missingStock.length)
+    throw new GatewayRefusal(409, { error: "stock_unconfirmed", message: `Valio Aimo can't confirm stock for ${missingStock.join(", ")}. List them in continueWithUnconfirmedStock to change the order anyway.`, newQuoteId: q.id });
   if (q.mandateCheck.approvalsNeeded.length) {
     const a = body.approvalId ? getJson<Approval>("approvals", body.approvalId) : null;
-    const ok = a && verifySignature(a as any) && a.fingerprint === q.fingerprint && q.mandateCheck.approvalsNeeded.every((n) => a.grants.includes(n));
+    const ok = a && approvalValid(a) && a.fingerprint === q.fingerprint && q.mandateCheck.approvalsNeeded.every((n) => a.grants.includes(n));
     if (!ok) {
       audit({ actor: by, action: "order_refused", summary: `Amendment to ${o.id} needs an approval (${q.mandateCheck.approvalsNeeded.join(", ")})`, eventId: o.eventId, orderId: o.id, quoteId: q.id, ruleIds: q.mandateCheck.rules.map((r) => r.ruleId), details: { approvalsNeeded: q.mandateCheck.approvalsNeeded }, visibility: "shared" });
       throw new GatewayRefusal(409, { error: "mandate_violation", message: `The amendment needs an approval bound to quote ${q.id}`, approvalsNeeded: q.mandateCheck.approvalsNeeded, rules: q.mandateCheck.rules, newQuoteId: q.id });
     }
   }
-  const approval = body.approvalId ? getJson<Approval>("approvals", body.approvalId) : null;
   const prevLines = new Map(o.lines.map((l) => [key(l.productId, l.outletId), l]));
   const newLines: OrderLine[] = q.lines.map((l) => {
     const prev = prevLines.get(key(l.productId, l.outletId));
-    const keepRisk = prev?.riskAccepted && withinTol(prev.quantity, l.quantity);
+    const earlier = o.lines.find((x) => x.productId === l.productId && x.riskAccepted)?.riskAccepted ?? null;
     return {
       ...l,
       removed: false,
-      riskAccepted: l.stock.kind === "unknown" ? (keepRisk ? prev!.riskAccepted : approval ? { by: approval.approvedBy.name, at: approval.createdAt } : prev?.riskAccepted ?? { by: "pre-answer", at: at.toISOString() }) : null,
+      riskAccepted: l.stock.kind === "unknown" ? prev?.riskAccepted ?? earlier ?? { by: continued.has(l.productId) ? body.decidedBy ?? by.name : "pre-answer", at: at.toISOString() } : null,
     };
   });
   for (const [k, l] of prevLines) if (!next.has(k) && !l.removed) newLines.push({ ...l, removed: true });
   const updated: Order = { ...o, lines: newLines, totalExVat: q.totalExVat, totalVat: q.totalVat, state: "amended", version: o.version + 1 };
+  Object.assign(updated, signOrder(updated));
   saveOrder(updated);
   audit({
     actor: by,

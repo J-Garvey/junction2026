@@ -7,7 +7,7 @@
 import type { EventSpec, Order, Question, WarningRecord, DietGroup, Need } from "@aimo/contracts";
 import { getDb, getJson, allJson } from "../db.js";
 import { now, nowIso } from "../clock.js";
-import { getProduct } from "../catalog.js";
+import { getProduct, getRaw, searchProducts } from "../catalog.js";
 import { audit, AGENT, decisionCount } from "../audit.js";
 import { fire } from "../rules/catalogue.js";
 import { dietRules, allergenName, packContent } from "../rules/checks.js";
@@ -130,18 +130,33 @@ export function orderDiff(order: Order, plan: StoredPlan): DiffLine[] {
 
 /** CHANGE-APPLY (AP-08): inside the hotel's tolerance, amend with no human; otherwise one Approver question. */
 export async function changeGuests(eventId: string, guests: number, baseVersion: number, p: Person) {
+  return changeEvent(eventId, { guests }, baseVersion, p);
+}
+
+/**
+ * Scene 3: a new guest count and a new allergy arrive together. The allergy is checked
+ * first (D28); while a conflict is open the change waits, so the Approver sees one card
+ * for the whole change, not one per step.
+ */
+export async function changeEvent(eventId: string, change: { guests?: number; group?: DietGroup }, baseVersion: number, p: Person) {
   const before = getEvent(eventId)!;
-  const e = editEvent(eventId, baseVersion, p.name, `Guests ${before.guests} → ${guests}`, (x) => {
-    x.guests = guests;
+  const what = [change.guests !== undefined && change.guests !== before.guests ? `Guests ${before.guests} → ${change.guests}` : null, change.group ? `${change.group.label} (${change.group.count})` : null].filter(Boolean).join(", ");
+  const e = editEvent(eventId, baseVersion, p.name, what || "No change", (x) => {
+    if (change.guests !== undefined) x.guests = change.guests;
+    if (change.group && !x.dietGroups.some((g) => g.id === change.group!.id)) x.dietGroups.push(change.group);
   });
-  return applyChange(e, p, `Guests ${before.guests} → ${guests}`);
+  const created = change.group ? await allergyRecheck(e, change.group) : [];
+  if (warnings(eventId).some((w) => w.state === "open")) {
+    return { applied: false, held: true, reason: "Allergy first", warnings: created, diff: [] as DiffLine[], event: getEvent(eventId)! };
+  }
+  return { ...(await applyChange(getEvent(eventId)!, p, what)), warnings: created, event: getEvent(eventId)! };
 }
 
 async function applyChange(e: StoredEvent, p: Person, what: string) {
   const m = mandate();
   const orders = await currentOrders(e.id);
   const order = orders.find((o) => o.state !== "rejected");
-  const plan = newPlan("event", by(p), e.dishes[0]?.outletId ?? "banquet", { eventId: e.id, title: e.name, event: e, overrides: { ...emptyOverrides(), removedNeeds: e.removedNeeds } });
+  const plan = newPlan("event", by(p), e.dishes[0]?.outletId ?? "banquet", { eventId: e.id, title: e.name, event: e, overrides: { ...emptyOverrides(), removedNeeds: e.removedNeeds, stockBlind: true } });
   await runPipeline(plan);
   savePlan(plan);
   if (!order) {
@@ -155,6 +170,9 @@ async function applyChange(e: StoredEvent, p: Person, what: string) {
   const base = e.orderedGuests ?? e.guests;
   const pct = base ? ((e.guests - base) / base) * 100 : 100;
   const changes = diff.filter((d) => d.change !== "unchanged" && d.change !== "needs_substitute").map((d) => ({ productId: d.productId, outletId: d.outletId, quantity: d.now }));
+  // A product added by a person's choice (a replacement) carries that person's D31 decision on its stock.
+  const continueWith = diff.filter((d) => d.change === "added" && plan.lines.some((l) => l.productId === d.productId && l.stock?.kind === "unknown")).map((d) => d.productId);
+  (e as StoredEvent & { latestPlanId?: string }).latestPlanId = plan.id;
   const facts = { from: base, to: e.guests, pct: `${pct >= 0 ? "+" : ""}${round2(pct)}%`, tolerance: `±${m.preAnswers.guestChangeMaxPct}%` };
   if (!changes.length) {
     audit({ actor: AGENT, action: "order_amended", summary: `${what}: pack rounding means no line changes`, eventId: e.id, ruleIds: ["CHG-01"], details: { diff }, visibility: "hotel" });
@@ -163,7 +181,7 @@ async function applyChange(e: StoredEvent, p: Person, what: string) {
   const within = Math.abs(pct) <= m.preAnswers.guestChangeMaxPct && !diff.some((d) => d.change === "needs_substitute");
   if (within) {
     try {
-      const r = await gw.amend(order.id, { changes });
+      const r = await gw.amend(order.id, { changes, continueWithUnconfirmedStock: continueWith, decidedBy: p.name });
       e.orderedGuests = e.guests;
       saveEvent(e);
       audit({ actor: AGENT, action: "order_amended", summary: fire("CHG-01", facts).message, eventId: e.id, orderId: order.id, ruleIds: ["CHG-01"], details: { diff, version: r.order.version }, visibility: "hotel" });
@@ -175,9 +193,9 @@ async function applyChange(e: StoredEvent, p: Person, what: string) {
   }
   const q = makeQuestion({
     planId: plan.id, eventId: e.id, type: "change_outside_tolerance", forRole: "approver", outletId: null, quoteId: null, fingerprint: null,
-    title: `${facts.from} → ${facts.to} guests?`,
-    body: `${facts.pct} · ${within ? "needs approval at the gateway" : `over ${facts.tolerance}`} · ${diff.filter((d) => d.change !== "unchanged").length} lines change`,
-    facts: { kind: "change", orderId: order.id, changes, diff, ...facts },
+    title: facts.from === facts.to ? "Approve the change?" : `${facts.from} → ${facts.to} guests?`,
+    body: `${facts.from === facts.to ? "" : `${facts.pct} · `}${within ? "needs approval at the gateway" : `over ${facts.tolerance}`} · ${diff.filter((d) => d.change !== "unchanged").length} lines change`,
+    facts: { kind: "change", orderId: order.id, changes, diff, continueWith, decidedBy: p.name, ...facts },
     ruleIds: [within ? "CHG-01" : "CHG-02"],
     options: [{ id: "approve", label: "Approve the change", primary: true }, { id: "keep", label: "Keep the order as is", primary: false }],
     deadline: earliestCutoff(order),
@@ -200,12 +218,12 @@ export async function answerChange(q: Question, p: Person, token: string) {
     return;
   }
   try {
-    await gw.amend(f.orderId, { changes: f.changes });
+    await gw.amend(f.orderId, { changes: f.changes, continueWithUnconfirmedStock: f.continueWith ?? [], decidedBy: f.decidedBy ?? undefined });
   } catch (err) {
     if (!(err instanceof GatewayError) || err.body.error !== "mandate_violation" || !err.body.newQuoteId) throw err;
     const nq = await gw.getQuote(err.body.newQuoteId);
     const a = await gw.approve(token, nq.id, nq.fingerprint, nq.mandateCheck.approvalsNeeded);
-    await gw.amend(f.orderId, { changes: f.changes, approvalId: a.id });
+    await gw.amend(f.orderId, { changes: f.changes, approvalId: a.id, continueWithUnconfirmedStock: f.continueWith ?? [], decidedBy: f.decidedBy ?? undefined });
   }
   e.orderedGuests = e.guests;
   saveEvent(e);
@@ -218,11 +236,13 @@ function saveWarning(w: WarningRecord) {
   getDb().prepare("INSERT INTO warnings (id, event_id, state, json) VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET state = excluded.state, json = excluded.json").run(w.id, w.eventId, w.state, JSON.stringify(w));
 }
 
-/** ALLERGY-RECHECK: warn at once; never remove a line by itself (D28). */
 export async function addDietGroup(eventId: string, group: DietGroup, baseVersion: number, p: Person) {
-  const e = editEvent(eventId, baseVersion, p.name, `Added ${group.label} (${group.count})`, (x) => {
-    x.dietGroups.push(group);
-  });
+  return changeEvent(eventId, { group }, baseVersion, p);
+}
+
+/** ALLERGY-RECHECK: warn at once; never remove a line by itself (D28). */
+async function allergyRecheck(e: StoredEvent, group: DietGroup): Promise<WarningRecord[]> {
+  const eventId = e.id;
   const orders = await currentOrders(eventId);
   const created: WarningRecord[] = [];
   for (const o of orders) {
@@ -236,26 +256,76 @@ export async function addDietGroup(eventId: string, group: DietGroup, baseVersio
       const fails = dietRules(prod, group.constraints, group.label).filter((r) => r.outcome === "block");
       if (!fails.length) continue;
       const allergen = String(fails[0].facts.allergen ?? group.label);
-      const text = `${shortName(prod.name)} ${fails[0].ruleId === "ALG-01" ? `contains ${allergen}` : fails[0].ruleId === "ALG-02" ? `may contain ${allergen}` : "has no allergen data"}. ${group.count} guests must avoid it. Still in the order.`;
+      const what = fails[0].ruleId === "ALG-01" ? `contains ${allergen}` : fails[0].ruleId === "ALG-02" ? `may contain ${allergen}` : "has no allergen data";
+      const text = `${shortName(prod.name)} ${what}. ${group.count} guest${group.count === 1 ? "" : "s"} must avoid it. Still in the order.`;
       const w: WarningRecord = { id: newId("warn"), eventId, kind: "allergy", text, productId: l.productId, productName: prod.name, allergen, groupId: group.id, count: group.count, orderId: o.id, state: "open", resolvedBy: null, resolution: null, createdAt: nowIso() };
       saveWarning(w);
       created.push(w);
+      const dish = dishes[0];
+      const ing = dish.ingredients.find((i) => i.productId === l.productId);
+      const replacements = ing ? await findReplacements(e, l.productId, ing, group, o.deliveryDate) : [];
       const q = makeQuestion({
         planId: e.orderPlanId ?? "none", eventId, type: "allergy_conflict", forRole: "chef", outletId: l.outletId, quoteId: null, fingerprint: null,
-        title: `Allergy: ${shortName(prod.name)}`, body: `${fails[0].ruleId === "ALG-01" ? `Contains ${allergen}` : fails[0].ruleId === "ALG-02" ? `May contain ${allergen}` : "No allergen data"} · ${group.count} guests · still in the order`,
-        facts: { kind: "allergy", warningId: w.id, orderId: o.id, productId: l.productId, outletId: l.outletId, groupId: group.id, dishes: dishes.map((d) => d.id), dishNames: dishes.map((d) => d.name) },
+        title: `Allergy: ${shortName(prod.name)}`,
+        body: `${what[0].toUpperCase()}${what.slice(1)} · ${group.count} guest${group.count === 1 ? "" : "s"} · still in the order`,
+        facts: { kind: "allergy", warningId: w.id, orderId: o.id, productId: l.productId, outletId: l.outletId, groupId: group.id, dishes: dishes.map((d) => d.id), dishNames: dishes.map((d) => d.name), ingredientId: ing?.id ?? null, replacements, sideBySide: replacements[0] ? specCompare(l.productId, replacements[0].productId) : [] },
         ruleIds: ["ALG-10", fails[0].ruleId], deadline: l.closingTime ? parseAimoTime(l.closingTime)!.toISOString() : null,
-        options: [{ id: "remove", label: "Remove the line", primary: false }, { id: "other_dish", label: "Give these guests another dish", primary: true }],
+        options: [
+          ...replacements.slice(0, 2).map((r, i) => ({ id: `replace_${i}`, label: `Replace for everyone: ${shortName(r.name)}`, primary: i === 0 })),
+          { id: "other_dish", label: `Give ${group.count === 1 ? "this guest" : "these guests"} another dish`, primary: replacements.length === 0 },
+          { id: "remove", label: "Remove the line", primary: false },
+        ],
       });
       saveQuestion(q);
       audit({ actor: AGENT, action: "allergy_warning", summary: text, eventId, orderId: o.id, questionId: q.id, ruleIds: ["ALG-10", fails[0].ruleId], details: { productId: l.productId, guests: group.count }, visibility: "hotel" });
     }
   }
-  return { event: getEvent(eventId)!, warnings: created };
+  return created;
+}
+
+/** Replacements for everyone: same category, safe for every group at the event including the new one. */
+async function findReplacements(e: StoredEvent, productId: string, ing: EventSpec["dishes"][number]["ingredients"][number], group: DietGroup, deliveryDate: string) {
+  const orig = getProduct(productId)!;
+  const avoid = [...new Set([...e.dietGroups.flatMap((g) => g.constraints.avoidAllergens ?? []), ...(group.constraints.avoidAllergens ?? [])])];
+  const unit = ing.perPortion?.unit === "pcs" ? "pcs" : null;
+  const list = searchProducts({ category: orig.category, excludeAllergens: avoid, claims: ing.claims, origin: ing.origin, limit: 50 }).filter((p) => p.id !== productId);
+  if (!list.length) return [];
+  const fresh = await gw.lookup(list.map((p) => p.id), deliveryDate);
+  const at = now();
+  const out: { productId: string; name: string; pricePerUnit: number | null; stock: string; origin: string | null; reliability: number | null }[] = [];
+  for (const l of fresh.lines) {
+    const p = getProduct(l.productId)!;
+    if (!l.deliverable || !l.price) continue;
+    const cut = parseAimoTime(l.closingTime);
+    if (cut && cut.getTime() <= at.getTime()) continue;
+    if (dietRules(p, { claims: ing.claims ?? [], avoidAllergens: avoid, labels: [], origin: ing.origin }, group.label).some((r) => r.outcome === "block")) continue;
+    const content = packContent(p, l, unit ?? undefined);
+    if (unit && !content) continue;
+    out.push({ productId: p.id, name: p.name, pricePerUnit: content ? round2(l.price.value / content.value) : null, stock: l.stock.kind === "unknown" ? "not confirmed" : `${l.stock.kind === "known" ? l.stock.amount : 0}`, origin: p.origin, reliability: p.reliability });
+  }
+  // Same type of product: the model's type check drops clear mismatches (a pastry for a cake);
+  // a name that carries the type word ranks first. The person still chooses.
+  const type = (ing.productType ?? ing.text).toLowerCase();
+  const typeWord = type.split(/\s+/).pop() ?? type;
+  const judged = await typeCheck(type, out.map((r) => getProduct(r.productId)!));
+  for (let k = out.length - 1; k >= 0; k--) if (judged.get(out[k].productId)?.verdict === "no") out.splice(k, 1);
+  const named = (id: string) => (`${getProduct(id)?.name ?? ""} ${getProduct(id)?.nameFi ?? ""}`.toLowerCase().includes(typeWord) ? 0 : 1);
+  // Safety first: a product that declares itself free from every avoided allergen beats one that
+  // merely doesn't list it. Then the SF-06 idea: reliability band, price per unit, id.
+  const declared = (id: string) => {
+    const ff: string[] = getRaw(id)?.free_from ?? [];
+    return avoid.every((a) => ff.includes(a)) ? 0 : 1;
+  };
+  const band = (r: number | null) => (r === null ? 1 : r >= 0.95 ? 0 : 2);
+  return out
+    .sort((a, b) => declared(a.productId) - declared(b.productId) || named(a.productId) - named(b.productId) || band(a.reliability) - band(b.reliability) || (a.pricePerUnit ?? 1e9) - (b.pricePerUnit ?? 1e9) || a.productId.localeCompare(b.productId))
+    .slice(0, 3)
+    .map((r) => ({ ...r, declaredFree: declared(r.productId) === 0 }));
 }
 
 function orderPlanServes(e: StoredEvent, productId: string, dishId: string): boolean {
-  const plan = e.orderPlanId ? getPlan(e.orderPlanId) : null;
+  const id = (e as StoredEvent & { latestPlanId?: string }).latestPlanId ?? e.orderPlanId;
+  const plan = id ? getPlan(id) : null;
   if (!plan) return false;
   return plan.lines.some((l) => l.productId === productId && l.needIds.some((n) => n.startsWith(`${dishId}:`) && n.endsWith(":regular")));
 }
@@ -266,18 +336,32 @@ export async function answerAllergy(q: Question, p: Person) {
   if (!w || w.state === "resolved") return;
   const e = getEvent(q.eventId!)!;
   if (q.answer === "remove") {
-    await gw.amend(f.orderId, { changes: [{ productId: f.productId, outletId: f.outletId, quantity: 0 }] });
-    w.resolution = "Line removed from the order";
+    editEvent(e.id, e.version, p.name, `Removed ${shortName(w.productName)} from ${(f.dishNames ?? []).join(", ")}`, (x) => {
+      for (const d of x.dishes) if (f.dishes.includes(d.id)) d.ingredients = d.ingredients.filter((i) => i.productId !== f.productId);
+    });
+    w.resolution = "Line removed";
+  } else if (String(q.answer).startsWith("replace_")) {
+    const r = f.replacements[Number(String(q.answer).slice(8))];
+    editEvent(e.id, e.version, p.name, `Replaced ${shortName(w.productName)} with ${shortName(r.name)} for everyone`, (x) => {
+      for (const d of x.dishes) for (const i of d.ingredients) if (i.productId === f.productId) {
+        i.productId = r.productId;
+        i.variants = undefined;
+      }
+    });
+    w.resolution = `Replaced with ${r.name} for everyone`;
+    audit({ actor: personActor(p), action: "substitute_applied", summary: `${p.name} replaced ${shortName(w.productName)} with ${shortName(r.name)} for everyone${r.stock === "not confirmed" ? "; its stock is not confirmed, and choosing it is the decision to continue (D31)" : ""}`, eventId: e.id, ruleIds: ["ALG-10", "SUB-01"], details: { from: f.productId, to: r.productId }, visibility: "hotel" });
   } else {
-    editEvent(e.id, e.version, p.name, `${w.count} guests (${f.groupId}) get another dish instead of ${(f.dishNames ?? []).join(", ")}`, (x) => {
+    editEvent(e.id, e.version, p.name, `${w.count} guest${w.count === 1 ? "" : "s"} (${f.groupId}) get another dish instead of ${(f.dishNames ?? []).join(", ")}`, (x) => {
       for (const d of x.dishes) if (f.dishes.includes(d.id) && !d.excludesGroups.includes(f.groupId)) d.excludesGroups.push(f.groupId);
     });
-    w.resolution = `These ${w.count} guests get another dish; the line stays for everyone else`;
+    w.resolution = `${w.count === 1 ? "This guest gets" : "These guests get"} another dish; the line stays for everyone else`;
   }
   w.state = "resolved";
   w.resolvedBy = p.name;
   saveWarning(w);
-  audit({ actor: personActor(p), action: "allergy_resolved", summary: `${w.productName}: ${w.resolution}`, eventId: e.id, orderId: f.orderId, ruleIds: ["ALG-10"], details: {}, visibility: "hotel" });
+  audit({ actor: personActor(p), action: "allergy_resolved", summary: `${shortName(w.productName)}: ${w.resolution}`, eventId: e.id, orderId: f.orderId, ruleIds: ["ALG-10"], details: {}, visibility: "hotel" });
+  // When the last conflict is settled, the held change goes ahead as one change (one Approver card at most).
+  if (!warnings(e.id).some((x) => x.state === "open")) await applyChange(getEvent(e.id)!, p, "Change");
 }
 
 // ---------- scene 4: final check ----------
@@ -311,7 +395,7 @@ export async function finalCheck(eventId: string) {
         }
       }
       if (f.stock.kind === "unknown") {
-        results.push({ productId: l.productId, productName: name, result: "covered_at_risk", detail: `Unknown stock; risk accepted by ${l.riskAccepted?.by ?? "pre-answer"}${l.riskAccepted ? ` on ${fmtHelsinki(l.riskAccepted.at, false)}` : ""}.` });
+        results.push({ productId: l.productId, productName: name, result: "covered_at_risk", detail: `Stock not confirmed; ${l.riskAccepted?.by ?? "a pre-answer"} chose to continue${l.riskAccepted ? ` on ${fmtHelsinki(l.riskAccepted.at, false)}` : ""}.` });
         continue;
       }
       if (f.stock.kind !== "known" || f.stock.amount < l.quantity) {
@@ -338,17 +422,17 @@ export async function finalCheck(eventId: string) {
  * Try an amendment; if the gateway needs an approval for it (for example unknown
  * stock on a substitute), raise one Approver card instead of failing.
  */
-export async function amendOrAsk(e: StoredEvent, orderId: string, changes: { productId: string; outletId: string; quantity: number }[], title: string, why: string): Promise<"applied" | "asked"> {
+export async function amendOrAsk(e: StoredEvent, orderId: string, changes: { productId: string; outletId: string; quantity: number }[], title: string, why: string, stock?: { continueWith: string[]; decidedBy: string }): Promise<"applied" | "asked"> {
   try {
-    await gw.amend(orderId, { changes });
+    await gw.amend(orderId, { changes, continueWithUnconfirmedStock: stock?.continueWith, decidedBy: stock?.decidedBy });
     return "applied";
   } catch (err) {
     if (!(err instanceof GatewayError) || err.body.error !== "mandate_violation") throw err;
     const q = makeQuestion({
       planId: e.orderPlanId ?? "none", eventId: e.id, type: "unknown_stock", forRole: "approver", outletId: null, quoteId: err.body.newQuoteId ?? null, fingerprint: null,
       title, body: why,
-      facts: { kind: "change", orderId, changes }, ruleIds: (err.body.approvalsNeeded ?? []).includes("unknown_stock") ? ["STK-01"] : ["MAN-01"],
-      options: [{ id: "approve", label: "Accept the risk", primary: true }, { id: "keep", label: "Keep the order as is", primary: false }],
+      facts: { kind: "change", orderId, changes, continueWith: stock?.continueWith ?? [], decidedBy: stock?.decidedBy ?? null }, ruleIds: ["MAN-01"],
+      options: [{ id: "approve", label: "Approve the change", primary: true }, { id: "keep", label: "Keep the order as is", primary: false }],
       deadline: null,
     });
     saveQuestion(q);
@@ -381,14 +465,26 @@ async function findSubstitutes(line: Order["lines"][number], need: Need | undefi
   const out: SubCandidate[] = [];
   for (const { p, l } of pass) {
     if (judged.get(p.id)?.verdict === "no") continue;
-    const content = packContent(p, l);
+    const content = packContent(p, l, needAmount.unit as any);
     if (!content || content.unit !== needAmount.unit) continue;
     const quantity = Math.ceil(needAmount.value / content.value - 1e-9);
     const unknown = l.stock.kind === "unknown";
     if (l.stock.kind === "known" && l.stock.amount < quantity) continue;
     out.push({ productId: p.id, name: p.name, quantity, stock: unknown ? "unknown stock" : `${l.stock.kind === "known" ? l.stock.amount : 0} in stock`, listed: listed.includes(p.id), pricePerBase: l.price ? round2(l.price.value / content.value) : null, unknown });
   }
-  return out.sort((a, b) => Number(b.listed) - Number(a.listed) || Number(a.unknown) - Number(b.unknown) || (a.pricePerBase ?? 1e9) - (b.pricePerBase ?? 1e9) || a.productId.localeCompare(b.productId)).slice(0, 3);
+  // Names that share more words with the type asked for ("whipping cream") rank first. The model's
+  // type check already dropped clear mismatches; this keeps the order sensible when it can't be reached.
+  const words = type.split(/[^a-zåäö]+/i).filter((w) => w.length > 2);
+  const overlap = (id: string) => {
+    const n = `${getProduct(id)?.name ?? ""} ${getProduct(id)?.nameFi ?? ""}`.toLowerCase();
+    return -words.filter((w) => n.includes(w)).length;
+  };
+  // D32: listed substitutes first, then reliability band and price; confirmed stock only breaks ties.
+  const band = (id: string) => {
+    const r = getProduct(id)?.reliability ?? null;
+    return r === null ? 1 : r >= 0.95 ? 0 : 2;
+  };
+  return out.sort((a, b) => Number(b.listed) - Number(a.listed) || overlap(a.productId) - overlap(b.productId) || band(a.productId) - band(b.productId) || (a.pricePerBase ?? 1e9) - (b.pricePerBase ?? 1e9) || Number(a.unknown) - Number(b.unknown) || a.productId.localeCompare(b.productId)).slice(0, 3);
 }
 
 /** SHORTFALL-RESOLVE (Q07.3): remembered substitute first, then up to three candidates for the chef. */
@@ -399,14 +495,21 @@ async function resolveShortfall(e: StoredEvent, o: Order, line: Order["lines"][n
   const prod = getProduct(line.productId)!;
   const unit = pl?.packContent?.unit ?? "l";
   const perPack = pl?.packContent?.value ?? 1;
-  const needAmount = { value: line.quantity * perPack, unit };
-  const ordered = await findSubstitutes(line, need, o.deliveryDate, needAmount);
+  // Keep what is in stock of the original; substitutes only fill the gap (Q07.3, step 4 before step 3's full swap).
+  const keep = Math.max(0, Math.floor(stock));
+  const gap = { value: round2((line.quantity - keep) * perPack), unit };
+  if (allQuestions().some((q) => (q.state === "open" || q.state === "waiting") && (q.facts as any).kind === "final_substitute" && (q.facts as any).original === line.productId)) return;
+  const ordered = await findSubstitutes(line, need, o.deliveryDate, gap);
+  const changesFor = (c: { productId: string; quantity: number }) => [
+    { productId: line.productId, outletId: line.outletId, quantity: keep },
+    { productId: c.productId, outletId: line.outletId, quantity: c.quantity },
+  ];
   for (const c of ordered) {
     const r = recallSubstitute(dishId, line.productId, c.productId);
     if (r) {
       const msg = fire("SUB-02", { substitute: c.name, original: prod.name, dish: need?.dishName ?? "this request", by: r.by, at: fmtHelsinki(r.at, false) }).message;
-      const res = await amendOrAsk(e, o.id, [{ productId: line.productId, outletId: line.outletId, quantity: 0 }, { productId: c.productId, outletId: line.outletId, quantity: c.quantity }], "Accept stock risk?", `${shortName(c.name)} replaces ${shortName(prod.name)} · unknown stock`);
-      audit({ actor: AGENT, action: "substitute_applied", summary: res === "applied" ? msg : `${msg} Waiting for the Approver to accept the stock risk.`, eventId: e.id, orderId: o.id, ruleIds: ["SUB-02"], details: { rememberedAt: r.at }, visibility: "hotel" });
+      const res = await amendOrAsk(e, o.id, changesFor(c), "Approve the change?", `${c.quantity} × ${shortName(c.name)} fills the gap`, { continueWith: c.unknown ? [c.productId] : [], decidedBy: r.by });
+      audit({ actor: AGENT, action: "substitute_applied", summary: res === "applied" ? msg : `${msg} Waiting for the Approver.`, eventId: e.id, orderId: o.id, ruleIds: ["SUB-02"], details: { rememberedAt: r.at }, visibility: "hotel" });
       return;
     }
   }
@@ -414,19 +517,23 @@ async function resolveShortfall(e: StoredEvent, o: Order, line: Order["lines"][n
     audit({ actor: AGENT, action: "question_asked", summary: `${prod.name} is short and no substitute passes the event's rules; unresolved`, eventId: e.id, orderId: o.id, ruleIds: ["FIN-02"], details: {}, visibility: "hotel" });
     return;
   }
-  const best = ordered[0];
   const cut = parseAimoTime(line.closingTime);
+  const options = ordered.slice(0, 2);
   const q = makeQuestion({
     planId: plan?.id ?? "none", eventId: e.id, type: "substitute", forRole: "chef", outletId: line.outletId, quoteId: null, fingerprint: null,
     title: `Short: ${shortName(prod.name)}`,
-    body: `${stock} of ${line.quantity} in stock · use ${shortName(best.name)}?`,
+    body: `${keep} of ${line.quantity} in stock · ${gap.value} ${gap.unit} to fill`,
     facts: {
-      kind: "final_substitute", orderId: o.id, original: line.productId, originalQty: line.quantity, outletId: line.outletId, dishId, dishName: need?.dishName ?? null,
-      substitute: best.productId, substituteQty: best.quantity, substituteStock: best.stock, sideBySide: specCompare(line.productId, best.productId, { originalPrice: line.unitPrice !== null ? round2(line.unitPrice / perPack) : null, subPrice: best.pricePerBase }),
-      alternatives: ordered.slice(1).map((c) => ({ productId: c.productId, name: c.name, quantity: c.quantity, stock: c.stock })), stock,
+      kind: "final_substitute", orderId: o.id, original: line.productId, originalQty: line.quantity, keep, outletId: line.outletId, dishId, dishName: need?.dishName ?? null,
+      candidates: options.map((c) => ({ productId: c.productId, name: c.name, quantity: c.quantity, stock: c.stock, pricePerBase: c.pricePerBase })),
+      sideBySide: specCompare(line.productId, options[0].productId, { originalPrice: line.unitPrice !== null ? round2(line.unitPrice / perPack) : null, subPrice: options[0].pricePerBase }),
+      stock,
     },
     ruleIds: ["FIN-02", "SUB-01"],
-    options: [{ id: "use", label: "Use this one", primary: true }, { id: "another", label: "Use another", primary: false }, { id: "none", label: "None of these", primary: false }],
+    options: [
+      ...options.map((c, i) => ({ id: `use_${i}`, label: `${c.quantity} × ${shortName(c.name)} (${c.pricePerBase !== null ? `€${c.pricePerBase.toFixed(2)}/${unit}` : "no unit price"})`, primary: i === 0 })),
+      { id: "none", label: "None of these", primary: false },
+    ],
     deadline: cut?.toISOString() ?? null,
   });
   saveQuestion(q);
@@ -439,23 +546,23 @@ export async function answerFinalSubstitute(q: Question, p: Person) {
     audit({ actor: personActor(p), action: "question_answered", summary: `${p.name}: none of the substitutes work; the line stays short and unresolved`, eventId: q.eventId, questionId: q.id, ruleIds: ["FIN-02"], details: {}, visibility: "hotel" });
     return;
   }
-  if (q.answer === "another") {
-    const [next, ...rest] = f.alternatives ?? [];
-    if (!next) return;
-    const nq = makeQuestion({
-      ...q, title: `Short: ${shortName(getProduct(f.original)?.name ?? f.original)}`,
-      body: `Use ${shortName(next.name)} instead?`,
-      facts: { ...f, substitute: next.productId, substituteQty: next.quantity, substituteStock: next.stock, sideBySide: specCompare(f.original, next.productId), alternatives: rest },
-      state: "open",
-    });
-    saveQuestion(nq);
-    return;
-  }
+  const c = f.candidates[Number(String(q.answer).replace("use_", ""))];
   const { rememberSubstitute } = await import("./memory.js");
-  rememberSubstitute(f.dishId, f.original, f.substitute, p.name, nowIso());
+  rememberSubstitute(f.dishId, f.original, c.productId, p.name, nowIso());
   const e = getEvent(q.eventId!)!;
-  await amendOrAsk(e, f.orderId, [{ productId: f.original, outletId: f.outletId, quantity: 0 }, { productId: f.substitute, outletId: f.outletId, quantity: f.substituteQty }], "Accept stock risk?", `${shortName(getProduct(f.substitute)?.name ?? f.substitute)} replaces ${shortName(getProduct(f.original)?.name ?? f.original)} · unknown stock`);
-  audit({ actor: personActor(p), action: "substitute_applied", summary: `${getProduct(f.substitute)?.name} replaces ${getProduct(f.original)?.name} in ${f.dishName ?? "the dish"}; remembered for next time`, eventId: q.eventId, orderId: f.orderId, questionId: q.id, ruleIds: ["SUB-01"], details: { dish: f.dishName }, visibility: "hotel" });
+  const applied = await amendOrAsk(
+    e,
+    f.orderId,
+    [
+      { productId: f.original, outletId: f.outletId, quantity: f.keep ?? 0 },
+      { productId: c.productId, outletId: f.outletId, quantity: c.quantity },
+    ],
+    "Approve the change?",
+    `${c.quantity} × ${shortName(c.name)} fills the gap`,
+    { continueWith: c.stock === "unknown stock" ? [c.productId] : [], decidedBy: p.name },
+  );
+  if (applied === "applied") await finalCheck(e.id);
+  audit({ actor: personActor(p), action: "substitute_applied", summary: `${p.name} kept ${f.keep} × ${shortName(getProduct(f.original)?.name ?? f.original)} and added ${c.quantity} × ${shortName(c.name)} for ${f.dishName ?? "the dish"}; remembered for next time`, eventId: q.eventId, orderId: f.orderId, questionId: q.id, ruleIds: ["SUB-01"], details: { dish: f.dishName }, visibility: "hotel" });
 }
 
 /** SILENCE-RESOLVE (D9): at the cut-off an unanswered line stays as last approved and both sides are told. */
@@ -496,8 +603,8 @@ export function coverageSummary(eventId: string): { level: "covered" | "at_risk"
   const atRisk = fc ? fc.lines.filter((l) => l.result === "covered_at_risk").length : plan.lines.filter((l) => l.riskAccepted).length;
   const short = fc ? fc.lines.filter((l) => l.result === "short" || l.result === "price_changed").length : 0;
   if (short) return { level: "not_covered", text: `${short} short` };
-  if (atRisk) return { level: "at_risk", text: `Covered · ${atRisk} at risk` };
-  return { level: "covered", text: "Covered" };
+  if (atRisk) return { level: "at_risk", text: `Ready · ${atRisk} stock not confirmed` };
+  return { level: "covered", text: "Ready" };
 }
 
 export function eventView(eventId: string) {
