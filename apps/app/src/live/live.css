@@ -12,7 +12,7 @@
   --bad: #d7261e;
   --bad-soft: #fde8e7;
   --orange: #e36a0a;
-  font-family: var(--font);
+  font-family: "Inter", "IBM Plex Sans", system-ui, sans-serif;
   color: var(--navy);
   background: #fff;
   height: 100vh;
