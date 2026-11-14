@@ -167,8 +167,9 @@ export function appRouter(): Router {
   // Order baskets: one per event, named by the event and its delivery date. Requests attach to one.
   const basketPlans = (eventId: string) => listPlans().filter((pl) => pl.kind === "single" && pl.eventId === eventId);
   const planRow = (pl: ReturnType<typeof listPlans>[number]) => ({ id: pl.id, title: pl.title, status: pl.status, summary: pl.summary, createdAt: pl.createdAt, createdBy: pl.createdBy.name, totalExVat: pl.totalExVat, orderIds: pl.orderIds });
-  r.get("/baskets", async (_req, res) => {
+  r.get("/baskets", async (req, res) => {
     const { orders } = await gw.orders();
+    const p = P(req);
     const open = allQuestions().filter((q) => q.state === "open" || q.state === "waiting");
     res.json({
       baskets: listEvents().map((e) => {
@@ -181,7 +182,9 @@ export function appRouter(): Router {
           coverage: coverageSummary(e.id),
           lines: mine.reduce((n, o) => n + o.lines.filter((l) => !l.removed).length, 0),
           totalExVat: mine.reduce((n, o) => n + o.totalExVat, 0),
-          waiting: open.filter((q) => q.eventId === e.id).length,
+          // Only what this person can answer; the rest is someone else's to approve.
+          waiting: open.filter((q) => q.eventId === e.id && canAnswer(q, p)).length,
+          waitingOthers: open.filter((q) => q.eventId === e.id && !canAnswer(q, p)).length,
           requests: basketPlans(e.id).length + (e.dishes.length ? 1 : 0),
         };
       }),
