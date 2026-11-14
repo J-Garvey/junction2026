@@ -122,3 +122,22 @@ describe("AUDIT-APPEND (Q09.3)", () => {
     expect(verifyChain().ok).toBe(false);
   });
 });
+
+describe("Wedding seed support", async () => {
+  const { packContent, piecesInName, dietRules } = await import("../src/rules/checks.js");
+  const { getProduct } = await import("../src/catalog.js");
+  it("PACK-CONTENT counts pieces from the name when the need is in pieces", () => {
+    expect(piecesInName("Reuter & Stolt Princess cake 15pcs 100g ready to eat frozen")).toBe(15);
+    expect(piecesInName("Elonen FR Raspberry Pastrycake 2,2kg 40pcs")).toBe(40);
+    expect(packContent(getProduct("467767")!, null, "pcs")).toMatchObject({ value: 15, unit: "pcs" });
+  });
+  it("PACK-CONTENT keeps the catalogue's exact 4.5 L when the cent-rounded comparison price agrees", () => {
+    const line = { salesUnit: "KI", price: { value: 36.76, comparisonPrice: 8.17, comparisonUnit: "L" } } as any;
+    expect(packContent(getProduct("477125")!, line)).toMatchObject({ value: 4.5, unit: "l", verified: true });
+  });
+  it("ALG-01: avoiding tree nuts catches almond, and contains beats free-from", () => {
+    const rules = dietRules(getProduct("467767")!, { claims: [], avoidAllergens: ["AN"], labels: [] }, "Tree-nut allergy");
+    expect(rules.map((r) => r.ruleId)).toEqual(["ALG-01"]);
+    expect(rules[0].message).toMatch(/almond/);
+  });
+});

@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { Product, ProductSearchQuery } from "@aimo/contracts";
 import { config } from "./config.js";
+import { ALLERGEN_FAMILY } from "./rules/checks.js";
 
 type Raw = Record<string, any>;
 
@@ -107,8 +108,11 @@ export function failsAllergens(p: Product, avoid: string[]): string | null {
   if (!p.hasAllergenData) return "no allergen declaration";
   for (const a of avoid) {
     if (a === "X99") continue;
-    if (p.contains.includes(a)) return `contains ${a}`;
-    if (p.mayContain.includes(a)) return `may contain ${a}`;
+    const family = ALLERGEN_FAMILY[a] ?? [a];
+    const c = family.find((x) => p.contains.includes(x));
+    if (c) return `contains ${c}`;
+    const m = family.find((x) => p.mayContain.includes(x));
+    if (m) return `may contain ${m}`;
   }
   return null;
 }

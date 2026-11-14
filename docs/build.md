@@ -16,10 +16,10 @@ For development, `pnpm dev` runs the API with `tsx watch` and the Vite app on po
 
 | Command | What it does |
 |---|---|
-| `pnpm test` | 28 tests: rule units and the three PRD test cases end to end, twice from a fresh reset |
-| `pnpm seed` | Fresh database: one hotel, four people, the mandate, the event, clock at scene 1 |
+| `pnpm test` | 37 tests: rule units, the three PRD test cases end to end and the wedding demo seed, each twice from a fresh reset |
+| `pnpm seed [gala\|wedding]` | Fresh database: one hotel, its people, the mandate, the event, clock at scene 1. Without an argument it keeps the last seed (first run: `AIMO_SEED`, default `gala`) |
 | `pnpm agent:demo` | An outside agent that uses only `/openapi.json` and its token: search, quote, order, retry, and the refusals |
-| `pnpm fixtures:record` | Saves real mock responses for the seed pool to `data/fixtures/aimo/base.json` |
+| `pnpm fixtures:record` | Saves real mock responses for the seed pool to `data/fixtures/aimo/base.json`. Add `-- --add-missing` to record only products not yet saved and merge them in |
 
 ### Settings
 
@@ -33,6 +33,7 @@ The server reads the environment, then the untracked `.env.local`, then the trac
 | `OPENAI_REASONING_EFFORT` | `low` | |
 | `AIMO_MODE` | `live` | `live` or `fixture`; the scene buttons switch it |
 | `PORT` | `8787` | |
+| `AIMO_SEED` | `gala` | The seed a fresh database starts from: `gala` (PRD test event) or `wedding` (the demo video). The Reset menu in the clock bar switches it |
 | `AIMO_DB` | `apps/api/var/aimo.db` | SQLite file; `:memory:` for tests |
 | `CONTEXT_DEV_API_KEY` | unset | Supplier brand profiles from context.dev at `GET /gateway/v1/products/{id}/brand`. External web data: cached, labelled, never used by a rule |
 | `PREVIEW_PASSWORD` | unset | Turns on the preview gate: browsers sign in at `/login`, scripts send `X-Preview-Password`. `/healthz` stays open |
@@ -58,13 +59,29 @@ packages/contracts   Zod schemas: the gateway contract and /openapi.json come fr
 
 ## Seed data (fixture)
 
-Everything below is demo data and is labelled as a fixture on screen.
+Everything below is demo data and is labelled as a fixture on screen. There are two seeds on one engine.
+
+### The gala (PRD test event, default)
 
 - **Hotel Aurora** (fictional), one delivery site, two outlets: Banquet kitchen and Lobby bar.
 - **People:** Anna Virtanen (banquet chef), Mikko Laine (bar manager, chef role for the bar), Sara Nieminen and Jonas Berg (approvers for the whole hotel).
 - **Mandate:** €5,000 per order before VAT, Monday to Friday deliveries, overshoot asks above both 10% and €25, guest changes within ±5% need no question, price rise tolerance 5%.
 - **Event:** Nordic Health Summit gala dinner, Wed 18 Nov 2026, 500 guests: 40 lactose-free, 20 gluten-free, 8 vegan. Salmon soup, bread and butter, cloudberry cream with gingerbread (banquet), coffee service (bar). All products are real catalogue items.
-- **Fixtures:** `data/fixtures/aimo/base.json` holds real mock responses for 1,096 products, recorded 14 Nov. `overlay-final-check.json` lowers one product's stock (464727, 37 → 10) to make the final-check shortfall.
+
+### The wedding (demo seed)
+
+`pnpm seed wedding`, or **Wedding (demo)** in the clock bar's Reset menu. It is the story in [demo-plan.md](demo-plan.md), on the same engine.
+
+- **Demo Hotel** (fictional), site `site-demo-hotel`, outlets Banquet kitchen and Lobby bar. **Aino** (head chef, both outlets) and **Sanna** (finance manager, Approver). Katri is the Valio Aimo viewer (`valio_demo_viewer`); she has no hotel account.
+- **Mandate:** €1,950 per order before VAT, guest changes within ±5% need no question, unconfirmed stock always asks, overshoot asks above both 10% and €50 (so the one smallest coffee case doesn't ask).
+- **Event:** Emma and Lauri's wedding, 180 guests, no diet groups at booking. Seven lines: salmon 170 g (469672), button potatoes 200 g (460541), Arla lactose-free whipping cream 0.25 L (464727), princess cake one piece (467767), coffee 10 g (460617), Valio Eila 40 L in total (464306), sparkling zero one 12.5 cl glass (477125).
+- **Booking (scene 2):** 31 kg, 3, 45, 12, 1, 40 and 5 packs, **€2,003.37**: one card for Sanna, over the cap with four lines of unconfirmed stock. A test checks these figures.
+- **Final check (scene 4):** no overlay. The cream's 37 in stock is the mock's real figure.
+- **Service date: Wed 18 Nov** (agreed, 14 Nov). On Tuesday the frozen salmon and cake would be needed by Fri 13 (Q04.3), so the mock's Monday delivery would be late (DLV-03).
+
+### Fixtures
+
+- **Fixtures:** `data/fixtures/aimo/base.json` holds real mock responses for 1,096 products, recorded 14 Nov; 572 more (the wedding's cakes, coffee, sparkling and every product named salmon) merged in the same evening. `overlay-final-check.json` lowers one product's stock (464727, 37 → 10) to make the gala's final-check shortfall.
 
 ## The three test cases
 

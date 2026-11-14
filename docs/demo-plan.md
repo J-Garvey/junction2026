@@ -32,7 +32,7 @@ Onni is a six-year-old guest, added two weeks before the wedding. None of these 
 |---|---|---|
 | Hotel | Demo Hotel | Agreed |
 | Guests at booking | 180 | Agreed |
-| Service date | Tue 17 Nov 2026 | Agreed (PRD chunk 11, Q11.2) |
+| Service date | Wed 18 Nov 2026 | Agreed (Ben, 14 Nov). Moved from Tue 17 so the frozen salmon and cake, needed two days ahead (PRD Q04.3), still arrive on the mock's Monday |
 | Delivery date | Mon 16 Nov 2026 | Real: the only date the mock returns |
 | Cut-off for most lines | Sun 15 Nov, 17:00 | Real |
 | Cut-off for lines shipped by the supplier (the cake, the sparkling) | Thu 12 Nov, 15:00 and 12:30 | Real |
@@ -186,7 +186,7 @@ One thing the data doesn't settle: the salmon comes in packs of 10 pieces (1.7 k
 
 She keeps the 37 litres of Arla and takes 10 litres of the Valio 1 L (€39.10). The final order comes to €1,945.75, which is back under Sanna's €1,950.
 
-**Result line (wording proposed):** "Ready for Tuesday. Valio Aimo can't confirm stock on 5 lines." The five are the potatoes, the raspberry cake, the sparkling, the milk and the Valio cream.
+**Result line (wording proposed):** "Ready for Wednesday. Valio Aimo can't confirm stock on 5 lines." The five are the potatoes, the raspberry cake, the sparkling, the milk and the Valio cream.
 
 ## The safety drill (2:10–2:30)
 

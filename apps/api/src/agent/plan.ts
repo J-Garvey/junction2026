@@ -116,7 +116,9 @@ export function needsFromEvent(e: EventSpec, m: Mandate, removed: string[]): Nee
       for (const g of groups) {
         const id = `${dish.id}:${ing.id}:${g.id}`;
         if (removed.includes(id) || g.count <= 0) continue;
-        const pp = toBase(ing.perPortion);
+        // A fixed total is one need for the whole event, carried by the unrestricted guests.
+        if (ing.total && g.id !== "regular") continue;
+        const amount = ing.total ? toBase(ing.total) : (() => { const pp = toBase(ing.perPortion!); return { value: +(pp.value * g.count).toFixed(4), unit: pp.unit }; })();
         const pinnedId = ing.variants?.[g.id] ?? ing.productId ?? null;
         const pinned = pinnedId ? getProduct(pinnedId) : null;
         const frozen = Boolean(ing.frozen ?? pinned?.temperature === 7);
@@ -132,16 +134,16 @@ export function needsFromEvent(e: EventSpec, m: Mandate, removed: string[]): Nee
             groupId: g.id,
             groupLabel: `${g.label} guests`,
             guests: g.count,
-            perPortion: ing.perPortion,
+            perPortion: ing.perPortion ?? null,
             outletId: dish.outletId,
-            amount: { value: +(pp.value * g.count).toFixed(4), unit: pp.unit },
+            amount,
             constraints: g.constraints,
             query: ing.query ?? ing.text,
             category: ing.category ?? pinned?.category ?? null,
             pinnedProductId: pinnedId,
             neededBy: nb.date,
             frozen,
-            rules: [...nb.rules, ...quantitySanity(ing.text, ing.perPortion, g.count)],
+            rules: [...nb.rules, ...(ing.perPortion ? quantitySanity(ing.text, ing.perPortion, g.count) : [])],
           }),
         );
       }

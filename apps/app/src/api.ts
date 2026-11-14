@@ -48,12 +48,14 @@ export const post = <T>(p: string, b?: unknown) => call<T>("POST", p, b ?? {});
 // ---------- response shapes ----------
 
 export type SceneKey = "1" | "2" | "3" | "4";
+export type SeedProfile = "gala" | "wedding";
 export interface StatusResp {
   clock: { mode: string; time: string | null; scene: string | null; now: string; scenes: Record<SceneKey, { label: string; time: string }> };
   dataMode: { mode: "live" | "fixture"; overlay: string | null } | string;
   model: { provider: string; model: string; configured: boolean };
   catalogue?: number;
   testMode?: boolean;
+  seed?: { current: SeedProfile; hotelName: string; profiles: SeedProfile[] };
   chain: { ok: boolean; brokenAt: number | null; entries: number };
 }
 
@@ -237,5 +239,5 @@ export const api = {
   audit: (viewer: "hotel" | "valio", eventId?: string) => get<AuditResp>(`/api/audit?viewer=${viewer}${eventId ? `&eventId=${encodeURIComponent(eventId)}` : ""}`),
   rules: () => get<RulesResp>("/api/rules"),
   clock: (scene: SceneKey | "live") => post<unknown>("/api/clock", { scene }),
-  reset: () => post<{ ok: boolean }>("/api/reset"),
+  reset: (profile?: SeedProfile) => post<{ ok: boolean; seed: SeedProfile }>("/api/reset", profile ? { profile } : {}),
 };

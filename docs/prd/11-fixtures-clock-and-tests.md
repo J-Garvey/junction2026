@@ -57,7 +57,7 @@ Each function is one problem that can be built and tested alone. "Deterministic 
   - Scenes 1 and 2: mid-August.
   - Scene 3: Fri 30 Oct.
   - Scene 4: Sat 14 Nov, 17:00, which is 24 hours before the main cut-off.
-- **Answer:** **Agreed** (Ben, 14 Nov): as recommended. Service Tue 17 Nov 2026, delivery Mon 16 Nov. Scenes 1 and 2 mid-August, scene 3 Fri 30 Oct, scene 4 Sat 14 Nov 17:00. At scene 4 the Fri 13 Nov and Terminal cut-offs have passed, so those lines show as blocked: this is the expired cut-off case.
+- **Answer:** **Agreed** (Ben, 14 Nov): as recommended. Service Tue 17 Nov 2026, delivery Mon 16 Nov. **Changed** (Ben, 14 Nov): service is Wed 18 Nov, so frozen lines, needed two days ahead (Q04.3), still arrive on the mock's Monday. Scenes 1 and 2 mid-August, scene 3 Fri 30 Oct, scene 4 Sat 14 Nov 17:00. At scene 4 the Fri 13 Nov and Terminal cut-offs have passed, so those lines show as blocked: this is the expired cut-off case.
 
 **Q11.3 How is the clock controlled?**
 - Recommended: one clock module that every time check reads. A small clock bar with four buttons, one per scene, visible only in test mode. Moving the clock is written to the audit.

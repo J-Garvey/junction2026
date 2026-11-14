@@ -384,9 +384,11 @@ export const Ingredient = z.object({
   category: z.string().optional(),
   productId: z.string().optional().describe("Recipe-approved product"),
   variants: z.record(z.string(), z.string()).optional().describe("Recipe-approved product per diet group id"),
-  perPortion: Amount,
+  perPortion: Amount.optional(),
+  /** A fixed amount for the whole event, whatever the guest count (e.g. "40 L of milk for the coffee service"). */
+  total: Amount.optional(),
   frozen: z.boolean().optional(),
-});
+}).refine((i) => Boolean(i.perPortion) !== Boolean(i.total), { message: "Give either perPortion or total" });
 export type Ingredient = z.infer<typeof Ingredient>;
 
 export const Dish = z.object({

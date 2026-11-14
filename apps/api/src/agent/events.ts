@@ -4,7 +4,7 @@
  * ORDER-DIFF, CHANGE-APPLY, ALLERGY-RECHECK, FINAL-CHECK, SHORTFALL-RESOLVE,
  * SUBSTITUTE-FIND, SILENCE-RESOLVE, COVERAGE-SUMMARY. EDIT-GUARD for events.
  */
-import type { EventSpec, Order, Question, WarningRecord, DietGroup, Need } from "@aimo/contracts";
+import type { EventSpec, Order, Question, WarningRecord, DietGroup, Need, BaseUnit } from "@aimo/contracts";
 import { getDb, getJson, allJson } from "../db.js";
 import { now, nowIso } from "../clock.js";
 import { getProduct } from "../catalog.js";
@@ -381,7 +381,7 @@ async function findSubstitutes(line: Order["lines"][number], need: Need | undefi
   const out: SubCandidate[] = [];
   for (const { p, l } of pass) {
     if (judged.get(p.id)?.verdict === "no") continue;
-    const content = packContent(p, l);
+    const content = packContent(p, l, needAmount.unit as BaseUnit);
     if (!content || content.unit !== needAmount.unit) continue;
     const quantity = Math.ceil(needAmount.value / content.value - 1e-9);
     const unknown = l.stock.kind === "unknown";

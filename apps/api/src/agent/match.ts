@@ -87,7 +87,7 @@ export async function rankNeed(need: Need, list: Product[], pool: Pool): Promise
       if (pinned) need.rules.push(...hard);
       continue;
     }
-    const content = packContent(p, l);
+    const content = packContent(p, l, need.amount.unit);
     const pricePerBase = content && l.price ? l.price.value / content.value : null;
     passing.push({ p, l, content, pricePerBase, judgement: null, notes: diet.filter((r) => r.outcome !== "block"), pinned });
   }

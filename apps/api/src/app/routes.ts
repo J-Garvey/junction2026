@@ -19,7 +19,7 @@ import { questionsFor, allQuestions, getQuestion, canAnswer } from "../agent/que
 import { answer } from "../agent/answers.js";
 import { addDietGroup, changeGuests, coverageSummary, EditConflict, eventView, finalCheck, listEvents, orderEvent, removeNeed, runCutoff, runViability, warnings, personActor } from "../agent/events.js";
 import { listRemembered } from "../agent/memory.js";
-import { seedReset, OUTLETS, OUTSIDE_AGENT_TOKEN, VALIO_VIEWER_TOKEN } from "../seed.js";
+import { seedReset, seedProfile, SEED_PROFILES, OUTLETS, OUTSIDE_AGENT_TOKEN, VALIO_VIEWER_TOKEN } from "../seed.js";
 import { gw } from "../agent/gatewayClient.js";
 import { dataMode } from "../aimo/lookup.js";
 import { config } from "../config.js";
@@ -52,6 +52,7 @@ export function appRouter(): Router {
       model: { provider: "openai", model: modelName(), configured: modelConfigured() },
       catalogue: catalogSize(),
       testMode: config.testMode,
+      seed: { current: seedProfile().id, hotelName: seedProfile().hotelName, profiles: Object.keys(SEED_PROFILES) },
       chain: verifyChain(),
     }),
   );
@@ -65,10 +66,11 @@ export function appRouter(): Router {
     res.json({ person: p, token });
   });
 
-  r.post("/reset", (_req, res) => {
+  r.post("/reset", (req, res) => {
     if (!config.testMode) return res.status(403).json({ error: "Test mode only" });
-    seedReset();
-    res.json({ ok: true });
+    const { profile } = z.object({ profile: z.enum(["gala", "wedding"]).optional() }).parse(req.body ?? {});
+    seedReset(profile);
+    res.json({ ok: true, seed: seedProfile().id });
   });
 
   r.use(person);
@@ -179,7 +181,7 @@ export function appRouter(): Router {
     const b = ClockSetBody.parse(req.body);
     const before = now().toISOString();
     const s = setClock({ time: b.time, scene: b.scene });
-    if (b.scene) kvSet("dataMode", { mode: b.scene === "live" ? "live" : "fixture", overlay: b.scene === "4" ? "final-check" : null });
+    if (b.scene) kvSet("dataMode", { mode: b.scene === "live" ? "live" : "fixture", overlay: b.scene === "4" ? seedProfile().finalCheckOverlay : null });
     audit({ actor: personActor(P(req)), action: "clock_moved", summary: `Clock moved from ${before} to ${now().toISOString()}${b.scene ? ` (${SCENES[b.scene]?.label ?? b.scene})` : ""}`, details: { scene: b.scene ?? null }, visibility: "shared" });
     res.json({ clock: s, dataMode: kvGet("dataMode") });
   });
