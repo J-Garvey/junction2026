@@ -12,6 +12,7 @@ How can a food-service wholesaler let autonomous purchasing agents find products
 - ✅ Two research passes on customer segments (they disagree; see [QUESTIONS.md](QUESTIONS.md))
 - ✅ Research on urgent, large, variable orders: event caterers and banquet venues fit best ([research/05](research/05-spike-orders-under-time-pressure.md))
 - ✅ Talked to Valio Aimo: **hotels first, then restaurants; target hotel catering and event orders** ([research/06](research/06-valio-aimo-conversation-2026-11-14.md))
+- ✅ Hotel event ordering journey: **the order goes in months ahead and is amended on one call with the Valio Aimo rep ~2–3 weeks out** ([research/07](research/07-hotel-event-ordering-journey.md))
 - ✅ **Target customer decided:** large hotels, conference hotels and event venues with high-volume catering. See **[ICP.md](ICP.md)**. The base challenge features are still built for any buyer.
 - ⏳ Ask the mentors the remaining questions ([research/stand-questions.md](research/stand-questions.md) first)
 - ⬜ Guardrails design (deliberately later)
@@ -48,6 +49,7 @@ What changed when the two uploads were merged is in **[CHANGES.md](CHANGES.md)**
 | [research/04-segment-research-chain-first.md](research/04-segment-research-chain-first.md) | The chain-first research pass, the order-quantity primer and kitchen-system notes |
 | [research/05-spike-orders-under-time-pressure.md](research/05-spike-orders-under-time-pressure.md) | Which customers place large, urgent, one-off orders where speed and accuracy beat price, and which fit the agent best. Source notes in [research/notes/spike-orders/](research/notes/spike-orders/) |
 | [research/06-valio-aimo-conversation-2026-11-14.md](research/06-valio-aimo-conversation-2026-11-14.md) | **Notes from talking to Valio Aimo (14 Nov):** target segment, hotel ordering patterns, substitution pitfalls, lead times and cut-offs, agent explanation modes |
+| [research/07-hotel-event-ordering-journey.md](research/07-hotel-event-ordering-journey.md) | **How a Finnish hotel gets the food for a large event**, booking to billing: evidence-tagged journey, Finnish hotel deadlines, what Valio Aimo sees at each stage, open questions. Sources and visual map in [research/notes/hotel-event-journey/](research/notes/hotel-event-journey/) |
 | [research/stand-questions.md](research/stand-questions.md) | **Take this to the Valio Aimo stand:** the 15 questions only they can answer, in priority order |
 | [research/mentor-questions.md](research/mentor-questions.md) | The single list of 49 mentor questions, with what's already answered |
 | [docs/human-approval-rules.md](docs/human-approval-rules.md) | When the agent orders, asks a human, or blocks: allergen, recipe, quantity, timing, price and request rules (draft for the guardrails design) |

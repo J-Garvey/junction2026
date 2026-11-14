@@ -191,6 +191,7 @@ Full tables with counts and sources are in [docs/data-dictionary.md](docs/data-d
 - **Cut-offs:** each product shows its own closing time; deliveries come on agreed delivery days; confirmed orders can be edited until picking starts; recurring orders need 7 days to change; a public holiday adds a day. No category or route cut-off times are published. [SRC: FAQ][OPEN: Q37]
 - **Substitution:** the webshop suggests substitutes, and the customer decides. What happens at picking and how the customer is told is not published. [SRC: FAQ][OPEN: Q28, Q39]
 - **Customer-specific prices exist** in production ("net-priced products and discount levels by product group" in My Aimo; contract pricing at cash & carry). Whether chains or public kitchens are limited to a contract assortment is not published. [SRC: valioaimo.fi/en/become-a-customer/my-aimo.md][OPEN: Q7, Q35]
+- **Recipe to cart (My Aimo "Minun reseptit", announced 14 Jan 2026):** paste a recipe in; change portion size and count; add waste; a margin calculator; contract-priced products are suggested first; "add to cart" puts in the smallest sales unit that covers the need, and the cart and delivery date can then be edited. Valio Aimo built it after customer interviews found recipes kept in Word and Excel. Whether it scales by guest count or combines several recipes in one cart is not published. [SRC: valioaimo.fi/artikkelit/pinnalla-nyt/reseptisi-ja-katelaskenta-minun-aimossa/][OPEN]
 
 ## 6. Market facts used in the segment research
 
