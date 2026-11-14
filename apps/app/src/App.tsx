@@ -1,10 +1,10 @@
 /** Shell: sidebar or phone tabs, the "viewing as" switcher (TM-06), the top bar with the profile, the allergy banner,
  * and the person picker with the demo settings (test clock and reset). */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { NavLink, Route, Routes, useLocation } from "react-router";
+import { NavLink, Route, Routes, useLocation, useNavigate } from "react-router";
 import type { WarningRecord } from "@aimo/contracts";
 import { api, authHooks, type Outlet, type Person, type StatusResp, type SceneKey } from "./api";
-import { Ctx, type AppCtx } from "./ctx";
+import { Ctx, type AppCtx, useLoad } from "./ctx";
 import { Icon, Lockup, Mark, type IconName } from "./ui/icons";
 import { AllergyBanner } from "./ui/Banner";
 import { initials, when } from "./format";
@@ -112,7 +112,7 @@ export function App() {
   return (
     <Ctx.Provider value={ctx}>
       <div className="shell">
-        <Sidebar badge={badge} />
+        <Sidebar badge={badge} me={ctx.me} />
         <div className="main">
           <TopBar status={status} me={ctx.me} onSwitch={() => setNeedPick(true)} />
           <AllergyBanner warnings={warnings} />
@@ -140,10 +140,25 @@ export function App() {
   );
 }
 
-function Sidebar({ badge }: { badge: number }) {
+function Sidebar({ badge, me }: { badge: number; me: Person }) {
+  const loc = useLocation();
+  const basketId = loc.pathname.match(/^\/baskets\/([^/]+)$/)?.[1];
+
   return (
     <aside className="side">
-      <div className="side-brand"><Lockup /></div>
+      {basketId ? (
+        <OrderSwitcher currentId={decodeURIComponent(basketId)} />
+      ) : loc.pathname === "/" ? (
+        <div className="acct acct-static" title={`Viewing as ${me.name}`}>
+          <Mark s={20} />
+          <span>
+            <b>{me.name}</b>
+            <span className="small muted">{me.title}</span>
+          </span>
+        </div>
+      ) : (
+        <div className="side-brand"><Lockup /></div>
+      )}
       {NAV.map(([to, ic, l]) => (
         <NavLink key={to} to={to} end={to === "/"} className={({ isActive }) => (isActive ? "on" : "")}>
           <Icon n={ic} s={17} />
@@ -156,6 +171,27 @@ function Sidebar({ badge }: { badge: number }) {
         </NavLink>
       ))}
     </aside>
+  );
+}
+
+function OrderSwitcher({ currentId }: { currentId: string }) {
+  const nav = useNavigate();
+  const { data } = useLoad(() => api.baskets(), []);
+  const orders = [...(data?.baskets ?? [])].sort((a, b) => a.deliveryDate.localeCompare(b.deliveryDate));
+
+  return (
+    <label className="acct order-switcher" title="Switch order">
+      <Mark s={20} />
+      <select value={currentId} onChange={(e) => nav(`/baskets/${e.target.value}`)} aria-label="Current order">
+        {!orders.some((order) => order.id === currentId) && <option value={currentId}>Loading order…</option>}
+        {orders.map((order) => (
+          <option key={order.id} value={order.id}>
+            {order.name}
+          </option>
+        ))}
+      </select>
+      <Icon n="down" s={14} />
+    </label>
   );
 }
 

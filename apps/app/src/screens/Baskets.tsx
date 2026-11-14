@@ -1,5 +1,5 @@
 /** Order baskets: one tile per event (name + delivery date); inside, what is ordered, what waits, and a box to add more. */
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import type { Order, Plan, Question, SingleRequest, Unit } from "@aimo/contracts";
 import { api, type BasketPlan, type MessageResp } from "../api";
@@ -115,57 +115,6 @@ function NewBasketTile() {
   );
 }
 
-/** Top-left: the current order, with a dropdown to switch to another. */
-function BasketSwitcher({ current }: { current: { id: string; name: string; deliveryDate: string } }) {
-  const { data } = useLoad(() => api.baskets(), []);
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent | KeyboardEvent) => {
-      if (e instanceof KeyboardEvent ? e.key === "Escape" : !ref.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    document.addEventListener("keydown", close);
-    return () => {
-      document.removeEventListener("mousedown", close);
-      document.removeEventListener("keydown", close);
-    };
-  }, [open]);
-  const others = [...(data?.baskets ?? [])].sort((a, b) => a.deliveryDate.localeCompare(b.deliveryDate));
-
-  return (
-    <div className="bswitch" ref={ref}>
-      <button type="button" className="bswitch-btn" aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-        <span style={{ minWidth: 0 }}>
-          <span className="bswitch-name">{current.name}</span>
-          <span className="small muted">Delivery {day(current.deliveryDate)}</span>
-        </span>
-        <Icon n="down" s={16} />
-      </button>
-      {open && (
-        <div className="bswitch-menu" role="listbox" aria-label="Switch order">
-          {others.map((b) => (
-            <Link key={b.id} to={`/baskets/${b.id}`} role="option" aria-selected={b.id === current.id} className={b.id === current.id ? "on" : ""} onClick={() => setOpen(false)}>
-              <span style={{ flex: 1, minWidth: 0 }}>
-                <span className="trunc" style={{ display: "block", color: "var(--ink)", fontWeight: 600 }}>
-                  {b.name}
-                </span>
-                <span className="small muted">{day(b.deliveryDate)}</span>
-              </span>
-              {b.waiting > 0 && <span className="countb">{b.waiting}</span>}
-              {b.id === current.id && <Icon n="check" s={16} />}
-            </Link>
-          ))}
-          <Link to="/" className="all" onClick={() => setOpen(false)}>
-            <Icon n="plus" s={16} /> All orders · new order
-          </Link>
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function BasketPage() {
   const { me, people } = useApp();
   const { id } = useParams();
@@ -181,7 +130,7 @@ export function BasketPage() {
   return (
     <div className="page stack-l">
       <div className="bhead">
-        <BasketSwitcher current={{ id: ev.id, name: ev.name, deliveryDate: ev.serviceDate }} />
+        <h1>{ev.name}</h1>
         <div className="row small" style={{ gap: 12, marginLeft: "auto", flexWrap: "wrap" }}>
           {ev.dishes.length > 0 && <Link to={`/events/${ev.id}`}>Menu and guests</Link>}
           <Link to={`/audit?eventId=${ev.id}`}>Audit log</Link>
