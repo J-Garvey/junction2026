@@ -8,7 +8,7 @@ import { z } from "zod";
 import { AnswerBody, ClockSetBody, SingleRequest, DietGroup } from "@aimo/contracts";
 import { allPeople, getPerson, issueToken, resolveToken, tokenFrom, type Person } from "../identity.js";
 import { clockState, setClock, SCENES, now } from "../clock.js";
-import { audit, auditView, verifyChain, decisionCount } from "../audit.js";
+import { audit, auditView, verifyChain, decisionCount, SYSTEM } from "../audit.js";
 import { kvGet, kvSet } from "../db.js";
 import { RULES, FIXED } from "../rules/catalogue.js";
 import { getProduct, catalogSize } from "../catalog.js";
@@ -71,6 +71,19 @@ export function appRouter(): Router {
     if (!config.testMode) return res.status(403).json({ error: "Test mode only" });
     seedReset();
     res.json({ ok: true });
+  });
+
+  // CLOCK-SET: test mode only; moving the clock is its own audit entry. Sits before the session
+  // check so the demo settings on the person picker can move it; no session = system actor.
+  r.post("/clock", (req, res) => {
+    if (!config.testMode) return res.status(403).json({ error: "Test mode only" });
+    const b = ClockSetBody.parse(req.body);
+    const before = now().toISOString();
+    const s = setClock({ time: b.time, scene: b.scene });
+    if (b.scene) kvSet("dataMode", { mode: b.scene === "live" ? "live" : "fixture", overlay: b.scene === "4" ? "final-check" : null });
+    const id = resolveToken(tokenFrom(req));
+    audit({ actor: id?.kind === "person" ? personActor(id.person) : SYSTEM, action: "clock_moved", summary: `Clock moved from ${before} to ${now().toISOString()}${b.scene ? ` (${SCENES[b.scene]?.label ?? b.scene})` : ""}`, details: { scene: b.scene ?? null }, visibility: "shared" });
+    res.json({ clock: s, dataMode: kvGet("dataMode") });
   });
 
   r.use(person);
@@ -275,16 +288,6 @@ export function appRouter(): Router {
     res.json(p);
   });
 
-  // CLOCK-SET: test mode only; moving the clock is its own audit entry.
-  r.post("/clock", (req, res) => {
-    if (!config.testMode) return res.status(403).json({ error: "Test mode only" });
-    const b = ClockSetBody.parse(req.body);
-    const before = now().toISOString();
-    const s = setClock({ time: b.time, scene: b.scene });
-    if (b.scene) kvSet("dataMode", { mode: b.scene === "live" ? "live" : "fixture", overlay: b.scene === "4" ? "final-check" : null });
-    audit({ actor: personActor(P(req)), action: "clock_moved", summary: `Clock moved from ${before} to ${now().toISOString()}${b.scene ? ` (${SCENES[b.scene]?.label ?? b.scene})` : ""}`, details: { scene: b.scene ?? null }, visibility: "shared" });
-    res.json({ clock: s, dataMode: kvGet("dataMode") });
-  });
   // Demo-only safety drill (docs/demo-plan.md): a script posing as an outside agent sends an
   // order over the budget with no approval. Not part of the product; it shows a real refusal.
   r.post("/drill", async (_req, res) => {
