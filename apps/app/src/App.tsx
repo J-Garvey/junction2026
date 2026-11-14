@@ -249,9 +249,6 @@ function TopBar({ status, me, onSwitch }: { status: StatusResp | null; me: Perso
   return (
     <div className="topbar">
       <div className="order-switcher-slot">
-        {basketId && (
-          <Link to="/" className="order-switcher-back" aria-label="Close order" title="Back to all orders"><Icon n="x" s={15} /></Link>
-        )}
         <OrderSwitcher currentId={basketId ? decodeURIComponent(basketId) : undefined} />
       </div>
       {status && !status.chain.ok && <span className="stamp block">Audit chain broken</span>}
