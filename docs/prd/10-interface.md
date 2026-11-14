@@ -28,7 +28,7 @@ Related interface stories live with the behaviour they show: request chips in ch
 - **Type to ask, tap to decide.** [D26]
 - **Compact by default, detail on tap.** [D26]
 - **One set of status labels on every screen**, always with words, never colour alone. [UI-06]
-- **Gaps sit above what's fine.** Blocked, unresolved and at-risk lines come first, and a summary never says "covered" while a line is at risk. [UI-08]
+- **Gaps sit above what's fine.** Blocked, unresolved and unconfirmed-stock lines come first, and a summary never says "covered" alone while a line's stock is unconfirmed. [UI-08]
 - **An unresolved allergy conflict shows a warning on every screen** until someone resolves it. [D28, chunk 07 Q07.10]
 - **One page per event** with its menu, order, open questions and a timeline of the four scenes. [UI-07]
 - **One React and Vite app**, responsive, packaged for phones with Capacitor. [TechStack]
@@ -64,8 +64,7 @@ This chunk has no functions of its own. Its screens call the functions in the ot
 | Covered | Passes every check |
 | Check | Amber: a caveat, with its reason |
 | Not available | Red: nothing passes |
-| Unknown stock, with a warning mark | Valio Aimo can't confirm stock. Always shown as a warning, never as a plain label (D23) |
-| Covered at risk, with a warning mark | Unknown stock, risk accepted. The warning stays |
+| Stock not confirmed | Valio Aimo can't confirm stock. A plain label, not a warning. The person building the order was asked and chose to continue (D31) |
 | Waiting for [role] | An open question |
 | Blocked | A hard rule; no approve option |
 | Unresolved | Unanswered at the cut-off |

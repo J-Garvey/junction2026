@@ -12,7 +12,7 @@
 | ID | Tier | Story |
 |---|---|---|
 | CH-02 | P0 | See every line as green, amber or red months ahead so that I know whether I can realistically make the menu from Valio Aimo goods |
-| CH-05 | P0 | Still see products with unknown stock, flagged as unknown and needing approval, so that I keep options without ever mistaking them for confirmed stock |
+| CH-05 | P0 | Be asked whether to continue when a product's stock can't be confirmed so that I keep the option without ever mistaking it for confirmed stock |
 | CH-17 | P1 | Have delivery planned for when prep starts, including thawing, not just for the service date, so that frozen and long-prep items arrive in time |
 | SF-07 | P0 | Use real stock straight away when the delivery date is inside the lead time so that urgent requests are checked against what can actually ship |
 | AP-14 | P1 | Be asked when lines can't all arrive on one agreed delivery day so that I choose between a split delivery and a different product |
@@ -25,7 +25,7 @@
   - Red: nothing passes the diet rules, or nothing is deliverable.
 - **Stock counts only close to delivery.** Until then it is shown as "today's stock, not a promise for your date". [D8]
 - **Inside the lead time, real stock is used straight away** (SF-07). This is what the milk request needs.
-- **Unknown stock is suggested, never confirmed, and always carries a warning** (D23, made louder in review). It ranks below real stock. It is labelled "unknown stock" and shows a warning wherever it appears, not only a label. It needs the Approver to accept the risk. At the final check it reads "covered at risk", still with the warning.
+- **Unconfirmed stock is a question, never a block and never confirmed** (D31, which replaces D23). It ranks below real stock. When such a product is picked, the person building the order is asked "Valio Aimo can't confirm stock for [product]. Continue with it?" and can continue or pick another. The Approver is not asked. The line is labelled "stock not confirmed" everywhere, including after the final check.
 - **A past cut-off is always caught by us**, because the mock still shows a Monday delivery after a cut-off has passed. [GROUND_TRUTH 3]
 - **Delivery is planned for when prep starts**, including thawing, not for the service date. [CH-17]
 
@@ -64,8 +64,8 @@ Each function is one problem that can be built and tested alone. "Deterministic 
 - Recommended: below 0.80, the line also raises a question when the order is placed: "This product was delivered as ordered only X% of the time. Order it anyway?"
 - **Answer:** **Answered** (Darragh, 14 Nov): yes, but the threshold is **90%**: below 90% delivered as ordered, ordering asks. This is a default and must be easy to change, especially from the place where the line is flagged.
 
-**Q04.6 Once the Approver accepts unknown stock, does the final check ask again?**
-- Recommended: no. The acceptance stays with the line. The final check restates it as "covered at risk, accepted by [person] on [date]". It asks again only if the product or quantity changed.
+**Q04.6 Once someone continues with unconfirmed stock, does the final check ask again?** (Reworded on 14 Nov for D31. Darragh's answer was given to the earlier wording and still applies.)
+- Recommended: no. The choice stays with the line. The final check restates it as "stock not confirmed, continued by [person] on [date]". It asks again only if the product or quantity changed.
 - **Answer:** **Answered** (Darragh, 14 Nov): check again on the **last day the line can still be changed**. Unless something major has changed, it approves automatically.
 
 **Q04.7 What are the options when lines can't all arrive on one day?** (AP-14)
@@ -90,5 +90,5 @@ Each function is one problem that can be built and tested alone. "Deterministic 
 
 - The seed event shows at least one green, one amber and one red line months ahead, each with its reason.
 - The milk request "by Monday" is checked against real stock at once.
-- A Terminal product appears as "unknown stock" and never as available.
+- A Terminal product appears as "stock not confirmed" and never as available.
 - A frozen line's delivery is planned two days before service.

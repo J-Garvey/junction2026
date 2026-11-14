@@ -180,9 +180,10 @@ Don't call the decision model deterministic. It returns a probability, not a gua
 
 ## Where this differs from the PRD
 
+The stock question in this plan (Aino is asked and can continue) is now also the PRD's rule, as decision D31.
+
 | In this plan | In the PRD today |
 |---|---|
-| Unconfirmed stock is a **question** the person can continue past, and Aino answers it | D23 says it always shows as a **warning** and the Approver accepts the risk (story AP-13). The two need to be reconciled |
 | "Finnish fish only" is shown | Story CH-16, which is P1, not P0 |
 | Carbon is shown on each line | An add-on (VA-A3, PF-A1) with no owner. The data is a product-group average for about 63% of products and must be labelled that way |
 | The Reads, Judges, Decides strip | Not in any story |
@@ -210,7 +211,6 @@ The four to protect: the plain-words line, the booking placed inside Sanna's rul
 
 | Question | Who |
 |---|---|
-| Whether D23 and story AP-13 change to match the stock question in this plan | Jack, then the team |
 | Whether a Saturday wedding is worth changing the agreed clock for | Ben |
 | The menu's other lines, the recipes and the amounts per guest | Ben and Jack |
 | The exact budget, once the booking's real total is known | Ben, with Darragh |
