@@ -16,7 +16,7 @@ For development, `pnpm dev` runs the API with `tsx watch` and the Vite app on po
 
 | Command | What it does |
 |---|---|
-| `pnpm test` | 28 tests: rule units and the three PRD test cases end to end, twice from a fresh reset |
+| `pnpm test` | 31 tests: rule units, the three PRD test cases end to end (the wedding twice from a fresh reset), and signature checks |
 | `pnpm seed` | Fresh database: one hotel, four people, the mandate, the event, clock at scene 1 |
 | `pnpm agent:demo` | An outside agent that uses only `/openapi.json` and its token: search, quote, order, retry, and the refusals |
 | `pnpm fixtures:record` | Saves real mock responses for the seed pool to `data/fixtures/aimo/base.json` |
@@ -56,23 +56,42 @@ packages/contracts   Zod schemas: the gateway contract and /openapi.json come fr
 - **One audit log, hash-chained.** Valio Aimo's view (`viewer=valio`, or the `valio_demo_viewer` token) shows only entries tagged `shared`, without dish, guest or preference details.
 - **OpenAI sits only at the edges.** It parses free text into the request object and answers bounded yes/no questions such as "is this plain drinking milk?". It never decides a hard rule. A probability of 0.90 or more counts as a fact, 0.10 or less rejects, and anything between asks a person. Answers are stored and reused. Verified data wins: the hand-checked classification of the 35 lactose-free milks (research/03) overrides the model.
 
-## Seed data (fixture)
+## Open standards
 
-Everything below is demo data and is labelled as a fixture on screen.
+| Standard | Where |
+|---|---|
+| OpenAPI 3.1 | `/openapi.json`, generated from the Zod schemas that validate requests |
+| JWS (RFC 7515), ES256 (RFC 7518), JWT claims (RFC 7519) | Every quote, order, approval and the standing mandate carries a compact JWS, typed `aimo-quote+jwt`, `aimo-order+jwt`, `aimo-approval+jwt`, `aimo-mandate+jwt` (RFC 8725 §3.11) |
+| JWKS (RFC 7517), key thumbprint (RFC 7638) | `/.well-known/jwks.json`. Public: any agent verifies without a shared secret. Checked with the `jose` library and with plain `node:crypto` in `pnpm agent:demo` |
+| API catalog (RFC 9727) | `/.well-known/api-catalog` links the spec, docs, status and keys |
+| AP2 v0.2 (Agent Payments Protocol), aligned, not certified | Quote `jws` = merchant-signed `checkout_jwt`; `checkoutHash` = `checkout_hash`; approval = closed Checkout Mandate (`vct: mandate.checkout.1`); order `jws` = Checkout Receipt (`status`, `reference`, `order_id`). No Payment Mandates: B2B is invoiced on account. Our standing mandate (cap, sites, tolerances) and approval `grants` are extensions; AP2 has no fields for them. Deviation: AP2 has the user sign the closed mandate on a trusted surface; here the gateway signs it as the record of the approver's authenticated decision (production path: the approver's own passkey) |
+| Peppol BIS Ordering 3 (UBL 2.1 Order, T01) | `GET /gateway/v1/orders/{id}/peppol`. The wedding order passes the OASIS UBL 2.1 schema and all 54 OpenPEPPOL T01 schematron rules that fire (example: `docs/examples/wedding-order.peppol.xml`). Units map to UN/ECE Rec 20/21 (`EA`, `KGM`, `LTR`, `XCS`, …); outlets go in `AccountingCost` for the cost split. Party IDs (OVT, EAS 0216) are demo values |
+| GS1 allergen codes | Allergies name families: tree nuts (AN) also catch almond (SA) and the other nuts; gluten (AW) catches wheat, rye and the rest. "Free from" never outweighs "contains" |
 
-- **Hotel Aurora** (fictional), one delivery site, two outlets: Banquet kitchen and Lobby bar.
-- **People:** Anna Virtanen (banquet chef), Mikko Laine (bar manager, chef role for the bar), Sara Nieminen and Jonas Berg (approvers for the whole hotel).
-- **Mandate:** €5,000 per order before VAT, Monday to Friday deliveries, overshoot asks above both 10% and €25, guest changes within ±5% need no question, price rise tolerance 5%.
-- **Event:** Nordic Health Summit gala dinner, Wed 18 Nov 2026, 500 guests: 40 lactose-free, 20 gluten-free, 8 vegan. Salmon soup, bread and butter, cloudberry cream with gingerbread (banquet), coffee service (bar). All products are real catalogue items.
-- **Fixtures:** `data/fixtures/aimo/base.json` holds real mock responses for 1,096 products, recorded 14 Nov. `overlay-final-check.json` lowers one product's stock (464727, 37 → 10) to make the final-check shortfall.
+Not claimed: A2A (no A2A endpoint behind an Agent Card), UCP or ACP checkout, MCP (out of scope in the brief).
 
-## The three test cases
+## Seed data (fixture): the wedding
 
-| Case | What happens | Human decisions |
-|---|---|---|
-| Milk: "1,000 L of lactose-free milk by Monday" | Inside the lead time, so real stock counts. Real stock covers 435 L (469363: 384, 462775: 51). The other 565 L come from 464306, which has unknown stock. Coffee milks, portion creamers and piimä are left out by type. | 1 (Approver: approve the split and accept the risk) |
-| Hotel event, four scenes | 1: 5 green, 5 amber, 1 red (no vegan coffee milk in the category). 2: the red line blocks the order until the bar manager removes it; one Approver card accepts unknown stock on 4 lines; ordered for €1,307.63. 3: 510 guests amends with no question; 600 asks once; a fish allergy for 12 raises the D28 warning on the salmon and the line stays. 4: the final check finds the whipping cream short, the chef gets a side-by-side with Sun 17:00 as the deadline, and the substitute is applied and remembered. At the cut-off the allergy line is flagged to Valio Aimo. | 3, plus 2 confirmations |
-| Blocked paths | A Terminal product whose cut-off has passed is refused (`cutoff_passed`), even though the mock shows Monday. A product without the required diet claim can't be approved (`hard_rule`). An order over the cap is refused, then accepted with a bound approval. | none can push them through |
+The seed is [docs/demo-plan.md](demo-plan.md): Emma and Lauri's wedding at Demo Hotel, 180 guests, Tue 17 Nov 2026. Aino (head chef), Sanna (finance manager, €1,950 budget), Katri (Valio Aimo, the read-only audit view). Mikko and Jonas are extra people so routing and first-answer-wins can be shown. Seven real menu lines; frozen lines thaw overnight (a recipe override of Q04.3's two-day default). Fixtures in `data/fixtures/aimo/base.json` are real mock responses for 1,581 products; the final-check shortfall uses the real stock (37 L of cream).
+
+What a full run gives (`pnpm test`, and by hand on the preview):
+
+| Beat | Result |
+|---|---|
+| Booking | Quantities 31 kg, 3, 45, 12, 1, 40, 5; €2,003.37, as in the plan. Aino gets one question for 4 lines with stock not confirmed (D31) and continues; Sanna gets one card, €53.37 over budget |
+| Two weeks out | 194 guests and Onni's tree-nut allergy in one step. The allergy is checked first and the change waits: the princess cake contains almond. Aino replaces it for everyone; Sanna approves the whole change on one card |
+| Before the cut-off | 188 guests: applied with no question (inside 5%). Final check: cream 37 in stock for 47 ordered. Aino keeps the 37 and adds 10 L of Valio cream. Result: "Ready · 5 stock not confirmed" |
+| Safety drill | Demo-only button: an outside agent orders over budget with no approval; the gateway refuses with `mandate_violation` |
+
+Where the build differs from the demo plan, by rule:
+
+- **The potatoes also stop on Onni's allergy.** Product 460541 has no allergen declaration, and the approval rules say a missing declaration is never safe for an allergy. Aino gives Onni another side. The team can pick a potato product with a declaration, or decide fresh single-ingredient produce is exempt.
+- **The replacement cake is the agent's top pick, not fixed to 473522.** The card offers the best two that declare themselves free from tree nuts and are cakes (today: Fazer gluten-free caramel cake first). So totals after the change differ from the plan by a few euros.
+- **The coffee case overshoots** (4.4 kg for 1.8 kg, over 10% and €25), so Sanna's first card also names it.
+
+## The milk request (PRD test case 2)
+
+D32 picks Valio Eila (464306): best on reliability (1.0) and price (€1.01/L). Its stock is not confirmed, so the chef is asked to continue (D31), with the confirmed-stock split as the alternative: 435 of 1,000 L from 469363 and 462775, which then goes to the Approver as a partial fill.
 
 ## Answers the build had to choose
 
@@ -86,18 +105,19 @@ The PRD left these open. Each choice follows the chunk's recommended answer unle
 | Q02.1 Shortlist | A recipe-approved product is used when it passes every hard rule. Otherwise the line searches its category plus claims, capped at 50. |
 | Q02.3 Diet table | Claim first. Without the claim, a diet passes "by declaration" (DIET-05) only when the product has allergen data and none of the relevant codes (lactose: AM, ML; gluten: AW, UW, GB, NR, GO, GS, GK). Vegan needs the claim. |
 | Q02.4 Reliability | Three bands as recommended. |
-| SF-06 ranking | As written, with one clarification: the stock step counts only inside the lead time, because months ahead stock says nothing about the date (D8). |
+| SF-06 ranking (D32) | Recipe-approved product, delivery reliability band, price per kg or L, then confirmed stock as the last tie-break, then product ID. |
 | Q03.2 Overshoot | Ask only above both 10% and €25. |
 | Q04.1 Urgent | 4 days or fewer to the needed-by date. |
 | Q04.3 Needed-by | 1 day before service; 2 for frozen (temperature class 7); then back to a delivery day. |
-| Q04.6 Accepted risk | Stays with the line and carries over through changes within the guest tolerance (at least one pack). A larger change asks again. |
+| Q04.6 Unconfirmed stock (D31) | The person building the order decides once per product; the choice stays with the product through later changes. The gateway refuses an order with unconfirmed stock unless the order names those products (`continueWithUnconfirmedStock`) and who chose. |
 | Q05.5 Policy language | Plain JSON thresholds checked in TypeScript. CEL is the production path. |
 | Q06.3 Grouping | One chef card per question type, one Approver card per quote covering every money and policy item, so the ideal run is one yes. |
 | Q08.3 Quote validity | Until the earliest cut-off, at most 24 hours. |
 | Q08.6 AP2 | AP2-style, not conformant: a signed standing mandate and a signed per-quote approval. |
 | Q08.8 Stock | Simulated orders don't reduce upstream stock. |
 | Q09.3 Tamper evidence | Each audit entry stores the hash of the one before it. `chain.ok` is shown on the audit screen. |
-| Q11.2 Clock | Scene 1 and 2: 14 Aug 2026. Scene 3: 30 Oct. Scene 4: Sat 14 Nov 17:00, 24 hours before the main cut-off. Delivery Mon 16 Nov, service Wed 18 Nov (moved from Tue 17 so frozen salmon can thaw and still arrive on the mock's Monday). |
+| Q11.2 Clock | Scene 1 and 2: 14 Aug 2026. Scene 3: Fri 30 Oct. Scene 4: Sat 14 Nov 17:00, 24 hours before the main cut-off. Delivery Mon 16 Nov, service Tue 17 Nov. |
+| Spend cap on amendments | An approval covers the order up to its total. An amendment needs a new one only when it raises the total above both the cap and the approved total. |
 
 ## Not built yet
 

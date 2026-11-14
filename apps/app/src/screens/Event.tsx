@@ -33,7 +33,8 @@ export function Events() {
   );
 }
 
-const FISH = { id: "fish", label: "Fish allergy", count: 12, constraints: { claims: [] as string[], avoidAllergens: ["AF"], labels: [] as string[] }, standing: false };
+/** docs/demo-plan.md: Onni, six, added two weeks before the wedding, allergic to tree nuts. */
+const ONNI = { id: "onni", label: "Tree nuts (Onni)", count: 1, constraints: { claims: [] as string[], avoidAllergens: ["AN"], labels: [] as string[] }, standing: false };
 
 export function EventPage() {
   const { id } = useParams();
@@ -46,6 +47,8 @@ export function EventPage() {
   const [msg, setMsg] = useState<{ cls: string; text: string } | null>(null);
   const [change, setChange] = useState<ChangeResp | null>(null);
   const [guests, setGuests] = useState<number | "">("");
+    const [addOnni, setAddOnni] = useState(false);
+    const [drill, setDrill] = useState<string | null>(null);
   const [conflict, setConflict] = useState<{ current: StoredEvent; retry: (v: number) => Promise<unknown> } | null>(null);
 
   if (error && !data) return <div className="callout red">{error}</div>;
@@ -76,12 +79,13 @@ export function EventPage() {
 
   const changeDone = (r: ChangeResp) => {
     setChange(r);
-    setMsg({ cls: r.applied ? "green" : "yellow", text: r.applied ? "Applied" : "Sent for approval" });
+    setMsg({ cls: r.applied ? "green" : "yellow", text: r.applied ? "Applied" : (r as { held?: boolean }).held ? "Allergy first" : "Sent for approval" });
   };
 
   // Guarded edits take the version, so a conflict can retry with the current one.
   const doGuests = (ver: number) => api.guests(ev.id, Number(guests), ver);
-  const doFish = (ver: number) => api.dietGroup(ev.id, FISH, ver);
+  const doChange = (ver: number) => api.change(ev.id, { guests: guests === "" ? undefined : Number(guests), group: addOnni ? ONNI : undefined }, ver);
+    const changeScene = (status?.clock.scene === "4" ? "4" : "3") as SceneKey;
   async function removeWith(l: PlanLine, ver: number) {
     for (const n of l.needIds) {
       const r = await api.removeNeed(ev.id, n, ver);
@@ -97,6 +101,8 @@ export function EventPage() {
     try {
       if (status?.clock.scene !== scene) await api.clock(scene);
       changeDone(await fn(ev.version));
+      setGuests("");
+      setAddOnni(false);
       reload();
       refresh();
     } catch (e) {
@@ -150,12 +156,15 @@ export function EventPage() {
         <SceneCard n="3" title="Change" time={sc?.["3"]?.time} on={status?.clock.scene === "3"}>
           <div className="row" style={{ gap: 6 }}>
             <input type="number" min={0} placeholder={String(ev.guests)} value={guests} onChange={(e) => setGuests(e.target.value === "" ? "" : Number(e.target.value))} aria-label="New guest count" className="sminput" />
-            <button type="button" className="btn sm" disabled={!!busy || guests === ""} onClick={() => guarded("guests", doGuests, "3")}>
-              {busy === "guests" ? "…" : "Set"}
-            </button>
+            <span className="small muted">guests</span>
           </div>
-          <button type="button" className="btn sm" disabled={!!busy || ev.dietGroups.some((g) => g.id === "fish")} onClick={() => guarded("fish", doFish, "3")}>
-            {busy === "fish" ? "…" : "+ Fish allergy (12)"}
+          {!ev.dietGroups.some((g) => g.id === "onni") && (
+            <label className="row small" style={{ gap: 6 }}>
+              <input type="checkbox" checked={addOnni} onChange={(e) => setAddOnni(e.target.checked)} /> Onni: tree nuts
+            </label>
+          )}
+          <button type="button" className="btn sm" disabled={!!busy || (guests === "" && !addOnni)} onClick={() => guarded("chg", doChange, changeScene)}>
+            {busy === "chg" ? "…" : "Apply"}
           </button>
         </SceneCard>
         <SceneCard n="4" title="Final check" time={sc?.["4"]?.time} on={status?.clock.scene === "4"}>
@@ -216,7 +225,16 @@ export function EventPage() {
             </Section>
           )}
           <Section
-            title={data.orderPlan ? "Order" : "Viability"}
+            title={
+              <>
+                {data.orderPlan ? "Order" : "Viability"}
+                {plan.timings && (
+                  <span className="small muted" style={{ fontWeight: 400, marginLeft: 8 }} title="Measured while the agent ran">
+                    {plan.timings.products} products checked in {(plan.timings.totalMs / 1000).toFixed(1)} s
+                  </span>
+                )}
+              </>
+            }
             aside={
               <div className="seg">
                 <button type="button" className={v === "dish" ? "on" : ""} onClick={() => setView("dish")}>
@@ -265,9 +283,21 @@ export function EventPage() {
         </Section>
       )}
 
-      <Link to={`/audit?eventId=${ev.id}`} className="small">
-        Audit log
-      </Link>
+      <div className="row small" style={{ gap: 12, flexWrap: "wrap" }}>
+        <Link to={`/audit?eventId=${ev.id}`}>Audit log</Link>
+        <button
+          type="button"
+          className="btn sm ghost drillbtn"
+          title="Not part of the product. A script posing as an outside agent sends an order over budget with no approval."
+          onClick={async () => {
+            const r = await api.drill();
+            setDrill(`Demo only · outside agent asked for ${r.quote.total.toFixed(2)} € with no approval (budget ${r.quote.cap} €). Gateway: HTTP ${r.status} ${r.refusal.error}`);
+          }}
+        >
+          Demo only: safety drill
+        </button>
+      </div>
+      {drill && <div className="callout red small drillout">{drill}</div>}
     </div>
   );
 }

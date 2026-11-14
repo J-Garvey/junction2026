@@ -269,6 +269,8 @@ function makeLine(c: Candidate, needs: Need[], needValue: number, quantity: numb
   if (c.stock.kind === "unknown") rules.push(fire("STK-01", { product: c.name, productId: c.productId, reason: c.stock.reason === "terminal_sentinel" ? "Terminal product, ships from the supplier" : "stock placeholder value" }));
   else if (allocation === "primary" && needs.every((n) => !isUrgentDate(n.neededBy))) rules.push(fire("STK-05", { product: c.name, stock: c.stock.kind === "known" ? `${c.stock.amount} ${c.salesUnit ?? ""}` : "none" }));
   const dedup = [...new Map(rules.map((r) => [`${r.ruleId}|${JSON.stringify(r.facts)}`, r])).values()];
+  const prod = getProduct(c.productId);
+  const massKg = c.packContent && c.packContent.unit !== "pcs" ? c.packContent.value * quantity : null;
   const lineTotal = c.unitPrice === null ? null : round2(c.unitPrice * quantity);
   return {
     id: `${c.productId}|${needs[0].outletId}|${allocation}`,
@@ -296,12 +298,14 @@ function makeLine(c: Candidate, needs: Need[], needValue: number, quantity: numb
     allocation,
     riskAccepted: null,
     removed: false,
+    co2Kg: prod?.co2KgPerKg != null && massKg !== null ? round2(prod.co2KgPerKg * massKg) : null,
   };
 }
 
 // ---------- the pipeline ----------
 
 export async function runPipeline(plan: StoredPlan): Promise<StoredPlan> {
+  const t0 = performance.now();
   const m = mandate();
   const ov = plan.overrides;
   let needs: Need[];
@@ -326,6 +330,7 @@ export async function runPipeline(plan: StoredPlan): Promise<StoredPlan> {
   plan.neededBy = plan.kind === "single" ? plan.request!.neededBy : dates[0] ?? null;
   plan.urgent = plan.kind === "single" ? isUrgentDate(deliveryDate) : isUrgentDate(dates[0] ?? null);
   const pool: Pool = new Map();
+  const tLookup = performance.now();
   if (ids.length && deliveryDate) {
     const r = await gw.lookup(ids, deliveryDate);
     for (const l of r.lines) pool.set(l.productId, l);
@@ -338,6 +343,7 @@ export async function runPipeline(plan: StoredPlan): Promise<StoredPlan> {
     // A chef's confirmation removes the type question for that product.
     for (const c of n.candidates) if (ov.confirmed.includes(`${n.id}:${c.productId}`)) c.notes = c.notes.filter((r) => r.ruleId !== "TYP-01");
   }
+  const tRank = performance.now();
   plan.needs = needs;
   const built = buildLines(needs, plan.urgent && !ov.stockBlind, ov, m);
   for (const l of built.lines) {
@@ -347,6 +353,8 @@ export async function runPipeline(plan: StoredPlan): Promise<StoredPlan> {
   plan.lines = built.lines;
   plan.shortfall = built.shortfall;
   plan.usesFixtures = built.lines.some((l) => l.source === "fixture");
+  const tEnd = performance.now();
+  plan.timings = { products: ids.length, lookupMs: Math.round(tRank - tLookup), rankMs: Math.round(tEnd - tRank), totalMs: Math.round(tEnd - t0) };
   for (const n of needs.filter((x) => x.judgements.length)) audit({
     actor: AGENT, action: "model_judgement", summary: `Type check for ${n.label}: ${n.judgements.length} products judged`, eventId: plan.eventId,
     judgements: n.judgements, details: { planId: plan.id, needId: n.id }, visibility: "hotel",

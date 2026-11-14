@@ -40,7 +40,14 @@ export function LineRow({ plan, line, warnings, onRemove, showPrice = true, shar
         </Pop>
         {(() => {
           const r = line.rules.find((x) => x.outcome !== "order" && x.ruleId !== "STK-01");
-          return r ? <div className="small muted trunc" title={r.message}>{r.label ?? r.ruleId}</div> : null;
+          const co2 = line.co2Kg != null ? `≈ ${Math.round(line.co2Kg)} kg CO₂e` : null;
+          return r || co2 ? (
+            <div className="small muted trunc">
+              {r && <span title={r.message}>{r.label ?? r.ruleId}</span>}
+              {r && co2 ? " · " : ""}
+              {co2 && <span title="Product-group average, not this product's own figure (63% of products have one)">{co2}</span>}
+            </div>
+          ) : null;
         })()}
       </div>
       <div className="pline-q num">

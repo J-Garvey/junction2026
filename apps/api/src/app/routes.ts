@@ -188,6 +188,15 @@ export function appRouter(): Router {
     audit({ actor: personActor(P(req)), action: "clock_moved", summary: `Clock moved from ${before} to ${now().toISOString()}${b.scene ? ` (${SCENES[b.scene]?.label ?? b.scene})` : ""}`, details: { scene: b.scene ?? null }, visibility: "shared" });
     res.json({ clock: s, dataMode: kvGet("dataMode") });
   });
+  // Demo-only safety drill (docs/demo-plan.md): a script posing as an outside agent sends an
+  // order over the budget with no approval. Not part of the product; it shows a real refusal.
+  r.post("/drill", async (_req, res) => {
+    const H = { "Content-Type": "application/json", Authorization: `Bearer ${OUTSIDE_AGENT_TOKEN}`, ...(process.env.PREVIEW_PASSWORD ? { "X-Preview-Password": process.env.PREVIEW_PASSWORD } : {}) };
+    const m = mandate();
+    const q = (await (await fetch(`${config.gatewayUrl}/quotes`, { method: "POST", headers: H, body: JSON.stringify({ siteId: m.sites[0].id, deliveryDate: "2026-11-16", lines: [{ productId: "469672", quantity: 80, outletId: "banquet" }] }) })).json()) as any;
+    const o = await fetch(`${config.gatewayUrl}/orders`, { method: "POST", headers: { ...H, "Idempotency-Key": `drill-${q.id}` }, body: JSON.stringify({ quoteId: q.id }) });
+    res.json({ quote: { id: q.id, total: q.totalExVat, cap: m.spendCapEur }, status: o.status, refusal: await o.json() });
+  });
   r.post("/data-mode", (req, res) => {
     const b = z.object({ mode: z.enum(["live", "fixture"]), overlay: z.string().nullable().default(null) }).parse(req.body);
     kvSet("dataMode", b);

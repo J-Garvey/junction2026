@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { Product, ProductSearchQuery } from "@aimo/contracts";
 import { config } from "./config.js";
+import { registerBrand } from "./util.js";
 
 type Raw = Record<string, any>;
 
@@ -57,7 +58,9 @@ export function loadCatalog() {
     if (!line.trim()) continue;
     const p = JSON.parse(line);
     raw.set(String(p.id), p);
-    products.set(String(p.id), toProduct(p, ingredients));
+    const prod = toProduct(p, ingredients);
+    products.set(String(p.id), prod);
+    registerBrand(prod.name, prod.brand);
   }
 }
 

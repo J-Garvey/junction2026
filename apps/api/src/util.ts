@@ -42,17 +42,36 @@ export function fmtHelsinki(iso: string | Date, withTime = true): string {
 
 export const eur = (n: number) => `€${n.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-/** A product name short enough for one line: sizes, pack codes and marks dropped, at most three words. */
+const brandByName = new Map<string, string>();
+/** The catalogue registers each product's brand so short names can drop it. */
+export function registerBrand(name: string, brand: string | null) {
+  if (brand) brandByName.set(name, brand);
+}
+
+/**
+ * A product name short enough for one line: the brand, sizes, pack codes and marks
+ * dropped, all-caps names in sentence case, at most three words.
+ */
 export function shortName(name: string): string {
-  const s = name
+  let s = name;
+  const brand = brandByName.get(name);
+  // A one-word brand (Valio, Arla) tells similar products apart, so it stays; a longer one is dropped.
+  if (brand && brand.trim().includes(" ") && s.toLowerCase().startsWith(brand.toLowerCase()) && s.length > brand.length + 3) s = s.slice(brand.length);
+  s = s
     .replace(/[®™]/g, "")
     // Marketing sub-brands that crowd out the product (e.g. "Hyvä suomalainen Arki").
     .replace(/\b(Hyvä suomalainen|Arki|Keittiön|food service)\b/gi, "")
-    .replace(/^\d+\s*x\s*/i, "")
+    .replace(/^\s*\d+\s*x\s*/i, "")
     .replace(/\b\d+([.,]\d+)?\s*(x\s*\d+([.,]\d+)?\s*)?(l|dl|ml|cl|g|kg|%|pcs|kpl)\b/gi, "")
+    .replace(/\bready to (eat|use|serve)\b/gi, "")
     .replace(/\b(UHT|ESL|appr\.?|approx\.?|ca\.?)\b/gi, "")
+    .replace(/\d+([.,]\d+)?\s*vol-?%/gi, "")
+    .replace(/\b[A-Z]{2}\b(?=\s)/g, "")
     .replace(/[,(].*$/, "")
+    .replace(/^\s*[A-Z]{1,3}\s+(?=[A-Z]{3,})/, "")
     .replace(/\s+/g, " ")
     .trim();
-  return s.split(" ").slice(0, 3).join(" ") || name;
+  if (s === s.toUpperCase() && /[A-Z]{3,}/.test(s)) s = s.charAt(0) + s.slice(1).toLowerCase();
+  const out = s.split(" ").slice(0, 3).join(" ");
+  return out ? out.charAt(0).toUpperCase() + out.slice(1) : name;
 }

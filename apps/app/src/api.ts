@@ -233,6 +233,8 @@ export const api = {
   removeNeed: (id: string, needId: string, version: number) => post<{ event: StoredEvent }>(`/api/events/${id}/remove-need`, { needId, version }),
   guests: (id: string, guests: number, version: number) => post<ChangeResp>(`/api/events/${id}/guests`, { guests, version }),
   dietGroup: (id: string, group: DietGroup, version: number) => post<ChangeResp>(`/api/events/${id}/diet-groups`, { group, version }),
+  change: (id: string, body: { guests?: number; group?: DietGroup }, version: number) => post<ChangeResp & { held?: boolean }>(`/api/events/${id}/change`, { ...body, version }),
+  drill: () => post<{ quote: { id: string; total: number; cap: number }; status: number; refusal: { error: string; message: string } }>(`/api/drill`, {}),
   orders: (eventId?: string) => get<OrdersResp>(`/api/orders${eventId ? `?eventId=${encodeURIComponent(eventId)}` : ""}`),
   audit: (viewer: "hotel" | "valio", eventId?: string) => get<AuditResp>(`/api/audit?viewer=${viewer}${eventId ? `&eventId=${encodeURIComponent(eventId)}` : ""}`),
   rules: () => get<RulesResp>("/api/rules"),

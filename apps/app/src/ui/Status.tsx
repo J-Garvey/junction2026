@@ -6,11 +6,11 @@ import type { CoverageLevel } from "../api";
 type Kind = StatusLabel | "fixture" | "ordered" | "needs_input";
 
 const DEF: Record<Kind, { text: string; cls: string; warn?: boolean }> = {
-  covered: { text: "Covered", cls: "order" },
+  covered: { text: "Ready", cls: "order" },
   check: { text: "Check", cls: "ask" },
   not_available: { text: "Not available", cls: "block" },
-  unknown_stock: { text: "Unknown stock", cls: "ask", warn: true },
-  covered_at_risk: { text: "Covered at risk", cls: "ask", warn: true },
+  unknown_stock: { text: "Stock not confirmed", cls: "unknown" },
+  covered_at_risk: { text: "Stock not confirmed", cls: "unknown" },
   waiting: { text: "Waiting", cls: "ask" },
   blocked: { text: "Blocked", cls: "block" },
   unresolved: { text: "Unresolved", cls: "block" },
@@ -69,13 +69,13 @@ export const PLAN_STATUS_TEXT: Record<string, string> = {
 };
 
 export function CoverageLine({ level, text }: { level: CoverageLevel; text: string }) {
-  const k: Kind = level === "covered" ? "covered" : level === "at_risk" ? "covered_at_risk" : level === "warning" ? "allergy_warning" : level === "not_covered" ? "check" : "check";
+  const k: Kind = level === "covered" || level === "at_risk" ? "covered" : level === "warning" ? "allergy_warning" : level === "not_covered" ? "check" : "check";
   return (
     <span className="row" style={{ gap: 8, flexWrap: "wrap" }}>
       {level === "none" ? <span className="stamp unknown">Not ordered</span> : <Status k={k} />}
       {/* The stamp already names the state; show only the numbers after it. */}
       {(() => {
-        const rest = text.replace(/^(Allergy warning|Covered|Blocked|Not ordered|Rejected)\s*(·\s*)?/i, "");
+        const rest = text.replace(/^(Allergy warning|Covered|Ready|Blocked|Not ordered|Rejected)\s*(·\s*)?/i, "");
         return rest ? (
           <span className="small" style={{ color: "var(--ink)" }}>
             {rest}

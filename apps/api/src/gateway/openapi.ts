@@ -122,6 +122,14 @@ export function buildOpenApi() {
         get: { operationId: "listOrders", parameters: [{ name: "eventId", in: "query", schema: { type: "string" } }], responses: { "200": { description: "Orders", ...json({ type: "object", properties: { orders: { type: "array", items: ref("Order") } } }) } } },
       },
       "/orders/{id}": { get: { operationId: "getOrder", parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }], responses: { "200": { description: "Order", ...json(ref("Order")) } } } },
+      "/orders/{id}/peppol": {
+        get: {
+          operationId: "getOrderPeppol",
+          summary: "The order as a Peppol BIS Ordering 3 document (UBL 2.1 Order, T01). Party identifiers are demo values.",
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+          responses: { "200": { description: "UBL 2.1 Order XML", content: { "application/xml": { schema: { type: "string" } } } } },
+        },
+      },
       "/orders/{id}/amendments": {
         post: {
           operationId: "amendOrder",
