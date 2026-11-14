@@ -46,45 +46,45 @@ Each function is one problem that can be built and tested alone. "Deterministic 
 
 **Q04.1 What exactly is "inside the lead time"?** Lead times run from next day to about 4 days, and the mock always answers for next Monday.
 - Recommended: a request is urgent when its needed-by date is 4 days or fewer from the clock's "now". Urgent requests skip the stock-blind step and get the full check at once.
-- **Answer:** _open_
+- **Answer:** **Answered** (Darragh, 14 Nov): urgent when the goods are needed within **5 days** (not 4), to be safe.
 
 **Q04.2 When is the price fixed for an order placed months ahead?**
 - Recommended: at the moment the order is placed, from the quote (the brief says fixed prices). If the price's `validTo` is before the delivery date, that is a question to the Approver, as the approval rules already say.
-- **Answer:** _open_
+- **Answer:** **Answered** (Darragh, 14 Nov): agreed as recommended.
 
 **Q04.3 What is the default needed-by date?**
 - Recommended: one day before the service date for chilled and ambient goods, two days before for frozen (temperature class 7), so there is time to thaw. A recipe line can override it.
-- **Answer:** _open_
+- **Answer:** **Answered** (Darragh, 14 Nov): agreed as recommended.
 
 **Q04.4 Which days can the hotel receive deliveries, and which holidays count?**
 - Recommended: the mandate fixture lists Monday to Friday as agreed delivery days, plus a short list of Finnish public holidays for the test period. A needed-by date that falls on any other day moves to the delivery day before it, and that move is shown.
-- **Answer:** _open_
+- **Answer:** **Answered** (Darragh, 14 Nov): delivery days are **set by the venue** as its availability to receive. Default is Monday to Friday. Saturday and Sunday are one easy setting to switch on. Public holidays are blocked.
 
 **Q04.5 Does very poor delivery reliability do more than turn a line amber?** Twelve products have a reliability of 0.0.
 - Recommended: below 0.80, the line also raises a question when the order is placed: "This product was delivered as ordered only X% of the time. Order it anyway?"
-- **Answer:** _open_
+- **Answer:** **Answered** (Darragh, 14 Nov): yes, but the threshold is **90%**: below 90% delivered as ordered, ordering asks. This is a default and must be easy to change, especially from the place where the line is flagged.
 
 **Q04.6 Once the Approver accepts unknown stock, does the final check ask again?**
 - Recommended: no. The acceptance stays with the line. The final check restates it as "covered at risk, accepted by [person] on [date]". It asks again only if the product or quantity changed.
-- **Answer:** _open_
+- **Answer:** **Answered** (Darragh, 14 Nov): check again on the **last day the line can still be changed**. Unless something major has changed, it approves automatically.
 
 **Q04.7 What are the options when lines can't all arrive on one day?** (AP-14)
 - Recommended, offered in this order on one card:
   1. Take the latest of the dates, if it is still on or before the needed-by date.
   2. Switch the late line to another product that arrives in time.
   3. Accept two deliveries, recorded as two linked orders, since the API can't express a split.
-- **Answer:** _open_
+- **Answer:** **Answered** (Darragh, 14 Nov): **all options are calculated** and offered, and the hotel can pick any of them. They are **ranked by least disruption**, using the hotel's past responses to inform the ranking.
 
 ## Edge cases to rule on
 
 | Case | Proposed rule | Ruling |
 |---|---|---|
-| Stock amount is 0 and there is no available date | Treated as not available now; amber months ahead, a shortfall when urgent | _open_ |
-| Real stock covers part of the need | Partial availability: a partial-fill question (chunk 06) | _open_ |
-| `salesBlock` is true (never seen in the mock) | Not deliverable | _open_ |
-| The service date is a Sunday or a holiday | Needed-by moves back to the last agreed delivery day | _open_ |
-| The chef changes a dish after viability ran | Only the changed lines are re-checked; the rest keep their verdict | _open_ |
-| A line is green months ahead and red at the final check | It enters the shortfall flow in chunk 07 | _open_ |
+| Stock amount is 0 and there is no available date | Treated as not available now; amber months ahead, a shortfall when urgent | Agreed (Darragh, 14 Nov) |
+| Real stock covers part of the need | Partial availability: a partial-fill question (chunk 06) | **Changed** (Darragh, 14 Nov): ask, but assume the partial delivery will be rejected. With the question, suggest a substitute that can be ordered in the full quantity, and offer three options: partial, partial plus substitute, or substitute only |
+| `salesBlock` is true (never seen in the mock) | Not deliverable | Agreed (Darragh, 14 Nov) |
+| The service date is a Sunday or a holiday | Needed-by moves back to the last agreed delivery day | **Depends on the hotel's settings** (Darragh, 14 Nov): it follows the delivery days the venue has set (Q04.4) |
+| The chef changes a dish after viability ran | Only the changed lines are re-checked; the rest keep their verdict | Agreed (Darragh, 14 Nov) |
+| A line is green months ahead and red at the final check | It enters the shortfall flow in chunk 07 | Agreed (Darragh, 14 Nov) |
 
 ## Done when
 
