@@ -1,6 +1,6 @@
 # User stories
 
-> **What this is:** the story backlog the PRD agent builds from, grouped by avatar and sorted by importance. Each story is one sentence, **"X so that Y"**: what the avatar does or gets, and why it matters to them. Every story names what it rests on: a team decision (**D1** to **D25**, in [prd-context.md](prd-context.md)), the brief, the data or a research file.
+> **What this is:** the story backlog the PRD agent builds from, grouped by avatar and sorted by importance. Each story is one sentence, **"X so that Y"**: what the avatar does or gets, and why it matters to them. Every story names what it rests on: a team decision (**D1** to **D26**, in [prd-context.md](prd-context.md)), the brief, the data or a research file.
 >
 > It replaces [hotel-catering-user-stories.md](hotel-catering-user-stories.md) (US01 to US12) as the PRD's input. That file is kept as history. Since then (14 Nov): voice calls, SMS and WhatsApp are **cut** (email updates stay an add-on, CH-A6); the supermarket top-up is a **non-core add-on** (CH-A12); the Purchasing Manager is **kept for now as an optional role** (prd-context D1, D2, D15–D22).
 
@@ -92,6 +92,18 @@ Preference stories (**PF**) belong to the Chef, the Approver or both, as marked.
 | SF-07 | Shared | P0 | Use real stock straight away when the delivery date is inside the lead time so that urgent requests are checked against what can actually ship | S1, M |
 | SF-04 | Shared | P1 | Evaluate hotel policy as data so that each hotel's rules change without code | all |
 | SF-05 | Shared | P1 | Log every model judgement with its confidence so that guesses are never disguised as rules | S1, M |
+| UI-01 | Chef, Approver | P0 | Open the app on the decisions waiting for me and my events, with the chat box pinned on top, so that I start from what needs me, not from a blank chat | all |
+| UI-02 | Chef, Approver | P0 | See each waiting question with its deadline, soonest first, so that I never hunt for what needs me | S2–S4 |
+| UI-03 | Chef, Approver | P0 | Answer every question on one card with two or three buttons so that I never have to type to decide | S2–S4, M |
+| UI-04 | Chef | P0 | Correct what the agent understood by tapping editable chips so that a misread is fixed before anything is quoted | S1, M |
+| UI-05 | Chef, Approver | P0 | Tap any number or verdict to see its source so that I can check it without leaving the screen | all |
+| UI-06 | Chef, Approver | P0 | See one set of status labels on every screen so that I read state at a glance | all |
+| UI-07 | Chef, Approver | P0 | Open one page per event with its menu, order, open questions and timeline so that the chef and the approver look at the same thing | S1–S4 |
+| UI-08 | Chef, Approver | P0 | See what the agent didn't do as prominently as what it did so that gaps are never hidden | all |
+| UI-09 | Chef, Approver | P1 | See the same order as a dish view or a money view so that each role sees their part first | S1–S3 |
+| UI-10 | Chef, Approver | P1 | See what's still editable and until when so that I know what I can change | S2–S4 |
+| UI-11 | Chef, Approver | P1 | Get one "all covered" summary instead of a notification per line so that an alert always means action | S4 |
+| UI-12 | Chef | P1 | Answer a question from my phone in under 10 seconds so that the kitchen doesn't stop | S3, S4 |
 
 Add-ons and parked stories are listed at the end of each avatar's section.
 
@@ -469,6 +481,74 @@ A constraint stated for an event, such as "lactose-free for 40 guests", becomes 
 | ID | Story | Basis |
 |---|---|---|
 | PF-A1 | Rank products by carbon footprint as a profile preference so that lower-carbon options come first when everything else is equal | Jack 14 Nov; needs VA-A3 (carbon data is product-group averages covering 63% of products) |
+
+## Interface
+
+How people use the app (D26). The rule underneath every story: **type to ask, tap to decide.** Free text is an input; every decision is a fixed card with buttons, so it is precise and auditable. The default view is compact; detail is one tap away, never in the way.
+
+### P0
+
+**UI-01** Open the app on the decisions waiting for me and my events, with the chat box pinned on top, so that I start from what needs me, not from a blank chat.
+*all · D26, D14*
+- Home shows, in order: questions waiting for me (UI-02), then my events with their status (UI-07).
+- The chat box is pinned at the top of home for new requests (CH-09) and is reachable from every screen.
+- With nothing waiting, home says so in one line ("Nothing needs you. 3 events covered.").
+- Replaces the chat-first home in [designs/mockups](../designs/mockups) (screen 01).
+
+**UI-02** See each waiting question with its deadline, soonest first, so that I never hunt for what needs me.
+*S2–S4 · D9, D14*
+- Each item shows the event, a one-line question, and its deadline (the cut-off, D9).
+- Only questions routed to my role appear (D6): recipe questions to the chef, money and policy to the approver.
+
+**UI-03** Answer every question on one card with two or three buttons so that I never have to type to decide.
+*S2–S4, M · D9, D14*
+- The card holds everything needed to answer: the fact, the rule that raised it, the options and their cost or effect, and the deadline.
+- Buttons are the answers (e.g. "Approve partial fill", "Use substitute", "Keep as is"). No free-text approvals.
+- Every answer is written to the audit with the exact card the person saw.
+
+**UI-04** Correct what the agent understood by tapping editable chips so that a misread is fixed before anything is quoted.
+*S1, M · D10*
+- The parsed request is shown as chips: quantity and unit, product need, date, each constraint.
+- Tapping a chip edits it in place; a chip the agent wasn't sure of is marked (UI-05).
+
+**UI-05** Tap any number or verdict to see its source so that I can check it without leaving the screen.
+*all · D12*
+- Shows the rule ID, the data field and value behind it, or the model judgement with its confidence.
+- Opens in place (a popover or drawer), not a new page.
+
+**UI-06** See one set of status labels on every screen so that I read state at a glance.
+*all · D7, D21, D23*
+- Labels: green, amber, red (D7); unknown stock and covered at risk (D23); externally sourced (D21); awaiting answer; blocked.
+- Same colour and wording everywhere; never colour alone (each has a text label).
+
+**UI-07** Open one page per event with its menu, order, open questions and timeline so that the chef and the approver look at the same thing.
+*S1–S4 · D4, D8*
+- The timeline shows the four scenes (viability, order, change, final check) and where the event is now.
+- The order view is the compact colour-coded list from CH-07.
+
+**UI-08** See what the agent didn't do as prominently as what it did so that gaps are never hidden.
+*all · D14*
+- Blocked, unresolved and at-risk lines sit at the top of the event page and the order, above lines that are fine.
+- A summary never says "covered" while any line is at risk; it says "covered, 2 at risk".
+
+### P1
+
+**UI-09** See the same order as a dish view or a money view so that each role sees their part first.
+*S1–S3 · D6*
+- Dish view (chef default): lines grouped by dish and diet group. Money view (approver default): lines by cost, with total, VAT and the mandate's limits.
+- Both are the same order; switching views changes nothing.
+
+**UI-10** See what's still editable and until when so that I know what I can change.
+*S2–S4 · research/06*
+- Each line shows its cut-off as a countdown, as in the mockups' cut-off board; past cut-off lines show as locked.
+
+**UI-11** Get one "all covered" summary instead of a notification per line so that an alert always means action.
+*S4 · D8*
+- Notifications are sent only for questions. Lines that pass arrive as one summary per event.
+
+**UI-12** Answer a question from my phone in under 10 seconds so that the kitchen doesn't stop.
+*S3, S4 · [INF: not yet checked with a chef]*
+- Question cards (UI-03) work on a phone screen with one thumb.
 
 ---
 

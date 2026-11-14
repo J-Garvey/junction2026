@@ -1,6 +1,6 @@
 # PRD context: decisions the PRD builds on
 
-> **What this is:** the agreed context base for the agent that writes the PRD. It records the decisions made in a grilling session with Jack on 14 Nov 2026 (D1 to D14), Darragh's follow-up decisions (D15 to D22) and Jack's review of the stories (D23 to D25), what each rests on, and what is still open. The user stories built on it are in [user-stories.md](user-stories.md).
+> **What this is:** the agreed context base for the agent that writes the PRD. It records the decisions made in a grilling session with Jack on 14 Nov 2026 (D1 to D14), Darragh's follow-up decisions (D15 to D22) and Jack's review of the stories (D23 to D26), what each rests on, and what is still open. The user stories built on it are in [user-stories.md](user-stories.md).
 >
 > **How to read the tags:** **[TEAM Dn]** a decision from this session; **[BRIEF]**, **[API]**, **[SPEC]**, **[DATA]**, **[SRC]**, **[STAND]**, **[INF]**, **[OPEN]** mean what they mean in [GROUND_TRUTH.md](../GROUND_TRUTH.md) and [research/07](../research/07-hotel-event-ordering-journey.md). Where this file and GROUND_TRUTH.md disagree on a fact, GROUND_TRUTH.md wins.
 >
@@ -116,6 +116,15 @@ Customers buy whole sales units: 1.5 needed means 2 [STAND, research/06]. The da
 5. **Round down only by a person's choice**, per order or as a pre-answer for named low-risk categories.
 6. **Buffer before rounding.**
 - **Add-on:** the reminder ladder (reminder halfway to cut-off, then the role's named backup). [TEAM D9]
+
+## Interface (D26)
+
+- **Home is the decisions list, not a chat.** It opens on the questions waiting for this person, then their events. The chat box is pinned on top for new requests. [TEAM D26]
+- Why: the secondary goal is fewer human decisions (D14), so the app opens on the few that are waiting. Open-ended chat is the least precise and least auditable way to use the product. The existing mockups have a chat-first home (designs/mockups screen 01); that screen changes.
+- **Type to ask, tap to decide.** Free text is an input only; every decision is a card with two or three buttons and everything needed to answer it. No free-text approvals.
+- **Compact by default, checkable on tap.** Any number or verdict opens its source: rule ID, data field, or model judgement with confidence.
+- **One set of status labels everywhere**, and gaps (blocked, unresolved, at risk) always shown above what's fine.
+- Stories UI-01 to UI-12 in [user-stories.md](user-stories.md#interface).
 
 ## Architecture decisions
 
