@@ -7,6 +7,8 @@ import { splitMine, useApp, useLoad, waitingForText } from "../ctx";
 import { OthersWaiting, QuestionCard } from "../ui/QuestionCard";
 import { Status, planStatusKind, PLAN_STATUS_TEXT } from "../ui/Status";
 import { Icon } from "../ui/icons";
+import { OrderItemDialog } from "../ui/OrderItemDialog";
+import { stockText } from "../ui/Popover";
 import { TooLateDialog, tooLateText } from "../ui/TooLate";
 import { addDays, claimLabel, day, eur, helsinkiDate, plural, qty } from "../format";
 import "./baskets.css";
@@ -179,42 +181,119 @@ export function BasketPage() {
 function RequestRow({ r, question }: { r: BasketPlan; question?: Question }) {
   const { me, people } = useApp();
   const waitingLabel = question ? waitingForText(question, me, people) : undefined;
+  const [plan, setPlan] = useState<Plan | null>(null);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function showDetails() {
+    setOpen(true);
+    if (plan || loading) return;
+    setLoading(true);
+    setError(null);
+    try {
+      setPlan((await api.plan(r.id)).plan);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
-    <Link to={`/requests/${r.id}`} className="li evrow">
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div className="trunc" style={{ color: "var(--ink)", fontWeight: 600 }}>
-          {r.title}
+    <>
+      <button type="button" className="li evrow item-dialog-trigger" onClick={showDetails}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="trunc" style={{ color: "var(--ink)", fontWeight: 600 }}>
+            {r.title}
+          </div>
+          <div className="small muted">{r.tooLate ? tooLateText(r.tooLate) : r.summary}</div>
         </div>
-        <div className="small muted">{r.tooLate ? tooLateText(r.tooLate) : r.summary}</div>
-      </div>
-      {/* Too late is something to review, not a hard block: no "Blocked" stamp. */}
-      {r.tooLate ? <span className="stamp ask">Too late</span> : <Status k={planStatusKind(r.status)} title={waitingLabel ?? PLAN_STATUS_TEXT[r.status]} label={r.status === "waiting" ? waitingLabel : undefined} />}
-    </Link>
+        {/* Too late is something to review, not a hard block: no "Blocked" stamp. */}
+        {r.tooLate ? <span className="stamp ask">Too late</span> : <Status k={planStatusKind(r.status)} title={waitingLabel ?? PLAN_STATUS_TEXT[r.status]} label={r.status === "waiting" ? waitingLabel : undefined} />}
+      </button>
+      {open && (
+        <OrderItemDialog
+          eyebrow="Awaiting approval"
+          title={r.title}
+          description={plan?.summary ?? r.summary}
+          fields={[
+            { label: "Status", value: PLAN_STATUS_TEXT[r.status] ?? r.status },
+            { label: "Total ex VAT", value: eur(plan?.totalExVat ?? r.totalExVat) },
+            { label: "Delivery", value: plan?.deliveryDate ? day(plan.deliveryDate) : "Not confirmed" },
+            ...(plan ? [{ label: "Requested by", value: plan.createdBy.name }] : []),
+          ]}
+          onClose={() => setOpen(false)}
+        >
+          {loading && <div className="muted">Loading item details…</div>}
+          {error && <div className="callout red">{error}</div>}
+          {plan && plan.lines.length > 0 && (
+            <div className="item-dialog-section">
+              <h3>Items in this request</h3>
+              <div className="item-dialog-lines">
+                {plan.lines.map((line) => (
+                  <div key={line.id} className="item-dialog-line">
+                    <span>
+                      <b>{line.productName}</b>
+                      <small>Product {line.productId ?? "not selected"}</small>
+                    </span>
+                    <span>{qty(line.quantity)} {line.salesUnit ?? ""}</span>
+                    <b>{eur(line.lineTotal)}</b>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </OrderItemDialog>
+      )}
+    </>
   );
 }
 
 function OrderedLines({ orders }: { orders: Order[] }) {
   const lines = orders.flatMap((o) => o.lines.filter((l) => !l.removed).map((l) => ({ ...l, orderId: o.id })));
+  const [selected, setSelected] = useState<(typeof lines)[number] | null>(null);
   if (!lines.length) return <div className="empty">Nothing ordered yet. Add something above.</div>;
   return (
-    <div className="card">
-      {lines.map((l) => (
-        <div key={`${l.orderId}-${l.lineNo}`} className="li">
-          <span className="bqty">
-            {qty(l.quantity)} {l.salesUnit ?? ""}
-          </span>
-          <span className="trunc" style={{ flex: 1, color: "var(--ink)" }}>
-            {l.productName}
-          </span>
-          {l.stock.kind === "unknown" && <Status k={l.riskAccepted ? "covered_at_risk" : "unknown_stock"} />}
-          <span className="small">{eur(l.lineTotal)}</span>
+    <>
+      <div className="card">
+        {lines.map((l) => (
+          <button key={`${l.orderId}-${l.lineNo}`} type="button" className="li item-dialog-trigger" onClick={() => setSelected(l)}>
+            <span className="bqty">
+              {qty(l.quantity)} {l.salesUnit ?? ""}
+            </span>
+            <span className="trunc" style={{ flex: 1, color: "var(--ink)" }}>
+              {l.productName}
+            </span>
+            {l.stock.kind === "unknown" && <Status k={l.riskAccepted ? "covered_at_risk" : "unknown_stock"} />}
+            <span className="small">{eur(l.lineTotal)}</span>
+          </button>
+        ))}
+        <div className="li small muted">
+          <span style={{ flex: 1 }}>{plural(orders.length, "order")} placed with Valio Aimo</span>
+          <Link to={`/orders?eventId=${orders[0].eventId}`}>Receipts</Link>
         </div>
-      ))}
-      <div className="li small muted">
-        <span style={{ flex: 1 }}>{plural(orders.length, "order")} placed with Valio Aimo</span>
-        <Link to={`/orders?eventId=${orders[0].eventId}`}>Receipts</Link>
       </div>
-    </div>
+      {selected && (
+        <OrderItemDialog
+          eyebrow="In the order"
+          title={selected.productName}
+          description={selected.riskAccepted ? `Unconfirmed stock was accepted by ${selected.riskAccepted.by}.` : undefined}
+          fields={[
+            { label: "Quantity", value: `${qty(selected.quantity)} ${selected.salesUnit ?? ""}` },
+            { label: "Unit price", value: eur(selected.unitPrice) },
+            { label: "Line total", value: eur(selected.lineTotal) },
+            { label: "Product ID", value: selected.productId },
+            { label: "Stock", value: stockText(selected.stock) },
+            { label: "Order", value: selected.orderId },
+            { label: "Available date", value: selected.availableDate ? day(selected.availableDate) : "Not supplied" },
+            { label: "Order cutoff", value: selected.closingTime ?? "Not supplied" },
+            { label: "Price valid to", value: selected.priceValidTo ?? "Not supplied" },
+          ]}
+          onClose={() => setSelected(null)}
+        />
+      )}
+    </>
   );
 }
 

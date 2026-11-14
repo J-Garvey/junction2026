@@ -304,6 +304,40 @@ table.t tr:last-child td { border-bottom: 0; }
 .receipt .rl { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; min-width: 0; }
 .receipt hr { border: 0; border-top: 1px dashed var(--hairline); margin: 10px 0; }
 .rline.removed { opacity: 0.5; text-decoration: line-through; }
+
+/* Large order-item detail dialog. */
+.item-dialog-backdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 18px; background: rgba(35, 37, 29, 0.5); backdrop-filter: blur(2px); }
+.item-dialog { width: min(1040px, 96vw); height: min(820px, calc(100vh - 36px)); overflow: hidden; display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--hairline); border-radius: 20px; box-shadow: 0 24px 70px rgba(35, 37, 29, 0.3); color: var(--body); }
+.item-dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding: 26px 28px 20px; border-bottom: 1px solid var(--hairline-soft); }
+.item-dialog-head h2 { margin: 3px 0 0; font-size: clamp(22px, 3vw, 32px); line-height: 1.15; color: var(--ink); }
+.item-dialog-eyebrow { color: var(--mute); font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.item-dialog-close { flex: 0 0 auto; display: grid; place-items: center; width: 42px; height: 42px; padding: 0; border: 1px solid var(--hairline); border-radius: 50%; background: var(--soft); color: var(--ink); }
+.item-dialog-close:hover { background: var(--hairline-soft); }
+.item-dialog-body { flex: 1; overflow: auto; padding: 26px 28px 32px; }
+.item-dialog-description { max-width: 760px; margin-bottom: 24px; font-size: 15px; line-height: 1.6; }
+.item-dialog-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; margin: 0 0 28px; overflow: hidden; border: 1px solid var(--hairline-soft); border-radius: 12px; background: var(--hairline-soft); }
+.item-dialog-fields div { min-width: 0; padding: 16px 18px; background: var(--card); }
+.item-dialog-fields dt { margin-bottom: 5px; color: var(--mute); font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+.item-dialog-fields dd { margin: 0; color: var(--ink); font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+.item-dialog-section { margin-top: 28px; }
+.item-dialog-section h3 { margin: 0 0 10px; font-size: 15px; color: var(--ink); }
+.item-dialog-lines { overflow: hidden; border: 1px solid var(--hairline-soft); border-radius: 12px; }
+.item-dialog-line { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 18px; padding: 14px 16px; border-bottom: 1px solid var(--hairline-soft); color: var(--ink); }
+.item-dialog-line:last-child { border-bottom: 0; }
+.item-dialog-line small { display: block; margin-top: 2px; color: var(--mute); }
+.item-dialog-trigger { width: 100%; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; }
+.li.item-dialog-trigger { padding-top: 12px; padding-bottom: 12px; }
+.item-dialog-trigger:hover { background: var(--soft); }
+.qline.item-dialog-trigger { display: grid; padding: 5px 0; }
+
+@media (max-width: 700px) {
+  .item-dialog-backdrop { padding: 8px; }
+  .item-dialog { width: 100%; height: calc(100vh - 16px); border-radius: 14px; }
+  .item-dialog-head, .item-dialog-body { padding-left: 18px; padding-right: 18px; }
+  .item-dialog-fields { grid-template-columns: 1fr 1fr; }
+  .item-dialog-line { grid-template-columns: minmax(0, 1fr) auto; }
+  .item-dialog-line > :last-child { grid-column: 2; }
+}
 .code { background: var(--dark); color: #fff; border-radius: 6px; padding: 14px 18px; font-family: var(--mono); font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
 .code .k { color: #9cc3f0; }
 .code .s { color: #a6d6b8; }
