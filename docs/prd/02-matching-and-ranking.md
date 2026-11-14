@@ -2,11 +2,12 @@
 
 | | |
 |---|---|
-| **Owner** | _unassigned_ |
+| **Owner** | Pavit |
+| **Second check** | Darragh signs off Q02.3 (the diet-to-data table) and the ranking order (Q02.4 to Q02.6) |
 | **Track** | A: request to basket |
 | **Needs from** | 01 (the `Request` object), 05 (the diet-to-claim table sits with the hard rules) |
 | **Feeds** | 03 (quantities), 04 (viability), 07 (substitutes reuse this ranking) |
-| **Also this owner's** | Two major questions to answer first: [Q08.2](08-gateway-and-orders.md) and [Q09.2](09-audit-and-explanations.md). See the index. |
+| **Also Pavit's** | Two major questions to answer first: [Q08.2](08-gateway-and-orders.md) and [Q09.2](09-audit-and-explanations.md). See the index. |
 
 ## What: the stories this chunk delivers
 

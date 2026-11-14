@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Owner** | _unassigned_ |
+| **Owner** | Ben |
 | **Track** | A: request to basket |
 | **Needs from** | 01 (amounts per portion, guest and diet counts), 02 (the chosen product) |
 | **Feeds** | 04 (viability), 06 (overshoot questions), 08 (order lines) |

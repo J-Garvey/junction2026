@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Owner** | _unassigned_ |
+| **Owner** | Ben |
 | **Track** | C: gateway, interface, tests |
 | **Needs from** | Every chunk. This one proves they work together. |
 | **Feeds** | Chunks 01 to 04 are tested against the seed event, so it is needed early. |

@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Owner** | _unassigned_ |
+| **Owner** | Darragh |
 | **Track** | B: trust core |
 | **Needs from** | Nothing. Other chunks call these rules. |
 | **Feeds** | Every chunk. 06 turns rule outcomes into questions; 08 enforces the mandate. |
