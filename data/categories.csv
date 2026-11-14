@@ -1,0 +1,350 @@
+cat,n_products,temp_label_mode,top_vendor,example_1,example_2,example_3
+10400,91,cool,VALIO OY TUORE,Valio skimmed milk 10 l novobox,Valio coffee milk 1 l lactose free UHT,5 x Arla Fat free milk 1 L Suomi ESL
+10401,53,cool,VALIO OY TUORE,Valio whipping cream 20 l novobox lactose free,Valio Keittiön thicker cooking cream 15 % 2 dl UHT lactose free,Rama Professional Creme Dolce 500ml
+10402,66,warm,VALIO OY TUORE,Spice Up! Coconut milk 2900ml,Chef Delibon Coconut Milk 5L,Fazer Aito Oat Drink Barista 1L UHT
+10404,7,warm,EURO-EAST OY,Törsleffs condensed milk caramelized 12x397g,"Dovgan Condensed milk, sweetened 1000g/761 ml","Dovgan Lactose free Condensed milk, sweetened 370 g / 283 ml"
+10405,14,warm,VALIO OY TUORE,Valio Eila® low lactose skimmed milk powder 25 kg,Valio lactose free semi skimmed milk powder instant 400 g,Valio skimmed milk powder high heat 20 kg
+10406,30,cool,VALIO OY TUORE,Oatly iMat for Cooking 1L,AROY-D COCONUT CREAM 1L,Oatly iMat Visp 250ml
+10411,23,cool,VALIO OY TUORE,Valio Eila® fermented milk 200 g natural lactose free,12 x Arla Natural 1% curdled milk 150 g lactose free,12 x Arla 200 g Suomesta curdled milk
+10412,150,cool,VALIO OY TUORE,Salakis Turkish Yoghurt Natural 1kg,Valiojogurtti® 1 kg natural lactose free,Valio Greek yoghurt 150 g rhubarb lactose free
+10413,46,cool,VALIO OY TUORE,"Alpro Fermented soya product strawberry-banana, peach-pear, no bits 4x125g",Oddlygood® protein gurt 150 g mango-passion,Oddlygood® low sugar Soygurt 750 g mango & peach
+10418,4,cool,VALIO OY TUORE,Flora Professional Plant Cooking 15% 1L,Oddlygood® Fraiche & Dipping 400 g,Oddlygood® Dream Fraiche soy 200 g natural
+10419,29,cool,VALIO OY TUORE,"Arla Pro 1,8 kg lactose free Crème fraiche",Arla Lempi Sour cream 200 g 15% lactose free,Valio flavoured sour cream dip Sweet chili 200g HYLA®
+10430,49,cool,VALIO OY TUORE,Lieksan 90g Pasha curd product,Valio PROfeel® protein quark 175 g lingonberry-vanilla lactose free,Valio Hyvä suomalainen Arki® soft quark lactose free
+10431,42,cool,VALIO OY TUORE,12 x Mannafrutti wild berries semolina in-between-meal 165g,Valio PROfeel® protein pudding 180 g chocolate-toffee lactose free,8 x Jacky Makupala mint chocolate pudding 120g
+10432,16,cool,VALIO OY TUORE,Valio clear cake jelly 5 kg,Elle&Vire Tiramisu 1L,Ingman Vanilla Lactosfree Softice 1000 ML/1090g
+10500,20,cool,VALIO OY TUORE,Valio Eila® butter 200 g lactose free,Valio butter 4x5 kg unsalted,PELTOLAN HAND MADE CHURNED BUTTER A.700G
+10501,3,cool,VALIO OY TUORE,Valio butter 6 g low salted,Valio butter 10 g salted,Lurpak butter portion 100 pcs x 8 g
+10502,1,cool,LIEKSAN LAATUHERKUT OY,Lieksan Barbeque butter flavoured butter 80g,,
+10515,42,cool,VALIO OY TUORE,Keiju Catering margarine 60 600 g,Valio Oivariini® 350 g less salt ValSa® HYLA®,12 x Ingmariini 500 g less fat low lactose fatmix
+10516,6,cool,BUNGE FINLAND OY VIILEÄ,Keiju Portionpacket margarine 60 240x6 g,Ingmariini 70% 100 pcs x 8 g normal salted portion fatmix,Flora Professional 70% 200x10g PP
+10517,7,cool,BUNGE FINLAND OY VIILEÄ,Keiju Mould fat 5 l,Sunnuntai Liquid rapeseed oil product 500 ml,12 x Keiju liquid rapeseed oil product 500 ml
+10518,5,cool,BUNGE FINLAND OY VIILEÄ,Sunnuntai Lactose free margarine for baking 500 g,Kultasula bread improver 15 kg,2 x Raisa 5 cake and dough margarine 5 kg
+10530,24,warm,BUNGE FINLAND OY KUIVA,Anton´s palmoil 10 L for deep frying,Apetit Deep frying oil 10L,Kikkoman 125ml toasted sesame oil
+10531,45,warm,E. GAVRIELIDES OY,VOT 5L EXTRA VIRG OLIVEOIL,De Cecco Il Classico Extra Virgin Olive Oil tin 3L,Bertolli 500ml Olio di Oliva Classico olive oil
+10532,17,warm,PNM CHIPSTERS OY TEOLLINEN,HAMLITSCH PUMPKINSEED OIL 250ML,OH AIK GUAN 5L SESAME OIL ROASTED,"Wiberg Walnut oil 0,5L cold pressed"
+10590,9,cool,KIEKU OY,Kotimaisia viiriäisen munia 10pcs 120g,Kieku Barn eggs S90 4320g,Kieku Free range egg M10 580g
+10592,21,cool,MUNAX OY,"Laitilan Kanatarha Boiled and peeled eggs 1,5kg packed in a modified atmosphere",Munax whole egg barn 1000 g,Valio free range liquid egg 5 kg x 1 / 5 kg
+10600,129,cool,VALIO OY TUORE,20 x Arla Apetina Original white salad cheese bit 200 g,Castelli parmigiano reggiano 200g block,Valio Mustaleima™ e245 g
+10602,89,cool,VALIO OY TUORE,Arla Pro Port Salut 1kg 25% slices,Valio Luomu™ gouda e275 g slices,Valio Polar® Täyteläinen e300 g slices
+10603,77,cool,VALIO OY TUORE,Valio Hyvä suomalainen Arki® cottage cheese 500 g,Porlammin 2kg Grated Emmental-Edam Cheese,CASTELLI 80G P.REGGIANO SCAGLIE GRAN SEL
+10630,10,cool,QUESOS EL PASTOR-HIJOS DE SALVADOR,EL PASTOR SHEEP LOG 1KG,Soignon aged goat cheese 1kg,10 x Dodoni Greek kefalotyri cheese 200g
+10631,24,cool,HERKKUJUUSTOLA OY,6 x Castello Creamy White 150 g white mould cheese,Helsingin Meijeriliike - Ullanlinna - White mould cheese 140g,"Mon Ami French Brie, 60% 1 kg"
+10632,25,cool,ARLA OY,Société Roquefort blue cheese DOP 100g,PELTOLAN BLUE CHEESE APP.400G,"2 x Société Roquefort blue cheese approx. 1,25kg"
+10633,20,cool,VALIO OY TUORE,Valio Koskenlaskija® e250 g traditional processed cheese lactose free,Valio Koskenlaskija® 15 g portion pack processed cheese lactose free,Valio Koskenlaskija® 10 kg natural processed cheese lactose free
+10635,54,cool,VALIO OY TUORE,Valio Polar® spreadable 9 % e400 g natural processed cheese lactose free,"Valio Viola® 1,5 kg chili-pepper cream cheese lactose free",Valio Viola® e200 g Mexico cream cheese lactose free
+10636,47,cool,E. GAVRIELIDES OY,12 x Dodoni original greek feta cheese PDO 400g,8 x Filos feta salt reduced PDO 150g,Kolios Lactose free Feta 200g
+10637,17,cool,RIITAN HERKKU OY TUORE,Riitan Herkku Mozzarella 250g,Castelli mozzarella bufala 125g mozzarella cheese from buffalo milk,GALBANI 1KG MOZZARELLA BLOCK
+10639,16,cool,E. GAVRIELIDES OY,AIMO HALLOUMI 750G CHEESE,8 x Filos halloumi cheese from sheep's milk PDO 200g,Mattila Bros. Smokehouse Smoked Halloumi ca 3kg
+10640,26,cool,RIITAN HERKKU OY TUORE,BERGADER 600G CHEESE PLATE,Riitan Herkku Finnish Squeky Cheese 170g,8x Riitan Herkku Finnish Lactose-free Squeaky Cheese 335g
+10641,27,cool,FLORA FOOD FINLAND OY,10xKremel vegetable fat slice vegan 250g GR,Oddlygood® e1 kg grated,PERLA WARMII APP.3KG EDAM STYLE
+10900,47,warm,FAZER LEIPOMOT OY TUORE,5x Schär Sourdough bread with lingonberry 240g gluten-free,"10 x Oululainen Reissumies Really Thin Rye 10pcs 350g, whole grain rye bread",Pekan Leipä Itähämäläinen 100% Jälkiuunileipä Rye bread split 350 g organic
+10901,71,warm,FAZER LEIPOMOT OY TUORE,Vaasan Vaalea Pääsiäislimppu 500g Light Easter Bread sliced,"Fazer Puikula 100Oat 4pcs 220g, oat bread","Fazer Puikula Fibre-rich Oat 6pcs 330g, oat bread"
+10902,16,warm,VAASAN OY,Fazer Cheese Bread Roll 5pcs 350g,Vaasan Street Food THE BRGR Gourmet burger bun 320 g 4 pcs,Vaasan Muhku Kauraisa sämpylä 240 g 4 pcs oat-wheat roll
+10903,9,warm,FAZER LEIPOMOT OY TUORE,Fazer Imatra Rice Pasty 6pcs 420g,Vaasan Moilas Free From Pehmeät Rieskapalat 200 g 4 pcs Gluten-Free Flat Thin Bread,Nutrifree Gluten Free Panino Hot Dog bun 65g
+11030,81,warm,FAZER LEIPOMOT OY TUORE,Boström Sponge Cake 220 g,ORGANIC RUNEBERG'S TART,"Oululainen Pullava Baked apple sweet loaf 400g, seasonal taste"
+17200,99,cool,ATRIA SUOMI OY TUORE,Wursti Fresh sausage 500g,Atria Wilhelm Feta-Blackpepper 5x350g,"Pouttu Grill / oven sausage cheese 1,28kg"
+17201,37,cool,HKFOODS FINLAND OY,"Wotkin´s 1,4-1,8kg Sörkän frankfurter dyno foodsausage",4 x Vataja 280g Additivefree frankfurter,Helsingin Makkaratehdas Yönakki frankfurter ca 2 kg
+17202,21,cool,HKFOODS FINLAND OY,"Atria English Bacon sliced ca1,6kg/17-21g",5 x Snellman Bacon 150g,Tulip Professional fully cooked and smoked bacon slices 500g
+17203,82,cool,VALIO OY / VALIO AIMO,4 x Wursti Crumbed ham sliced 200g,CASA MODENA ROSMARINE ROASTED HAM,ARGAL 110G TRIO IBERICO TA
+17204,16,cool,ATRIA SUOMI OY TUORE,"Vehmaan Maut,Turkey breast smoked sliced, whole meat product 1kg",6x Savuhovi Aito Saunapalvikalkkuna 180g,"Smoked turkeyfile, sliced ca 1,8kg"
+17205,26,cool,ATRIA SUOMI OY TUORE,"HK Roast beef sliced 1,5 kg",HK Meaty low fat balkan sausage 9% 250 g,Tamminen airdried Prosciutto 80g x 6
+17206,63,cool,VALIO OY / VALIO AIMO,ARGAL 100G SALAMISLICE,CASA MODENA SALAME FINOCCHIONA,3-Stjernet Pepperoni Classic Sliced 1kg/3g
+17207,16,cool,ATRIA SUOMI OY TUORE,"HK Liver pate appr 2,4 kg",Tante Juliette Greenpepper Paté 6x150g,"Wigren Liversausage 1,1 kg"
+17208,5,cool,LANDELI GROUP OY,Wotkin´s 3-4 kg Porkaspic bit,"Atria Sliced Aspic 1,5kg/c22g",Korpela country style jelly about 1kg
+17209,49,cool,ATRIA SUOMI OY TUORE,Saarioinen Turkey fillet strips sous vide 2kg,Atria Frankfurterpiece 3kg,PIZZA HAM STRIP PORK HAM 90% MEAT 90%
+17210,108,cool,ATRIA SUOMI OY TUORE,Lapin Liha Cold smoked reindeer haunch 100g,Snellman Pork neck sliced cooked app 2kg,6 x Saarioinen Chicken balls 900g
+17300,443,cool,FEELIA OY,6 x Saarioinen Cabbage casserole with minced meat 380g,4 x Saarioinen Chicken noodle bowl 300g,Feelia ERV Vegetable-pasta casserole 600g
+17301,102,cool,FRESH SERVANT OY AB,Forssan Potato Salad 400g,Atria Italian Salad 3kg,Saarioinen Gabbage-carrot-pineapple salad 250g
+17302,43,cool,VEHMAAN MAUT OY,11x Blå Band lactose free Whole Grain Italian Casserole Whole grain spaghetti-Vegetable-Spice mix 150g -transport package,"Vehmaan Maut Salmon tigerbrawnterrine, fish product 600g","Fresh SalaattiMestari Ham-mettwurst filling piping bag 1,0kg"
+17303,68,cool,SNELLMAN KOKKIKARTANO KERAVA PANINI,GO! Deli Cheese rye sandwich 125g,Greendeli Broiler Maxi Baguette 2x300 g,Mr. Panini Panini Pulled pork 235g
+17304,3,cool,ORKLA SUOMI FINLAND OY AB VK,6 x Pastella fettuccine with spinach fresh pasta 250g,Pastella fettuccine naturel fresh pasta 250g,12 x De Cecco Gnocchi Di Patate potato gnocchi Gluten-free 500g
+17305,32,cool,BABA FOODS OY,Macedonian 5kg tahini sesamepaste,6x Sevan Hummus Garlic 150g,"Baba Green Hummus chickpea spread, 1kg"
+17306,123,cool,VALIO OY TUORE,MAMA MEMS ORGANIC TOFU 300G,Bean Better Gentle Dark Fermented Favabean Fresh SI 2x1kg,4x MUU Bean Bites 250g
+17401,29,cool,STAAY FOOD GROOP B.V.,TOMBERRY 125G,PEARL TOMATO ORANGE FIN,CHERRY VINETOMATOES ROMANTIC NL
+17402,22,cool,OY VAASAN VIHANNES - VASA GRÖNSAKER,PICKLED CUCUMBER FI,COURGETTES YELLOW ES/NL,CUCUMBER 1CL FINLAND NAKED
+17403,41,cool,OY VAASAN VIHANNES - VASA GRÖNSAKER,Vihreäkeiju green lettuce 115,FRISEE SALAD RED FINISH WASHED,HEAD LETTUCE
+17404,44,cool,OY VAASAN VIHANNES - VASA GRÖNSAKER,CABBAGE WHITE NL,KUKKAKAALI ORANSSI RUOTSI,KOHLRABI WASHED FINLAND
+17405,24,cool,BUD HOLLAND B.V.,RED ONION SMALL NETHERLANDS,GARLIC LOOSE CHINA,GARLIC SOLO LOOSE CHINA
+17406,27,cool,BUD HOLLAND B.V.,CHILI PASS NEGRO DRIED MEXICO,CHILI PEPPER MIX 75G NL/IL,CAPSICUM RED 1KG
+17407,22,cool,BUD HOLLAND B.V.,CAULIFLOWER ORANGE IT/NL,ASPARAGUS GREEN,GLASSWORTH 1KG IL
+17408,9,cool,BUD HOLLAND B.V.,SUGAR SNAP PEA 250G PLUMP GUATEMALA,BEANS 250G HARICOT VERTS KENYA,SLICEBEANS / HELDA BEANS MA
+17411,16,cool,VEIKKO LAINE OY,ORGANIC LEMON PE,BLOOD ORANGES MORRO,SWEETIE
+17412,16,cool,HARVA INTERNATIONAL B.V.,ORGANIC PEAR ARGENTINA,APPLE GOLDEN 2KG PACK FRANCE,APPLE ROYAL GALA 2KG BAG FR/CL
+17413,6,,VEIKKO LAINE OY,BANANA BOX GT/CR,ORGANIC BANANA DO/EC,BANANA FAIR TRADE EC/DR
+17414,11,cool,STAAY FOOD GROOP B.V.,PARAGUAYO PEACH ES,"GRAPES RED 4,5 KG BOX ES","GRAPES GREEN 4,5 KG BOX ES"
+17415,32,cool,BUD HOLLAND B.V.,JACKFRUIT TH,MELON GALIA ES/BR,CHESTNUT
+17421,20,cool,PIETILÄN PERUNA OY,PP ALMOND POTATO WASHED,POTATO RATTE 1KG FRANCE,POTATOES EARLY
+17422,10,cool,SUUPOHJAN PERUNALAAKSO OY,Maatilan Mash potato peeled 10 kg,KITOLA 5KG BARREL POTATO HAND-PEELED FIN,SPL Portion potato peeled 10kg
+17423,32,cool,JEPUAN PERUNA OY,75x JEPO Cooked stripped potato 6mm 6kg,JEPO Cooked small potatoes 3kg,75x JEPO Cooked Potato cubes 15mm 6kg
+17424,11,cool,SATOMESTARIT OY,SATOMESTARIT 5KG POTATO CUBE 1X1CM,SATOMESTARIT 5KG POTATO CUBE 2X2CM RAW,SATOMESTARIT 5KG POTATO PIECE 30MM HAND
+17431,49,cool,BUD HOLLAND B.V.,SWEET POTATO PURPLE USA,CHIOGGIA BEET NL,CARROT 1KG BAG FIN
+17432,22,cool,VÖRLÖN VIHANNES OY,VÖRLÖ PEELED SWEET POTATOES,VÖRLÖ CARROT PEELED 2KG,VÖRLÖ 5KG SWEDE PEELED
+17433,4,cool,TUOREVERKKO OY,Suvituore Finnish carrot pulp 1kg,Suvituore Finnish swede pulp 1kg,SUVITUORE 400G JERUSALEM ARTICHOKE PURE
+17441,42,cool,SALICO OY,Valmix Icelettuce-redsalad-frisee 500g,Bama iceberg lettuce strip 1kg X 6,SallaCarte Baby spinach 200 g
+17442,49,cool,VALMIX OY,Valmix Carrot diced 10mm 1kg,Valmix Kohlrabi bits särä 1kg,Valmix Carrot dip 10cm 1kg
+17443,105,cool,SALICO OY,"Valmix Tomato slices 2,5kg","SallaCarte Tomato wedge without crown 2,5 kg 1/2 GN",Valmix Tomato wedges 1kg
+17444,15,cool,VALMIX OY,Valmix Red onion sliced 1kg,SallaCarte Onion ring 1kg,SallaCarte Red onion diced 1 kg
+17445,50,cool,VALMIX OY,Valmix honey dew melon cubes 20mm 1kg,"SallaCarte Cantaloupe cube 20 mm 2,5kg","Fresh SK Apple cube 10mm 1,0kg"
+17451,29,cool,STAAY FOOD GROOP B.V.,ROCKET 100G BUNCH IT/NL,MINT 100G BUNCH MA/IT/ES/KE,MARJORAM 100G
+17452,11,cool,FAMIFARM OY,Järvikylä min25g Pea shoot,Järvikylä min25g Mint,Järvikylä min25g Thai basil
+17453,16,cool,FAMIFARM OY,SHISO MIXED 4X4,Järvikylä 50g Pea shoot box,Järvikylä 50g Cilantro box
+17454,55,cool,KOTIPELLON PUUTARHA OY,GREEN MJK BEAN CRESS 100G FINLAND,MIMIS CARAWAY CRESS,MIMIS SALT-CRESS MIX 50
+17455,32,cool,KOTIPELLON PUUTARHA OY,FLOWER (EATABLE) NETHERLANDS,MIMIS CARNATION FLOWER 10PCS/RAS,MIMIS 2G CORIANDER FLOWER
+17456,3,cool,SALAATIX OY,LOUNASITU MUNG BEAN SPROUTS 1KG/BAG FIN,LOUNASITU ITU ALFALFA 1KG,Lounasitu Alfalfa sprouts 125g
+17457,2,cool,BUD HOLLAND B.V.,BANANALEAVES 500G,BANANALEAVE CUPS 20PCS THAILAND,
+17471,21,cool,MYKORA OY,CHAMP BROWN MUSHROOMS 2KG/BOX SUOMI,KAITEKI 2KG SHIITAKE CLASS I ORGANIC FI,KING OYSTER MUSHROOM CHINA
+17472,5,cool,VIHANNESTUKKU ÖBERG OY,CHANTERELLES LOOSE FI,FUNNEL CHANTERELL FRESH FI,CHANTERELLE FRESH
+17473,2,cool,ARCTIC INTERNATIONAL OY,Marjex salted mushroom mix 5kg,FRESH SALT MUSHROOM 1 KG VACUUM,
+17481,17,cool,HARVA INTERNATIONAL B.V.,BLUEBERRY PUNNET 125G NL/GE/PE,CHERRIES FRESH BELGIUM,STRAWBERRYS 2KG BOX FI
+18701,81,cool,KALAVAPRIIKKI OY TUORE,Mackerell whole fresh 200-400g,Kalavapriikki rainbow trout fillet A,RÖDING FILE 5KG
+18702,16,cool,KALANEUVOS OY TUORE,Kalaonni Smoked rainbow trout,Buffet smoked salmon sliced ASC,"Kalaneuvos Smoken trout fillet double vac ca1,35kg"
+18703,18,cool,FRISCH-HAUS FINLAND OY,"Razor Clam fresh living 60-90g, 3kg",MSC BLUE MUSSEL VERKKO NET,ÄT 400G BOILED CRAB TAIL IN DILL BROTH
+18704,6,cool,FRISCH-HAUS FINLAND OY,ÄT SEAWEED PREPARATION 5KG (ROE) BLACK,Dom Petroff Caviar Baeri 30g,ÄT 450G CAVI-ART SEAWEED PREPARA YELLOW
+18705,59,cool,ORKLA SUOMI FINLAND OY AB VK,Abba Gastronomi anchovyfilee 860/610g,"Sillikonttori Premarinated Baltic Herring 3 kg / 1,5 kg MSC",8 x Vesta herring in tomato sauce 150/100g
+18706,3,cool,VALIO OY / VALIO AIMO,RAINBOW TROUT FILLET C,TROUT FILLET DEBONED,SALMON FILLET C-CUT
+18707,3,cool,KALAVAPRIIKKI OY JALOSTE,Kalaonni Cajun Grilled rainbow trout 170 g,Kalaonni Maestro Grilled rainbow trout piece 170 g,"Kalaneuvos ""Liekki"" Flamed trout fillet ca 700g vac"
+18708,18,cool,KALAVAPRIIKKI OY JALOSTE,"Vehmaan Maut 1,8kg Baltic Herring with tomatosauce",Kalaonni Klassikko Marinated rainbowtrout fillet 150 g,Kalaonni Cold Smoked salmon fillet sliced ASC
+18710,106,cool,SAVO-KARJALAN LIHA OY,AIMO PORK ROAST FI,AIMO PORK SIRLOIN STEAK N150G/10KPL EU,Snellman Pork spare ribs app. 900 g
+18720,149,cool,KAIVON LIHA KAUNISMAA OY TUORE,WELL BEEF BONE-IN RIB FI,AIMO BEEF TENDERLOIN STEAK 160GX5 FI,HK Beef burger minced
+18730,1,cool,VELJEKSET RÖNKÄ OY,Rönkä Reindeer topside 1VP chilled,,
+18740,3,cool,PNM CHIPSTERS TUORE/VIILEÄT,"AIMO LAMB HIND NO BONE CA 1,8KG","Familia Lamb leg boneless ~1,5kg chilled",Familia Lamb frenched racks 2 pcs/vac ~800g
+18750,107,cool,ATRIA SUOMI OY TUORE,"Kariniemen Chicken breast fillet marinated 150-180g/appr. 4,4 kg",Atria Chicken Fillet Strips Honey 6x1000g,Atria Chicken Filee Stripes Honeymarinated 3kg
+18751,1,cool,TRADIFOOD AB,LBDF BARBARIE DUCK FILé N350G 2PCS,,
+18760,18,cool,ATRIA SUOMI OY TUORE,AIMO 2KG BEEF 3XMINCED MEAT 8%,AIMO 2KG BEEF/PORK 70/30 MINCED MEAT FI,Snellman Beef minced meat 10% 2 kg
+18761,19,cool,LIHAKAUPPA ROSLUND KY,AIMO KARALEIAN ROAST SHOULDER NO/SO,"Snellman Chuck eye roll overcooked ca1,5kg",Roslund Beef burger 100g fresh 12*100g
+20000,4,warm,PRIMA PET PREMIUM OY,Hau-Hau Champion Chicken stick 12 g,PrimaCat Treats Crunchy Skin & coat 40 g,PrimaCat Treats Crunchy Anti-hairball 40 g
+20011,60,warm,SAMBONET PADERNO INDUSTRIE S.P.A.,Cover 40CM,OPA CERAPRO 28CM FRYING PAN WITH LID,"SAUCEPOT 6,5L/24CM"
+20012,119,warm,SAMBONET PADERNO INDUSTRIE S.P.A.,NOSTOLAITE 1/2GN,GN FOOD PAN S/S 1/4-150 4L,"GN FOOD PAN PC 1/6-100 1,2L -100 - + 138"
+20013,26,warm,HEIROL OY,"HEIROL BREAD TIN 26CM/1,5L ALUMINIUM",STAINLES STEEL BOWL 2L,HEIROL SPRINGFORM 28CM
+20014,34,warm,BORMIOLI LUIGI S.P.A,AMERGRIP 20PCS/1L GREEN PE BAG,"Fredman freezer container 0,35l microwave resistant 6pcs x 18",BORMIOLI VACUUM CAN 1L FIDO
+20021,76,warm,MASTERMARK BRANDS OY,VICTORINOX 28CM ALL PURPOSE KNIFE,VICTORINOX 15CM FILETTI TERÄ,"TRAMONTINA 28X19,5CM CUTTING BOARD"
+20022,110,warm,SAMBONET PADERNO INDUSTRIE S.P.A.,HEIROL FISH BONE TONGS,COLE&MASON DERWENT PEPPER MILL,SILICONE MITTEN PRO XXL 29CM LONG BLACK
+20023,30,warm,ELECTROLUX PROFESSIONAL OY,Nic Ice cream scoop 1/12 aluminium,E-LUX COMPARTMENT FRAME 49LASSES 62MM,ANTI SLIP MAT 150X30CM
+20024,5,warm,SUOMEN LÄMPÖMITTARI OY - FINSKA TER,Suomen Lämpömittari food thermometer 4016,Suomen Lämpömittari meat/oventhermometer 376,Suomen Lämpömittari food thermometer 4010
+20031,106,warm,TOGNANA PORCELLANE S.P.A,ARC COFFEE CUP 25CL 6PCS STACKABLE,ORION ELEMENTS 26.5cm DNR PLTE- SLATE GR,"GLASSY TURQUOISE 22,2X22,2X3,2CM PLATE"
+20032,95,warm,T.R.BJÖRKBOM-TRADING OY,ARC GRANITY 6PCS/20CL STACKABLE TUMBLER,HARMONIA 58CL/6KPL BEER GLASS,"OXFORD BAR 6PCS/39,5CL COCTAIL GLASS"
+20033,87,warm,ASSHEUR+POTT APS,"PLASTEX 1,5L ICEWATER JUG",RECTANGULAR BASKET 23X17X8 POLY RATTAN,"ZEN BOWL 11X5,4CM/250ML BLACK MELAMINE"
+20034,47,warm,SAMBONET PADERNO INDUSTRIE S.P.A.,YLEISPIHTI 2PCS/20CM HAMPAATON,Nic Ice cream scoop 1/24 ceramic blue,ORTHEX 270MM WHITE LADLE
+20035,54,warm,ABERT S.P.A,HACKMAN CRABKNIFE 4PACK,Eura dessert fork 6 pcs 18/10 SS 178 mm,"WHITE CHOPSTICK REST 6,5CM"
+20036,36,warm,PRESCOTT OY,Mixtec Juice Bottle Complete 1L white,FLOUR SCOOP 18CL PLASTIC,RESERVED STAND 2PCS
+21100,4,warm,VANAJAN KEKSIT OY,"Leivon Sugar rusk, torn 3kg",Vanajan Whole grain crisp rolls 300g,Vanajan Sugar crisp rolls 340g
+21120,33,warm,MONDELEZ FINLAND OY KEKSIT,Kantolan Valitut 5 Parasta assortment of salted crackers 170g,12x Carr´s 125 g Table Water Bite Size biscuit,Kantolan Cream Cracker 200g
+21121,3,warm,FINE FOODS OY LTD,LAND LEBEN CROUTONS ONION/GARL 500G,Vivien Paille garlic croutons 500g,Vivien Paille Natural croutons 500g
+21130,50,warm,FAZER MAKEISET OY,Nic Boat shaped waffle 27x100x68mm 180pcs,12 x Caprice 250g wafer rolls filled with vanilla flavoured cream,Vanajan Blueberry-Raspberry wafer 240g
+21140,96,warm,FOURRE TUOTTEET OY,Digestive Classic biscuit 400g,6 variants 20 pcs Kantolan Ballerina and Kaurakeksi biscuit assortment,Fine Cookie Company Rainbow Nation cookie
+21150,70,warm,RAVINTORAISIO OY KUIVA,ELOVENA 160G OATS-DARK CHOCO BISC.,30 x Elovena 30g blueberry-white chocolate wholegrain snack biscuit 100% oats,24x Corny BIG Salted Caramel 40g snack bar
+21200,10,warm,FAZER MAKEISET OY,Linkosuo Crispy Rye Bread with nettles 500g,Oululainen Hapankorppuja Rye crisp 370g,VAASAN Original Thin Rye Crispbread 300g
+21211,32,warm,LANTMÄNNEN CEREALIA OY KOTKA,VAASAN KOULUNÄKKI Kunto 400g Wholegrain Crispbread with Rye bran,Åbyn Kartanon Caraway crispy bread 120 kpl organic,LePain des Fleur organic chestnut crispbread gluten free 150g
+21300,28,warm,HELSINGIN MYLLY OY,Myllärin Special Wheat flour 20 kg,Myllyn Paras Rough Wheat flour 1 kg,Myllärin Wheat Flour 20 kg
+21310,59,warm,VIRTASALMEN VILJATUOTE OY,BIRKKALAN 800G ORGANIC SPELTFLOUR,Favero Cornflour coarse 1kg,Myllärin Rye flour fine 20 kg
+21320,40,warm,RAVINTORAISIO OY KUIVA,Myllärin 2kg Rye Bread Flour mix,Myllärin Bun flour 2 kg,10 x Sunnuntai 300g cake and muffin mix
+21340,66,warm,OY CONAXESS TRADE FINLAND AB TEOLLI,Risella Rice-multigrain mix 800g,SUSHI RICE 5KG,ROYAL TIGER 1KG SUSHI RICE
+21360,28,warm,UNILEVER FINLAND OY SK KUIVA,Maizena Snowflake Modified Cornstarch 10kg,Tapioca Pearls (L) 375 G,"Promix Sauce thickener 1,6 kg"
+21370,71,warm,RAVINTORAISIO OY KUIVA,Myllärin Organic Barley flakes10 kg,Nalle 700g wholegrain rye flakes,9 x Elovena 240g cinnamon roll flavor instant oatmeal
+21371,25,warm,RAVINTORAISIO OY KUIVA,Myllärin Semolina 20 kg,Torino 8kg wholegrain barley,Dovgan millet 1000g
+21372,21,warm,NORDISK KELLOGG FINLAND,Elovena 350g wholegrain oat cereals,"Nestlé Nesquik 375g wheat, corn and cocoa cereals",Nestlé GoFree 375g gluten free corn flakes
+21373,28,warm,FAZER FINLAND OY FAZER MYLLY,URTEKRAM Organic Gluten-free Fruit Müesli 400g,Myllärin Gluten Free Granola with berries 350 g,Elovena 350g strawberry oat granola
+21380,140,warm,PRESCOTT OY,Torino 10kg macaroni,De Cecco Fusilli Whole Wheat pasta 500g,Yum Yum Noodles with beef flavor 60g x 30
+21381,31,warm,FINE FOODS OY LTD,Spice Up! Noodles 400g,"Santa Maria 200g Whole Wheat Noodles ""Perfect for wok""",Spice Up! Whole wheat noodles 200g
+21382,27,warm,MIDSONA FINLAND OY,7x Urtekram Organic Black Quinoa 350g,Myllärin Gluten Free Long Grain Oats 5 kg,Myllärin Gluten Free Long Grain Oats 950 g
+21390,28,warm,MIDSONA FINLAND OY,GoGreen Chickpeas 400 g,7x URTEKRAM organic Red split lentils 400g,YLISTALON 15KG FINNISH DRIEDPEAS
+21391,5,warm,LAIHIAN MALLAS OY,Tuoppi 1 L Kotikalja malt drink extract,Tuoppi Kotikalja malt drink extract 3x35g,Tuoppi crushed rye malt for malt drink 1 kg
+21393,6,warm,PRESCOTT OY,Vegesun Pea protein mince 2kg,HS 1KG SOYABEAN,"Vegesun Soy strips 1,25kg"
+21394,8,warm,POHJOLAN PERUNA,21 x Felix mashed potato powder 6 portions 220g,Mestari 20kg Instant Mashed Potato powder,Mestari Potato flakes 10 kg
+21400,88,warm,ECKES-GRANINI FINLAND OY AB,Marli Glogg drink 1 L,ELO FRESH 330ML TAROCCO BLOOD ORANGE,Mehukatti TRIP Watermelon drink 2dl
+21401,61,warm,ECKES-GRANINI FINLAND OY AB,Bonne Fruit juice concentrate 300% 1L,Marli Traditional Glogg syrup 1+3 5L,Delimax Vakiomitta Mixed juice concentrate 3 l
+21402,31,cool,VALIO OY TUORE,"Valio raspberry-peach soup with fiber 1 kg, no added sugar",Marli Blueberry soup 1 kg,Valio berry soup bilberry 1 kg
+21403,94,warm,VALIO OY TUORE,Biotta Beetroot juice 500ml organic,24x Rauch Tomato Juice 100% 200ml,Limmi 5l Lemon juice
+21404,50,warm,FAZER FINLAND OY / LIFESTYLE,"Marli Berry smoothie + D&C-vitamins 2,5 dl",God Morgon Berry Blend fruit and berry product smoothie 250 ml,"Brämhults Energy smoothie 0,3L"
+21405,4,warm,BLEND BEVERAGES OY VV,"24 x Warsteiner Premium Fresh alcohol-free beer 0,0% 0,33 l bottle box","12 x Home-made beer gluten free 0,75 L","Blend Lemon Twist 0,0% 24-pack"
+21450,95,warm,VALIO OY TUORE,Saarioinen Strawberry jam 500g,Valio mango-orange-lime filling 12 kg,St. Dalfour Orange preserve 284g x 6
+21451,36,warm,BONNE JUOMAT OY,Bonne Blueberry Purée 1L,URTEKRAM Organic Unsweetened Applepure 700g,Bonne Banana purée 100% 5L
+21452,29,warm,SAARIOINEN OY KUIVA,Mackays Lemon curd 340g,12 x Filos 370g greek apricot marmelade,Valio bilberry bakery marmalade 25 kg
+21453,15,warm,FERREROSCANDINAVIA AB FINLAND,Nutella Hazelnut spread with cacao 350g,Biona organic cashew nut butter 170g,Nugatti hazelnut-cocoa spread 500g
+21460,64,warm,MAUSTE-SALLINEN OY,Salliselta Nutmix 800g,16x Meira Almond sliced 50g,Salliselta Walnut 800 g
+21461,61,warm,MAUSTE-SALLINEN OY,Sunsweet Pitted prunes 200g,Biokia Organic lingonberry powder 30g,Finnut Dried fruit mix 250g
+21462,35,warm,MAUSTE-SALLINEN OY,"Promix Salad Mix of Seeds 2,5kg",Salliselta Saladmix 400g,Salliselta Saladmix 800g
+21463,10,warm,JFC NORDEN (SWEDEN) AB TEOLLINEN,Yutaka Sushi Nori roasted seaweed 11g,GTF 100G WAKAME DRIED SEAWEED,NHS 100G KAISO MIX (FROM E1063)
+21510,16,warm,OY LUNDEN AB JALOSTAJA TEOLLINEN,Jalostaja Vegetable Pea Soup 435 g,Jalostaja Stroganoff 400 g,MARSKIN VORSCHMACK 400G
+21530,26,warm,ALFMIX OY,John West John West Boneless Sardines in Sunflower Oil 95/67gx12,Pielisen kalajaloste Smoked vendace 1170/880 g,Capri anchovy fillets 720g
+21540,8,warm,FRANCAISE DE GASTRONOMIE,Francaise de Gastronomie Chantifrais snails in brine 800g/465g,Francaise de Gastronomie Chantifrais very large snails in brine 4 dozen 250g/400g,"BILLOT Burgundy snail meat, about 24 pieces, 200g / 125g"
+21550,25,warm,SAUVON SÄILYKE OY,"Sauvos 2,9/1,75 kg in light salt brine cubed mushrooms","BORDE 4,5/3KG METSÄSIENIKUUTIO","KEKBEL 2,9KG SLICED CHAMPIGNONS"
+21580,42,warm,OY ARVID NORDQUIST FINLAND AB,Del Monte 230g Pine crush in juice,24x227/139g Dole Tropical Gold Pineapple Slices in juice,"KRONOS 2,6/1,5KG PEACH CUBES IN JUICE"
+21590,78,warm,E. GAVRIELIDES OY,Felix tomato paste 300g,Mutti Pelati whole peeled tomatoes 2500g,Biona Organic concentrated Tomato pure 200 g
+21591,49,warm,ORKLA SUOMI FINLAND OY AB VK,Felix cucumber wedges in salty brine 460/230g,Felix Amerikkalainen sliced cucumber in pickle 730/380g,"Myrttisen Sliced Pickled Cucumber 1,5 Kg"
+21592,9,warm,EURO-EAST OY,SATOMESTARIT 900G HAPANKAALI,"Euro-East Fermented chinacabbage salad Kimchi, Gluten free 440g",Euro-East Sauerkraut 3000g
+21593,10,warm,SAUVON SÄILYKE OY,Felix sliced beetroots in pickle 570/380g,"Sauvos cubed Beetroots 8,6/6,2kg","Felix beetroot cubes in pickle 8,9/7,0kg"
+21594,54,warm,PRESCOTT OY,8 x Palirria 280g giant beans in onion and tomato sauce,"Paliria 2/1,08kg chickpeas in brine","Everyday by Haugen Black bean 1,95/1,85kg x 5"
+21595,65,warm,E. GAVRIELIDES OY,12 x Amalthia 260/140g Kalamata olive pitted,6 x Filos green olive pitted filled with red pepper 300/165g,"2 x Filos 4,8/3,2kg Kalamata variety olive stripes"
+21596,147,warm,E. GAVRIELIDES OY,Royal 1680/800g mild green pepper,CHAOKOH 565G JACKFRUIT IN HEAVY SYRUP,"Herkkumaa Silverskin onions 3,1/1,9kg"
+21600,54,warm,SUOMEN NESTLE OY,12xPILTTI 125g Mango Apricot Pineapple fruit puree 4mth,PILTTI Patukka 25g Fruity snack bar 1year,Valio Tuuti® 2 milk based follow-on formula 200 ml UHT
+21900,11,warm,OY LUNDEN AB JALOSTAJA TEOLLINEN,Jalostaja Organic pea soup 435g x 12,"4 x Knorr 100% Soup Paprika-Tomato Soup 2,5kg",Knorr Tomato soup with mascarpone and sundried tomatos Soup 570 ml
+21901,13,warm,GB FOODS SUOMI OY,12 x Blå Band Lämmin Kuppi low lactose Chanterelle Soup 3x20g -transport package,"Knorr Tomatosoup 3,9kg/60L",HIKARI 750G MISO MUTENKA KOJI NATURAL
+21902,111,warm,UNILEVER FINLAND OY SK KUIVA,Basic Line beef flavour bouillon low salt 5kg/1000L,OSCAR® Vegetable Bouillon granulate Low Salt 4 kg bucket,Knorr concentrated liquid mushroom fond 1L/50L
+21903,6,warm,PULJONKI OY PULJONKI,Puljonki® Veal Bouillon 1 l tetra,Puljonki® Signature Vegetable Bouillon 1 l tetra,Puljonki® Chicken Bouillon 1 l tetra
+21904,57,warm,PULJONKI OY PULJONKI,Puljonki® Plum Tomato Sauce 1 l tetra,"Gold&Green® Thailand Curry Meal Sauce 2,5 kg",6x Rummo Sugo alle olive pastasauce 340g
+21905,51,warm,UNILEVER FINLAND OY SK KUIVA,"KNORR Brown sauce base 2,5kg/12,5L",OSCAR® Banquet Brown Sauce Base 1 l tetra,Knorr Garde d'Or Mushroom sauce 1L
+21910,87,cool,SEAGOOD OY VIILEÄ,Felix Kruunu mayonnaise 175g,"Herkkumaa vegan mayonnaise 60 % 2,5 kg",8 x Herkkumaa Street Food Mangoraja Mayo 940g
+21912,33,warm,HAUGEN-GRUPPEN OY,3 x Felix ketchup bag for dispenser 5kg,Meira Ketchup 10kg,Heinz Ketchup sachet 200x11g/10ml
+21917,184,warm,PARAM PARA AB,"Rydbergs Remoulade dressing 2,5kg",Poppamies BBQ Sauce Classic BBQ 5kg,Santa Maria 1050G BBQ Glaze Mango Jalapeño
+21918,81,warm,SAARIOINEN OY KUIVA,10 x Saarioinen Garlic dressing 345ml,RAPSONA 900G COLESLAW SAUCE,Nonna’s Caesar sauce 6x500ml
+21919,20,warm,E. GAVRIELIDES OY,Santa Maria 200ML Fish Sauce,6 x Filos Deluxe dark fig balsamic cream 250ml,Spice Up! Fish sauce 1000ml
+21920,43,warm,FINE FOODS OY LTD,Spice Up! Satay sauce 500g,Spice Up! Sweet and sour sauce 100g,6x Dolmio Bolognese Sauce Garlic 675g
+21921,41,warm,BERNER OY / ELINTARVIKKEET,Kikkoman 150ml Soy sauce,Kikkoman 1l Sesame sauce,DEK SOM BOON 2L LIGHT SOY SAUCE
+21950,8,warm,MIDSONA FINLAND OY,Sevan Rose water 245ml,Makrobios Nutritional yeast flakes 100 g,SportLife Nutrition Daily Vitamin+ Mineral 100 kaps
+21952,2,warm,DAILY GATE OY,LifeLine 2kg Thickener coldswelling and amylase resistant,Puhdistamo Puhdas Snack Organic berry snack bar with almonds 40 g,
+21980,48,warm,CONDITE OY / PROMIX CAPSI,"Promix Milk Cream Powder 1,72 kg -> 8 l","Nic Sour Fizzy pearls 1kg, sprinkles",Dr. Oetker White chocolate mousse 1kg x 6
+21981,39,warm,NIC-FINLAND OY,Nic Toffee topping 900ml,La Sauce de MONIN White Chocolate Sauce 500ml,Nic Chocolate flavoured dip coating 3kg
+21982,4,warm,HAUGEN-GRUPPEN OY,Törsleffs condensated milk sweetened 12x397g,IsoMitta pizza layers 8kg 20pc GN-size 48x28cm,6 x Markomilk 397g sweetened condensed milk
+21990,49,warm,ORKLA SUOMI FINLAND OY AB SNAC-KEKS,40g Kettle Chips Sea Salt & Balsamic Vinegar Potato Chips,PRINGLES Paprika 70g,Taffel Chips classic salted chips 250g
+21991,33,warm,SANTA MARIA AB,Old El Paso Large Wheat Tortillas 6pieces/350g x12,WANTED 450G TORTILLA CHIPS CHILI,Santa Maria 2200G Taco Shells
+21992,35,warm,ORKLA SUOMI FINLAND OY AB SNAC-KEKS,Taffel Pähkinä salted peanuts 300g,11 x Taffel Broadway Nuts sourcream & onion coated peanuts 150g,Den Lille Nøttefabrikken Nøtti Frutti Nut-fruitmix 330g x 15 pcs
+21993,42,warm,ORKLA SUOMI FINLAND OY AB SNAC-KEKS,10 x Linkosuo Rye Crisps Sweet Chili 150g,SAGIANG 1KG PRAWN CRACKERS,Smiling Cashew nuts Dark Chocolate ORGANIC 20x45g
+21994,56,warm,SANTA MARIA AB,Old El Paso 340g Thick and Chunky Salsa Medium x12,"LACOSTENA 2,8KG CHIP SMO CHILLI",El Yucateco Salsa Picante Roja de Chile Habanero salsa sauce 120ml
+22100,40,warm,SUOMEN SOKERI OY,Dansukker Finnish Jam Sugar 1kg,8 x Dansukker Glucose syrup 400g,Dansukker Hard Sugar Cubes 750g
+22140,125,warm,PRESCOTT OY,Nordic Sugar Talous Sugar Syrup 7kg,Modo Vanilla Syrup 75cl,Le Sirop de MONIN Watermelon Syrup 70cl
+22150,19,warm,HUNAJAINEN SAM OY,"Hunajainen SAM Luomuhunaja 1,5Kg Organic Honey",Hunajainen SAM Kesäkukka Hunaja 450g Honey,Hunajainen SAM Luomuhunaja 500g Organic Honey
+22190,10,warm,OY CONAXESS TRADE FINLAND AB TEOLLI,SteviaSweet 75g Granulated sweetener,Hermesetas 1200pcs Mini Sweeteners sweetener,"Dansukker Sugar Cubes 2pcs 4,4kg"
+22300,109,warm,OY GUSTAV PAULIG AB VUOSAARI,Paulig Presidentti Tumma Paahto 18x300g medium coarse ground coffee,12x Segafredo Pausa filter coffee RAC 450g,Paulig Mundo Colombia & Honduras Organic coffee filter ground 12x450g
+22410,44,warm,OY GUSTAV PAULIG AB VUOSAARI,Paulig Café New York 8x450g coffee beans,6 x Löfbergs Professional Exclusive Whole Beans Coffee 1000 g FairTrade Organic,Paulig Mundo Colombia & Honduras organic coffee beans 8x450g
+22411,4,warm,MEIRA OY,6x Segafredo Intermezzo ground espresso filter coffee 250g,illy espresso decaf ground coffee 250g,illy Classico medium roast ground espresso coffee 250g
+22412,23,warm,SUOMEN NESTLE OY,Nescafé Kulta 200g instant coffee,6x Kulta Katriina Instant coffee RAC 180g,6 x Löfbergs Fair Fresh Instant Instant coffee 100 g FairTrade Organic
+22413,27,warm,LÖFBERGS LILA AB,10 x Starbucks Caffè Latte 220 ml ice coffee milkdrink,Löfbergs Cold Brew Coffee 1 L Organic,"Valio Latte mint coffee drink 2,5 dl lactose free"
+22530,106,warm,NORDQVIST OY,Twinings 8x20x2g Collection Classics tea,Bradley's Organic No. 274 Moringa and Ginger Fairtrade flavoured herbal tea 4x25pcs,Nordqvist Refill bag Christmas tea 100pcs RFA
+22531,23,warm,NORDQVIST OY,Twinings 12x200g Earl Grey loose tea,HORITA YUKI UJI 500G MATCHA GREEN TEA,Nordqvist Tiger's Daydream 130 g RFA
+22532,21,warm,ARHO FOODS OY,"San Benedetto Peach ice tea 0,5l","12x Fuze Tea Peach&Hibiscus ice tea plastic bottle 0,4 L","12 x Raikastamo Mint-apple ice tea organic 0,5l CH-BIO-006"
+22540,27,warm,VALIO OY TUORE,Valio Play® milk chocolate drink 1 l lactose free,Oboy Less Sugar cocopowder 500g,Capsi Cocoa powder dark 3kg
+22600,40,warm,MEIRA OY,Berner Sea salt medium coarse 25 kg,Maldon sea salt flakes 250g,6x Meira Mineralsalt fine iodised 80g
+22601,190,warm,MAUSTE-SALLINEN OY,Dr. Oetker Candied lemon peel 100 g,Salliselta Marzipan yellow 250g,Salliselta Mint Flavor 900g
+22610,45,warm,MEIRA OY,Meira Traditional mustard 950g,"Heinz Mustard SOM refill 3x2,7kg/3x2,5L","French's Classic Yellow mustard 4x2,98kg"
+22620,65,warm,BERNER OY / ELINTARVIKKEET,Yutaka Mirin sweet rice seasoning 150ml,6 x Filos 350ml white wine vinegar,6 x Hengstenberg 250ml condimento balsamico bianco orange
+22630,432,warm,SANTA MARIA AB,Santa Maria 275G Chili Explosion,Santa Maria 430G Cumin,12x Meira Mulled wine seasoning 25g
+22640,17,warm,BERNER OY / ELINTARVIKKEET,Salliselta BBQ rub seasoning 3kg,Rajamäen 40ml Organic liquid Basil,Rajamäen 240ml Organic liquid garlic
+22641,64,warm,FINE FOODS OY LTD,Spice Up! Red chilli paste 110g,Spice Up! Sambal oelek chillipaste 1000g,Spice Up! Yellow Thai curry paste 100g
+22646,19,warm,UNILEVER FINLAND OY SK KUIVA,Knorr Professional Garlic Puree 750g,Knorr Professional Smoked chili Puree 750g,Sosa Smoke flavouring powder 500g
+22660,7,warm,MAUSTE-SALLINEN OY,Fresh Yeast 1 kg,10 x Sunnuntai 10x11g dry yeast,Salliselta Instant yeast 15kg
+22670,30,warm,PNM CHIPSTERS OY TEOLLINEN,12 x Dr. Oetker Gelatinpowder 65g,"Rajamäen 0,4l Flavoured spirit vinegar","Rajamäen 0,4l Pickling broth"
+22700,157,warm,OY HARTWALL AB,"Marli Traditional Mead 1,5 L",24 x Jarritos Pineapple Natural Flavor Soda 370ml bottle,"FINNA Cloudbery 0,75l sparkling drink"
+22701,78,warm,LEJOS OY,Red Bull Energydrink 250ml x 24,"24 x ED Lemon No Sugar Energy Drink 0,5 l","24x Battery Sugar Free Mango Lime energy drink can 0,33 L"
+22702,47,warm,DAYTON OY,Fever Tree Ginger Beer 200ml,"Supasawa Seriously Sour Cocktail Mixer 0,0% 700ml","Schweppes Indian Tonic soft drink PET 1,5 L"
+22703,27,warm,LEJOS OY,"Vitamin Well Reload, lemon & lime -flavoured non-carbonated beverage with added vitamins 12x500ml",Rscued Lemon shot 3 L,Puhdistamo Coconut Water Traditional 310 ml
+22704,15,warm,LEJOS OY,400ml The Gutsy Captain Kombucha Ginger Lemon flavoured kombucha drink ORGANIC,24 x The Good Guys Lime Time Kombucha 330 ml,24 x The Good Guys Ginger Kombucha Sugarfree 330 ml
+22705,17,warm,FINN SPRING OY,SPRING Spring Water 10 l,"24 x Hartwall Novelle Spring water 0,5 l","24 x Bonaqua Still water bottle 0,5 L"
+22706,63,warm,OY HARTWALL AB,"24 x Hartwall Vichy Original mineral water 0,5 l",S. Pellegrino 75cl,"24 x Hartwall Vichy Original mineral water 0,25 l"
+22707,11,warm,PRESCOTT OY,Sprite Zero Sugar Lemon-Lime soft drink concentrate BIB 5 L,Modo Cola Slush Ice Drink Concentrate 5L,Modo Strawberry Slush Ice Drink Concentrate 5L
+30010,3,warm,OY TRANSMERI AB,XPERT GARDEN FLOWER SOIL 10L,Raid House aerosol insecticide aerosol 300ml,Raid Kärpäspaperi fly catcher 4pcs
+32990,13,warm,OY CONAXESS TRADE FINLAND AB TEOLLI,Cricket CR Original lighter 1pcs x 50,Sampo 17g Long matches x108,36 x C Tray lighter 1pce
+41701,56,freeze,PNM CHIPSTERS OY PAKASTE,"Snellman sous vide Overcooked pork neck frozen n2,8kg",Familia by César Nieto CEBO Iberico pork cheek á ~160g 8-12pc/bag,Atria Pork Backribs 511-680g frozen approx14kg
+41702,109,freeze,KAIVON LIHA KAUNISMAA OY PAKASTE,"Well Kebab ungrilled kebab beef meat spit 8,5kg",Ole's Premium ras helköttsbiff 28x150g djupfryst råköttberedning,Rosburger Smash burger 80g 30% 50x80g 4kg Beef burgersteak
+41703,39,freeze,PNM CHIPSTERS OY PAKASTE,Rönkä Reindeer top loin frozen,Rönkä Lamb entrecote frozen 2pc/vac,"Familia Wild Sauteed elk raw frozen 2,5kg"
+41704,31,freeze,TOPFOODS FINLAND OY PAKASTE,"2x Rönkä Minced lamb 2,5 kg frozen",RÖNKÄ SLICED ELK MEAT 5KG FROZEN,Topfoods lamb tenderloin ab.500g frozen NZ
+41705,140,freeze,LAGERBLAD FOODS OY,Saarioinen Cocktail meat ball frozen 5kg/about833x6g,"Lagerblad Foods Pan-fried patty with garlic-herb-butterstuffing 130 g / 5,2 kg fried frozen","Lagerblad Foods Goat cheese filled beetroot patty 80 g / 5,6 kg fried frozen"
+41710,129,freeze,PNM CHIPSTERS OY PAKASTE,Saarioinen Tandoorspiced roasted chicken fillet slices frozen (Finland) 4kg,"Görans Chicken thigh cubes grilled IQF 2x2,5kg",Chick Chicken Liver Frozen 12x300g
+41711,9,freeze,PNM CHIPSTERS OY PAKASTE,Rougie duck breast magret ~430g frozen,10 x Familia Woodpidgeon ovenready 250g frozen,SNV Duck leg Barbarie ap625g/2pc frozen
+41712,46,freeze,HKFOODS FINLAND OY,"Salomon Crunchy Chikn Burger chickenburgersteak á135 g frozen 4x1,5kg",Atria Cooked Corn-Breaded Chicken Tenderloin Frozen 5kg,"Saarioinen Little ground chicken patty frozen 4,0kg/about100x40g"
+41720,122,freeze,KALAVAPRIIKKI OY PAKASTE,Findus Hake fillet MSC ca. 42x120g,"Kalavapriikki Pike fillet, frozen, skinless","Findus Fish'n Chips Roll, MSC, 60 g, frozen"
+41721,52,freeze,PLANETS PRIDE A/S,ÄT SIGNAL CRAYFISH 10PCS/10-11CM COOKED,"Planets Pride ASC Vannamei Shrimps HOSO 10-20 1kg/750g whole, raw, frozen",Planets Pride norwat lobster shells 5kg MSC frozen
+41722,8,freeze,KALAVAPRIIKKI OY PAKASTE,ÄT 150G BURBOT ROE FI,Benella Whitefish roe 100 g,Roe from lake whitefish 100g frozen
+41723,74,freeze,FINDUS FINLAND OY,"Saarioinen Fish ball MSC pre-cooked frozen 4,5kg/about280x16g",Apetit Crispy White Fish Balls cooked frozen appr. 180x22g 4kg,"Cod Fiskett, MSC, 5 kg, prefried"
+41731,136,freeze,DARTA BELGIUM,5xFrancep Chanterelles (3-5cm) 1kg frozen,"GREENS 2,5KG TOMATOES DICED","Westfro broad beans 2,5kg frozen"
+41732,49,freeze,APETIT RUOKA OY/PAKASTE,"Apetit Diced root vegetables Maxi frozen 1,5kg","Findus Rainbow carrot 2x1,8kg/ 3,6kg","GREENS 2,5KG POTHERBS"
+41733,11,freeze,DARTA BELGIUM,Viher Voima nettle 1kg pakaste,GREENS 1KG PARSLEY,GOLDEN TURTLE 250G RED CHILLI
+41734,7,freeze,FINDUS FINLAND OY,Findus Maize purée 2kg. Heat treated and individually quick frozen in pellets.,FIndus Carrot purée 2kg. Heat treated and individually quick frozen in pellets.,Findus Cauliflower purée 2kg.
+41740,35,freeze,KASKEIN MARJA OY/ POLARICA AB,"BERRY MIX 2,5KG PL","Valio black currant (Finland) 2,5 kg x 2 / 5 kg",Polproduct Nordics Oy frozen blackcurrant 2.5kg
+41741,17,freeze,DARTA BELGIUM,"GREENS 2,5KG EKSOTIC FRUIT MIX","GREENS 2,5KG MANGO DICED IQF FROZEN","BIMIZ 2,5KG 10X10 APPLE DICES FROZEN"
+41742,64,freeze,BOIRON FRERES S.A.,"Findus Black currant purée 2kg, frozen",BOIRON 1KG STRAWBERRY PUREE,BOIRON 1KG STRAWBPUREE 100% MARA DE BOIS
+41750,6,freeze,FINDUS FINLAND OY,Mondo Fresco Carrotrosti gluten-free 75x60g frozen,Findus Chicken Timbale ca. 63x40g,Findus Hampurée 2kg. Heat treated and individually quick frozen in pellets.
+41751,78,freeze,AVIKO B.V.,Aviko Skin on fries 11 mm 7/16 2500gx4,"Mondo Fresco Parsnip rösti 75 x 60g, glutenfree, frozen",McCain Spicy Crispers 4 x 2.5kg
+41752,8,freeze,FEELIA OY PAKASTEET KOKKOLA,"Feelia Breaded chipotle patty c 50g, 4kg, df",Findus Cod Timbale MSC ca. 63x40g,"Feelia Meatballs c 12g 4x1kg, deep frozen"
+41753,146,freeze,LAGERBLAD FOODS OY,Findus Falafel ca. 266x15g,"Mondo Fresco Vegetable Lasagne Rustico 7,2kg (24x300g portion) frozen","MUU Plant-based Wiener Bites 1kg, frozen"
+41754,47,freeze,SEAGOOD OY PAKASTE,Oumph! - The Chunk 2 kg,Salomon Green Heroes vegan Schnitzel 3x1kg,Peas of Heaven pea protein burger vegan 50x110g
+41755,221,freeze,HAUGEN-GRUPPEN OY PAKASTE,FROZEN RICE 2500G,"Salomon Green Heroes Oat burger 4x1,1kg",McCain Cheese Balls 1kg frozen
+41760,244,freeze,OY LANTMÄNNEN UNIBAKE AB FINLAND,Fria Fiber-rich loaf 500g x 8 glutenfree frozen sliced,Schulstad bakery Solutions Levain leipä viipaloitu 4x1250g Sliced wheat-rye pan bread. Baked with sourdough. Thaw and serve. Frozen.,"Valio baked rye-rice pastry 65 g x 60 / 3,9 kg lactose free"
+41761,119,freeze,OY LANTMÄNNEN UNIBAKE AB FINLAND,Munkkimiehet Clam bun lactose free 80x100g,Sibylla Royal Hamburger Roll frozen 30x80g,Dafgårds ciabatta 58g
+41762,131,freeze,OY LANTMÄNNEN UNIBAKE AB FINLAND,Munkkimiehet Pasty filled with meat lactose free 60x90g,"Fazer Pasty with meat and rice 80 x 80g, raw frozen","Fazer Gluten-Free Rice pasty 20 x 60g, single-packed frozen fully baked"
+41763,349,freeze,MONDO FRESCO OY PAKASTE,RollfoodsStrawberry Cheese cake 1450g sliced in 12 portions frozen,"Riitan Herkku Gluten-free Strawberry platecake 2500g, chopped","Riitan Herkku Chokoladecheesecake 1400g, chopped"
+41764,179,freeze,OY LANTMÄNNEN UNIBAKE AB FINLAND,Fria Cinnamon buns 200g/4pcs glutenfree frozen x8,Reuter & Stolt Vegaspulla 20pcs 100g low in lactose ready to eat frozen,Munkkimiehet Blueberry cruffin 60x90g
+41765,81,freeze,OY LANTMÄNNEN UNIBAKE AB FINLAND,"Kymppi mini Lemon quark pie baked deepfrozen 60 x 35 g 2,1 kg",Europicnic double chocolate cookie single packed 20x55g,Rollfoods VanillaBun 35 g x 20 pcs x 6 bag vegan frozen
+41766,66,freeze,OY LANTMÄNNEN UNIBAKE AB FINLAND,Myllyn Paras Pie Dough for Salty Pies 9x380g,Fazer House Vanilla bun dough 16x430g raw frozen bun dough,Apetit Kotimainen Pizzacrust with sauce 1/2 GN frozen 12x390g
+41770,17,freeze,NOVACAFI OY AB,BLOKS 4KG ICE CUBES,Jacobs Cafitesse Classic roast 2x2 ltr coffee,6x Karhujää crystal clear frozen crushed ice 2kg box
+41771,25,freeze,TOPFOODS FINLAND OY PAKASTE,Europicnic Mozzarella slice frozen 13g 68mm 500g,Sorrentina Mozzarella Buffalo 2x125g frozen IT x16,Topfoods mozzarella stange sliced lactose free 400g frozen
+41800,124,freeze,FRONERI FINLAND OY/PAKASTE,20xSuper Liquorice ice cream stick 65g/100ml,Jättis Bestis Salty Liquorice Ice Cream 146ml/88g,Twister Cosmixx Ice Cream 70ml/ 72g
+41801,109,freeze,FRONERI FINLAND OY/PAKASTE,6x Jymy Organic ice cream Vanilla 500ml,"4x Aino Cookies and cream Lactose free ice cream homepackage 500g/0,9L",Valio ice cream 480 ml mint-caramel lactose free
+41820,139,freeze,SWEET LIFE OY,Heartbrand Rainbow/Tutti Frutti Ice Cream 5000 ml/2730 g,"2xMövenpick scoop ice cream Chocolate&Salted Caramel 1338g/2,4L",Pingviini Rumraisin lactose free scoop ice cream 5L/2650g
+41830,39,freeze,MONDO FRESCO OY PAKASTE,Kungsörnen 6kg Crepes 60g lactose free,Mondo Fresco Vegan mango-passionmousse 2x1kg in a pastry bag frozen,Mondo Fresco Mini Chocolate Fondant 48x30g frozen
+52200,91,warm,FAZER MAKEISET OY,70xFazer Pätkis Mint truffle milk chocolate bar 18g,20xFazer Pätkis maxi crunchy chocolate bar 55g,30x Twix Salted Caramel chocolate bar 46g
+52201,58,warm,FAZER MAKEISET OY,Karl Fazer whole hazelnuts milk chocolate tablet 200g,Karl Fazer raspberry & liquorice milk chocolate 200gx21,Karl Fazer Thins Dark Chocolate 70% cocoa chocolate tablet 95g
+52202,40,warm,FAZER MAKEISET OY,"Fazer Fazermint mint chocolate praline 3,0kg",Oscar Candies individually packaged milk toffee sweets 8 * 1 kg sachet,Brunberg Lactose free Milk chocolate Praline Orange 250g
+52208,34,warm,ALFMIX OY,Chupa Chups The Best of Lollipop 12gx100,Chupa Chups 45x15g Skull lollipop,Zaini Happy Halloween chocolate-toffee mix 225g
+52209,62,warm,CLOETTA SUOMI OY,Malaco Brio hedelmä pick & mix candy 2 kg,"Malaco Tervapiru pick&mix candy 1,8kg",Fazer Ässä Mix loose candy box 800g
+52210,152,warm,FAZER MAKEISET OY,Fazer Marianne Toffee candy bag 220g x18,Fazer Pantteri Original salty liquorice pastille 70gx16,30x M&M's Peanut milk chocolate 150g
+52240,80,warm,CLOETTA SUOMI OY,24 x Halva Salty Diamond Jellies 170 g,Fazer Xylimax Moomin wild strawberry-peach-raspberry full xylitol pastille 90g x10,18 x Mynthon Zip Mint Menthol pastille 30g
+52260,21,warm,CLOETTA SUOMI OY,Fazer Xylimax Moomin Raspberry and fruit flavoured full xylitol chewing gum 100g x20,Fazer Xylimax Sweet Mint mint flavoured full xylitol chewing gum 80gx24,16 x Jenkki Professional Fresh Strawberry +C full xylitol chewing gum 90g
+52290,90,warm,FAZER MAKEISET OY,Ferrero Raffaello Crispy coconut speciality biscuits with a whole almond centre 15pcs/150g,Ferrero Rocher Crushed hazelnut and milk chocolate covered crispy wafer with a smooth filling and a whole hazelnut 8pcs/100g,Baileys Chocolate Truffles Salted Caramel 205g
+63000,18,warm,BERNER OY / ELINTARVIKKEET,Erisan Unscented Dry Shampoo 250 ml,Kiilto Pro Odent Air Freshener 500ml,LV 250ml shampoo for normal scalp
+63001,125,warm,OY ESSITY FINLAND AB,Dove Deeply Nourishing Refill Liquid Hand Wash 500 ml,Erisan Pro Etasept 500ml antiseptic hand rub,"LV 150ml SPF 30 Sun Lotion, very water resistant"
+63002,25,warm,UNILEVER FINLAND OY HPC,Pepsodent Professional Toothbrush Medium,Pepsodent Xylitol Toothpaste 50 ml,HUMBLE BRUSH KIDS YELLOW TOOTHBRUSH
+63070,11,warm,BAT POWER OY,16 x Always 10pcs Ultra Long Plus 3 with wings pad,12x Tampax 22pcs Compak Regular tampon,Tampax tampon Super 20pcs
+63071,77,warm,ABENA FINLAND OY,Salvequick Aqua Resist 75cm,ABENA VINYLE GLOVE S 50PCS CLEAR POW.F,Fredman beard mask 100 pcs x 10
+63072,21,warm,ORKLA CARE OY,Duni 250pcs lemon refreshing towel,BIC 4pcs 3 Sensitive razor,20 x Gillette 5pcs BlueII Plus Slalom disposable
+63100,117,warm,DIVERSEY SUOMI OY,"Heti Neste Dip 1 L,Presoak With chlorine",HETI PUHDAS 3000 10L MACHINE DISHWASHING,Sun Classic Canister Dishwasher powder 1 kg 58 wash
+63113,52,warm,UNILEVER FINLAND OY HPC,Bio Luvil Classic Laundry Powder 1.61 kg 50 Wash,Bio Luvil Regular Liquid Detergent 920 ML 23 Wash,"LV 1,5l Colour Washing liquid refill"
+63114,181,warm,DIVERSEY SUOMI OY,Suma Auto Oven Rinse D9.11 10l Safepack Oven neutralizer,2 x Suma Multipurpose Cleaner D2.3 1.4l,Heti 500ml Laundry vinegar fresh
+63115,83,warm,KIILTOCLEAN OY,Kiilto Pro Off Calc 500 ml Descaling agent for small appliances,Glade Touch & Fresh 10ml relaxing zen refill,Kiilto Pro Caretop 5l Maintenance polish
+63120,164,warm,DIVERSEY SUOMI OY,Fredman Carita® Premium fibre cloth 45x60cm 50 gsm perforated 40pcs/roll,FIBRA MAINIO 22PCS 39X39CM WIPE,Fredman Carita® Bio kitchen cloth for cooking 30x50cm 20pcs
+63121,44,warm,WALKI CONSUMER OY,PikPak 50pcs 20L 420x500x0.011 blue HD-waste bag,Bioska 20pcs natural 540x510x0.02 35L bio waste bag,PikPak 8pcs 150L 750x1100x0.04 black waste bag
+63122,19,warm,WULFF OY AB,DURABIN 60L LIGHT GREY WASTE BASKET,Tork Bin 5 Litre Black B3,SINI SORTING BOX GREY
+63130,21,warm,OY ORTHEX FINLAND AB,"ORTHEX 3,5L FROZEN SERVING BOWL",SQUEEZY SAUCE BOTTLE 660ML CLEAR,SISTEMA KLIP IT + STORAGE BOX 1L
+63131,10,warm,OY ORTHEX FINLAND AB,ORTHEX WHITE LID FOR 10L BUCKET,ORTHEX 2L GREY WATER BUCKET,ORTHEX 45L DARK GREY WATER BOWL
+63200,6,warm,OY ESSITY FINLAND AB / CONSUMER NOK,LOTUS Emilia household paper white 4 rolls,Tork Extra Absorbent Kitchen Roll White 2x15m,Serla household paper 16rl white
+63210,37,warm,OY ESSITY FINLAND AB,Tork SmartOne® mini Toilet Roll 12x111m T9,Tork Extra Soft Mid-size toipa 27x70m 3ply T6,Tork Mini Jumbo Adv 2p 170m 12/1 NC
+63230,79,warm,"DUNI OY, PROFESSIONAL",Softlin Basic 24cm 12x100pcs 2-ply 1/4 white napkin,Tork Cocktail/Coffee Napkin Blue Green 200pcs/24cm 2 ply 1/4fold,DUNI Bio Dunisoft®- napkin orange 20 x 20cm 1/4-fold 16 x 180pcs
+63231,94,warm,"DUNI OY, PROFESSIONAL",Duni 33cm 2-ply napkin black 125pcs,Softlin Basic 33cm 100pcs 2-ply 1/8 white napkin,Havi napkin Joulukaramelli 33cm 20pcs
+63232,113,warm,"DUNI OY, PROFESSIONAL","DUNI Dunicel® Tableskirt 0,72 x 4 m red, 5 x 1 pcs","DUNI Dunicel®-tablecover reel 1,18 x 25 m granite grey 2 x 1",Duni Dunisilk+ 138x220cm leaf green tablecover x 5
+63233,40,warm,OY ESSITY FINLAND AB,Tork Lunch-Dispenser Napkin Red 175pcs/33cm 1/8 fold,Tork Lunch Dispenser Napkin Yellow 175pcs/33cm 1ply 1/8fold,"Tork Xpressnap Fit napkin white 6x120pcs/21,3x16,5cm 2ply Z-fold N14"
+63234,16,warm,OY ESSITY FINLAND AB,Tork Xpressnap® Tabletop Napkin Dispenser Grey N4,6 x Katrin Resta Table Top napkin dispenser,Tork Xpressnap Fit napkin dispenser tabletop black N14
+63235,238,warm,"DUNI OY, PROFESSIONAL",Duni 40cm 3-ply bordeaux napkin 125pcs,Duniletto Dunilin 40x48 cm granite grey,DUNI napkin orange 40 x 40cm 3-ply 1/8-fold 5 x 250pcs
+63240,42,warm,OY ESSITY FINLAND AB,Tork Reflex™ Mini Wiping paper White 6x120m M3,Tork Handtowel Singlefold White 15x250Sheet H3,21x Katrin Hand Towel Non Stop M 2-ply Yellow 135 pcs
+63241,38,warm,OY ESSITY FINLAND AB,"Katrin hand towel dispenser, stainless steel",Tork Matic® Hand Towel Roll Dispenser - with Intuition™ Sensor Black H1,Tork Mini Jumbo Toilet Roll Dispenser Stainless T2
+63242,8,warm,OY ESSITY FINLAND AB / CONSUMER NOK,LOTUS Nessu Sensitive Hankie 75 pcs,Tork Facial tissue White 100 Sheet Premium F1,LOTUS Nessu Hankie 100 pcs
+63270,2,warm,MANILLA OY,PIIPPO 900M WHITE WIRE TIE,PIIPPO 200M COTTON CORD FOR MEAT,
+63271,31,warm,FREDMAN PROFESSIONAL KITCHEN OY,Biopak 90mm bleached coffeefilter 250pcs,Fredman coffee filter Economy 90 mm brown 250pcs/bag 6000pcs/crt,Fredman coffee filter 317/101 mm white 500 pcs/crt
+63272,46,warm,FREDMAN PROFESSIONAL KITCHEN OY,"DUNI Duniform® sealing film for PP trays, PP, 172 mm x 250 m, antifog, 60 µm, 1 pcs",Fredman Elmu® cling film 30cmx50m,Biopak 45cmx300m 9µ PVC plastic foil
+63273,12,warm,FREDMAN OPERATIONS OY,LOOK® Roasting bag M 25cmx38cm 10pcs x 24,Moilas Toast Bags 2 pcs 17 x 20 cm,Fredman vacuum bag for liquids and sous-vide 160x200 mm 100 pcs
+63300,36,warm,HEJMAR AB,HEJCO MIDJEFÖRKLÄDE ONESIZE SVART,HEJCO MÖSSA 58/60 SVART,FILIPPA WOMENS T-SHIRT BLACK M
+63900,11,warm,SUOMEN SÄHKÖTUONTI OY,"LÄMPÖLEVY 1/1GN 51X32,5X4CM",CHEF´S CHOICE M2100 ELECTR KNIFE SHARPEN,BRAUN HM 3000 MULTIQUICK ELECTRIC MIXER
+64000,35,warm,T-BONE COMPANY OY,Huhtamaki white paperboard plate 100x15cm Swan,AIMO 50PCS/26X19CM OVAL FIBER PLATE,NATURESSE 50KPL/26X26CM KARO PLATE
+64001,180,warm,HUHTAMAKI FOODSERVICE NORDIC OY,"Biopak 6,5cl plastic glass 40pcs","DUNI Circuit cup, patterned, cardboard/PE, 35 cl, 16 x 50",Huhtamaki 50x300ml plastic glass clear
+64002,33,warm,"DUNI OY, PROFESSIONAL",Biopak Ecoecho-Fork Dinner 190Mm Waxed Wood Dinner 10X100pcs,Huhtamaki wooden spoon 100x160mm FSC Future smart,Biopak 210mm black wrapper bamboo chopsticks 100pcs
+64003,125,warm,"DUNI OY, PROFESSIONAL",SPEN 1000PCS/ 67MM COCKTAILPICK,Duni 35x45cm white rectangular doily 250pcs,Nic Supersize straw 12x220mm 138pcs
+64004,343,warm,"DUNI OY, PROFESSIONAL",24x Huhtamaki 40x230ml round plastic container transparent,PIIPPO 75ML SISAL THREAD,"BIOPAK Snack Box, brown, bagasse, Ø 145 x 145 x 100 mm, 575 ml 4 x 40"
+64005,88,warm,FREDMAN PROFESSIONAL KITCHEN OY,Fredman Kroko™ heat seal bag 150x250mm 600pcs,Huhtamaki 500x 390x120mm baguette pocket with window,Baseplast LD plastic bag 20µm 3kg 1000pcs
+64006,21,warm,HEL-PACK OY,Huhtamaki 150x3-4kg roller bag 230*380 mm plastic,"Aspelin Shopping bag 20L HD white, 100 pcs/roll",AIMO SHOPPINGBAG 50X50X20CM
+64007,29,warm,HEL-PACK OY,Pyroll 250pcs 105x95x60mm bio0 confectionerybox,"DUNI Glance tray, brun, boxong, 450 x 310 x 80 mm, 11160 ml, 50 pcs/pack ( 1 x 50 pcs/box)","Aspelin Bakery box 7, 380x230x60 mm 250 pcs"
+64008,12,warm,ARTEKNO OY,TERMOLAATIKKO 30L,KYLMÄGEELIMATTO -1C 1/1GN 53X32X5C,KYLMÄALUSTA 200X160MM 1250R
+64010,61,warm,"DUNI OY, PROFESSIONAL","Duni 25cm 7,5t white paraffin antique candle 50pcs",Duni 130x60mm 40h red pillar candle 6pcs,Duni 4pcs 9h 25cm silver 100% stearin crown candle x 12
+64011,42,warm,"DUNI OY, PROFESSIONAL",Havi Outdoor Flare 13cm 1pcs 9 h,Duni 100x80mm Bliss gold metallic lantern,Havi Ulkoroihu without lid outdoor flare 24 cm
+64100,11,warm,SUOMEN SÄHKÖTUONTI OY,TRANSPEN DISPOSABLE RAINCOAT WITH H,BLACK RANCH QUEBRACHO CHARCOAL 15KG,PITMASTER QUEBRACHO BBQ CHARCOAL 15KG
+64130,2,warm,PRIMA PET PREMIUM OY,"Hau-Hau Champion White roll 13 cm, 3 pcs, 105 g","Hauska biodegradable dog poop bag, small",
+64300,18,warm,TAMMER BRANDS OY,Suomen Lämpömittari indoor thermometer 101 x10,FIREPLACE TOOL SET,TARMO 75X30CM STEEL DOORMAT WITH BRISTLE
+64301,21,warm,AIRAM ELECTRIC OY AB,AIRAM LED 6W REFL. PAR16 GU10,AIRAM LED 4W PAR16 GU10 36°,Duracell Plus 9V alkaline battery 1pc
+64310,4,warm,BERNER OY / ELINTARVIKKEET,Korrek 5l Lasipesu -20°,LAMP OIL 1L,PARKING DISC
+64500,14,warm,NAPAKKA OY,"Aspel Cellophane roll 70 cm, 5kg/rll",GIFTBOX FLOWER 34X37X9CM,PRESENT BOX MATELASE NUDO 24X24X15CM
+67730,6,warm,LEHTIPISTE OY,"ILTA-SANOMAT 3,50 SPECIAL EDITION","ILTALEHTI 3,50 SPECIAL EDITION","ILTASANOMAT 2,30"
+67800,7,warm,NAPAKKA OY,SERPENTINE 18X4M,CHRISTMAS GIFT CASE 340X370X90MM BURGUND,GIFT BOX SFERE ROSSE
+77722,2,warm,OY SINEBRYCHOFF AB,CARBONIC ACID 10KG,TYPPIKAASU 10 KG,
+84966,15,warm,OY SINEBRYCHOFF AB,"24 x Crisp Lager alcoholfree beer 0,33 L","A. Le Coq IPA 0,0 % alcohol-free beer 0,33 l can","12x Suomenlinnan Panimo Nonalcoholic Ton Ipa 0,5% can beer 33cl"
+84967,5,warm,OY HARTWALL AB,24x Magners Zero 330ml Alcohol Free cider,"24 x Hartwall Happy Joe Dry Apple 0% alcohol free cider 0,275 l",24 x The Good Cider of San Sebastian Apple 0% 33cl non-alcoholic apple cider
+84988,6,warm,OY HARTWALL AB,"24 x Hartwall Original Long Drink Grapefruit 0% 0,33 l","24 x Hartwall Original Long Drink Pineapple 0% 0,33 l","12 x Selvin Päin & Kåska Pink Spritz 0,0% 330ml"
+85001,31,warm,SERVAALI OY VV,"Bavaria Wit 0,0% 33 cl bottle non-alcoholic beer",Weihenstephaner Alkoholfrei Weissbier 50cl,"Peroni Nastro Azzurro non-alcoholic beer 0,0% 33cl btl"
+85028,27,warm,OY HARTWALL AB,Miguel Torres SA Natureo Garnacha Syrah,Leitz EINS-ZWEI-ZERO Riesling 0% 75cl,"12 x Freixenet Alcohol Free Sparkling 0,0 vol-% 0,2 L bottle"
+85034,1,warm,ANORA OYJ VV,Galipette Cidre 0% 33cl,,
+90011,49,warm,WULFF OY AB,LEITZ 5227 LETTERTRAY PLUS BLACK,PLASTIC FOLDER STANDARD 500 RED,ESSELTE F INDICES PLASTIC A4 1-12 WHITE
+90012,45,warm,WULFF OY AB,EDDING 500 2-7MM RED PERMANENT MARKER,STABILO BOSS HIGHLIGHTER 70/54/10 ORANGE,EDDING 4095 2-3MM WINDOW MARKER SET /10
+90013,7,warm,WULFF OY AB,HP COLOUR LASER 160G A3 /250,HP COLOUR LASER 120G A3 /250,ZOOM EXTRA A4 80G COPIER PAPER
+90014,11,warm,EURAN ERIKOISPAPERIT OY,THERMOPAPERROLL 57X47 BPA-FREE 5RLL,THERMOPAPERROLL 80X80 BPA-FREE 4RLL,THERMOPAPERROLL 57X30 BPA-FREE 10RLL
+90015,31,warm,WULFF OY AB,EXERCISE BOOK A6/40 7X7MM,WIRE-BOUND NOTEBOOK PLASTIC A4/80 TURQ,NOTEBOOK A6/40 7X7MM
+90021,12,warm,WULFF OY AB,PROPAC MAILING BAG 250X410X70MM /100,ENVELOPE C5/25PCS SELF ADH. WHITE,BUBBLE MAILER NO.8 BROWN /100
+90022,37,warm,WULFF OY AB,SCOTCH MAGIC 810 DOCUMENT TAPE 19MMX33M,SCRIVA RUBBER BAND 40MM 1KG,MASKING TAPE EUROC 38MMX50M
+90024,32,warm,WULFF OY AB,HP C9352AE INK CART. 3-COLOR,DURABLE 8596 PRESENTATION STAND A4L,Q-CONNECT HANDWRITING PLATFORM A4 BLUE
