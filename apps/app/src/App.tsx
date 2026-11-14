@@ -173,7 +173,7 @@ function Sidebar({ badge, me }: { badge: number; me: Person }) {
   );
 }
 
-function OrderSwitcher({ currentId }: { currentId: string }) {
+function OrderSwitcher({ currentId }: { currentId?: string }) {
   const { data } = useLoad(() => api.baskets(), []);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -199,7 +199,7 @@ function OrderSwitcher({ currentId }: { currentId: string }) {
   return (
     <div className="order-switcher" ref={ref}>
       <button type="button" className="order-switcher-trigger" onClick={() => setOpen((value) => !value)} aria-haspopup="menu" aria-expanded={open}>
-        <b>{current?.name ?? "Loading order…"}</b>
+        <b>{current?.name ?? (currentId ? "Loading order…" : "My orders")}</b>
         <Icon n="down" s={12} />
       </button>
       {open && (
@@ -244,12 +244,12 @@ function TopBar({ status, me, onSwitch }: { status: StatusResp | null; me: Perso
 
   return (
     <div className="topbar">
-      {basketId && (
-        <div className="order-switcher-slot">
+      <div className="order-switcher-slot">
+        {basketId && (
           <Link to="/" className="order-switcher-back" aria-label="Close order" title="Back to all orders"><Icon n="x" s={15} /></Link>
-          <OrderSwitcher currentId={decodeURIComponent(basketId)} />
-        </div>
-      )}
+        )}
+        <OrderSwitcher currentId={basketId ? decodeURIComponent(basketId) : undefined} />
+      </div>
       {status && !status.chain.ok && <span className="stamp block">Audit chain broken</span>}
       <div className="hide-m account-slot"><AccountMenu me={me} onSwitch={onSwitch} /></div>
     </div>
