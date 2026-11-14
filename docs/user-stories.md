@@ -2,7 +2,7 @@
 
 > **What this is:** the story backlog the PRD agent builds from, grouped by avatar and sorted by importance. Each story is one sentence, **"X so that Y"**: what the avatar does or gets, and why it matters to them. Every story names what it rests on: a team decision (**D1** to **D14**, in [prd-context.md](prd-context.md)), the brief, the data or a research file.
 >
-> It replaces [hotel-catering-user-stories.md](hotel-catering-user-stories.md) (US01 to US12) as the PRD's input. That file is kept as history: its Purchasing Manager role, supermarket top-up and multi-channel demo were dropped or parked on 14 Nov (D1, D2).
+> It replaces [hotel-catering-user-stories.md](hotel-catering-user-stories.md) (US01 to US12) as the PRD's input. That file is kept as history. Since then (14 Nov): voice calls, SMS and WhatsApp are **cut** (email updates stay an add-on, CH-A6); the supermarket top-up is a **non-core add-on** (CH-A12); the Purchasing Manager is **kept for now as an optional role** (prd-context D1, D2, D15–D22).
 
 ## How to read it
 
@@ -11,8 +11,11 @@
 | Avatar | Who | Role in one line |
 |---|---|---|
 | **Chef** (CH) | Banquet or executive chef, or a bar manager | Says what the event needs; answers recipe questions; never commits money |
-| **Approver** (AP) | F&B Director or finance manager | Sets the hotel's rules once; signs off only what breaks them |
+| **Approver** (AP) | F&B Director or finance manager: in charge of finances | Sets the hotel's rules once; signs off only what breaks them |
 | **Valio Aimo** (VA) | The wholesaler, through the Agent Gateway API, plus its rep | Answers lookups and quotes, takes orders, enforces the hotel's mandate, keeps the audit log |
+| **Purchasing Manager** (optional) | A separate buyer, where the hotel has one | Decides what is bought and how much, with maximum authority for now (D20). No stories yet |
+
+The hotel acts as one entity: the product doesn't verify individual people or permissions (D17). The core is how the hotel can trust the agent to spend (D15), and most food orders are approved automatically (D16).
 
 **Importance**
 
@@ -171,40 +174,14 @@ Add-ons and parked stories are listed at the end of each avatar's section.
 | CH-A5 | Set a buffer above the confirmed count, per dish, so that late extra guests don't run us short | research/07 open; chef interview Q11 |
 | CH-A6 | Send requests and get updates by email so that I can use the agent mid-service | ICP.md |
 | CH-A7 | Get a reminder, then have my named backup (e.g. sous chef) asked, so that a question never dies because I'm busy | D9 |
-| CH-A8 | Call in a request or change so that I can add it to the right event without opening the app | ICP.md, D10, old US09 |
-| CH-A9 | Get a call about a shortfall so that I can answer before the cut-off | ICP.md, D8, D9, old US10 |
-| CH-A10 | Text a request or change by SMS so that I can update an event between services | ICP.md, D4, D10, old US09 |
-| CH-A11 | Answer a substitution question in WhatsApp so that I can decide before the cut-off | D6, D8, D9, old US10 |
-
-**CH-A8** Call in a request or change so that I can add it to the right event without opening the app.
-*S3, M · ICP.md, D10, old US09*
-- The agent says it is an AI assistant. It asks for the hotel site, event reference, item or change, amount and unit, and when it is needed. It reads back the key details and lets the chef correct them.
-- The agent checks the caller's role before it shares order details. A phone number alone cannot verify a caller. If the event or role is unclear, it saves the request for staff review.
-- A confirmed read-back feeds the same request and order checks as typed input (CH-07, CH-09). The agent tells the chef whether it captured a request or has a confirmed result from the gateway.
-
-**CH-A9** Get a call about a shortfall so that I can answer before the cut-off.
-*S4 · ICP.md, D8, D9, old US10*
-- The agent calls the hotel's named contact. It names the event, explains the shortfall, gives the deadline and asks one question. It reads back the answer and links it to the open decision and its version.
-- A busy line, voicemail, dropped call or unclear answer leaves the decision open. Staff can see the outcome and use the next contact in the hotel's policy. Voicemail gives a callback number and omits order details.
-
-**CH-A10** Text a request or change by SMS so that I can update an event between services.
-*S3, M · ICP.md, D4, D10, old US09*
-- Match the SMS to the hotel site and event using the sender's verified contact and the event or request reference. If the site, event, sender's role, amount, unit or date is unclear, ask for the missing detail and leave the change pending.
-- Read back the change in a short text. For a headcount change, include the old and new counts and check whether the diet counts changed. Once confirmed, run the same checks as a change entered in the app (CH-07, CH-09).
-- Send one update with the request reference and its status. If the SMS fails to send, show that in the app and keep any open decision pending.
-
-**CH-A11** Answer a substitution question in WhatsApp so that I can decide before the cut-off.
-*S4 · D6, D8, D9, old US10*
-- Send the hotel's verified WhatsApp contact the event reference, a short note about the proposed swap, and the cutoff. Link to the side-by-side product details and dietary checks (CH-06).
-- Tie the chef's reply to the open question and its version. Record the answer only when the chef's role and the decision are clear. If the offer changed, show the new terms and ask again.
-- If the message fails, the answer is unclear, or nobody replies, keep the decision open and follow the hotel's contact rules. A read receipt leaves the decision open.
+| CH-A12 | Fill a small gap from an external partner shop (supermarket, Valio Aimo partner or local store, e.g. small alcohol purchases), clearly labelled as externally sourced, so that a short line is still covered | D21: non-core; no per-line Valio Aimo approval; same hotel rules |
 
 ### Parked
 
 | ID | Story | Why parked |
 |---|---|---|
 | CH-P1 | Handle a client's change in the last 1–3 days before the event so that very late changes are covered | Low confidence it reaches Valio Aimo [OPEN]; same mechanism as S3 (D4) |
-| CH-P2 | Fill a small gap from a supermarket that ships to the venue so that a short line is still covered | No supermarket data; spend leaves Valio Aimo (D2) |
+| CH-P2 | Use the agent by voice call, SMS or WhatsApp: call in or text a change, get a shortfall call, answer a swap in WhatsApp (former CH-A8 to CH-A11, added 14 Nov) | Cut on 14 Nov: not enough value for the effort and the approval risk; the product aims for one decision per event, made in the app. Full text in git history (commit 1b64da9) |
 
 ---
 
@@ -276,28 +253,16 @@ Add-ons and parked stories are listed at the end of each avatar's section.
 | ID | Story | Basis |
 |---|---|---|
 | AP-A1 | Choose a detailed or a "just handle it" explanation mode so that the agent explains as much as I want | research/06 |
-| AP-A2 | Edit the mandate in the product so that I can change our rules without a developer | D11 |
-| AP-A3 | See a partner-sourcing request's status ("awaiting Valio Aimo") on my order so that I know what Valio Aimo is still working on | D2, D3 |
+| AP-A2 | Set up our hotel in the app ourselves (sites, roles, per-order spend cap, approved products, tolerances) so that we can start without Valio Aimo onboarding us | D18, D19 |
+| AP-A3 | See which lines are externally sourced, and from where, on my order so that I know what isn't coming from Valio Aimo | D21 |
 | AP-A4 | Review an event's purchasing cost and issues afterwards so that the next event is cheaper and smoother | old US12 |
 | AP-A5 | Name a backup for each role so that questions still get answered when someone is away | D9 |
-| AP-A6 | Review a decision made by phone so that I can check what the caller heard and how they answered | D9, D11, old US10 |
-| AP-A7 | Open the exact quote from an SMS or WhatsApp message so that I can approve or reject it from my phone | D1, D9, D11, old US10 |
-
-**AP-A6** Review a decision made by phone so that I can check what the caller heard and how they answered.
-*S2, S4 · D9, D11, old US10*
-- The call record shows the time, direction, outcome, call reference and linked event or order. Hotel staff with access can see the transcript when one is available. A repeat provider delivery creates one call record.
-- The agent can capture a spoken answer for review. A purchase exception still needs proof of the approver's role and approval tied to the exact quote (AP-02, AP-07). Unclear answers and hard blocks stay open for the right staff to handle.
-
-**AP-A7** Open the exact quote from an SMS or WhatsApp message so that I can approve or reject it from my phone.
-*S2, S3, S4 · D1, D9, D11, old US10*
-- Send the named approver the event reference, decision needed, and deadline through their chosen channel. The link opens the quote for signed-in review with the items, quantities, total, delivery terms and reason for approval (AP-02).
-- Check the approver's role and bind the answer to the exact quote. If the quote changes, ask again (AP-07). Blocked lines still have no approve option (AP-04).
-- The same decision can continue by voice, SMS, WhatsApp or in the app. Keep one event history with the channel, time, actor, decision version and outcome. A duplicate delivery or reply cannot apply the same decision twice.
 
 ### Parked
 
 | ID | Story | Why parked |
 |---|---|---|
+| AP-P2 | Review phone decisions, or approve a quote from an SMS or WhatsApp link (former AP-A6, AP-A7, added 14 Nov) | Cut on 14 Nov with the other channels; see CH-P2. Full text in git history (commit 1b64da9) |
 | AP-P1 | Pick which wholesaler gets the order so that we get the best offer | Valio Aimo only; a buyer agent comparing wholesalers is the marketplace the brief rules out (D2) |
 
 ---
@@ -352,6 +317,7 @@ Add-ons and parked stories are listed at the end of each avatar's section.
 **VA-11** Require every call to name the hotel, site and role so that I can check it against the mandate.
 *all · D11, GROUND_TRUTH 7*
 - A header for Junction; OAuth 2.0 Token Exchange (`act` claim) named as the production path.
+- Identifies the hotel only: the hotel acts as one entity, and individual people aren't verified (D17).
 
 **VA-12** Send unresolved-at-cut-off flags to the rep so that they can call the hotel before picking.
 *S4 · D9*
@@ -365,7 +331,7 @@ Add-ons and parked stories are listed at the end of each avatar's section.
 
 | ID | Story | Basis |
 |---|---|---|
-| VA-A1 | Receive and approve or decline partner-sourcing requests for very large orders so that I fill what my catalogue can't, on my terms | D2, D3 |
+| VA-A1 | See externally sourced lines on a hotel's order, labelled with their source, so that I know what my catalogue didn't cover | D21: no per-line approval by Valio Aimo |
 | VA-A2 | Give reps a screen for flags and sourcing requests so that nothing waits unseen in a log | D9 |
 | VA-A3 | Show a carbon range per line (product-group averages, labelled as such) so that hotels can weigh sustainability, not only price | BRIEF optional |
 | VA-A4 | Suggest seasonal or new products to the buyer's agent so that I can sell, not only answer | BRIEF scenario |

@@ -1,5 +1,7 @@
 # Hotel catering user stories
 
+> **Superseded by [user-stories.md](user-stories.md).** Kept as history. Since 14 Nov: SMS and phone (in US09, US10 and demo step 2) are **cut**, and email stays an add-on; the supermarket top-up (US08) is a **non-core add-on**.
+
 The working scenario is a 500-guest conference with coffee service, lunch, and a gala dinner. The event manager owns the event brief, the banquet chef owns food requirements, the purchasing manager owns the order, and the food and beverage (F&B) director owns major cost or service decisions. The customer journey is a working hypothesis. The stories describe proposed product behavior.
 
 The first demo can follow one event from brief to order, then handle a late change that needs a small supermarket top-up and a chef's decision. The product scope covers email, SMS, and phone. For Junction, use the Aimo catalog and mock lookups. Use simulated hotel records, order writes, supermarket offers, and communications. [Product scope](../ICP.md#6-our-product-opportunity) · [Mock API behavior](../GROUND_TRUTH.md#3-the-mock-api)
