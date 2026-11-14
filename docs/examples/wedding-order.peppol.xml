@@ -1,0 +1,290 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Order xmlns="urn:oasis:names:specification:ubl:schema:xsd:Order-2"
+       xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+       xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
+  <cbc:CustomizationID>urn:fdc:peppol.eu:poacc:trns:order:3</cbc:CustomizationID>
+  <cbc:ProfileID>urn:fdc:peppol.eu:poacc:bis:ordering:3</cbc:ProfileID>
+  <cbc:ID>ord_f5b198ed1ab8</cbc:ID>
+  <cbc:IssueDate>2026-08-14</cbc:IssueDate>
+  <cbc:IssueTime>08:00:00</cbc:IssueTime>
+  <cbc:OrderTypeCode>220</cbc:OrderTypeCode>
+  <cbc:Note>Simulated order from the Aimo Agent Gateway (Junction 2026). Version 4. Party identifiers are demo values.</cbc:Note>
+  <cbc:DocumentCurrencyCode>EUR</cbc:DocumentCurrencyCode>
+  <cbc:CustomerReference>123</cbc:CustomerReference>
+  <cac:ValidityPeriod>
+    <cbc:EndDate>2026-11-12</cbc:EndDate>
+  </cac:ValidityPeriod>
+  <cac:QuotationDocumentReference>
+    <cbc:ID>q_4f172e45de78</cbc:ID>
+  </cac:QuotationDocumentReference>
+  <cac:BuyerCustomerParty>
+    <cac:Party>
+      <cbc:EndpointID schemeID="0216">003712345671</cbc:EndpointID>
+      <cac:PartyIdentification>
+        <cbc:ID>123</cbc:ID>
+      </cac:PartyIdentification>
+      <cac:PartyName>
+        <cbc:Name>Demo Hotel</cbc:Name>
+      </cac:PartyName>
+      <cac:PartyLegalEntity>
+        <cbc:RegistrationName>Demo Hotel (demo)</cbc:RegistrationName>
+      </cac:PartyLegalEntity>
+    </cac:Party>
+  </cac:BuyerCustomerParty>
+  <cac:SellerSupplierParty>
+    <cac:Party>
+      <cbc:EndpointID schemeID="0216">003798765432</cbc:EndpointID>
+      <cac:PartyName>
+        <cbc:Name>Valio Aimo (mock)</cbc:Name>
+      </cac:PartyName>
+      <cac:PostalAddress>
+        <cbc:CityName>Helsinki</cbc:CityName>
+        <cac:Country>
+          <cbc:IdentificationCode>FI</cbc:IdentificationCode>
+        </cac:Country>
+      </cac:PostalAddress>
+      <cac:PartyLegalEntity>
+        <cbc:RegistrationName>Valio Aimo (mock)</cbc:RegistrationName>
+      </cac:PartyLegalEntity>
+    </cac:Party>
+  </cac:SellerSupplierParty>
+  <cac:Delivery>
+    <cac:DeliveryLocation>
+      <cbc:Name>Demo Hotel, goods entrance</cbc:Name>
+      <cac:Address>
+        <cbc:StreetName>Esimerkkikatu 1</cbc:StreetName>
+        <cbc:CityName>Helsinki</cbc:CityName>
+        <cbc:PostalZone>00100</cbc:PostalZone>
+        <cac:Country>
+          <cbc:IdentificationCode>FI</cbc:IdentificationCode>
+        </cac:Country>
+      </cac:Address>
+    </cac:DeliveryLocation>
+    <cac:RequestedDeliveryPeriod>
+      <cbc:StartDate>2026-11-16</cbc:StartDate>
+      <cbc:EndDate>2026-11-16</cbc:EndDate>
+    </cac:RequestedDeliveryPeriod>
+  </cac:Delivery>
+  <cac:TaxTotal>
+    <cbc:TaxAmount currencyID="EUR">263.46</cbc:TaxAmount>
+  </cac:TaxTotal>
+  <cac:AnticipatedMonetaryTotal>
+    <cbc:LineExtensionAmount currencyID="EUR">1951.57</cbc:LineExtensionAmount>
+    <cbc:TaxExclusiveAmount currencyID="EUR">1951.57</cbc:TaxExclusiveAmount>
+    <cbc:TaxInclusiveAmount currencyID="EUR">2215.03</cbc:TaxInclusiveAmount>
+    <cbc:PayableAmount currencyID="EUR">2215.03</cbc:PayableAmount>
+  </cac:AnticipatedMonetaryTotal>
+  <cac:OrderLine>
+    <cac:LineItem>
+      <cbc:ID>1</cbc:ID>
+      <cbc:Quantity unitCode="KGM">32</cbc:Quantity>
+      <cbc:LineExtensionAmount currencyID="EUR">954.88</cbc:LineExtensionAmount>
+      <cbc:AccountingCost>banquet</cbc:AccountingCost>
+      <cac:Price>
+        <cbc:PriceAmount currencyID="EUR">29.84</cbc:PriceAmount>
+      </cac:Price>
+      <cac:Item>
+        <cbc:Name>Kalavapriikki Laxfilebit ASC ytrökt 10x170 g</cbc:Name>
+        <cac:SellersItemIdentification>
+          <cbc:ID>469672</cbc:ID>
+        </cac:SellersItemIdentification>
+        <cac:ClassifiedTaxCategory>
+          <cbc:ID>S</cbc:ID>
+          <cbc:Percent>13.5</cbc:Percent>
+          <cac:TaxScheme>
+            <cbc:ID>VAT</cbc:ID>
+          </cac:TaxScheme>
+        </cac:ClassifiedTaxCategory>
+      </cac:Item>
+    </cac:LineItem>
+  </cac:OrderLine>
+  <cac:OrderLine>
+    <cac:LineItem>
+      <cbc:ID>2</cbc:ID>
+      <cbc:Quantity unitCode="XCS">3</cbc:Quantity>
+      <cbc:LineExtensionAmount currencyID="EUR">31.62</cbc:LineExtensionAmount>
+      <cbc:AccountingCost>banquet</cbc:AccountingCost>
+      <cac:Price>
+        <cbc:PriceAmount currencyID="EUR">10.54</cbc:PriceAmount>
+      </cac:Price>
+      <cac:Item>
+        <cbc:Name>PP BUTTON POTATO WASHED 30-35MM</cbc:Name>
+        <cac:SellersItemIdentification>
+          <cbc:ID>460541</cbc:ID>
+        </cac:SellersItemIdentification>
+        <cac:StandardItemIdentification>
+          <cbc:ID schemeID="0160">6430053130074</cbc:ID>
+        </cac:StandardItemIdentification>
+        <cac:ClassifiedTaxCategory>
+          <cbc:ID>S</cbc:ID>
+          <cbc:Percent>13.5</cbc:Percent>
+          <cac:TaxScheme>
+            <cbc:ID>VAT</cbc:ID>
+          </cac:TaxScheme>
+        </cac:ClassifiedTaxCategory>
+      </cac:Item>
+    </cac:LineItem>
+  </cac:OrderLine>
+  <cac:OrderLine>
+    <cac:LineItem>
+      <cbc:ID>3</cbc:ID>
+      <cbc:Quantity unitCode="EA">37</cbc:Quantity>
+      <cbc:LineExtensionAmount currencyID="EUR">272.69</cbc:LineExtensionAmount>
+      <cbc:AccountingCost>banquet</cbc:AccountingCost>
+      <cac:Price>
+        <cbc:PriceAmount currencyID="EUR">7.37</cbc:PriceAmount>
+      </cac:Price>
+      <cac:Item>
+        <cbc:Name>Arla Whipping cream 1 L ESL lactose free</cbc:Name>
+        <cac:SellersItemIdentification>
+          <cbc:ID>464727</cbc:ID>
+        </cac:SellersItemIdentification>
+        <cac:StandardItemIdentification>
+          <cbc:ID schemeID="0160">6413300018486</cbc:ID>
+        </cac:StandardItemIdentification>
+        <cac:ClassifiedTaxCategory>
+          <cbc:ID>S</cbc:ID>
+          <cbc:Percent>13.5</cbc:Percent>
+          <cac:TaxScheme>
+            <cbc:ID>VAT</cbc:ID>
+          </cac:TaxScheme>
+        </cac:ClassifiedTaxCategory>
+      </cac:Item>
+    </cac:LineItem>
+  </cac:OrderLine>
+  <cac:OrderLine>
+    <cac:LineItem>
+      <cbc:ID>4</cbc:ID>
+      <cbc:Quantity unitCode="XCS">1</cbc:Quantity>
+      <cbc:LineExtensionAmount currencyID="EUR">75.90</cbc:LineExtensionAmount>
+      <cbc:AccountingCost>banquet</cbc:AccountingCost>
+      <cac:Price>
+        <cbc:PriceAmount currencyID="EUR">75.9</cbc:PriceAmount>
+      </cac:Price>
+      <cac:Item>
+        <cbc:Name>Paulig Juhla Mokka Tumma Paahto fine ground coffee 44 x 100g</cbc:Name>
+        <cac:SellersItemIdentification>
+          <cbc:ID>460617</cbc:ID>
+        </cac:SellersItemIdentification>
+        <cac:StandardItemIdentification>
+          <cbc:ID schemeID="0160">6411301165963</cbc:ID>
+        </cac:StandardItemIdentification>
+        <cac:ClassifiedTaxCategory>
+          <cbc:ID>S</cbc:ID>
+          <cbc:Percent>13.5</cbc:Percent>
+          <cac:TaxScheme>
+            <cbc:ID>VAT</cbc:ID>
+          </cac:TaxScheme>
+        </cac:ClassifiedTaxCategory>
+      </cac:Item>
+    </cac:LineItem>
+  </cac:OrderLine>
+  <cac:OrderLine>
+    <cac:LineItem>
+      <cbc:ID>5</cbc:ID>
+      <cbc:Quantity unitCode="EA">40</cbc:Quantity>
+      <cbc:LineExtensionAmount currencyID="EUR">40.40</cbc:LineExtensionAmount>
+      <cbc:AccountingCost>banquet</cbc:AccountingCost>
+      <cac:Price>
+        <cbc:PriceAmount currencyID="EUR">1.01</cbc:PriceAmount>
+      </cac:Price>
+      <cac:Item>
+        <cbc:Name>Valio Hyvä suomalainen Arki® Eila® semi skimmed milk drink 1 l lactose free</cbc:Name>
+        <cac:SellersItemIdentification>
+          <cbc:ID>464306</cbc:ID>
+        </cac:SellersItemIdentification>
+        <cac:StandardItemIdentification>
+          <cbc:ID schemeID="0160">6408430000487</cbc:ID>
+        </cac:StandardItemIdentification>
+        <cac:ClassifiedTaxCategory>
+          <cbc:ID>S</cbc:ID>
+          <cbc:Percent>13.5</cbc:Percent>
+          <cac:TaxScheme>
+            <cbc:ID>VAT</cbc:ID>
+          </cac:TaxScheme>
+        </cac:ClassifiedTaxCategory>
+      </cac:Item>
+    </cac:LineItem>
+  </cac:OrderLine>
+  <cac:OrderLine>
+    <cac:LineItem>
+      <cbc:ID>6</cbc:ID>
+      <cbc:Quantity unitCode="XCS">6</cbc:Quantity>
+      <cbc:LineExtensionAmount currencyID="EUR">220.56</cbc:LineExtensionAmount>
+      <cbc:AccountingCost>bar</cbc:AccountingCost>
+      <cac:Price>
+        <cbc:PriceAmount currencyID="EUR">36.76</cbc:PriceAmount>
+      </cac:Price>
+      <cac:Item>
+        <cbc:Name>Codorniu Sparkling Zero 0,5 vol-% 75cl plo</cbc:Name>
+        <cac:SellersItemIdentification>
+          <cbc:ID>477125</cbc:ID>
+        </cac:SellersItemIdentification>
+        <cac:StandardItemIdentification>
+          <cbc:ID schemeID="0160">8410013016509</cbc:ID>
+        </cac:StandardItemIdentification>
+        <cac:ClassifiedTaxCategory>
+          <cbc:ID>S</cbc:ID>
+          <cbc:Percent>13.5</cbc:Percent>
+          <cac:TaxScheme>
+            <cbc:ID>VAT</cbc:ID>
+          </cac:TaxScheme>
+        </cac:ClassifiedTaxCategory>
+      </cac:Item>
+    </cac:LineItem>
+  </cac:OrderLine>
+  <cac:OrderLine>
+    <cac:LineItem>
+      <cbc:ID>7</cbc:ID>
+      <cbc:Quantity unitCode="XCS">13</cbc:Quantity>
+      <cbc:LineExtensionAmount currencyID="EUR">316.42</cbc:LineExtensionAmount>
+      <cbc:AccountingCost>banquet</cbc:AccountingCost>
+      <cac:Price>
+        <cbc:PriceAmount currencyID="EUR">24.34</cbc:PriceAmount>
+      </cac:Price>
+      <cac:Item>
+        <cbc:Name>Fazer Gluten-Free Caramel cake 15 x 75g, single-packed frozen fully baked</cbc:Name>
+        <cac:SellersItemIdentification>
+          <cbc:ID>466509</cbc:ID>
+        </cac:SellersItemIdentification>
+        <cac:StandardItemIdentification>
+          <cbc:ID schemeID="0160">6413467407901</cbc:ID>
+        </cac:StandardItemIdentification>
+        <cac:ClassifiedTaxCategory>
+          <cbc:ID>S</cbc:ID>
+          <cbc:Percent>13.5</cbc:Percent>
+          <cac:TaxScheme>
+            <cbc:ID>VAT</cbc:ID>
+          </cac:TaxScheme>
+        </cac:ClassifiedTaxCategory>
+      </cac:Item>
+    </cac:LineItem>
+  </cac:OrderLine>
+  <cac:OrderLine>
+    <cac:LineItem>
+      <cbc:ID>8</cbc:ID>
+      <cbc:Quantity unitCode="EA">10</cbc:Quantity>
+      <cbc:LineExtensionAmount currencyID="EUR">39.10</cbc:LineExtensionAmount>
+      <cbc:AccountingCost>banquet</cbc:AccountingCost>
+      <cac:Price>
+        <cbc:PriceAmount currencyID="EUR">3.91</cbc:PriceAmount>
+      </cac:Price>
+      <cac:Item>
+        <cbc:Name>Valio whipping cream 1 l UHT lactose free</cbc:Name>
+        <cac:SellersItemIdentification>
+          <cbc:ID>464194</cbc:ID>
+        </cac:SellersItemIdentification>
+        <cac:StandardItemIdentification>
+          <cbc:ID schemeID="0160">6408430014996</cbc:ID>
+        </cac:StandardItemIdentification>
+        <cac:ClassifiedTaxCategory>
+          <cbc:ID>S</cbc:ID>
+          <cbc:Percent>13.5</cbc:Percent>
+          <cac:TaxScheme>
+            <cbc:ID>VAT</cbc:ID>
+          </cac:TaxScheme>
+        </cac:ClassifiedTaxCategory>
+      </cac:Item>
+    </cac:LineItem>
+  </cac:OrderLine>
+</Order>
