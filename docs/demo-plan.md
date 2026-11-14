@@ -2,9 +2,9 @@
 
 > **What this is:** the story for the three-minute demo video. It is separate from the PRD (D30): the PRD says what to build, this says what to show. Jack reviewed it on 14 Nov 2026; the rest of the team hasn't yet.
 >
-> **Format:** a recorded video, three minutes. Each beat is recorded as its own take and cut together.
+> **Format:** a recorded video, three minutes. The team records it, with different people taking different parts. Each beat is its own take, cut together.
 >
-> **How values are marked:** **real** means looked up in the catalogue or on the Valio Aimo mock on 14 Nov 2026. **Agreed** means decided by Jack or the team. **Proposed** means a number chosen to make the story work, which nobody has agreed.
+> **How values are marked:** **real** means read from the catalogue or looked up on the Valio Aimo mock on 14 Nov 2026. **Agreed** means decided by Jack or the team. **Set for the story** means chosen so the story works; these are Aino's recipe amounts and Sanna's rule values, which in real use the hotel would enter.
 
 ## The story in one line
 
@@ -20,21 +20,22 @@ A hotel is catering a wedding. It books the food months ahead. Two weeks before,
 
 | Name | Who | Their problem |
 |---|---|---|
-| **Aino** | Head chef at the hotel | "Can I make this menu from Valio Aimo, and will it all turn up?" |
-| **Sanna** | Finance manager at the hotel | "I can't check every order, but an agent can't spend freely." |
+| **Aino** | Head chef at Demo Hotel | "Can I make this menu from Valio Aimo, and will it all turn up?" |
+| **Sanna** | Finance manager at Demo Hotel | "I can't check every order, but an agent can't spend freely." |
 | **Katri** | Account manager at Valio Aimo | "How do we let outside agents order without trusting their code?" |
 
-Onni is a six-year-old guest, added two weeks before the wedding. None of these is a real person, and none shares a name with a Valio Aimo mentor. The hotel needs a made-up name that has been checked against real hotels.
+Onni is a six-year-old guest, added two weeks before the wedding. None of these is a real person, and none shares a name with a Valio Aimo mentor.
 
 ## The fixed setup
 
 | Variable | Value | Status |
 |---|---|---|
+| Hotel | Demo Hotel | Agreed |
 | Guests at booking | 180 | Agreed |
-| Diet groups at booking | 14 lactose-free, 6 gluten-free | Proposed |
-| Service date | Tue 17 Nov 2026 | Agreed (chunk 11, Q11.2) |
+| Service date | Tue 17 Nov 2026 | Agreed (PRD chunk 11, Q11.2) |
 | Delivery date | Mon 16 Nov 2026 | Real: the only date the mock returns |
-| Valio Aimo's order cut-off | Sun 15 Nov, 17:00 | Real |
+| Cut-off for most lines | Sun 15 Nov, 17:00 | Real |
+| Cut-off for lines shipped by the supplier (the cake, the sparkling) | Thu 12 Nov, 15:00 and 12:30 | Real |
 
 ## The three minutes
 
@@ -53,8 +54,6 @@ That is 180 seconds, which allows about 420 words of voiceover.
 
 ### Whose seat, in order
 
-The story is told through one person at a time, in this order:
-
 1. **Sanna** sets the rules. This is brief, so that her later approvals make sense.
 2. **Aino** books the wedding.
 3. **Sanna** approves the booking.
@@ -65,30 +64,52 @@ The story is told through one person at a time, in this order:
 
 ## Sanna's rules (0:30–0:40)
 
-One read-only page.
+One read-only page. All values are set for the story.
 
-| Rule | Value | Status |
-|---|---|---|
-| Budget per order, before VAT | €1,500 | Proposed: just under the booking's total, so the booking goes to Sanna |
-| Fish origin | Finland only | Agreed |
-| Carbon | Shown on every line; blocks nothing | Agreed |
-| Guest-count change that needs no question | 5%, rounded down (9 guests on a booking of 180) | Agreed: Darragh's answer to PRD question Q07.1 |
+| Rule | Value |
+|---|---|
+| Budget per order, before VAT | €2,000 |
+| Fish origin | Finland only |
+| Carbon | Shown on every line; blocks nothing |
+| Guest-count change that needs no question | 5%, rounded down (Darragh's answer to PRD question Q07.1). That is 9 guests on a booking of 180 |
+| Unconfirmed stock | Ask, unless the line is under €100 |
+
+## The menu
+
+Seven lines, every one a real catalogue product with a real price. Where the pack is sold in pieces, the amount is one piece a guest. The other amounts are Aino's recipe, set for the story.
+
+| Line | Product | ID | Sold as | Price | Amount per guest |
+|---|---|---|---|---|---|
+| Salmon main | Kalavapriikki salmon fillet pieces, ASC, 10 × 170 g, Finnish | 469672 | per kg | €29.84 per kg | One 170 g piece (from the pack) |
+| Potatoes | Button potato, washed, 30–35 mm, Finnish | 460541 | case of 15 kg | €10.54 a case | 200 g (recipe) |
+| Whipping cream | Arla whipping cream 1 L, lactose-free | 464727 | 1 L | €7.37 | 0.25 L (recipe). Aino's recipe names this cream |
+| Dessert | Reuter & Stolt princess cake, 15 pieces × 100 g, Finnish | 467767 | case of 15 | €34.58 a case | One piece (from the pack) |
+| Coffee | Paulig Juhla Mokka, dark roast, 44 × 100 g | 460617 | case of 4.4 kg | €75.90 a case | 10 g (recipe) |
+| Coffee milk | Arla lactose-free milk drink 1 L | 469363 | 1 L | €2.48 | 40 L in total, typed by Aino |
+| Toast, from the bar | Codorniu Sparkling Zero, 75 cl | 477125 | case of 6 bottles | €36.76 a case | One glass, six glasses a bottle (recipe) |
+
+The bar line means the event has two outlets, the kitchen and the bar.
 
 ## Booking, months ahead (0:40–1:08)
 
 **Clock:** mid-August.
 
-Aino opens the wedding with the menu already entered, and adds one line in plain words: "Add 40 litres of lactose-free milk for the coffee service."
+Aino opens the wedding with the menu entered, and adds the milk in plain words: "Add 40 litres of lactose-free milk for the coffee service."
 
-| Line | Need | Product | Line total | Shown as |
+| Line | Need for 180 guests | Ordered | Line total | Stock |
 |---|---|---|---|---|
-| Salmon main | 180 × 170 g = 30.6 kg | Kalavapriikki salmon fillet pieces, Finnish (469672), €29.84 per kg | €913 | Covered |
-| Whipping cream | 45 L | Arla whipping cream 1 L, lactose-free (464727), €7.37 per litre | €332 | Covered |
-| Dessert | 23 cakes → 4 cases of 6 | Frödinge princess cake (461653), €54.50 a case | €218 | Stock not confirmed |
-| Coffee milk | 40 L | Arla lactose-free milk drink 1 L (469363), €2.48 per litre | €99 | Covered |
-| **Order total** | | | **€1,562** | Over the €1,500 budget by €62 |
+| Salmon | 30.6 kg | 31 kg | €925.04 | 311 kg |
+| Potatoes | 36 kg | 3 cases (45 kg) | €31.62 | Not confirmed |
+| Whipping cream | 45 L | 45 | €331.65 | 37 |
+| Princess cake | 180 pieces | 12 cases (180) | €414.96 | Not confirmed |
+| Coffee | 1.8 kg | 1 case (4.4 kg) | €75.90 | 164 cases |
+| Coffee milk | 40 L | 40 | €99.20 | 384 |
+| Sparkling | 30 bottles | 5 cases (30) | €183.80 | Not confirmed |
+| **Order total** | | | **€2,062.17** | |
 
-Products and prices are real. Amounts per guest are proposed (0.25 L of cream a guest; 8 portions a cake).
+Prices and stock are real. Stock is shown for information: this far ahead it plays no part in whether a line is covered.
+
+One thing the data doesn't settle: the salmon comes in packs of 10 pieces (1.7 kg), but the mock sells and prices it per kg. The plan orders whole kilograms. If it has to be whole packs, 180 pieces is exactly 18 packs (30.6 kg) and the totals move by a few euros.
 
 **What the agent is seen doing:**
 
@@ -97,74 +118,84 @@ Products and prices are real. Amounts per guest are proposed (0.25 L of cream a 
 - **Decides:**
   - Sanna's Finnish-fish rule removes the Norwegian salmon (461814), even though it is cheaper at €27.39 per kg.
   - One Finnish fillet (461955) shows as "not available": it has a price but no delivery dates.
-  - Stock plays no part in the verdicts this far ahead.
+  - The potatoes also have unconfirmed stock, but their line is €31.62, under Sanna's €100, so nobody is asked.
 
-**Why Arla's milk is picked over Valio's own.** The two are the same on carbon (1.1, a product-group average), origin (Finland) and label. Valio's Eila (464306) is cheaper at €1.01 per litre and has a known delivery reliability of 1.0. The only thing in Arla's favour is that its stock is confirmed (384), where Valio's is not. Our ranking puts confirmed stock first, so the screen says so: "Arla: stock confirmed. Valio Eila: cheaper, stock not confirmed." Valio Aimo's own data also lists this Arla milk as a substitute for Eila.
+**Why Arla's milk is picked over Valio's own.** The two are the same on carbon (1.1, a product-group average), origin (Finland) and label. Valio's Eila (464306) is cheaper at €1.01 per litre and has a known delivery reliability of 1.0. The only thing in Arla's favour is that its stock is confirmed (384), where Valio's is not. The screen says so: "Arla: stock confirmed. Valio Eila: cheaper, stock not confirmed." Valio Aimo's own data also lists this Arla milk as a substitute for Eila.
 
-**Aino decides:** a question, not a warning. "Valio Aimo can't confirm stock for the princess cake, because it ships from the supplier. Continue with it?" She can continue or pick another. She continues.
+**Aino decides:** one question covering two lines, not a warning. "Valio Aimo can't confirm stock for the princess cake or the sparkling, because they ship from the supplier. Continue with them?" She can continue or pick others. She continues.
 
-**Sanna approves:** one card. "The order total of €1,562 is €62 over your €1,500 limit." She approves, and the order is placed.
+**Sanna approves:** one card. "The order total of €2,062.17 is €62.17 over your €2,000 limit." She approves, and the order is placed.
 
 ## First clarification, two weeks before (1:08–1:42)
 
-**Clock:** Fri 30 Oct (chunk 11's agreed date; about two and a half weeks before).
+**Clock:** Fri 30 Oct (the PRD's agreed date; about two and a half weeks before).
 
-| What changes | From → to | Status |
+| What changes | From → to | Why it matters |
 |---|---|---|
-| Guests | 180 → 194 (+14, +7.8%) | Proposed: outside the 5% tolerance, which allows 9 |
-| New allergy | Onni, one of the new guests, tree nuts | Agreed |
+| Guests | 180 → 194 (+14, +7.8%) | More than the 9 guests Sanna's rule allows |
+| New allergy | Onni, one of the new guests, tree nuts | The princess cake contains almond |
 
 **What the agent does:**
 
-- Re-runs the order and shows the whole list with the changed lines coloured. Salmon rises to 33.0 kg, cream to 49 L.
-- Re-checks every line against the new allergy. The princess cake contains almond and tree nuts (real). There is no approve button.
+- Re-runs the order and shows the whole list with the changed lines coloured.
+- Re-checks every line against the new allergy and stops on the cake. There is no approve button.
 
-**Aino decides:** she replaces the cake. The chef answers first, so Sanna is only asked about the final order. Three real candidates, none with nuts listed as "contains" or "may contain". Darragh's allergy rule (PRD question Q02.3) also fails a product that lists the allergen as "undeclared"; that field isn't in our slim data, so each candidate still has to be checked against the raw catalogue:
+**A catch worth showing.** The catalogue lists this princess cake as both "free from tree nuts" and "contains almond", and almond is a tree nut. The agent never lets a "free from" entry outweigh a "contains" entry, so the cake fails.
 
-| Candidate | Price | Stock |
-|---|---|---|
-| Rollfoods cloudberry caramel cake, Finnish (465051) | €47.31 a case | Not confirmed |
-| Puratos cheesecake 5 kg (463727) | €62.79 each | 4 |
-| Brander gluten-free strawberry curd cake (464235) | €41.45 a case | 6 cases |
+**Aino decides:** she replaces the cake for everyone with the Elonen raspberry pastry cake, 40 pieces (473522). It is Finnish, sold in pieces like the original, and the catalogue declares it free from tree nuts and from peanuts. Its stock is not confirmed, which the card shows; choosing it is her answer.
 
-**Sanna approves:** one card for the changes. The guest count rose by more than the 5% she allows, and the total is now further over the €1,500 budget. With the original cake it would be about €1,717; the exact figure depends on which dessert Aino picks. Her first approval no longer counts, because the order changed. She approves.
+| Line | Before | After | Line total |
+|---|---|---|---|
+| Salmon | 31 kg | 33 kg | €984.72 |
+| Potatoes | 3 cases | 3 cases (no change) | €31.62 |
+| Whipping cream | 45 | 49 | €361.13 |
+| Dessert | 12 cases of princess cake | 5 cases of raspberry pastry cake (200 pieces) | €310.60 |
+| Coffee | 1 case | 1 case (no change) | €75.90 |
+| Coffee milk | 40 | 40 (no change) | €99.20 |
+| Sparkling | 5 cases | 6 cases (36 bottles for 33 needed) | €220.56 |
+| **Order total** | €2,062.17 | | **€2,083.73** |
+
+**Sanna approves:** one card for the changes. "14 more guests than booked (+7.8%). The new total of €2,083.73 is €83.73 over your €2,000 limit." Her first approval no longer counts, because the order changed. She approves.
 
 ## Second clarification, before the cut-off (1:42–2:10)
 
-**Clock:** Sat 14 Nov, 17:00, which is 24 hours before Valio Aimo's cut-off.
+**Clock:** Sat 14 Nov, 17:00, which is 24 hours before the main cut-off. The cake and the sparkling were locked on Thu 12 Nov, when their own cut-off passed.
 
-| What changes | From → to | Status |
+| What changes | From → to | Why it matters |
 |---|---|---|
-| Guests | 194 → 188 (6 no-shows, −3.1%) | Proposed: inside the tolerance, which allows 9, so nobody is asked |
+| Guests | 194 → 188 (6 no-shows, −3.1%) | Inside the 9 guests Sanna's rule allows, so nobody is asked |
 
 **What the agent does:**
 
-- Applies the smaller guest count and shows the coloured list. No question. This is where the video shows the agent acting alone: a change inside Sanna's rules needs nobody.
+- Applies the smaller guest count and shows the coloured list: salmon goes from 33 kg to 32 kg, cream from 49 to 47. No question. This is where the video shows the agent acting alone: a change inside Sanna's rules needs nobody.
 - Runs the final check, which nobody starts:
 
-| Line | Need | Real stock | Result |
+| Line | Ordered | Real stock | Result |
 |---|---|---|---|
-| Salmon | 32.0 kg | 311 kg | Passes |
-| Coffee milk | 40 L | 384 | Passes |
-| Whipping cream | 47 L | 37 | **Short by 10** |
-| Dessert | | Not confirmed | Accepted at booking |
+| Salmon | 32 kg | 311 kg | Passes |
+| Coffee | 1 case | 164 cases | Passes |
+| Coffee milk | 40 | 384 | Passes |
+| Whipping cream | 47 | 37 | **Short by 10** |
+| Potatoes, cake, sparkling | | Not confirmed | Already continued |
 
-**Aino decides:** she picks between two substitutes, shown side by side with the original, with the cut-off as the deadline:
+**Aino decides:** she picks between two substitutes for the missing 10 litres, shown side by side with the original, with the cut-off as the deadline:
 
 | Substitute | Price | Stock |
 |---|---|---|
 | Valio whipping cream 1 L UHT, lactose-free (464194) | €3.91 per litre | Not confirmed |
 | Valio food service whipping cream 1.75 L, lactose-free (465193) | €3.33 per litre | Not confirmed |
 
-**Result line (wording proposed):** "Ready for Tuesday. Valio Aimo can't confirm stock on 2 lines."
+She keeps the 37 litres of Arla and takes 10 litres of the Valio 1 L (€39.10).
+
+**Result line (wording proposed):** "Ready for Tuesday. Valio Aimo can't confirm stock on 4 lines." The four are the potatoes, the raspberry cake, the sparkling and the Valio cream.
 
 ## The safety drill (2:10–2:30)
 
-| Variable | Value | Status |
-|---|---|---|
-| Who acts | A script posing as an outside agent, started on purpose | Agreed |
-| What it sends | An order over €1,500 with no approval attached | Proposed |
-| Gateway's answer | Refused, naming the budget rule | Agreed |
+| Variable | Value |
+|---|---|
+| Who acts | A script posing as an outside agent, started on purpose |
+| What it sends | An order over €2,000 with no approval attached |
+| Gateway's answer | Refused, naming the budget rule |
 
 The line: "Our agent stays inside Sanna's rules. Katri shouldn't have to take our word for it."
 
@@ -174,14 +205,12 @@ The video ends on Katri's seat, because the judges are from Valio Aimo.
 
 | Shown | Value |
 |---|---|
-| Sanna's view, briefly | Every step, with the rule behind it and each model judgement with its confidence. |
+| Sanna's view, briefly | Every step, with the rule behind it and each model judgement with its confidence |
 | **Katri's view: the sale record** | The order as Valio Aimo received it: the lines, the total, the delivery date, and Sanna's two approvals attached to the exact order each one covered |
 | Beside it | The drill order, refused, with the rule that stopped it |
 | Not in Katri's view | Recipes, the guest list, and anything about Onni |
 
-**The video doesn't quote a number of taps or decisions.** With two approvals from Sanna and three choices from Aino, the count isn't a strong figure, and saying it invites the judges to add up every tap. The closing line is about what the record proves instead. Proposed: "One wedding, three rounds of changes. Nothing was ordered that someone didn't decide, and every decision is on record for both sides."
-
-The decisions people make, in order: Aino continues with unconfirmed stock, Sanna approves the booking, Aino replaces the cake, Sanna approves the changes, Aino picks a cream.
+**The video doesn't quote a number of taps or decisions.** With two approvals from Sanna and three choices from Aino, the count isn't a strong figure. The closing line is about what the record proves. Proposed: "One wedding, three rounds of changes. Nothing was ordered that someone didn't decide, and every decision is on record for both sides."
 
 ## Showing how it works
 
@@ -197,26 +226,75 @@ The line for the video: **"AI reads and judges. Rules decide."**
 
 Don't call the decision model deterministic. It returns a probability, not a guarantee, and Valio Aimo's technical judges will know that. The deterministic part is the rules.
 
-## Where this differs from the PRD
+## Showing speed and accuracy
 
-The stock question in this plan (Aino is asked and can continue) is now also the PRD's rule, as decision D31.
+Both are shown inside the beats above, as figures on screen. Neither adds time.
+
+### Speed
+
+- **A timer on every agent step**, measured by the product while it runs and never typed in. For example: "95 salmon products checked in 1.2 s."
+- **A total for each stage**: the time from Aino's request to an order ready for approval.
+- **What it replaces, said in the voiceover**: today the change at two weeks is a phone call to the Valio Aimo rep.
+
+What we measured on 14 Nov, against the live mock, for the lookup alone:
+
+| Lookup | Time |
+|---|---|
+| Stock for 95 salmon products | 0.42 s |
+| Prices for the same 95 | 0.80 s |
+| Stock for 1,000 products, the most one call allows | 0.80 s |
+
+These include starting the script, and they don't include our own matching, rules or the model calls. The figures in the video must come from the finished product at recording time.
+
+**We have no figure for how long this takes by hand today.** No chef has answered that question yet. So the video shouldn't claim "ten times faster" or similar. If someone gets a number from a chef before recording, use it and say where it came from.
+
+### Accuracy
+
+Shown as the things the agent gets right that a quick search would get wrong, each with its real count:
+
+| Moment | What is shown | Figures |
+|---|---|---|
+| Choosing the salmon | A funnel on screen. Each step can be clicked to show the reasoning behind it | 95 salmon products → 50 Finnish → 36 of those deliverable → 7 with confirmed stock → 1 picked |
+| The "not available" fillet | A product with a price that can't be delivered | 41 of the 95 salmon products can't be delivered |
+| The coffee milk | A coffee milk left out of "milk" | Category 10400 mixes plain milk, coffee milk and soured milk |
+| Onni's allergy | A contradiction in the data, caught | The cake is listed both "free from tree nuts" and "contains almond" |
+| The replacement cake | A declared free-from, not just an absence | Declared free from tree nuts and from peanuts |
+| Quantities | Whole packs, worked out exactly | 180 pieces is 12 cases of 15; 194 pieces is 5 cases of 40, with 6 spare |
+| Every figure | Tap any number to see where it came from | |
+
+**The funnel has to open.** Showing the numbers isn't enough: a click on any step shows why the number dropped, with the rule that was applied and the products it removed. In the video one step is clicked briefly; all of them have to work.
+
+| Step | What the click shows |
+|---|---|
+| 95 → 50 | Sanna's rule, "fish from Finland only", and the 45 it removed: 25 Norwegian, 10 Dutch, 5 Polish and 5 from elsewhere |
+| 50 → 36 | The 14 Finnish products that have a price but no delivery dates, so they can't be delivered |
+| 36 → 7 | The 29 whose stock Valio Aimo can't confirm, ranked below the 7 with a real stock figure |
+| 7 → 1 | The ranking step that separated the last seven, and the product that won |
+
+In the story Aino never corrects a product or a quantity the agent chose. That is the brief's own test: "least manual correction".
+
+**We have not measured accuracy over a set of test requests.** The video shows correct handling of the cases in the story, and shouldn't quote a percentage unless someone runs that test first.
+
+## Where this differs from the PRD
 
 | In this plan | In the PRD today |
 |---|---|
 | "Finnish fish only" is shown | Story CH-16, which is P1, not P0 |
 | Carbon is shown on each line | An add-on (VA-A3, PF-A1) with no owner. The data is a product-group average for about 63% of products and must be labelled that way |
+| A timer on each agent step, and the salmon funnel | The timer and the funnel aren't in any story. Opening the reasoning behind a number is story UI-05, which is P0 |
 | The Reads, Judges, Decides strip | Not in any story |
 | A button that starts the safety drill | Not in any story. The refusal behind it (VA-04) is P0 |
 | Katri's sale-record view of one order | The PRD gives Valio Aimo a view of the audit (chunk 09), but no order screen. A screen for the rep is an add-on (VA-A2) |
+| Stock decides the pick months ahead (Arla's milk over Valio's) | The PRD says two things: stock plays no part in a line's verdict months ahead (D7), and confirmed stock ranks first (SF-06). Whether ranking uses stock months ahead needs an answer from Darragh or Pavit |
 
 ## What has to work on camera
 
 | Owner | Must work |
 |---|---|
-| **Pavit** | Search and lookup on the live mock, including the origin filter. Quote. Order from a quote, with the approval attached. Amending an order. The over-budget refusal for the safety drill. Valio Aimo's view of one order with its approvals |
-| **Darragh** | Line verdicts, including "not available". The budget rule behind Sanna's first card, and the tolerance rule behind her second. The allergy re-check with no approve button. The final check and the shortfall. Finding substitutes |
-| **Jack** | Sanna's rules page, read-only. Request chips. The stock question, the two approval cards and the substitute card. The event page with the coloured list. The seat label and switcher. The strip. The safety-drill button. Katri's sale-record screen |
-| **Ben** | Whole-pack rounding. The audit with two views. The wedding as seed data, the clock and the reset command |
+| **Pavit** | Search and lookup on the live mock, including the origin filter. Quote. Order from a quote, with the approval attached. Amending an order. The over-budget refusal for the safety drill. Valio Aimo's view of one order with its approvals. The time each lookup took |
+| **Darragh** | Line verdicts, including "not available". The budget rule behind Sanna's first card, and the tolerance rule behind her second. The allergy re-check with no approve button, where "contains" beats "free from". The final check and the shortfall. Finding substitutes. For the salmon funnel, the count at each step, the rule applied and the products it removed |
+| **Jack** | Sanna's rules page, read-only. Request chips. The stock question, the two approval cards and the substitute card. The event page with the coloured list. The seat label and switcher. The strip and the timer. The funnel, with each step opening its reasoning on a click. The safety-drill button. Katri's sale-record screen |
+| **Ben** | Whole-pack rounding. The audit with two views. The wedding above as seed data, the clock and the reset command |
 
 ## If the build slips, cut in this order
 
@@ -227,17 +305,13 @@ The stock question in this plan (Aino is asked and can continue) is now also the
 
 The four to protect: the plain-words line, the booking with Sanna's approval, the gateway refusal, and Katri's sale record.
 
-## Still to decide
+## Still open
 
 | Question | Who |
 |---|---|
-| Whether a Saturday wedding is worth changing the agreed clock for | Ben |
-| The menu's other lines, the recipes and the amounts per guest | Ben and Jack |
-| The exact budget, once the booking's real total is known | Ben, with Darragh |
-| Which dessert Aino swaps to, and whether she swaps it for everyone or adds one nut-free dessert for Onni | Jack |
-| The final wording of the result line | Jack |
-| Who records, who narrates, and when recording starts | Team |
-| The hotel's name | Jack |
+| The final wording of the result line and the closing line | Jack |
+| Who takes which part of the recording, and when it starts | Team |
+| Whether ranking uses stock months ahead (see "Where this differs from the PRD") | Darragh or Pavit |
 
 ## To ask Valio Aimo
 
