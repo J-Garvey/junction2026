@@ -28,7 +28,7 @@ SYNKKA_L = {"LTR": 1.0, "MLT": 0.001, "CLT": 0.01}
 
 
 def load_csv(path):
-    with open(path, newline="") as f:
+    with open(path, newline="", encoding="utf-8") as f:
         r = csv.reader(f)
         next(r)
         return {a: float(b) for a, b in r}
@@ -41,8 +41,16 @@ def lang(items, code):
     return None
 
 
-def size_from_name(name):
-    """Parse '12 x 330 ml', '1 l', '400g' -> (net_kg, net_l) for one base unit. Last match wins."""
+def size_from_name(name, units=None):
+    """Parse '12 x 330 ml', '1 l', '400g' -> (net_kg, net_l) for one base unit. Last match wins.
+
+    An 'N x size' multiplier is applied only when the base unit is itself the
+    multipack. If a case-level pack unit (not a pallet or pallet layer) holds
+    exactly N base units (e.g. a KI case of 12 for '12x500ml'), the base unit is
+    the single item and N is not applied; applying it would count the case twice
+    in net x su_in_bu. Checked against the price API on 2026-11-14: this choice
+    matches catalogPrice / comparisonPrice on 909 of 924 decidable products.
+    """
     if not name:
         return None, None
     m = None
@@ -51,6 +59,8 @@ def size_from_name(name):
     if not m:
         return None, None
     mult = int(m.group(1)) if m.group(1) else 1
+    if mult > 1 and units and any(v == mult for u, v in units.items() if v and v > 1 and u not in ("PAL", "KRS")):
+        mult = 1
     val = float(m.group(2).replace(",", ".")) * mult
     u = m.group(3).lower()
     if u in TO_KG:
@@ -127,11 +137,11 @@ def slim(p, co2, rel):
         if net_kg is not None or net_l is not None:
             src = "synkka"
     if net_kg is None and net_l is None:
-        net_kg, net_l = size_from_name(fi or en)
+        net_kg, net_l = size_from_name(fi or en, units)
         if net_kg is not None or net_l is not None:
             src = "name"
     elif net_l is None:
-        _, nl = size_from_name(fi or en)
+        _, nl = size_from_name(fi or en, units)
         if nl is not None:
             net_l = nl
             src = "synkka+name"
@@ -158,15 +168,15 @@ def main():
     prod_path, co2_path, rel_path, out = sys.argv[1:5]
     os.makedirs(out, exist_ok=True)
     co2, rel = load_csv(co2_path), load_csv(rel_path)
-    with open(prod_path) as f:
+    with open(prod_path, encoding="utf-8") as f:
         P = json.load(f)
 
     rows = [slim(p, co2, rel) for p in P]
-    with open(os.path.join(out, "products_slim.jsonl"), "w") as f:
+    with open(os.path.join(out, "products_slim.jsonl"), "w", encoding="utf-8") as f:
         for o in rows:
             f.write(json.dumps(o, ensure_ascii=False, separators=(",", ":")) + "\n")
 
-    with open(os.path.join(out, "ingredients.jsonl"), "w") as f:
+    with open(os.path.join(out, "ingredients.jsonl"), "w", encoding="utf-8") as f:
         for p in P:
             ki = p.get("synkkaData", {}).get("keyIngredients")
             en, fi = lang(ki, "en"), lang(ki, "fi")
@@ -181,7 +191,7 @@ def main():
     cols = ["id", "en", "fi", "brand", "vendor", "cat", "su", "bu", "su_in_bu", "temp", "temp_label", "origin",
             "net_kg", "net_l", "contains", "may_contain", "free_from", "claims", "labels", "subs",
             "co2_kg_per_kg", "reliability"]
-    with open(os.path.join(out, "products_core.csv"), "w", newline="") as f:
+    with open(os.path.join(out, "products_core.csv"), "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         w.writerow(cols)
         for o in rows:
@@ -190,7 +200,7 @@ def main():
     cats = collections.defaultdict(list)
     for o in rows:
         cats[o["cat"]].append(o)
-    with open(os.path.join(out, "categories.csv"), "w", newline="") as f:
+    with open(os.path.join(out, "categories.csv"), "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         w.writerow(["cat", "n_products", "temp_label_mode", "top_vendor", "example_1", "example_2", "example_3"])
         for c in sorted(cats, key=lambda k: (k is None, k)):

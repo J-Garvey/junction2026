@@ -7,6 +7,8 @@ How can a food-service wholesaler let autonomous purchasing agents find products
 ## Status
 
 - ✅ Challenge material, data and mock API in the repo; API calls verified
+- ✅ Facts verified against the data, API, brief and public sources: **[GROUND_TRUTH.md](GROUND_TRUTH.md)**
+- ⏰ **Final submission deadline: Sun 15 Nov 2026, 10:00**
 - ✅ Two research passes on customer segments (they disagree; see [QUESTIONS.md](QUESTIONS.md))
 - ⏳ Ask the mentors ([research/mentor-questions.md](research/mentor-questions.md)), then pick a segment
 - ⬜ Guardrails design (deliberately later)
@@ -26,6 +28,7 @@ What changed when the two uploads were merged is in **[CHANGES.md](CHANGES.md)**
 
 | Path | What's there |
 |---|---|
+| [GROUND_TRUTH.md](GROUND_TRUTH.md) | **Verified facts**: data, API behaviour, brief, code meanings, Valio Aimo, standards. Wins where another file disagrees |
 | [QUESTIONS.md](QUESTIONS.md) | Open team decisions, with both positions for each |
 | [CHANGES.md](CHANGES.md) | Every change made when the two uploads were merged |
 | [CLAUDE.md](CLAUDE.md) | Compact context for AI coding agents: goal, judging, API behaviour, design constraints |
@@ -73,5 +76,6 @@ The API key is read from `.env` (`AIMO_API_KEY`).
 - **Allergen declarations cover 54% of products** (9,424): "contains", "may contain" and, on 5,119 products, "free from". The other **46% have none**, and missing data must never be treated as safe.
 - **Only 188 products (1.1%) list substitutes**, so we need our own ranking.
 - **Delivery reliability covers 25%** of products; **CO₂ covers 63%** (product-group averages). Missing means unknown, not bad.
-- **35 lactose-free drinking milks** fit the brief's example. Filter by the `FREE_FROM_LACTOSE` claim, not by name.
+- **25 plain lactose-free drinking milks** (35 lactose-free products in category `10400`, all Valio or Arla) fit the brief's example. Filter by the `FREE_FROM_LACTOSE` claim, not by name or `free_from`. No single product with a real stock figure covers 1,000 L for Monday.
 - **The API is read-only.** Ordering, approval and audit are ours to build. Shortlist from local data before calling it; rate limits are undisclosed.
+- **The mock ignores `customer` and `requestedDate`**, and has two "unknown quantity" sentinels: 999999 (Terminal) and 9,999,999,999 base units (some Stock). Details in [GROUND_TRUTH.md](GROUND_TRUTH.md) section 3.

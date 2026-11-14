@@ -19,7 +19,7 @@ Each correction was checked against `data/products_slim.jsonl`, which `scripts/b
 | Claim | Before | After | Why |
 |---|---|---|---|
 | "Free from" allergen entries | 0 | 68,597 entries on 5,119 products | They're in the raw `nonAllergen` classification group. `profile_products.py` only read the `allergen` group. `build_slim.py` reads `nonAllergen` at lines 93–94. Reading `nonAllergen` as "declared free from" is an interpretation of the field name, so confirming it is mentor question Q31. |
-| Products with an allergen declaration | 7,205 (41%) | 9,424 (54%) | 7,205 have contains / may contain / undeclared entries. Another 2,231 have "free from" entries only. |
+| Products with an allergen declaration | 7,205 (41%) | 9,424 (54%) | 7,193 have contains / may contain entries; another 2,231 have "free from" entries only. *(Corrected in section 5: this row first said 7,205 + 2,231, which is 9,436; the 7,205 includes 12 products with only UNDECLARED entries.)* |
 | Products with no declaration | 59% | 46% (8,122) | Follows from the line above. "Silence is not safety" still holds, on a smaller share. |
 | Lactose-free milks for the brief's example | ~68 | 35 drinking milks | 68 is the count of names containing "laktoositon" and "maito". Only 31 of those are in category `10400` (milk drinks); the rest are cocoa drinks, quark, milk powder and a cooking-cream blend, and one lacks the lactose-free claim. Filtering by the `FREE_FROM_LACTOSE` claim in `10400` gives 35. |
 | Products with listed substitutes | 189 | 188 | One product lists only itself as a substitute. 189 is still given as "including self-references". |
@@ -62,3 +62,24 @@ Source facts that differ but are both sourced were kept side by side, not correc
 | `research/mentor-questions.md` | One list of mentor questions. Q1–33 are Jack's, unchanged except for answered-so-far notes on Q29–31. Q34–45 were added from Darragh's list and the data review. Darragh's questions that duplicated Jack's were merged into Q1, Q2, Q25, Q28 and Q32. Questions the data already answers are listed at the end. |
 | `QUESTIONS.md` | Open team decisions: segment, who pays, credentials and data in the repo. |
 | `CHANGES.md` | This file. |
+
+## 5. Ground-truth pass (14 Nov 2026)
+
+Six review agents checked every categorical fact in the repo against the raw catalogue (fetched 14 Nov), the mock API (about 20 read-only calls), the brief, GS1 code lists and public sources. Every result was then spot-checked. The verified facts are in **[GROUND_TRUTH.md](GROUND_TRUTH.md)**; its section 9 lists each correction. Team decisions (segment, payer, credentials, guardrails, product direction) were not touched.
+
+| File | Change |
+|---|---|
+| `GROUND_TRUTH.md` | **New.** Every verified fact, tagged with how it was checked. |
+| `scripts/build_slim.py` | **Bug fix:** names like "12x500ml" stored the whole case as the content of one base unit, so `net × su_in_bu` counted the case twice. The "N x" multiplier is now applied only when no case-level pack unit holds N base units. Against the price API, 909 of 924 decidable products now match (215 before). Also opens files as UTF-8, so it runs on Windows. |
+| `data/products_slim.jsonl`, `data/products_core.csv` | Rebuilt: `net_kg` / `net_l` changed on 787 products. Nothing else changed; `ingredients.jsonl` and `categories.csv` are byte-identical. None of the 35 lactose-free milks changed. |
+| `scripts/profile_products.py` | Opens files as UTF-8; prints all 35 lactose-free products, not the first 25. Run on the real raw file: every headline figure reproduces. |
+| `CLAUDE.md` | Deadline added. Judging wording restored to the brief's ("not just isolated pieces", "well-justified technical choices"). API section corrected: `requestedDate` is ignored, the Stock sentinel, empty schedules on real products, past cut-offs, `netPriceFound` true on 16 of 1,000, `catalogPrice` vs `listPrice`, `salesUnit` mismatch, Terminal string. The two unsourced team rules are marked, not removed. "Not yet known" trimmed to what is still unknown. |
+| `docs/data-dictionary.md` | Allergen, claim, label and nutrient glossaries are now documented against GS1 (5 codes added, 7 resolved, X99 is an absence code). UNDECLARED defined. Units marked as inferred except ST. Temperature marked undocumented. Allergen breakdown, conversion section, VAT values, `lot` definition and contradictions corrected. |
+| `research/03-data-profile.md` | Allergen breakdown, lactose-free list (25 plain milks of 35, with ids), name-match breakdown, free-from evidence and API section corrected. |
+| `research/01-customer-options-brief.md` | Facts only: direct sales definition, wellbeing counties incl. Helsinki, Kespro peer group, €4B source, Nov 2025 trend context, milk count, prices, Scandic wording, Fazer year, Attendo dates. Shortlist, ratings and criteria untouched. |
+| `research/02-initial-deep-dive.md` | Framework-contract and special-diet claims marked as not supported by their sources; wellbeing counties clarified. |
+| `research/04-segment-research-chain-first.md` | Facts only, marked **[checked]**: Atria figures (base, tense, diners not buyers), unsourced channel table, Heinon Tukku date, NoHo date, Risku-Norja data year, allergen-duty legal basis, brief answers, prices, cut-offs, standards statuses. Recommendation and verdicts untouched. |
+| `research/mentor-questions.md` | Answered or partly answered questions marked with what is now known. |
+| `README.md` | Deadline, link to `GROUND_TRUTH.md`, corrected milk finding, API sentinel note. |
+| `QUESTIONS.md` | One fact added under question 3 (the credentials are on the public challenge page). The decision itself is untouched. |
+

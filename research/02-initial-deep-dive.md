@@ -6,11 +6,11 @@
 ## Background facts on public kitchens (segment D, ruled out)
 
 - Public kitchens serve about **380 million meals a year**. Public food purchasing is about **€350–600M a year** (MTK cites ~€350M; a Ministry of Agriculture deck at Hansel cites ~€600M).
-- They buy on **tendered framework contracts**: suppliers bid once, then the buyer orders at fixed prices for several years, revised about once a year.
+- They buy on **tendered framework contracts**: suppliers bid once, then the buyer orders at fixed prices, typically revised once a year (Ministry of Agriculture). *That terms run for several years is plausible but not in the cited source.*
 - Palvelukeskus Helsinki (the city's own catering company) works across ~500 sites and runs ~70% of the city's food services. Turku has 23 production, 68 service and 33 distribution kitchens.
-- Up to a fifth of schoolchildren follow a special diet. Yle reported children hospitalised after allergen errors from school and daycare food (2019–2020), including oat yogurt served to a child with an oat allergy.
+- Up to a fifth of schoolchildren follow a special diet. *Unverified: the cited PDF can't be opened, and municipal figures range from about 4–6% (Espoo) to about 25% (Vantaa, including ethical and religious diets).* Yle reported children hospitalised after allergen errors from school and daycare food (2019–2020), including oat yogurt served to a child with an oat allergy.
 - In **Feb 2026 Helsinki voted 57–23 to halve meat and dairy purchases by 2030** ("Puolet parempaa" / "Half Better"). This is a strategic threat to Valio's dairy volume. Helsinki has also piloted carbon criteria in dairy and meat tenders.
-- Wellbeing services counties (the regional authorities that run health and social care) must cover large deficits. Public employers made record layoffs.
+- Wellbeing services counties (the 21 regional authorities that run health and social care since 2023; Helsinki runs its own) must cover large deficits. Public employers made record layoffs.
 - Many public kitchens use CGI Aromi or Jamix kitchen software, which already chains recipe → menu → purchase order. Aromi integrates with Synkka (the same GS1 product data source as our product file).
 
 **Why it was ruled out:** public tenders and regulation make adoption slow, and Valio Aimo can only win these customers through tenders.
