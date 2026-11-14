@@ -17,7 +17,8 @@ import { messageRoute } from "../agent/judge.js";
 import { newPlan, quoteAndDecide, getPlan, listPlans, mandate, savePlan } from "../agent/plan.js";
 import { questionsFor, allQuestions, getQuestion, canAnswer } from "../agent/questions.js";
 import { answer } from "../agent/answers.js";
-import { addDietGroup, changeEvent, changeGuests, coverageSummary, EditConflict, eventView, finalCheck, listEvents, orderEvent, removeNeed, runCutoff, runViability, warnings, personActor } from "../agent/events.js";
+import { addDietGroup, changeEvent, changeGuests, coverageSummary, EditConflict, eventView, finalCheck, getEvent, listEvents, orderEvent, removeNeed, runCutoff, runViability, saveEvent, warnings, personActor, type StoredEvent } from "../agent/events.js";
+import { newId } from "../util.js";
 import { listRemembered } from "../agent/memory.js";
 import { seedReset, OUTLETS, OUTSIDE_AGENT_TOKEN, VALIO_VIEWER_TOKEN } from "../seed.js";
 import { gw } from "../agent/gatewayClient.js";
@@ -101,8 +102,12 @@ export function appRouter(): Router {
   // UI-04 confirmed chips → a plan → quote → questions or an order.
   r.post("/requests", async (req, res) => {
     const request = SingleRequest.parse(req.body.request);
+    // An order basket (an event) the request is added to; its delivery date is the needed-by date.
+    const eventId = req.body.eventId == null ? null : z.string().parse(req.body.eventId);
+    if (eventId && !getEvent(eventId)) return res.status(404).json({ error: "No such order" });
     const p = P(req);
     const plan = newPlan("single", { personId: p.id, name: p.name }, request.outletId, { request, title: request.lines.map((l) => `${l.quantity ? `${l.quantity.amount} ${l.quantity.unit} ` : ""}${l.constraints.claims.includes("FREE_FROM_LACTOSE") ? "lactose-free " : ""}${l.query}`).join(", ") || request.originalText.slice(0, 60) });
+    plan.eventId = eventId;
     audit({ actor: personActor(p), action: "request_received", summary: `${p.name} confirmed the request: ${plan.title}`, details: { kind: "confirmation", planId: plan.id }, visibility: "hotel" });
     savePlan(plan);
     await quoteAndDecide(plan, T(req));
@@ -117,6 +122,33 @@ export function appRouter(): Router {
     res.json({ plan, questions: allQuestions().filter((q) => q.planId === plan.id) });
   });
 
+  // The person approves adding the proposed products to the quote, or picks an alternative first.
+  r.post("/plans/:id/accept", async (req, res) => {
+    const plan = getPlan(String(req.params.id));
+    if (!plan) return res.status(404).json({ error: "No such plan" });
+    if (!plan.proposal) return res.status(409).json({ error: "Nothing waiting to be added" });
+    const p = P(req);
+    plan.overrides.accepted = true;
+    audit({ actor: personActor(p), action: "request_received", summary: `${p.name} added ${plan.title} to the quote`, eventId: plan.eventId, details: { kind: "confirmation", planId: plan.id, lines: plan.lines.map((l) => l.productId) }, visibility: "hotel" });
+    savePlan(plan);
+    await quoteAndDecide(plan, T(req));
+    res.json({ plan: getPlan(plan.id), questions: allQuestions().filter((q) => q.planId === plan.id) });
+  });
+  r.post("/plans/:id/choose", async (req, res) => {
+    const plan = getPlan(String(req.params.id));
+    if (!plan) return res.status(404).json({ error: "No such plan" });
+    if (!plan.proposal) return res.status(409).json({ error: "Nothing waiting to be added" });
+    const { needId, productId } = z.object({ needId: z.string(), productId: z.string() }).parse(req.body);
+    const need = plan.needs.find((n) => n.id === needId);
+    if (!need?.candidates.some((c) => c.productId === productId)) return res.status(404).json({ error: "Not one of the options" });
+    const p = P(req);
+    plan.overrides.chosen = [...(plan.overrides.chosen ?? []).filter((k) => !k.startsWith(`${needId}:`)), `${needId}:${productId}`];
+    audit({ actor: personActor(p), action: "request_received", summary: `${p.name} picked ${need.candidates.find((c) => c.productId === productId)!.name} for ${need.label}`, eventId: plan.eventId, details: { kind: "confirmation", planId: plan.id, needId, productId }, visibility: "hotel" });
+    savePlan(plan);
+    await quoteAndDecide(plan, T(req));
+    res.json({ plan: getPlan(plan.id), questions: allQuestions().filter((q) => q.planId === plan.id) });
+  });
+
   r.get("/questions/:id", (req, res) => {
     const q = getQuestion(String(req.params.id));
     if (!q) return res.status(404).json({ error: "No such question" });
@@ -128,6 +160,47 @@ export function appRouter(): Router {
     if (!out.ok) return res.status(409).json(out);
     const q = out.question;
     res.json({ ...out, plan: q.planId ? getPlan(q.planId) : null });
+  });
+
+  // Order baskets: one per event, named by the event and its delivery date. Requests attach to one.
+  const basketPlans = (eventId: string) => listPlans().filter((pl) => pl.kind === "single" && pl.eventId === eventId);
+  const planRow = (pl: ReturnType<typeof listPlans>[number]) => ({ id: pl.id, title: pl.title, status: pl.status, summary: pl.summary, createdAt: pl.createdAt, createdBy: pl.createdBy.name, totalExVat: pl.totalExVat, orderIds: pl.orderIds });
+  r.get("/baskets", async (_req, res) => {
+    const { orders } = await gw.orders();
+    const open = allQuestions().filter((q) => q.state === "open" || q.state === "waiting");
+    res.json({
+      baskets: listEvents().map((e) => {
+        const mine = orders.filter((o) => o.eventId === e.id && o.state !== "rejected");
+        return {
+          id: e.id,
+          name: e.name,
+          deliveryDate: e.serviceDate,
+          guests: e.guests,
+          coverage: coverageSummary(e.id),
+          lines: mine.reduce((n, o) => n + o.lines.filter((l) => !l.removed).length, 0),
+          totalExVat: mine.reduce((n, o) => n + o.totalExVat, 0),
+          waiting: open.filter((q) => q.eventId === e.id).length,
+          requests: basketPlans(e.id).length + (e.dishes.length ? 1 : 0),
+        };
+      }),
+    });
+  });
+  r.post("/baskets", (req, res) => {
+    const b = z.object({ name: z.string().trim().min(1).max(120), deliveryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), guests: z.number().int().min(0).optional() }).parse(req.body);
+    const p = P(req);
+    const e: StoredEvent = {
+      id: newId("evt"), name: b.name, siteId: mandate().sites[0].id, serviceDate: b.deliveryDate, guests: b.guests ?? 0, dietGroups: [], dishes: [], dietsConfirmed: false,
+      version: 1, removedNeeds: [], viabilityPlanId: null, orderPlanId: null, orderedGuests: null, lastDiff: null, finalCheck: null, changes: [{ at: now().toISOString(), by: p.name, what: "Order created" }],
+    };
+    saveEvent(e);
+    audit({ actor: personActor(p), action: "basket_created", summary: `${p.name} opened the order "${e.name}" for delivery ${e.serviceDate}`, eventId: e.id, details: { kind: "confirmation" }, visibility: "hotel" });
+    res.json({ basket: { id: e.id, name: e.name, deliveryDate: e.serviceDate } });
+  });
+  r.get("/baskets/:id", async (req, res) => {
+    const id = String(req.params.id);
+    if (!getEvent(id)) return res.status(404).json({ error: "No such order" });
+    const { orders } = await gw.orders(id);
+    res.json({ ...eventView(id), requests: basketPlans(id).map(planRow), orders });
   });
 
   r.get("/events", (_req, res) => res.json({ events: listEvents().map((e) => ({ ...e, coverage: coverageSummary(e.id) })) }));

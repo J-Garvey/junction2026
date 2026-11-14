@@ -8,6 +8,7 @@ import { Icon, Lockup, Mark, type IconName } from "./ui/icons";
 import { AllergyBanner } from "./ui/Banner";
 import { initials, when } from "./format";
 import { Home } from "./screens/Home";
+import { BasketPage, BasketsHome } from "./screens/Baskets";
 import { RequestNew, RequestPlan, Requests } from "./screens/Request";
 import { EventPage, Events } from "./screens/Event";
 import { Orders } from "./screens/Orders";
@@ -16,6 +17,7 @@ import { Rules } from "./screens/Rules";
 
 const NAV: [string, IconName, string][] = [
   ["/", "home", "Home"],
+  ["/inbox", "q", "Waiting"],
   ["/events", "cal", "Events"],
   ["/requests", "chat", "Requests"],
   ["/orders", "box", "Orders"],
@@ -118,7 +120,9 @@ export function App() {
           <MobileHead me={ctx.me} onSwitch={() => setNeedPick(true)} />
           <div className="content">
             <Routes>
-              <Route path="/" element={<Home />} />
+              <Route path="/" element={<BasketsHome />} />
+              <Route path="/baskets/:id" element={<BasketPage />} />
+              <Route path="/inbox" element={<Home />} />
               <Route path="/requests" element={<Requests />} />
               <Route path="/requests/new" element={<RequestNew />} />
               <Route path="/requests/:id" element={<RequestPlan />} />
@@ -156,7 +160,7 @@ function Sidebar({ badge, me, people, onPick, status }: { badge: number; me: Per
         <NavLink key={to} to={to} end={to === "/"} className={({ isActive }) => (isActive ? "on" : "")}>
           <Icon n={ic} s={17} />
           {l}
-          {to === "/" && badge > 0 && (
+          {to === "/inbox" && badge > 0 && (
             <span className="n" aria-label={`${badge} waiting`}>
               {badge}
             </span>
@@ -252,7 +256,7 @@ function Tabs({ badge }: { badge: number }) {
         <NavLink key={to} to={to} end={to === "/"} className={({ isActive }) => (isActive ? "on" : "")}>
           <Icon n={ic} s={21} />
           {l}
-          {to === "/" && badge > 0 && <span className="n">{badge}</span>}
+          {to === "/inbox" && badge > 0 && <span className="n">{badge}</span>}
         </NavLink>
       ))}
     </nav>
