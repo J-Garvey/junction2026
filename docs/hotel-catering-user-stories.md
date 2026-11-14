@@ -1,6 +1,6 @@
 # Hotel catering user stories
 
-> **Superseded by [user-stories.md](user-stories.md).** Kept as history. Since 14 Nov: SMS, phone and email (US09, US10 and demo step 2) are **cut**; the supermarket top-up (US08) is a **non-core add-on**.
+> **Superseded by [user-stories.md](user-stories.md).** Kept as history. Since 14 Nov: SMS and phone (in US09, US10 and demo step 2) are **cut**, and email stays an add-on; the supermarket top-up (US08) is a **non-core add-on**.
 
 The working scenario is a 500-guest conference with coffee service, lunch, and a gala dinner. The event manager owns the event brief, the banquet chef owns food requirements, the purchasing manager owns the order, and the food and beverage (F&B) director owns major cost or service decisions. The customer journey is a working hypothesis. The stories describe proposed product behavior.
 

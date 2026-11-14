@@ -62,7 +62,7 @@ Non-core, built only after the core works:
 
 - **External sourcing (e.g. supermarket dropshipping).** Use an external source to fill small parts of a large Valio Aimo order, such as missing items or quantities below a wholesale pack, shipped straight to the venue. Show the source, items, cost including delivery, and expected arrival. Apply the hotel's product and approval rules to each part of the order.
 
-Cut (14 Nov): SMS, phone calls and email channels. They don't add enough value for the effort and the extra approval risk.
+Cut (14 Nov): voice calls, SMS and WhatsApp. They don't add enough value for the effort and the extra approval risk. Email updates stay a non-core add-on.
 
 The Valio Aimo mock API covers its own product, price, and availability lookups. Simulated offers can cover external sourcing in Junction.
 

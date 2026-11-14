@@ -2,7 +2,7 @@
 
 > **What this is:** the story backlog the PRD agent builds from, grouped by avatar and sorted by importance. Each story is one sentence, **"X so that Y"**: what the avatar does or gets, and why it matters to them. Every story names what it rests on: a team decision (**D1** to **D14**, in [prd-context.md](prd-context.md)), the brief, the data or a research file.
 >
-> It replaces [hotel-catering-user-stories.md](hotel-catering-user-stories.md) (US01 to US12) as the PRD's input. That file is kept as history. Since then (14 Nov): the multi-channel demo (SMS, phone, email) is **cut**; the supermarket top-up is a **non-core add-on**; the Purchasing Manager is **kept for now as an optional role** (prd-context D1, D2, revised).
+> It replaces [hotel-catering-user-stories.md](hotel-catering-user-stories.md) (US01 to US12) as the PRD's input. That file is kept as history. Since then (14 Nov): voice calls, SMS and WhatsApp are **cut** (email updates stay an add-on, CH-A6); the supermarket top-up is a **non-core add-on** (CH-A12); the Purchasing Manager is **kept for now as an optional role** (prd-context D1, D2, D15–D22).
 
 ## How to read it
 
@@ -172,15 +172,16 @@ Add-ons and parked stories are listed at the end of each avatar's section.
 | CH-A3 | Get compatibility tags suggested ahead of time so that fewer substitutes need my answer | D6 |
 | CH-A4 | Subtract stock the hotel already has so that we don't buy what's already in the store room | old US02; chef interview Q12 |
 | CH-A5 | Set a buffer above the confirmed count, per dish, so that late extra guests don't run us short | research/07 open; chef interview Q11 |
+| CH-A6 | Send requests and get updates by email so that I can use the agent mid-service | ICP.md |
 | CH-A7 | Get a reminder, then have my named backup (e.g. sous chef) asked, so that a question never dies because I'm busy | D9 |
-| CH-A8 | Fill a small gap from an external partner shop (supermarket, Valio Aimo partner or local store, e.g. small alcohol purchases), clearly labelled as externally sourced, so that a short line is still covered | D21: non-core; no per-line Valio Aimo approval; same hotel rules |
+| CH-A12 | Fill a small gap from an external partner shop (supermarket, Valio Aimo partner or local store, e.g. small alcohol purchases), clearly labelled as externally sourced, so that a short line is still covered | D21: non-core; no per-line Valio Aimo approval; same hotel rules |
 
 ### Parked
 
 | ID | Story | Why parked |
 |---|---|---|
 | CH-P1 | Handle a client's change in the last 1–3 days before the event so that very late changes are covered | Low confidence it reaches Valio Aimo [OPEN]; same mechanism as S3 (D4) |
-| CH-P2 | Send requests and get updates by email, SMS or phone | Cut on 14 Nov: not enough value for the effort and the approval risk; the product aims for one decision per event, made in the app |
+| CH-P2 | Use the agent by voice call, SMS or WhatsApp: call in or text a change, get a shortfall call, answer a swap in WhatsApp (former CH-A8 to CH-A11, added 14 Nov) | Cut on 14 Nov: not enough value for the effort and the approval risk; the product aims for one decision per event, made in the app. Full text in git history (commit 1b64da9) |
 
 ---
 
@@ -261,6 +262,7 @@ Add-ons and parked stories are listed at the end of each avatar's section.
 
 | ID | Story | Why parked |
 |---|---|---|
+| AP-P2 | Review phone decisions, or approve a quote from an SMS or WhatsApp link (former AP-A6, AP-A7, added 14 Nov) | Cut on 14 Nov with the other channels; see CH-P2. Full text in git history (commit 1b64da9) |
 | AP-P1 | Pick which wholesaler gets the order so that we get the best offer | Valio Aimo only; a buyer agent comparing wholesalers is the marketplace the brief rules out (D2) |
 
 ---

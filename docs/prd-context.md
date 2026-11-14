@@ -13,7 +13,7 @@
 - **The brief's three core requirements:** product, price and availability lookup; inquiry to order at fixed prices; permission and human-approval management. [BRIEF]
 - **The mock API only looks things up.** No order, cart, approval or audit endpoint: we build all of those. It ignores `customer` and `requestedDate`, and reports unknown stock with sentinels (999999 on Terminal; 9,999,999,999 base units on some Stock). [SPEC][API]
 - **Two tiers of scope.** **Core** must be built. Everything else is an **add-on**, built only if core is done. A third list, **parked**, is out and says why. [TEAM D3]
-- **Cut, 14 Nov: SMS, phone calls and email channels.** They don't add enough value: the product aims for about one human decision per event, made in the app. [TEAM, Darragh]
+- **Cut, 14 Nov: voice calls, SMS and WhatsApp.** They don't add enough value: the product aims for about one human decision per event, made in the app. Email updates stay a non-core add-on (CH-A6). [TEAM, Darragh]
 
 ## Goal
 
