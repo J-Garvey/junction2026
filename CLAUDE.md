@@ -31,8 +31,15 @@ Reference request: "I need 1,000 litres of lactose-free milk by Monday. Find an 
 ## Files
 | Path | What |
 |---|---|
-| `docs/challenge.txt` | Full challenge text (source of truth for requirements) |
-| `docs/research-export.txt` | Customer-segment research and the mentor question list |
+| `README.md` | Team entry point: goal, open team decisions, repo map, key findings |
+| `challenge/brief.txt` | Full challenge text (source of truth for requirements) |
+| `challenge/resources.md` | Download links, API docs, auth, mentors |
+| `challenge/product_data_schema.json` | JSON Schema of the raw catalogue |
+| `research/01-customer-options-brief.md` | Segment candidates A–G (shortlist A, B, C, E), glossary, scoring criteria |
+| `research/02-initial-deep-dive.md` | Archived public-kitchen pass; draft guardrails, trust protocol, audit trail, demo pattern |
+| `research/03-data-profile.md` | Data coverage and API behaviour |
+| `research/04-segment-research-chain-first.md` | Chain-first segment research, order-quantity primer |
+| `research/mentor-questions.md` | The single list of mentor questions (Q1–45) |
 | `docs/data-dictionary.md` | Every field of the slim dataset, code glossaries, measured facts |
 | `api/openapi.json` | Full OpenAPI 3.1 spec of the mock API |
 | `data/products_slim.jsonl` | Main product table, 17 546 rows, carbon and reliability joined in |
@@ -42,6 +49,13 @@ Reference request: "I need 1,000 litres of lactose-free milk by Monday. Find an 
 | `scripts/aimo_api.py` | API client (stdlib) and CLI |
 | `scripts/build_slim.py` | Rebuilds `data/` from the raw files |
 | `scripts/fetch_raw.sh` | Downloads the raw 87 MB catalogue and CSVs into `data/raw/` |
+| `scripts/profile_products.py` | Data-coverage profile from the raw files |
+
+## Product direction
+- Output is either a buy order or one clear question for the owner, as complex as it needs to be and no more. The goal is saving the owner's time.
+- How often the agent asks is tuned per customer risk profile and situation. The agent must not make mistakes.
+- Guardrails are designed separately, later. Mentors said € spend limits are not an expected pain point.
+- Aim: sellable to Valio Aimo or a similar wholesaler after Junction. Segment and payer are open team decisions (see README).
 | `.env` | `AIMO_API_KEY`, `AIMO_PORTAL_PASSWORD` |
 
 ## Mock API

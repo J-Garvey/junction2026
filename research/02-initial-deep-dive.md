@@ -19,6 +19,8 @@
 
 Adapt the thresholds to whichever segment we pick.
 
+> **Draft, deferred.** Guardrails will be designed separately, later. Mentors have said € spend limits are not an expected pain point, so the "€ threshold" row stays only if that changes. The intended shape: how often the agent asks is tuned per customer's risk profile and situation, and its output is either a buy order or one clear question for the owner.
+
 | Decision | Agent alone | Needs a human |
 |---|---|---|
 | Renew a standing order for contract/approved items, quantities within normal range | Yes | — |

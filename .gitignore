@@ -1,4 +1,5 @@
 data/raw/
+# .env is already committed, so this line has no effect until `git rm --cached .env` (team decision pending).
 .env
 __pycache__/
 *.pyc

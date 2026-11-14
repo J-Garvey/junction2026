@@ -2,9 +2,11 @@
 
 The challenge brief is in `brief.txt`. The product data JSON schema is in `product_data_schema.json`.
 
+> **Repo state (14 Nov 2026):** the slim dataset built from these files *is* committed in `../data/`, and `.env` is committed too; the repo is private. Whether to keep them committed is an open team decision (see the README). The raw 87 MB catalogue is not committed: `../scripts/fetch_raw.sh` downloads it into `data/raw/`.
+
 ## Data files (download, do not commit)
 
-The data is synthetic but marked for Junction 2026 use only, and the product file is ~87 MB, so it isn't committed. Put downloads in `data/` (git-ignored).
+The data is synthetic but marked for Junction 2026 use only. The raw product file is ~87 MB and isn't committed. `scripts/fetch_raw.sh` downloads all three raw files into `data/raw/` (git-ignored) through the API's `/api/products/download`, `/api/delivery-reliability/download` and `/api/carbon-footprint/download` endpoints, which redirect to the direct links below.
 
 - Product data (JSON): https://junction26.valioaimo.fi/files/32825daf25fcd6023c3b43028cf0b191/valio_aimo_junction26_product_data.json
 - Product data schema: https://junction26.valioaimo.fi/files/008f9a50ba9a6538d2e5bdf29d592af8/valio_aimo_junction26_product_data_schema.json
@@ -18,7 +20,8 @@ The data is synthetic but marked for Junction 2026 use only, and the product fil
 - Pricing API: query prices for products.
 - Availability API: check whether a product is available for a requested delivery date.
 - Docs: Swagger UI https://junction26.valioaimo.fi/docs · ReDoc https://junction26.valioaimo.fi/redoc · OpenAPI JSON https://junction26.valioaimo.fi/openapi.json
-- **Auth:** everything under `/api` needs an `X-API-Key` header. The key is on the Junction platform. **Never commit the key**; use a `.env` file.
+- **Auth:** everything under `/api` needs an `X-API-Key` header. The key is on the Junction platform and in `.env` as `AIMO_API_KEY` (currently committed; see the README's open decisions).
+- **Behaviour:** read-only, no order endpoint. Observed response formats are recorded in `../CLAUDE.md` and `../research/03-data-profile.md`. Python's default user-agent gets HTTP 403; `scripts/aimo_api.py` sends its own.
 
 ## Mentors
 
