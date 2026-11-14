@@ -47,6 +47,8 @@ Reference request: "I need 1,000 litres of lactose-free milk by Monday. Find an 
 | `research/05-spike-orders-under-time-pressure.md` | Which customers place large, urgent, variable orders; best-fit segments for the agent; how wholesalers and ordering tools handle rush orders |
 | `research/06-valio-aimo-conversation-2026-11-14.md` | First-hand notes from Valio Aimo (14 Nov): hotels first, catering/event orders, substitution pitfalls, lead times |
 | `research/notes/spike-orders/` | Cited source notes behind research/05 |
+| `research/07-hotel-event-ordering-journey.md` | Hotel event ordering journey (Finland, Valio Aimo): order months ahead, one rep call ~2–3 weeks out, Finnish specification deadlines, what Valio Aimo sees per stage |
+| `research/notes/hotel-event-journey/` | Research passes A–C, review D, stand answers E, and the visual journey map behind research/07 |
 | `research/mentor-questions.md` | The single list of mentor questions (Q1–49) |
 | `docs/data-dictionary.md` | Every field of the slim dataset, code glossaries, measured facts |
 | `docs/human-approval-rules.md` | Order / ask / block rules for edge cases (draft guardrails) |

@@ -1,0 +1,405 @@
+<title>Hotel Event Ordering Journey</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,500..800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: a swimlane overview (actors x nine stages on a time ribbon), then one detail block per stage, then open questions and sources. */
+:root {
+  --bg: #f3f6f7;
+  --surface: #ffffff;
+  --ink: #13232a;
+  --muted: #56676e;
+  --line: #d3dde1;
+  --accent: #0d5566;
+  --accent-soft: #e2eef1;
+  --stand: #2446a6;   --stand-bg: #e6ecfa;
+  --sourced: #1c7348; --sourced-bg: #e3f2ea;
+  --inferred: #94600a; --inferred-bg: #faf0dc;
+  --open: #ad2437;    --open-bg: #fbe6e9;
+  --team: #6a3e9e;    --team-bg: #efe7f8;
+  --f-display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e171b; --surface: #152228; --ink: #e4ecef; --muted: #9aaab0; --line: #2a3a41;
+    --accent: #6cc3d6; --accent-soft: #16323a;
+    --stand: #93acf5; --stand-bg: #1a2648;
+    --sourced: #7fd3a6; --sourced-bg: #133426;
+    --inferred: #e8b860; --inferred-bg: #3a2c12;
+    --open: #f28f9d; --open-bg: #43181f;
+    --team: #c3a3ef; --team-bg: #2c1f42;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e171b; --surface: #152228; --ink: #e4ecef; --muted: #9aaab0; --line: #2a3a41;
+  --accent: #6cc3d6; --accent-soft: #16323a;
+  --stand: #93acf5; --stand-bg: #1a2648;
+  --sourced: #7fd3a6; --sourced-bg: #133426;
+  --inferred: #e8b860; --inferred-bg: #3a2c12;
+  --open: #f28f9d; --open-bg: #43181f;
+  --team: #c3a3ef; --team-bg: #2c1f42;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--f-body); font-size: 15px; line-height: 1.55;
+}
+.wrap {
+  max-width: 1240px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 40px 64px;
+  display: grid; gap: 48px;
+}
+h1, h2, h3 { font-family: var(--f-display); font-stretch: 85%; text-wrap: balance; margin: 0; line-height: 1.1; }
+h1 { font-size: clamp(30px, 5vw, 46px); font-weight: 800; letter-spacing: -0.01em; }
+h2 { font-size: 24px; font-weight: 750; }
+h3 { font-size: 19px; font-weight: 700; }
+p { margin: 0; }
+a { color: var(--accent); text-underline-offset: 2px; }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.eyebrow { font-family: var(--f-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+
+header { display: grid; gap: 14px; max-width: 70ch; }
+header .lede { font-size: 17px; color: var(--muted); }
+.scope { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 13.5px; color: var(--muted); }
+.scope b { color: var(--ink); font-weight: 600; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.tag {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--f-mono); font-size: 11.5px; font-weight: 500; letter-spacing: 0.03em;
+  padding: 2px 8px; border-radius: 4px; white-space: nowrap;
+}
+.tag::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.t-stand { color: var(--stand); background: var(--stand-bg); }
+.t-sourced { color: var(--sourced); background: var(--sourced-bg); }
+.t-inferred { color: var(--inferred); background: var(--inferred-bg); }
+.t-open { color: var(--open); background: var(--open-bg); }
+.t-team { color: var(--team); background: var(--team-bg); }
+
+/* Key findings */
+.findings { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+.finding { border-top: 3px solid var(--accent); padding-top: 12px; display: grid; gap: 6px; align-content: start; }
+.finding p { font-size: 14.5px; }
+
+/* Swimlane */
+.lanes-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.lanes {
+  display: grid; min-width: 1480px;
+  grid-template-columns: 168px repeat(9, minmax(140px, 1fr));
+  font-size: 13px;
+}
+.lanes > div { padding: 10px 10px; border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); min-width: 0; }
+.lanes > div:nth-child(10n) { border-right: 0; }
+.lanes .phase { font-family: var(--f-mono); font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); background: var(--accent-soft); font-weight: 500; }
+.lanes .corner { background: var(--accent-soft); }
+.lanes .stagehead { display: grid; gap: 4px; align-content: start; }
+.lanes .stagehead .n { font-family: var(--f-mono); font-size: 11.5px; color: var(--muted); }
+.lanes .stagehead .nm { font-family: var(--f-display); font-stretch: 85%; font-weight: 700; font-size: 15px; line-height: 1.15; }
+.lanes .stagehead .when { font-family: var(--f-mono); font-size: 11.5px; color: var(--muted); }
+.lanes .lane { font-weight: 600; font-size: 13px; position: sticky; left: 0; background: var(--surface); z-index: 1; }
+.lanes .lane small { display: block; font-weight: 400; color: var(--muted); font-size: 12px; }
+.lanes .cell { color: var(--ink); }
+.lanes .cell.empty { background: repeating-linear-gradient(135deg, transparent 0 6px, var(--line) 6px 7px); opacity: 0.35; }
+.lanes .knows { background: var(--accent-soft); }
+.lanes .knows-lane { background: var(--accent-soft); }
+.lanes .ev-lane, .lanes .ev { border-bottom: 0; }
+.lanes .aimo-touch { box-shadow: inset 3px 0 0 var(--accent); }
+
+/* Stage details */
+.stages { display: grid; gap: 0; }
+.stage {
+  display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 24px;
+  padding-block: 28px; border-top: 1px solid var(--line);
+}
+.stage:last-child { border-bottom: 1px solid var(--line); }
+.stage .side { display: grid; gap: 6px; align-content: start; }
+.stage .side .n { font-family: var(--f-display); font-stretch: 75%; font-weight: 800; font-size: 44px; line-height: 1; color: var(--accent); }
+.stage .side .when { font-family: var(--f-mono); font-size: 12.5px; color: var(--muted); }
+.stage .body { display: grid; gap: 16px; min-width: 0; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px 24px; }
+.fact { display: grid; gap: 2px; min-width: 0; }
+.fact dt { font-family: var(--f-mono); font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.fact dd { margin: 0; font-size: 14.5px; }
+.head { background: var(--accent-soft); border-radius: 6px; padding: 12px 14px; display: grid; gap: 6px; }
+.head .eyebrow { color: var(--accent); }
+.head ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 14.5px; }
+.notes { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.notes li { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 10px; align-items: baseline; font-size: 14px; }
+.notes li .tag { justify-self: start; }
+
+/* Open + decisions */
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 32px; }
+.block { display: grid; gap: 14px; align-content: start; }
+.qlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.qlist li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; padding-block: 10px; border-top: 1px solid var(--line); font-size: 14.5px; align-items: baseline; }
+.qlist li .who { font-family: var(--f-mono); font-size: 12px; color: var(--muted); text-align: right; }
+.qlist li .q b { font-weight: 600; }
+.sources { font-size: 13.5px; display: grid; gap: 6px; }
+.sources ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+.sources li { overflow-wrap: anywhere; }
+footer { font-size: 13px; color: var(--muted); max-width: 75ch; }
+
+@media (max-width: 720px) {
+  .stage { grid-template-columns: 1fr; gap: 12px; }
+  .stage .side { grid-template-columns: auto 1fr; align-items: baseline; column-gap: 12px; }
+  .stage .side .n { grid-row: span 2; font-size: 36px; }
+  .notes li { grid-template-columns: 1fr; gap: 4px; }
+  .qlist li { grid-template-columns: 1fr; gap: 2px; }
+  .qlist li .who { text-align: left; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<div class="wrap">
+
+<header>
+  <span class="eyebrow">Junction 2026 · Valio Aimo Trusted Trade Agents · customer journey</span>
+  <h1>How a Finnish hotel gets the food for a large event</h1>
+  <p class="lede">From the booking months out to service on the night: who decides what, which documents move, and what Valio Aimo actually sees. Built from three research reports, a cross-examining review, and answers from Valio Aimo staff at the stand.</p>
+  <div class="scope">
+    <span><b>Customer:</b> large hotel in Finland</span>
+    <span><b>Event:</b> wedding, pikkujoulut, gala or conference dinner, 100+ guests</span>
+    <span><b>Wholesaler:</b> Valio Aimo, delivery wholesale</span>
+    <span><b>Version:</b> 14 Nov 2026</span>
+  </div>
+  <div class="legend" aria-label="Evidence legend">
+    <span class="tag t-stand">Stand</span><span style="font-size:13px;color:var(--muted)">Valio Aimo staff, 14 Nov</span>
+    <span class="tag t-sourced">Sourced</span><span style="font-size:13px;color:var(--muted)">public document, checked</span>
+    <span class="tag t-inferred">Inferred</span><span style="font-size:13px;color:var(--muted)">our reading</span>
+    <span class="tag t-open">Open</span><span style="font-size:13px;color:var(--muted)">unknown</span>
+    <span class="tag t-team">Team</span><span style="font-size:13px;color:var(--muted)">our decision</span>
+  </div>
+</header>
+
+<section class="findings" aria-label="Key findings">
+  <div class="finding"><span class="eyebrow">Timing</span><p>The event order goes to Valio Aimo <b>months in advance</b>, then gets amended on <b>one clarification call about 2–3 weeks out</b>. <span class="tag t-stand">Stand</span></p></div>
+  <div class="finding"><span class="eyebrow">What changes</span><p>Mostly <b>head count</b> (no-shows are known by then) and <b>items and quantities</b>. Sometimes allergen information. Occasionally a special-order item. <span class="tag t-stand">Stand</span></p></div>
+  <div class="finding"><span class="eyebrow">Where the event lives</span><p>No order field carries head count, menu or event type. Valio Aimo learns the event context <b>only through its sales rep, by phone</b>. <span class="tag t-sourced">Sourced</span> <span class="tag t-stand">Stand</span></p></div>
+  <div class="finding"><span class="eyebrow">Why 2–3 weeks</span><p>It matches the hotels' own deadline for the client's final numbers and diets: <b>7–21 days by group size, or 2 weeks</b>. <span class="tag t-sourced">Sourced</span> <span class="tag t-inferred">Inferred link</span></p></div>
+</section>
+
+<section class="block" aria-labelledby="overview-h">
+  <h2 id="overview-h">Overview</h2>
+  <p style="font-size:14px;color:var(--muted);max-width:75ch">Each column is a stage, left to right in time. Each row is who acts. The shaded bottom row is what Valio Aimo can see at that point. A left bar marks stages where Valio Aimo is involved.</p>
+  <div class="lanes-scroll"><div class="lanes" id="lanes" role="table" aria-label="Journey swimlane"></div></div>
+</section>
+
+<section class="block" aria-labelledby="stages-h">
+  <h2 id="stages-h">Stage by stage</h2>
+  <div class="stages" id="stages"></div>
+</section>
+
+<section class="two">
+  <div class="block">
+    <h2>Still open</h2>
+    <p style="font-size:14px;color:var(--muted)">None of these change the shape of the journey. Each one sharpens a stage.</p>
+    <ul class="qlist">
+      <li><span class="q"><b>Who starts the clarification call</b>, and who at the hotel takes it: chef, F&amp;B manager or purchaser?</span><span class="who">Valio Aimo</span></li>
+      <li><span class="q"><b>Is the months-ahead order a dated order</b> in the webshop and SAP, or a reservation the rep holds? How many months, roughly?</span><span class="who">Valio Aimo</span></li>
+      <li><span class="q"><b>Was the stand describing hotels</b> specifically, or event and catering customers in general?</span><span class="who">Valio Aimo</span></li>
+      <li><span class="q"><b>Do last-minute changes</b> (after the call, up to 3 working days out) reach Valio Aimo, and how: webshop edit or another call?</span><span class="who">Valio Aimo / hotel</span></li>
+      <li><span class="q"><b>What happens when a line is short at picking</b>: who picks the substitute, and when is the hotel told? (D5)</span><span class="who">Valio Aimo</span></li>
+      <li><span class="q"><b>Can My Aimo's recipe tool</b> scale by guest count and put several recipes into one cart? (D4)</span><span class="who">Pirjo Kaartinen</span></li>
+      <li><span class="q"><b>Who turns the menu into quantities</b> at a chain hotel, and in what tool? (D7)</span><span class="who">Hotel chef</span></li>
+      <li><span class="q"><b>Do chains buy centrally</b>, and from which wholesaler? Scandic has group procurement; no wholesaler is named. (D8)</span><span class="who">Valio Aimo</span></li>
+      <li><span class="q"><b>Do Finnish kitchens prepare a buffer</b> above the confirmed count? No Finnish terms mention one. (D9)</span><span class="who">Hotel chef</span></li>
+    </ul>
+  </div>
+  <div class="block">
+    <h2>Team decisions</h2>
+    <ul class="qlist">
+      <li><span class="q"><span class="tag t-team">Team</span> <b>The brief's 1,000 L of lactose-free milk is an illustrative number.</b> At 0.1–0.25 L per guest, one event of 1,000 guests needs about 100–250 L, so this map follows the event journey and does not treat 1,000 L as an event volume.</span><span class="who">D2</span></li>
+      <li><span class="q"><span class="tag t-team">Team</span> <b>Special-order items are possibly out of scope.</b> They come up only occasionally on the clarification call.</span><span class="who">D1</span></li>
+    </ul>
+    <h2 style="margin-top:12px">Settled along the way</h2>
+    <ul class="qlist">
+      <li><span class="q">The US and Irish 72-hour guarantee does not describe Finland. Finnish hotels use a specification deadline (7–21 days or 2 weeks) plus a short window for last changes (3 working days where stated).</span><span class="who">D1, D9</span></li>
+      <li><span class="q">Valio Aimo suggests substitutes in the webshop at order time and the customer chooses. Kespro, for comparison, phones before delivery.</span><span class="who">D5</span></li>
+      <li><span class="q">An agent misread the S Group cancellation table. Its percentages are how much can be cancelled free, not how much is charged.</span><span class="who">D10</span></li>
+    </ul>
+  </div>
+</section>
+
+<section class="block sources" aria-labelledby="src-h">
+  <h2 id="src-h">Sources</h2>
+  <ol id="srclist"></ol>
+</section>
+
+<footer>Research files: A (international banqueting), B (Finland), C (wholesaler side), D (review), E (resolutions log). Stand answers were relayed by the team and paraphrased; the staff member's name is not yet recorded. Facts about the mock API and the catalogue are in GROUND_TRUTH.md in the repo.</footer>
+</div>
+
+<script>
+const SRC = {
+  valo: ["VALO Hotel & Work, general terms 2025 (sections 7.2 and cancellation)", "https://valo.fi/userassets/uploads/2025/10/VALO_Yleiset-toimitusehdot-2025-2.pdf"],
+  sgroup: ["S Group hotels, event reservation terms", "https://www.sokoshotels.fi/en/terms-of-reservation/events"],
+  ranta: ["Hotel Rantapuisto, group and meeting booking terms", "https://www.rantapuisto.fi/kokous/ryhma-ja-kokousvarausten-ehdot/"],
+  haikko: ["Haikko Manor & Spa, group delivery terms (from 1 Jul 2026)", "https://www.haikko.fi/fi/ehdot-ja-saannot/toimitusehdot-ryhmille"],
+  scandic: ["Scandic Finland, meeting terms (search summary only; page timed out)", "https://www.scandichotels.com/en/conferences-meetings/meeting-menus-finland/terms-and-conditions"],
+  recipes: ["Valio Aimo, 'Reseptisi ja katelaskenta Minun Aimossa', 14 Jan 2026", "https://www.valioaimo.fi/artikkelit/pinnalla-nyt/reseptisi-ja-katelaskenta-minun-aimossa/"],
+  jamix: ["JAMIX case study, Vuokatti Sport", "https://www.jamix.com/?p=15228"],
+  delivery: ["Valio Aimo, delivery wholesale", "https://www.valioaimo.fi/en/become-a-customer/delivery-wholesale.md"],
+  tools: ["Valio Aimo, innovative tools for everyday work", "https://www.valioaimo.fi/en/company/why-choose-valio-aimo-as-a-partner/innovative-tools-for-everyday-work/"],
+  glo: ["Glo Hotel Art, head chef job ad", "https://jobs.strawberryhotels.com/jobs/205680-glo-hotel-art-keittiomestari-1125h3vk"],
+  kespro: ["Kespro, restaurant wholesale", "https://www.kespro.com/en/services/restaurant-wholesale"],
+  milk: ["kitchennmbrs, breakfast buffet portion guide", "https://kitchennmbrs.app/en/knowledge-base/breakfast-brunch-calculation/how-do-i-calculate-the-portion-per-person-for-a-breakfast-buffet"],
+  scproc: ["Scandic, sustainable procurement policy, Apr 2024", "https://www.scandichotelsgroup.com/files/Reports/Policies/Scandic-sustainable-procurement-april-2024.pdf"]
+};
+const srcKeys = Object.keys(SRC);
+const ref = k => `<a href="${SRC[k][1]}" target="_blank" rel="noopener">[${srcKeys.indexOf(k) + 1}]</a>`;
+
+const LANES = [
+  ["client", "Client", "couple, company, organiser"],
+  ["sales", "Hotel sales & events", "sales service, event coordinator"],
+  ["kitchen", "Hotel kitchen", "head chef, kitchen manager"],
+  ["rep", "Valio Aimo sales rep", ""],
+  ["aimo", "Valio Aimo systems", "webshop, warehouse, delivery"]
+];
+
+const STAGES = [
+  { name: "Event booked", when: "Months ahead", phase: 0, ev: "sourced",
+    lanes: { client: "Books the date with a rough head count and package", sales: "Quotes a per-head price; confirms in writing with cancellation and billing terms" },
+    knows: "Nothing",
+    decision: "Is the date and room free; per-head price; which billing and cancellation terms apply.",
+    inn: "Enquiry: date, rough head count, budget", out: "Written confirmation with cancellation table and billing rules",
+    tools: "Email, phone, hotel booking system",
+    head: ["Will this group fill the room at a price that covers food cost?", "What protects me if numbers fall: a minimum order or the confirmed number?"],
+    notes: [["sourced", `The booking is binding once both sides confirm in writing ${ref("valo")}.`],
+            ["sourced", `Free cancellation shrinks with size and time, e.g. 150+ person-days fully free only until 120 days out ${ref("haikko")}. Very large groups are negotiated: over 250 at VALO ${ref("valo")}, over 350 at S Group ${ref("sgroup")}.`]] },
+  { name: "Menu turned into an ingredient list", when: "Months ahead", phase: 0, ev: "inferred",
+    lanes: { kitchen: "Scales the package menu's recipes to the expected head count" },
+    knows: "Nothing",
+    decision: "Quantities per recipe and per diet; which products to buy.",
+    inn: "Package menu, expected head count, standard recipes", out: "Ingredient list per product",
+    tools: "Recipes often in Word and Excel; JAMIX in one verified hotel; My Aimo recipes can scale portions and fill a cart",
+    head: ["What is my margin per portion at today's prices?", "Are the recipes and yields up to date?"],
+    notes: [["sourced", `Valio Aimo's customer interviews found recipes scattered across Word and Excel files. Its My Aimo recipe tool (Jan 2026) takes a pasted recipe, changes portion size and count, adds waste, calculates margin, suggests contract-priced products first, and adds the smallest sales unit that covers the need to the cart ${ref("recipes")}.`],
+            ["sourced", `One Finnish hotel resort keeps all recipes in JAMIX; its kitchen manager handles purchase orders ${ref("jamix")}.`],
+            ["inferred", "That the head chef or kitchen manager does this conversion at a chain hotel."],
+            ["open", "Whether My Aimo can scale by guest count and combine several recipes in one cart (D4)."]] },
+  { name: "Order placed with Valio Aimo", when: "Months ahead", phase: 0, ev: "stand", aimo: true,
+    lanes: { kitchen: "Places the event order", rep: "May be involved; not confirmed", aimo: "Receives order lines with a delivery date" },
+    knows: "Order lines and a delivery date. No head count, menu or event.",
+    decision: "Which products and pack sizes; which delivery date.",
+    inn: "Ingredient list", out: "Order lines: product, quantity in sales units, delivery date",
+    tools: "Valio Aimo webshop (carts planned weeks ahead, editable), order templates, file import, or the sales rep",
+    head: ["Lock in the products and prices now so the event is covered."],
+    notes: [["stand", "Event orders are normally placed months in advance."],
+            ["sourced", `Webshop carts can be planned several weeks ahead and edited after confirmation ${ref("delivery")}.`],
+            ["sourced", `No public order field carries head count, menu or event type, and Valio Aimo lists no EDI, API or kitchen-system integration ${ref("tools")}.`],
+            ["open", "Whether the months-ahead order is a dated webshop order or a reservation the rep holds, and how many months."]] },
+  { name: "Client sends the event specification", when: "7–21 days before", phase: 1, ev: "sourced",
+    lanes: { client: "Sends final head count, special diets, menu choices, meal times", sales: "Collects the specification and passes it on", kitchen: "Receives numbers and diets" },
+    knows: "Nothing new",
+    decision: "Accept the specification; flag any diet the menu can't cover.",
+    inn: "Booking confirmation", out: "Event specification (the Finnish equivalent of a banquet event order)",
+    tools: "Email, forms",
+    head: ["How many lactose-free, gluten-free, vegan and allergy guests?", "Allergen information to guests is the hotel's legal duty."],
+    notes: [["sourced", `S Group: specification at least 2 weeks before ${ref("sgroup")}. Rantapuisto: diets, menu and meal times 2 weeks before ${ref("ranta")}. VALO: 7, 14 or 21 days for 1–15, 16–50 or 51–200 guests ${ref("valo")}. Scandic Finland: 2 weeks (secondary source) ${ref("scandic")}.`],
+            ["sourced", "The serving operator owes diners the allergen information (EU 1169/2011 Art. 44; MMM 834/2014). See GROUND_TRUTH.md."]] },
+  { name: "Clarification call", when: "About 2–3 weeks before", phase: 1, ev: "stand", aimo: true,
+    lanes: { kitchen: "Hotel side of the call (role open)", rep: "Takes the changes and amends the order", aimo: "Order amended" },
+    knows: "Head count, no-shows, item changes, sometimes allergens. By phone, held by the rep.",
+    decision: "What to cut or add after no-shows; replace items whose allergen information changed.",
+    inn: "Event specification against the original order", out: "Amended order",
+    tools: "Phone; the rep amends the order",
+    head: ["Numbers have dropped: cut quantities without running short.", "A diet changed: is the replacement product safe for it?"],
+    notes: [["stand", "Usually one call, about 2–3 weeks before, between the hotel and its Valio Aimo rep."],
+            ["stand", "Most often: head count (no-shows), items and item counts. Sometimes: allergen information. Occasionally: a special-order item."],
+            ["team", "Special-order items are possibly out of scope."],
+            ["inferred", "The call falls just after the hotel's own specification deadline, so it likely passes on the client's changes."],
+            ["open", "Who starts the call, and who at the hotel takes it."]] },
+  { name: "Last changes", when: "Up to 3 working days before", phase: 2, ev: "open",
+    lanes: { client: "Late change to head count or diets", sales: "Accepts, re-prices or refuses", kitchen: "Adjusts production", aimo: "Order editable until picking starts" },
+    knows: "Unknown whether late changes reach Valio Aimo",
+    decision: "Accept the change or not; whether the order needs editing.",
+    inn: "Late change from the client", out: "Amended specification; possibly an edited order",
+    tools: "Phone, email; webshop edits until picking",
+    head: ["Can I still get extra stock before the product's closing time?", "If numbers fall, billing protects revenue, but I've already bought the stock."],
+    notes: [["sourced", `Rantapuisto accepts last head-count changes up to 3 working days before ${ref("ranta")}. After its deadline VALO may re-price, charge room rent or change the room ${ref("valo")}.`],
+            ["sourced", `A Finnish hotel head-chef ad says event changes happen at the last minute ${ref("glo")}.`],
+            ["sourced", `Valio Aimo orders can be edited until picking starts; each product has its own closing time ${ref("delivery")}.`],
+            ["open", "Whether late changes reach Valio Aimo, and how."]] },
+  { name: "Valio Aimo checks and picks", when: "Before delivery", phase: 2, ev: "open", aimo: true,
+    lanes: { aimo: "Checks price, availability and closing time; picks the order" },
+    knows: "Order lines",
+    decision: "Fill each line; handle any shortage.",
+    inn: "Order lines", out: "Picked order, or a short or changed line",
+    tools: "SAP-backed webshop and warehouse",
+    head: ["Will everything on the list arrive?", "If something is short, does the substitute keep the diet promise?"],
+    notes: [["sourced", "In the webshop, substitutes are suggested at order time and the customer chooses (GROUND_TRUTH.md section 5)."],
+            ["sourced", `For comparison, Kespro's warehouse phones ahead about missing items and the customer chooses the substitute ${ref("kespro")}.`],
+            ["open", "What Valio Aimo does when a line runs short at picking (D5)."]] },
+  { name: "Delivery and receiving", when: "Agreed delivery day", phase: 2, ev: "sourced", aimo: true,
+    lanes: { kitchen: "Checks goods against the delivery note", aimo: "Delivers on the hotel's agreed day" },
+    knows: "Order lines",
+    decision: "Accept or reject goods.",
+    inn: "Picked order", out: "Goods in stock, delivery note",
+    tools: "Delivery note",
+    head: ["Right products, right quantities, dates that last until the event?"],
+    notes: [["sourced", `Valio Aimo delivers within about 24 hours on agreed delivery days ${ref("delivery")}.`],
+            ["inferred", "The kitchen checks goods on receipt."]] },
+  { name: "Event and billing", when: "Event day", phase: 3, ev: "sourced",
+    lanes: { client: "Attends and pays", sales: "Invoices the client", kitchen: "Produces and serves" },
+    knows: "Nothing",
+    decision: "Bill the confirmed number, or actual if higher.",
+    inn: "Actual attendance", out: "Client invoice",
+    tools: "Hotel billing system",
+    head: ["Did the food cost per head land where the price assumed?"],
+    notes: [["sourced", `Billing is the confirmed number, or the actual number if higher ${ref("ranta")} ${ref("sgroup")}. S Group charges a shortfall against a minimum order ${ref("sgroup")}.`],
+            ["sourced", `Rantapuisto invoices no later than 3 days before ${ref("ranta")}. Haikko invoices about 90% in advance, 14 days before, above €3,000 ${ref("haikko")}.`]] }
+];
+
+const PHASES = [["Months ahead", 3], ["Weeks before", 2], ["Days before", 3], ["Event", 1]];
+const TAGNAME = { stand: "Stand", sourced: "Sourced", inferred: "Inferred", open: "Open", team: "Team" };
+const tag = t => `<span class="tag t-${t}">${TAGNAME[t]}</span>`;
+const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+
+// Swimlane
+const L = document.getElementById("lanes");
+let h = `<div class="corner"></div>`;
+// phase row: span columns
+L.style.gridTemplateRows = "auto";
+let col = 2;
+let phaseRow = `<div class="corner phase" style="grid-column:1">Time</div>`;
+PHASES.forEach(([p, n]) => { phaseRow += `<div class="phase" style="grid-column:${col} / span ${n}">${p}</div>`; col += n; });
+let headRow = `<div class="corner"></div>` + STAGES.map((s, i) =>
+  `<div class="stagehead${s.aimo ? " aimo-touch" : ""}"><span class="n">${String(i + 1).padStart(2, "0")}</span><span class="nm">${esc(s.name)}</span><span class="when">${esc(s.when)}</span></div>`).join("");
+let body = "";
+LANES.forEach(([k, label, sub]) => {
+  body += `<div class="lane">${label}${sub ? `<small>${sub}</small>` : ""}</div>`;
+  STAGES.forEach(s => {
+    const v = s.lanes[k];
+    body += v ? `<div class="cell${s.aimo ? " aimo-touch" : ""}">${esc(v)}</div>` : `<div class="cell empty" aria-label="no action"></div>`;
+  });
+});
+body += `<div class="lane knows-lane">What Valio Aimo sees</div>` + STAGES.map(s => `<div class="cell knows${s.aimo ? " aimo-touch" : ""}">${esc(s.knows)}</div>`).join("");
+body += `<div class="lane ev-lane">Weakest evidence</div>` + STAGES.map(s => `<div class="ev">${tag(s.ev)}</div>`).join("");
+L.innerHTML = phaseRow + headRow + body;
+
+// Stage details
+document.getElementById("stages").innerHTML = STAGES.map((s, i) => `
+  <article class="stage" id="stage-${i + 1}">
+    <div class="side"><span class="n">${String(i + 1).padStart(2, "0")}</span><h3>${esc(s.name)}</h3><span class="when">${esc(s.when)}</span><span>${tag(s.ev)}</span></div>
+    <div class="body">
+      <dl class="facts">
+        <div class="fact"><dt>Decision</dt><dd>${esc(s.decision)}</dd></div>
+        <div class="fact"><dt>Comes in</dt><dd>${esc(s.inn)}</dd></div>
+        <div class="fact"><dt>Goes out</dt><dd>${esc(s.out)}</dd></div>
+        <div class="fact"><dt>Tools</dt><dd>${esc(s.tools)}</dd></div>
+        <div class="fact"><dt>Valio Aimo sees</dt><dd>${esc(s.knows)}</dd></div>
+      </dl>
+      <div class="head"><span class="eyebrow">In the hotel's head <span style="text-transform:none;letter-spacing:0">(inferred)</span></span><ul>${s.head.map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>
+      <ul class="notes">${s.notes.map(([t, x]) => `<li>${tag(t)}<span>${x}</span></li>`).join("")}</ul>
+    </div>
+  </article>`).join("");
+
+// Sources
+document.getElementById("srclist").innerHTML = srcKeys.map(k => `<li><a href="${SRC[k][1]}" target="_blank" rel="noopener">${esc(SRC[k][0])}</a></li>`).join("");
+</script>
