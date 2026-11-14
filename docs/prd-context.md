@@ -124,7 +124,7 @@ Customers buy whole sales units: 1.5 needed means 2 [STAND, research/06]. The da
 - **Type to ask, tap to decide.** Free text is an input only; every decision is a card with two or three buttons and everything needed to answer it. No free-text approvals.
 - **Compact by default, checkable on tap.** Any number or verdict opens its source: rule ID, data field, or model judgement with confidence.
 - **One set of status labels everywhere**, and gaps (blocked, unresolved, at risk) always shown above what's fine.
-- Stories UI-01 to UI-12 in [user-stories.md](user-stories.md#interface).
+- See the [interface stories](user-stories.md#interface).
 
 ## Teams and outlets (D27, overrides D17)
 

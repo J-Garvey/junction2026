@@ -104,6 +104,7 @@ Preference stories (**PF**) belong to the Chef, the Approver or both, as marked.
 | UI-10 | Chef, Approver | P1 | See what's still editable and until when so that I know what I can change | S2–S4 |
 | UI-11 | Chef, Approver | P1 | Get one "all covered" summary instead of a notification per line so that an alert always means action | S4 |
 | UI-12 | Chef | P1 | Answer a question from my phone in under 10 seconds so that the kitchen doesn't stop | S3, S4 |
+| UI-13 | Chef, Approver | P1 | Use the app on my phone so that I can send requests, check orders, and answer questions away from my desk | all |
 | TM-01 | Chef, Approver | P0 | Belong to a hotel with linked outlets, each with its own members and preferences, so that the bar and the restaurant each run their part while the hotel stays one customer | all |
 | TM-02 | Chef, Approver | P0 | Share my role with colleagues, any one of whom can answer, so that a question never waits on one person | S2–S4 |
 | TM-03 | Chef, Approver | P0 | See a question close for everyone once someone answers, with who and when, so that nobody answers twice or contradicts a colleague | S2–S4 |
@@ -245,9 +246,16 @@ Add-ons and parked stories are listed at the end of each avatar's section.
 | CH-A5 | Set a buffer above the confirmed count, per dish, so that late extra guests don't run us short | research/07 open; chef interview Q11 |
 | CH-A6 | Send requests and get updates by email so that I can use the agent mid-service | ICP.md |
 | CH-A7 | Get a reminder, then have my named backup (e.g. sous chef) asked, so that a question never dies because I'm busy | D9 |
-| CH-A12 | Fill a small gap from an external partner shop (supermarket, Valio Aimo partner or local store, e.g. small alcohol purchases), clearly labelled as externally sourced, so that a short line is still covered | D21: non-core; no per-line Valio Aimo approval; same hotel rules |
+| CH-A12 | Get a small shortfall delivered to the venue by a partner shop so that a missing item does not hold up the event | D2, D3, D21, D23, old US08 |
 | CH-A13 | Start from a standard forecast for typical event sizes, then adjust, so that a bar manager without recipes can still order fast | research/08 (Owen) |
 | CH-A14 | Check what arrived against the order before prep so that a short delivery is caught while there's time to react | old US11 |
+
+**CH-A12** Get a small shortfall delivered to the venue by a partner shop so that a missing item does not hold up the event.
+*S2, S4, M · [Supplier scope](prd-context.md#supplier-scope), [product scope](../ICP.md#6-our-product-opportunity)*
+- For a small gap in confirmed Valio Aimo supply or a quantity below a wholesale pack, show a dropshipping offer from a supermarket, Valio Aimo partner, or other partner shop. Aimo stock marked unknown follows AP-13.
+- Show the offer beside the Aimo lines. Label it as externally sourced and show the shop, product, pack count, total including delivery, and expected arrival at the venue. Keep the source visible to the approver and Valio Aimo on the order (AP-A3, VA-A1).
+- Apply the same diet, allergen, timing, and spend checks as for any other line. The hotel handles any exception through its usual approval flow. Valio Aimo does not approve external lines.
+- Link the top-up to the event with its own supplier reference and delivery status. If the shop cannot confirm the offer, show the quantity still needed. Use labelled simulated offers and orders for Junction.
 
 ### Parked
 
@@ -558,6 +566,14 @@ How people use the app (D26). The rule underneath every story: **type to ask, ta
 *S3, S4 · [INF: not yet checked with a chef]*
 - Question cards (UI-03) work on a phone screen with one thumb.
 
+**UI-13** Use the app on my phone so that I can send requests, check orders, and answer questions away from my desk.
+*all · [TechStack.md](../TechStack.md)*
+- On a phone in portrait mode, the chef can send or edit a request and check the order status. The approver can open a quote, see its total and cut-off, and submit a decision.
+- Text, fields, and buttons stay readable and usable without horizontal scrolling or zoom. The on-screen keyboard leaves the current field and its submit action reachable.
+- Verify the same flow in mobile Safari on iOS, Chrome on Android, and the Capacitor build on both platforms. When a colleague answers on either device, the question closes on both, and each shows who answered and when (TM-03).
+
+---
+
 ## Teams and outlets
 
 A hotel has linked **outlets** (bar, restaurant, banquet kitchen), each with its own people, and several people can share a role (D27). This overrides D17's "hotel acts as one entity": there is still no permissions system, but the product knows who did what.
@@ -615,7 +631,7 @@ A hotel has linked **outlets** (bar, restaurant, banquet kitchen), each with its
 
 ## Shared foundations
 
-Not tied to one avatar, but every scene depends on them.
+Core rules shared by every scene, followed by add-ons for the teams that run the app.
 
 **SF-01** Run all four scenes on one simulated clock so that cut-offs and fixtures always agree.
 *P0 · D8*
@@ -651,3 +667,26 @@ Not tied to one avatar, but every scene depends on them.
 **SF-05** Log every model judgement with its confidence so that guesses are never disguised as rules.
 *P1 · D12*
 - Each Decisions API answer used in a decision is logged with its question, probability and threshold, separately from rule IDs.
+
+### Add-on
+
+These stories support the shared web, mobile, and gateway stack. [TechStack.md](../TechStack.md)
+
+| ID | Story | Basis |
+|---|---|---|
+| SF-A1 | See where requests stall and how long approvals take so that I can make the order flow easier to use | PostHog, D14 |
+| SF-A2 | Turn on an optional feature for one hotel at a time so that I can test it before a wider rollout | PostHog, D3 |
+| SF-A3 | See errors from the web app, mobile app, and gateway so that I can fix failures that stop requests or approvals | Sentry |
+
+**SF-A1** See where requests stall and how long approvals take so that I can make the order flow easier to use.
+*Product team · [PostHog](../TechStack.md#posthog)*
+- Track request submissions, quotes, approval requests and answers, and orders in PostHog. A retry counts once for each saved approval or order outcome. Keep request text, order contents, and guest details out of analytics.
+- Use flag variants to test changes such as approval card wording. Use masked replay only for approved test sessions.
+
+**SF-A2** Turn on an optional feature for one hotel at a time so that I can test it before a wider rollout.
+*Product team · [PostHog](../TechStack.md#posthog)*
+- PostHog flags can turn an optional feature on or off for a hotel. The gateway checks the flag for API actions. If the flag is unavailable, the feature stays off. Hotel policy and approval rules apply in every case.
+
+**SF-A3** See errors from the web app, mobile app, and gateway so that I can fix failures that stop requests or approvals.
+*Support team · [TechStack.md](../TechStack.md#devbox-and-release-flow)*
+- Sentry shows which app or service failed, the environment, and the release. A test error from each surface includes a readable stack trace. Reports omit credentials, request bodies, and guest data.
