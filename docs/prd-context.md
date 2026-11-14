@@ -155,13 +155,13 @@ These answer the follow-up questions and take precedence over anything above tha
 - **D19. Spend caps are per order**, for now.
 - **D20. The Purchasing Manager has maximum authority** over what is bought and how much, for now. What the role may do in different situations is left open and may become a non-core refinement.
 - **D21. External sourcing: any partner shop, clearly labelled.** Sources can be a supermarket, a Valio Aimo partner, or another partnered shop, including small local stores (for example small purchases of alcohol). Valio Aimo does **not** approve each externally sourced line; the line must be clearly marked as externally sourced, with its source. Still non-core (see Supplier scope). This replaces the "only with Valio Aimo's approval" condition on partner sourcing.
-- **D22. Not decided yet:** what a "food charge" is (to be defined in the final product document), how recipes are uploaded, the tech stack, and the demo. The Decisions API may still be useful for some decisions; it stays optional.
+- **D22. Not decided yet:** how recipes are uploaded, the tech stack, and the demo. The Decisions API may still be useful for some decisions; it stays optional.
 
 ## Still open
 
 | Item | Status | Who answers |
 |---|---|---|
-| **How each hotel sets itself up** | **Decided (D18, D19):** self-serve, non-core; spend caps per order. Still open: what a "food charge" is | Team, final product document |
+| **How each hotel sets itself up** | **Decided (D18, D19):** self-serve, non-core; spend caps per order | |
 | Who pays: Valio Aimo, the hotel, or both | Open, **does not block the build**. The secondary goal (rep time saved) serves either answer | Team; mentor Q3 |
 | Team members, skills and stack | Not decided (D22). The Decisions API stays optional. Suggested: Python/FastAPI gateway (generates OpenAPI 3.1, reuses `scripts/aimo_api.py`), SQLite, React from `designs/mockups/src` | Jack |
 | Does My Aimo keep customer recipes an agent could read, with past accepted substitutes? | Decides whether the recipe library add-on is cheap | Valio Aimo stand |
