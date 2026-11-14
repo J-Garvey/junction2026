@@ -1,6 +1,6 @@
 # PRD context: decisions the PRD builds on
 
-> **What this is:** the agreed context base for the agent that writes the PRD. It records the decisions made in a grilling session with Jack on 14 Nov 2026 (D1 to D14), Darragh's follow-up decisions (D15 to D22) and Jack's review of the stories and the PRD draft (D23 to D31), what each rests on, and what is still open. The user stories built on it are in [user-stories.md](user-stories.md). The PRD, split into chunks that each say how a group of stories is delivered, is in [prd/](prd/README.md).
+> **What this is:** the agreed context base for the agent that writes the PRD. It records the decisions made in a grilling session with Jack on 14 Nov 2026 (D1 to D14), Darragh's follow-up decisions (D15 to D22) and Jack's review of the stories and the PRD draft (D23 to D32), what each rests on, and what is still open. The user stories built on it are in [user-stories.md](user-stories.md). The PRD, split into chunks that each say how a group of stories is delivered, is in [prd/](prd/README.md).
 >
 > **How to read the tags:** **[TEAM Dn]** a decision from this session; **[BRIEF]**, **[API]**, **[SPEC]**, **[DATA]**, **[SRC]**, **[STAND]**, **[INF]**, **[OPEN]** mean what they mean in [GROUND_TRUTH.md](../GROUND_TRUTH.md) and [research/07](../research/07-hotel-event-ordering-journey.md). Where this file and GROUND_TRUTH.md disagree on a fact, GROUND_TRUTH.md wins.
 >
@@ -68,7 +68,7 @@ All four moments run the same pipeline; the demo shows them as four scenes on on
 - **The Chef sees a side-by-side** of original and substitute (ingredient statement, macros per 100 g, claims, allergens, pack, price per kg or L, delivery reliability) and answers one yes/no: "Will [dish] still work with this?" [TEAM D6]
 - **A yes is remembered** for that recipe and product pair, so the same swap never asks twice. This is how compatibility tags fill in. [TEAM D6]
 - Ranking is good-better-best **within Valio Aimo's own assortment**, as the brief names it. [BRIEF][TEAM D2]
-- **The ranking order is fixed** (story SF-06): only candidates passing every hard rule; then real stock over unknown; recipe-approved or brand match; delivery reliability; price per kg or L after rounding; then labels, origin and carbon as preferences weigh them. Ties break on product ID so the same input always gives the same pick.
+- **The ranking order is fixed** (story SF-06): only candidates passing every hard rule; then recipe-approved or brand match; delivery reliability; price per kg or L after rounding; labels, origin and carbon as preferences weigh them; and confirmed stock only as the last tie-breaker (D32). Ties break on product ID so the same input always gives the same pick.
 
 ## Supplier scope
 
@@ -87,7 +87,7 @@ All four moments run the same pipeline; the demo shows them as four scenes on on
 
 - **It is a question, not a warning and not a block.** When a product's stock can't be confirmed, the person building the order (normally the Chef) is asked: "Valio Aimo can't confirm stock for [product]. Continue with it?" They can continue or pick another product. It does not go to the Approver. [TEAM D31]
 - **It is never shown as confirmed.** The line keeps a plain "stock not confirmed" label everywhere, including after the final check, and the summary says how many lines are unconfirmed.
-- **It still ranks below confirmed stock** among products that pass the same rules.
+- **It does not lose on stock alone** (D32). The product that wins on the other ranking steps is picked. If its stock is unconfirmed, that is when the question is asked. Confirmed stock is only the last tie-breaker.
 - **A hotel can skip the question** with a pre-answer (AP-11), for example on cheap lines.
 - **How this rule got here.** Unknown stock began as a block (the approval rules). It became a risk the Approver accepted (D23), then a louder warning in the team review, and then this, on 14 Nov, once the demo was planned ([demo-plan.md](demo-plan.md)). It matters for the milk case: 20 of the 35 lactose-free products are Terminal, so they always report unknown stock. [API, GROUND_TRUTH 4.3]
 
@@ -156,7 +156,7 @@ Several people share a hotel, and a bar and a restaurant coordinate on the same 
 ## Test cases the PRD must cover
 
 1. **The hotel event:** a 500-guest conference with diet counts, through all four scenes. [TEAM D4, D8]
-2. **The brief's milk request:** "1,000 litres of lactose-free milk by Monday". No single lactose-free milk with a real stock figure covers it [API, GROUND_TRUTH 4.3], so the honest outcome is a partial fill across several products for the Approver to approve, plus unknown-stock products offered with the question to continue, labelled as not confirmed. [TEAM D10, D31]
+2. **The brief's milk request:** "1,000 litres of lactose-free milk by Monday". The agent proposes the product that is best on delivery reliability and price, which is Valio's own Eila at €1.01 per litre [API, 14 Nov]. Its stock is unconfirmed, so the person is asked whether to continue (D31, D32). The alternative offered is a split across the milks whose stock is confirmed; no single one of those covers 1,000 L [API, GROUND_TRUTH 4.3]. [TEAM D10, D32]
 3. **A blocked path:** an allergen or diet failure, or a past cut-off, that no approval can push through. [AGENTS.md]
 
 ## Decisions, 14 Nov evening (Darragh)
@@ -181,6 +181,7 @@ These answer the follow-up questions and take precedence over anything above tha
 - **Confirmed in the team review (Jack):** D26, D27, D28, D29 and D30 as written. Decisions API thresholds: 0.90 or above is a fact, 0.10 or below rejects. Decisions API answers are stored and reused. An order can't go in while a line is blocked. The allergy warning (D28) shows everywhere, in the same words.
 - **Open after the review:** one complete list of every rule and parameter ([prd chunk 05, Q05.10](prd/05-rules-mandate-and-preferences.md)); the seed event, deferred until the demo is planned.
 - **D31. Unconfirmed stock is a question the person building the order can continue past** (Jack, 14 Nov, after planning the demo). It replaces D23's warning and the Approver's risk acceptance. The person, normally the Chef, is asked "Valio Aimo can't confirm stock for [product]. Continue with it?" and can continue or pick another. The line is labelled "stock not confirmed" and is never shown as confirmed. Story AP-13 is withdrawn; CH-05 carries the behaviour.
+- **D32. Confirmed stock no longer ranks first** (Jack, 14 Nov). A product that wins on every other ranking step is picked even if its stock is unconfirmed, and the person is then asked whether to continue (D31). Confirmed stock is only the last tie-breaker. The reason: today's stock says little about a delivery months away, most of all for perishables, and it was making a dearer product win on stock alone. Checked on the data: of the 34 deliverable lactose-free products in the milk category, Valio's Eila is the best on reliability and price, and under the old order it lost to a product costing more than twice as much. This settles the conflict between D7 and the old first step of SF-06.
 - **Team:** Jack, Darragh, Pavit and Ben. **Chunk owners were assigned on 14 Nov** from each person's strengths: Jack 01, 06, 10; Darragh 04, 05, 07; Pavit 02, 08 and the two major questions; Ben 03, 09, 11. The team can swap them. See [prd/README.md](prd/README.md#who-owns-what).
 
 ## Still open

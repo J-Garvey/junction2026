@@ -25,7 +25,7 @@
   - Red: nothing passes the diet rules, or nothing is deliverable.
 - **Stock counts only close to delivery.** Until then it is shown as "today's stock, not a promise for your date". [D8]
 - **Inside the lead time, real stock is used straight away** (SF-07). This is what the milk request needs.
-- **Unconfirmed stock is a question, never a block and never confirmed** (D31, which replaces D23). It ranks below real stock. When such a product is picked, the person building the order is asked "Valio Aimo can't confirm stock for [product]. Continue with it?" and can continue or pick another. The Approver is not asked. The line is labelled "stock not confirmed" everywhere, including after the final check.
+- **Unconfirmed stock is a question, never a block and never confirmed** (D31, which replaces D23). It never loses on stock alone: the product that is best on the other ranking steps is picked (D32). When such a product is picked, the person building the order is asked "Valio Aimo can't confirm stock for [product]. Continue with it?" and can continue or pick another. The Approver is not asked. The line is labelled "stock not confirmed" everywhere, including after the final check.
 - **A past cut-off is always caught by us**, because the mock still shows a Monday delivery after a cut-off has passed. [GROUND_TRUTH 3]
 - **Delivery is planned for when prep starts**, including thawing, not for the service date. [CH-17]
 

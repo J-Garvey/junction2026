@@ -1,6 +1,6 @@
 # User stories
 
-> **What this is:** the story backlog the PRD agent builds from, grouped by avatar and sorted by importance. Each story is one sentence, **"X so that Y"**: what the avatar does or gets, and why it matters to them. Every story names what it rests on: a team decision (**D1** to **D31**, in [prd-context.md](prd-context.md)), the brief, the data or a research file.
+> **What this is:** the story backlog the PRD agent builds from, grouped by avatar and sorted by importance. Each story is one sentence, **"X so that Y"**: what the avatar does or gets, and why it matters to them. Every story names what it rests on: a team decision (**D1** to **D32**, in [prd-context.md](prd-context.md)), the brief, the data or a research file.
 >
 > It replaces [hotel-catering-user-stories.md](hotel-catering-user-stories.md) (US01 to US12) as the PRD's input. That file is kept as history. Since then (14 Nov): voice calls, SMS and WhatsApp are **cut** (email updates stay an add-on, CH-A6); the supermarket top-up is a **non-core add-on** (CH-A12); the Purchasing Manager is **kept for now as an optional role** (prd-context D1, D2, D15–D22).
 
@@ -156,7 +156,7 @@ Add-ons and parked stories are listed at the end of each avatar's section.
 **CH-05** Be asked whether to continue when a product's stock can't be confirmed so that I keep the option without ever mistaking it for confirmed stock.
 *S1, S4, M · GROUND_TRUTH 3 · D31*
 - 999999 on Terminal products and 9,999,999,999 base units (scaled) on Stock products both mean the stock can't be confirmed.
-- These products are still suggested, but ranked below any product with a real stock figure that passes the same rules.
+- These products are suggested like any other. A product never loses on unconfirmed stock alone: confirmed stock is only the last tie-breaker in the ranking (SF-06, D32).
 - When one is picked, the person building the order is asked a question, not shown a warning: "Valio Aimo can't confirm stock for [product]. Continue with it?" They can continue or pick another. The Approver is not asked.
 - The line is labelled "stock not confirmed" everywhere and is never shown as confirmed, including after the final check.
 - A pre-answer (AP-11) can skip the question, for example on cheap lines.
@@ -643,11 +643,12 @@ Core rules shared by every scene, followed by add-ons for the teams that run the
 **SF-06** Rank candidates good-better-best in one fixed order so that the same request always gives the same pick and the pick can be explained.
 *P0 · BRIEF response logic*
 - Only candidates that pass every hard rule are ranked. Then, in order:
-  1. real stock figure over unknown stock (D31);
-  2. recipe-approved or brand-matching over not;
-  3. higher delivery reliability (unknown sorts below known-good, above known-poor);
-  4. lower total price per kg or L after pack rounding (D25);
-  5. labels, origin and carbon, as the hotel's preferences weigh them (PF-02).
+  1. recipe-approved or brand-matching over not;
+  2. higher delivery reliability (unknown sorts below known-good, above known-poor);
+  3. lower total price per kg or L after pack rounding (D25);
+  4. labels, origin and carbon, as the hotel's preferences weigh them (PF-02);
+  5. confirmed stock over unconfirmed, as the last tie-breaker only (D32).
+- A product that wins on steps 1 to 4 is picked even if its stock is unconfirmed. The person is then asked whether to continue (CH-05).
 - Ties keep a stable order (product ID), so the same input always gives the same result.
 - The audit shows which step decided the pick.
 
