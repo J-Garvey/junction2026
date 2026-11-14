@@ -1,6 +1,6 @@
 # PRD context: decisions the PRD builds on
 
-> **What this is:** the agreed context base for the agent that writes the PRD. It records the decisions made in a grilling session with Jack on 14 Nov 2026 (D1 to D14), what each rests on, and what is still open. The user stories built on it are in [user-stories.md](user-stories.md).
+> **What this is:** the agreed context base for the agent that writes the PRD. It records the decisions made in a grilling session with Jack on 14 Nov 2026 (D1 to D14) and the follow-up review the same day (D15 to D17), what each rests on, and what is still open. The user stories built on it are in [user-stories.md](user-stories.md).
 >
 > **How to read the tags:** **[TEAM Dn]** a decision from this session; **[BRIEF]**, **[API]**, **[SPEC]**, **[DATA]**, **[SRC]**, **[STAND]**, **[INF]**, **[OPEN]** mean what they mean in [GROUND_TRUTH.md](../GROUND_TRUTH.md) and [research/07](../research/07-hotel-event-ordering-journey.md). Where this file and GROUND_TRUTH.md disagree on a fact, GROUND_TRUTH.md wins.
 >
@@ -29,7 +29,7 @@ When goals conflict: correct beats trustworthy beats fast. A fast wrong order co
 | Avatar | Who in real life | Does | Can't |
 |---|---|---|---|
 | **Chef** | Banquet or executive chef; also a bar manager or anyone who specifies what an event needs | States needs; checks viability; answers recipe questions (will the dish still work with this substitute?) | Commit money |
-| **Approver** | F&B Director, finance manager, or whoever signs orders off | Sets the hotel's rules once (the mandate); signs off only what breaks them; answers money and policy questions | Answer recipe questions; waive a diet rule; confirm unknown stock |
+| **Approver** | F&B Director, finance manager, or whoever signs orders off | Sets the hotel's rules once (the mandate); signs off only what breaks them; answers money and policy questions | Answer recipe questions; waive a diet rule; turn unknown stock into confirmed stock (they can only accept the risk, D15) |
 | **Valio Aimo** | The wholesaler, reached through the Agent Gateway API; its sales rep receives flags | Serves lookups, quotes and orders; enforces the hotel's mandate itself; keeps the shared audit log | |
 
 - The separate Purchasing Manager in [ICP.md](../ICP.md) is **dropped as a role**: research/07 found no separate purchasing role in Finnish hotels, and one approver keeps the approval story clean. [TEAM D1][SRC research/07]
@@ -48,6 +48,7 @@ All four moments run the same pipeline; the demo shows them as four scenes on on
 | 4. Final check | A set time (e.g. 24 h) before each line's cut-off | Automatic | Stock, delivery date, price validity and cut-off rechecked. All pass: one-line "covered". Any fail: substitute or partial-fill question with the cut-off as deadline |
 
 - Months ahead, stock says nothing about the event date: lead times are next day to ~4 days [STAND] and the mock always answers for next Monday [API]. **Stock counts only at the final check.** Before that it is shown as information, labelled "today's stock, not a promise for your date". [TEAM D7, D8]
+- **Exception: a date inside the lead time.** A request needed within the lead time (the brief's "booking for tomorrow", the milk case's "by Monday") skips the stock-blind step and is checked like a final check at once, on real stock. [BRIEF][TEAM, story SF-07]
 - **Viability states:** green = in the catalogue, deliverable, passes the event's diet and allergen rules by claim, priced, pack size verified against the price API. Amber = reliability unknown or below 0.95, pack size guessed from the name, or only a substitute matches. Red = nothing passes the diet rules or nothing is deliverable. [TEAM D7]
 - **Parked:** a client's change in the last 1–3 days. Low confidence it reaches Valio Aimo at all [OPEN, research/07]; it is the same mechanism under tighter deadlines. [TEAM D4]
 
@@ -66,19 +67,52 @@ All four moments run the same pipeline; the demo shows them as four scenes on on
 - **The Chef sees a side-by-side** of original and substitute (ingredient statement, macros per 100 g, claims, allergens, pack, price per kg or L, delivery reliability) and answers one yes/no: "Will [dish] still work with this?" [TEAM D6]
 - **A yes is remembered** for that recipe and product pair, so the same swap never asks twice. This is how compatibility tags fill in. [TEAM D6]
 - Ranking is good-better-best **within Valio Aimo's own assortment**, as the brief names it. [BRIEF][TEAM D2]
+- **The ranking order is fixed** (story SF-06): only candidates passing every hard rule; then real stock over unknown; recipe-approved or brand match; delivery reliability; price per kg or L after rounding; then labels, origin and carbon as preferences weigh them. Ties break on product ID so the same input always gives the same pick.
 
 ## Supplier scope
 
 - **Valio Aimo only.** Nobody picks a wholesaler. [TEAM D2]
 - **Add-on: partner sourcing.** For **very large orders** only, a line Valio Aimo cannot fill (an item outside its catalogue entirely) can go to a Valio Aimo partner, **only with Valio Aimo's approval**. In scope it is a handoff: the agent writes a structured sourcing request to the rep and the order shows "awaiting Valio Aimo". No partner catalogue or partner order. [TEAM D2, D3]
-- A **Terminal line with unknown stock is not "unfillable"**: it stays a normal block-or-ask to the hotel. [TEAM D2]
+- A **Terminal line with unknown stock is not "unfillable"**: it stays a normal question to the hotel (accept the unknown-stock risk, D15). [TEAM D2]
 - **Parked: supermarket dropshipping** (in ICP.md and the old user stories). No supermarket data exists, every offer would be invented, and it sends spend away from the company we want to sell to. [TEAM D2]
 
 ## When nobody answers
 
 - **Silence never changes the order.** At the cut-off an unanswered line stays as last approved and is flagged "unresolved at cut-off" to **both** the Approver and the Valio Aimo rep. [TEAM D9]
 - **Soft decisions can have defaults set in advance** in the mandate (accept a partial fill, round up within tolerance). That is a prior decision, not silence. [TEAM D9]
-- Who can answer never widens: the Approver cannot answer a recipe question, and no approval waives a diet rule or confirms unknown stock. [TEAM D9][approval rules]
+- Who can answer never widens: the Approver cannot answer a recipe question, no approval waives a diet rule, and no approval turns unknown stock into confirmed stock. [TEAM D9][approval rules]
+
+## Unknown stock (D15, changed 14 Nov)
+
+- **Products with unknown stock are suggested, not blocked.** They rank below any product with a real stock figure that passes the same rules, are always labelled "unknown stock", and need the **Approver to accept the risk** before they are ordered. [TEAM D15]
+- Accepting the risk is not confirming the stock. The label stays everywhere; at the final check the line reads "covered at risk", never "covered". A pre-answer (AP-11) can accept it in advance.
+- **This changes an earlier rule.** [human-approval-rules.md](human-approval-rules.md) and [AGENTS.md](../AGENTS.md) treated unknown stock as a block. Both are updated to match. It matters for the milk case: 20 of the 35 lactose-free products are Terminal, so they always report unknown stock. [API, GROUND_TRUTH 4.3]
+
+## Preferences (D16)
+
+Three layers, kept apart [TEAM D16]:
+
+| Layer | Example | Set by | Enforced by | Overridable? |
+|---|---|---|---|---|
+| Hard rules | Allergens, stated diets, past cut-off | Built in | Agent and gateway | No |
+| Mandate | Spend cap, approved products, sites | Approver | Gateway | Only by an approval bound to the quote |
+| Preferences | Carbon, brand, origin, price vs reliability, pre-answers | Chef or Approver | Hotel agent (ranking, when to ask) | Yes, per event or request |
+
+- **The agent asks for missing constraints** (allergies, diets, gluten-free or not, delivery date and time) before it quotes, as one grouped question, and never assumes "none".
+- **Two scopes:** some preferences are naturally **profile settings** (carbon), others **per event** (allergies). **Every profile setting can also be set for one event or request, and every setting can be changed for all products from the main settings.**
+- A constraint stated for an event (e.g. "lactose-free for 40") becomes a hard rule for that event; a preference only changes ranking or whether the agent asks.
+- Carbon as a preference needs carbon data in the quote, which is still an add-on (product-group averages, 63% coverage). [GROUND_TRUTH 4.1]
+
+## Rounding (D17)
+
+Customers buy whole sales units: 1.5 needed means 2 [STAND, research/06]. The data's `allowedLotSize` 0.01 is unexplained [OPEN, mentor Q43], so it is ignored. [TEAM D17]
+
+1. **Round the total, not each dish.** Combine the same product across dishes, then round once; per-dish rounding compounds.
+2. **Round up by default; never round down automatically.** Under-ordering is a service failure, and correct comes first (D14). "Round up over 0.5" is rejected: 2.3 cases would become 2, about 13% short.
+3. **Best-fitting pack first.** Among pack sizes of the same product with identical spec, pick the mix with the least overshoot. No human needed (approval rules).
+4. **Overshoot tolerance is a pre-answer** (e.g. 10% or a euro amount). Within it, go ahead; above it, one Approver question: accept the overshoot, round down and accept the shortfall, or switch pack size.
+5. **Round down only by a person's choice**, per order or as a pre-answer for named low-risk categories.
+6. **Buffer before rounding.**
 - **Add-on:** the reminder ladder (reminder halfway to cut-off, then the role's named backup). [TEAM D9]
 
 ## Architecture decisions
@@ -96,7 +130,7 @@ All four moments run the same pipeline; the demo shows them as four scenes on on
 ## Test cases the PRD must cover
 
 1. **The hotel event:** a 500-guest conference with diet counts, through all four scenes. [TEAM D4, D8]
-2. **The brief's milk request:** "1,000 litres of lactose-free milk by Monday". No single lactose-free milk with a real stock figure covers it [API, GROUND_TRUTH 4.3], so the honest outcome is a partial fill across several products for the Approver to approve, plus unknown stock named as unknown. [TEAM D10]
+2. **The brief's milk request:** "1,000 litres of lactose-free milk by Monday". No single lactose-free milk with a real stock figure covers it [API, GROUND_TRUTH 4.3], so the honest outcome is a partial fill across several products for the Approver to approve, plus unknown-stock products offered for the Approver to accept the risk on, labelled as unknown. [TEAM D10, D15]
 3. **A blocked path:** an allergen or diet failure, or a past cut-off, that no approval can push through. [AGENTS.md]
 
 ## Still open
