@@ -45,6 +45,8 @@ These are illustrative mindsets, not direct customer interview quotes.
 3. **Purchasing Manager:** places supplier orders and coordinates delivery.
 4. **Supplier → hotel kitchen:** ingredients are delivered, prepared and served.
 
+The step-by-step journey for each role, with the hand-off risks and questions to ask hotel staff, is in [docs/hotel-catering-customer-journeys.md](docs/hotel-catering-customer-journeys.md).
+
 ## 6. Our product opportunity
 
 **AI Banquet Procurement Copilot** turns event needs into food orders using Valio Aimo product data and external supermarket offers.

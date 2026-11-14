@@ -50,6 +50,7 @@ What changed when the two uploads were merged is in **[CHANGES.md](CHANGES.md)**
 | [research/stand-questions.md](research/stand-questions.md) | **Take this to the Valio Aimo stand:** the 15 questions only they can answer, in priority order |
 | [research/mentor-questions.md](research/mentor-questions.md) | The single list of 49 mentor questions, with what's already answered |
 | [docs/human-approval-rules.md](docs/human-approval-rules.md) | When the agent orders, asks a human, or blocks: allergen, recipe, quantity, timing, price and request rules (draft for the guardrails design) |
+| [docs/hotel-catering-customer-journeys.md](docs/hotel-catering-customer-journeys.md) | How the banquet chef, purchasing manager and F&B director work today, step by step, where Valio Aimo fits, and questions to ask hotel staff (working hypothesis) |
 | [docs/data-dictionary.md](docs/data-dictionary.md) | Every field of the slim dataset, quantity conversion, code glossaries (unverified) |
 | `data/products_slim.jsonl` | Main product table: 17,546 rows with hotel use tags, carbon and reliability where available |
 | `data/products_core.csv` | Flat subset for grep and spreadsheets |
