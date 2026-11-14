@@ -36,6 +36,10 @@ python3 scripts/aimo_api.py availability 2026-11-16 464306 463038 469363
 - Treat `Terminal` quantity `999999` as unknown. Some `Stock` lines use the placeholder `9999999999` base units, scaled to the sales unit. SKUs `464306` and `464201` returned that placeholder. No single plain lactose-free milk in the repo's sample had a verified quantity of 1,000 L. For a repeatable successful demo, use a clearly labeled stock fixture or a smaller request with verified quantities.
 - The sandbox ignores buyer and requested date when choosing results. Enforce account, site and approval scope in the prototype. The upstream mock has lookup and download endpoints. It has no cart, reservation, order or approval endpoint.
 
+## Decide when to stop for a human
+
+[docs/human-approval-rules.md](docs/human-approval-rules.md) lists the edge cases that end in an order, a question for the hotel, or a block. Allergen and diet failures, unknown stock, missing delivery dates and passed cut-offs are never approved through.
+
 ## Verify the demo
 
 Show a normal order, a basket that waits for approval, and a blocked path. Bind approval to the site, items, quantities, total and delivery terms. Recheck those terms at commit. Retry the same submission to verify it returns one mock order. Cover an expired cutoff and unknown stock. Label saved or modified responses as fixtures and keep the mock clock consistent with their cutoffs. Keep the demo and API calls within the synthetic Junction environment.

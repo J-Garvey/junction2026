@@ -49,6 +49,7 @@ What changed when the two uploads were merged is in **[CHANGES.md](CHANGES.md)**
 | [research/06-valio-aimo-conversation-2026-11-14.md](research/06-valio-aimo-conversation-2026-11-14.md) | **Notes from talking to Valio Aimo (14 Nov):** target segment, hotel ordering patterns, substitution pitfalls, lead times and cut-offs, agent explanation modes |
 | [research/stand-questions.md](research/stand-questions.md) | **Take this to the Valio Aimo stand:** the 15 questions only they can answer, in priority order |
 | [research/mentor-questions.md](research/mentor-questions.md) | The single list of 49 mentor questions, with what's already answered |
+| [docs/human-approval-rules.md](docs/human-approval-rules.md) | When the agent orders, asks a human, or blocks: allergen, recipe, quantity, timing, price and request rules (draft for the guardrails design) |
 | [docs/data-dictionary.md](docs/data-dictionary.md) | Every field of the slim dataset, quantity conversion, code glossaries (unverified) |
 | `data/products_slim.jsonl` | Main product table: 17,546 rows with hotel use tags, carbon and reliability where available |
 | `data/products_core.csv` | Flat subset for grep and spreadsheets |
