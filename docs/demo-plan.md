@@ -38,14 +38,14 @@ Onni is a six-year-old guest, added two weeks before the wedding. None of these 
 
 ## The three minutes
 
-| Time | Beat | Seat | Human taps |
+| Time | Beat | Seat | What a person decides |
 |---|---|---|---|
 | 0:00–0:18 | The problem, and why hotels | None | |
 | 0:18–0:30 | Meet Aino, Sanna and Katri | All three | |
 | 0:30–0:40 | Sanna's rules | Sanna | |
-| 0:40–1:08 | **Booking**, months ahead | Aino, then Sanna | 2 |
-| 1:08–1:42 | **First clarification**, two weeks before | Aino, then Sanna | 2 |
-| 1:42–2:10 | **Second clarification**, before the cut-off | Aino | 1 |
+| 0:40–1:08 | **Booking**, months ahead | Aino, then Sanna | Aino: continue with unconfirmed stock. Sanna: approve the booking |
+| 1:08–1:42 | **First clarification**, two weeks before | Aino, then Sanna | Aino: replace the cake. Sanna: approve the changes |
+| 1:42–2:10 | **Second clarification**, before the cut-off | Aino | Aino: pick a cream. The no-shows need nobody |
 | 2:10–2:30 | The safety drill | Katri | |
 | 2:30–3:00 | The sale record, and close | Sanna briefly, then Katri | |
 
@@ -101,9 +101,9 @@ Products and prices are real. Amounts per guest are proposed (0.25 L of cream a 
 
 **Why Arla's milk is picked over Valio's own.** The two are the same on carbon (1.1, a product-group average), origin (Finland) and label. Valio's Eila (464306) is cheaper at €1.01 per litre and has a known delivery reliability of 1.0. The only thing in Arla's favour is that its stock is confirmed (384), where Valio's is not. Our ranking puts confirmed stock first, so the screen says so: "Arla: stock confirmed. Valio Eila: cheaper, stock not confirmed." Valio Aimo's own data also lists this Arla milk as a substitute for Eila.
 
-**Human tap 1, Aino:** a question, not a warning. "Valio Aimo can't confirm stock for the princess cake, because it ships from the supplier. Continue with it?" She can continue or pick another. She continues.
+**Aino decides:** a question, not a warning. "Valio Aimo can't confirm stock for the princess cake, because it ships from the supplier. Continue with it?" She can continue or pick another. She continues.
 
-**Human tap 2, Sanna:** one card. "The order total of €1,562 is €62 over your €1,500 limit." She approves, and the order is placed.
+**Sanna approves:** one card. "The order total of €1,562 is €62 over your €1,500 limit." She approves, and the order is placed.
 
 ## First clarification, two weeks before (1:08–1:42)
 
@@ -119,7 +119,7 @@ Products and prices are real. Amounts per guest are proposed (0.25 L of cream a 
 - Re-runs the order and shows the whole list with the changed lines coloured. Salmon rises to 33.0 kg, cream to 49 L.
 - Re-checks every line against the new allergy. The princess cake contains almond and tree nuts (real). There is no approve button.
 
-**Human tap 3, Aino:** she replaces the cake. The chef answers first, so Sanna is only asked about the final order. Three real candidates, none with nuts listed as "contains" or "may contain". Darragh's allergy rule (PRD question Q02.3) also fails a product that lists the allergen as "undeclared"; that field isn't in our slim data, so each candidate still has to be checked against the raw catalogue:
+**Aino decides:** she replaces the cake. The chef answers first, so Sanna is only asked about the final order. Three real candidates, none with nuts listed as "contains" or "may contain". Darragh's allergy rule (PRD question Q02.3) also fails a product that lists the allergen as "undeclared"; that field isn't in our slim data, so each candidate still has to be checked against the raw catalogue:
 
 | Candidate | Price | Stock |
 |---|---|---|
@@ -127,7 +127,7 @@ Products and prices are real. Amounts per guest are proposed (0.25 L of cream a 
 | Puratos cheesecake 5 kg (463727) | €62.79 each | 4 |
 | Brander gluten-free strawberry curd cake (464235) | €41.45 a case | 6 cases |
 
-**Human tap 4, Sanna:** one card for the changes. The guest count rose by more than the 5% she allows, and the total is now further over the €1,500 budget. With the original cake it would be about €1,717; the exact figure depends on which dessert Aino picks. Her first approval no longer counts, because the order changed. She approves.
+**Sanna approves:** one card for the changes. The guest count rose by more than the 5% she allows, and the total is now further over the €1,500 budget. With the original cake it would be about €1,717; the exact figure depends on which dessert Aino picks. Her first approval no longer counts, because the order changed. She approves.
 
 ## Second clarification, before the cut-off (1:42–2:10)
 
@@ -149,7 +149,7 @@ Products and prices are real. Amounts per guest are proposed (0.25 L of cream a 
 | Whipping cream | 47 L | 37 | **Short by 10** |
 | Dessert | | Not confirmed | Accepted at booking |
 
-**Human tap 5, Aino:** she picks between two substitutes, shown side by side with the original, with the cut-off as the deadline:
+**Aino decides:** she picks between two substitutes, shown side by side with the original, with the cut-off as the deadline:
 
 | Substitute | Price | Stock |
 |---|---|---|
@@ -174,12 +174,14 @@ The video ends on Katri's seat, because the judges are from Valio Aimo.
 
 | Shown | Value |
 |---|---|
-| Sanna's view, briefly | Every step, with the rule behind it and each model judgement with its confidence. "One wedding, 188 guests, five human taps" |
+| Sanna's view, briefly | Every step, with the rule behind it and each model judgement with its confidence. |
 | **Katri's view: the sale record** | The order as Valio Aimo received it: the lines, the total, the delivery date, and Sanna's two approvals attached to the exact order each one covered |
 | Beside it | The drill order, refused, with the rule that stopped it |
 | Not in Katri's view | Recipes, the guest list, and anything about Onni |
 
-The five human taps: Aino continues with unconfirmed stock, Sanna approves the booking, Aino replaces the cake, Sanna approves the changes, Aino picks a cream.
+**The video doesn't quote a number of taps or decisions.** With two approvals from Sanna and three choices from Aino, the count isn't a strong figure, and saying it invites the judges to add up every tap. The closing line is about what the record proves instead. Proposed: "One wedding, three rounds of changes. Nothing was ordered that someone didn't decide, and every decision is on record for both sides."
+
+The decisions people make, in order: Aino continues with unconfirmed stock, Sanna approves the booking, Aino replaces the cake, Sanna approves the changes, Aino picks a cream.
 
 ## Showing how it works
 
@@ -213,7 +215,7 @@ Don't call the decision model deterministic. It returns a probability, not a gua
 | **Pavit** | Search and lookup on the live mock, including the origin filter. Quote. Order from a quote, with the approval attached. Amending an order. The over-budget refusal for the safety drill. Valio Aimo's view of one order with its approvals |
 | **Darragh** | Line verdicts, including "not available". The budget rule behind Sanna's first card, and the tolerance rule behind her second. The allergy re-check with no approve button. The final check and the shortfall. Finding substitutes |
 | **Jack** | Sanna's rules page, read-only. Request chips. The stock question, the two approval cards and the substitute card. The event page with the coloured list. The seat label and switcher. The strip. The safety-drill button. Katri's sale-record screen |
-| **Ben** | Whole-pack rounding. The audit with two views and the count of taps. The wedding as seed data, the clock and the reset command |
+| **Ben** | Whole-pack rounding. The audit with two views. The wedding as seed data, the clock and the reset command |
 
 ## If the build slips, cut in this order
 
