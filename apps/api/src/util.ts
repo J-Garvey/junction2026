@@ -28,6 +28,15 @@ export function parseAimoTime(s: string | null | undefined): Date | null {
 
 export const isoDate = (d: Date) => d.toISOString().slice(0, 10);
 
+/** 00:00 in Helsinki on a plain date (YYYY-MM-DD), as an instant. */
+export function helsinkiStartOfDay(date: string): Date {
+  const guess = new Date(`${date}T00:00:00Z`);
+  const parts = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Helsinki", timeZoneName: "longOffset" }).formatToParts(guess);
+  const off = parts.find((p) => p.type === "timeZoneName")?.value.match(/GMT([+-]\d{2}):(\d{2})/);
+  const mins = off ? Number(off[1]) * 60 + Math.sign(Number(off[1])) * Number(off[2]) : 0;
+  return new Date(guess.getTime() - mins * 60_000);
+}
+
 /** Helsinki wall-clock formatting for messages (EET/EEST). */
 export function fmtHelsinki(iso: string | Date, withTime = true): string {
   const d = typeof iso === "string" ? new Date(iso) : iso;

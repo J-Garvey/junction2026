@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { api } from "../api";
 import { useLoad } from "../ctx";
-import { Fixture, RuleChip } from "../ui/Status";
+import { Fixture } from "../ui/Status";
 import { when, fi, ROLE_LABEL } from "../format";
 
 export function Audit() {
@@ -63,9 +63,6 @@ export function Audit() {
                 <td>
                   <div className="row small" style={{ gap: 6, flexWrap: "wrap" }}>
 
-                    {e.ruleIds.map((r) => (
-                      <RuleChip key={r} id={r} />
-                    ))}
                     <Fixture show={e.usesFixture} />
                   </div>
                   <div style={{ color: "var(--ink)" }}>{e.summary}</div>
