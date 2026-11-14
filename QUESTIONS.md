@@ -33,7 +33,7 @@ This is the biggest disagreement between the two research passes.
 
 **Valio Aimo's answer (14 Nov, [research/06](research/06-valio-aimo-conversation-2026-11-14.md)):** **hotels first, then restaurants**; revenue is concentrated in large hotel chains. Within hotels, the agent should handle **catering and event orders** (weddings, dinners, large functions). Daily breakfast orders are already templated and automated. This matches research/05, and it is the mentor answer this question was waiting for. What's left for the team is confirming it as the decision and choosing whether restaurants are in scope for the demo.
 
-**Decision:** _open. Proposed: hotel catering and event orders, per Valio Aimo, 14 Nov. Confirm as a team._
+**Decision (14 Nov 2026):** **decided.** Target large hotels, conference hotels and event venues handling high-volume catering (100–1,000+ guests per event), as set out in **[ICP.md](ICP.md)**. The base challenge features (general product lookup, fixed-price ordering, approvals) are still built for any buyer; the ICP sets the demo case and the pitch. Restaurants, which Valio Aimo ranks second, are not the demo focus.
 
 ---
 
@@ -46,6 +46,8 @@ This is the biggest disagreement between the two research passes.
 | **Both** | The wholesaler licenses the engine; large customers pay for premium features. | More complex to explain in a pitch. |
 
 **What would settle it:** mentor question Q3 ("Who would pay for this, and how?").
+
+**New input (14 Nov):** [ICP.md](ICP.md) names the hotel's **F&B Director or operations leadership as the economic buyer**, which points to the hotel funding the product. That sits uneasily with the earlier aim of selling to Valio Aimo. The "Both" option reconciles them: Valio Aimo licenses or distributes the copilot, and the hotel's F&B Director is the person who must want it. Still to settle as a team.
 
 **Decision:** _open_
 
