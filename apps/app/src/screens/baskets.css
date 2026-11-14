@@ -29,7 +29,11 @@ a.btile:hover { text-decoration: none; border-color: var(--ink); box-shadow: 0 1
 .add-review-section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .add-review-interpreted { display: grid; gap: 8px; }
 .add-review-interpreted > div { display: grid; grid-template-columns: minmax(90px, auto) 1fr; gap: 16px; padding: 12px 14px; border: 1px solid var(--hairline-soft); border-radius: 10px; color: var(--ink); }
-.add-review-interpreted span { overflow-wrap: anywhere; }
+.add-review-edit-value { min-width: 0; padding: 5px 7px; margin: -5px -7px; border: 0; border-radius: 7px; background: transparent; color: var(--ink); text-align: left; }
+.add-review-edit-value:hover:not(:disabled), .add-review-edit-value:focus-visible { background: var(--soft); outline: 1px solid var(--hairline); }
+.add-review-edit-value small { display: block; margin-bottom: 3px; color: var(--mute); font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.add-review-edit-value span { display: block; overflow-wrap: anywhere; }
+.add-review-edit-value:disabled { opacity: .65; }
 .add-review-editor { padding: 0 14px 14px; border: 1px solid var(--hairline-soft); border-radius: 10px; }
 .add-review-editor .btn { margin-top: 12px; }
 .add-review-loading { margin-top: 22px; padding: 18px; border-radius: 10px; background: var(--soft); color: var(--mute); text-align: center; }

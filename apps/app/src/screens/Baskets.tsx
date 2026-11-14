@@ -322,7 +322,7 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
   const [text, setText] = useState("");
   const [request, setRequest] = useState<SingleRequest | null>(null);
   const [review, setReview] = useState<PlanResp | null>(null);
-  const [editing, setEditing] = useState(false);
+  const [editTarget, setEditTarget] = useState<{ lineId: string; field: "quantity" | "description" } | null>(null);
   const [busy, setBusy] = useState<"search" | "check" | "replace" | "add" | null>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
   const [note, setNote] = useState<{ cls: string; body: React.ReactNode } | null>(null);
@@ -345,7 +345,7 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
       const next = { ...parsed.request, neededBy: deliveryDate };
       setRequest(next);
       setReview(null);
-      setEditing(false);
+      setEditTarget(null);
       setDialogError(null);
       setBusy("check");
       setReview(await api.request(next, eventId, true));
@@ -367,7 +367,7 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
     setDialogError(null);
     try {
       setReview(review ? await api.requote(review.plan.id, request) : await api.request(request, eventId, true));
-      setEditing(false);
+      setEditTarget(null);
     } catch (e) {
       setDialogError((e as Error).message);
     } finally {
@@ -458,18 +458,17 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
           <div className="item-dialog-section add-review-section">
             <div className="add-review-section-head">
               <h3>Interpreted request</h3>
-              {!editing && <button type="button" className="btn sm ghost" disabled={!!busy} onClick={() => setEditing(true)}>Change</button>}
             </div>
-            {editing ? (
+            {editTarget ? (
               <div className="add-review-editor">
                 {request.lines.map((line, i) => (
                   <div key={line.id} className="chipline">
                     <label className="chip">
                       <span className="chip-k">Amount</span>
-                      <input type="number" min={0} value={line.quantity?.amount ?? ""} onChange={(event) => setLine(i, { quantity: event.target.value === "" ? null : { amount: Number(event.target.value), unit: line.quantity?.unit ?? "l" } })} style={{ width: 80 }} />
+                      <input autoFocus={editTarget.lineId === line.id && editTarget.field === "quantity"} type="number" min={0} value={line.quantity?.amount ?? ""} onChange={(event) => setLine(i, { quantity: event.target.value === "" ? null : { amount: Number(event.target.value), unit: line.quantity?.unit ?? "l" } })} style={{ width: 80 }} />
                       <select value={line.quantity?.unit ?? "l"} onChange={(event) => setLine(i, { quantity: { amount: line.quantity?.amount ?? 0, unit: event.target.value as Unit } })}>{UNITS.map((unit) => <option key={unit}>{unit}</option>)}</select>
                     </label>
-                    <label className="chip"><span className="chip-k">Product</span><input value={line.query} onChange={(event) => setLine(i, { query: event.target.value })} /></label>
+                    <label className="chip"><span className="chip-k">Description</span><input autoFocus={editTarget.lineId === line.id && editTarget.field === "description"} value={line.query} onChange={(event) => setLine(i, { query: event.target.value })} /></label>
                     {line.constraints.claims.map((claim) => <span key={claim} className="chip on">{claimLabel(claim)}</span>)}
                   </div>
                 ))}
@@ -477,7 +476,18 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
               </div>
             ) : (
               <div className="add-review-interpreted">
-                {request.lines.map((line) => <div key={line.id}><b>{line.quantity ? `${qty(line.quantity.amount)} ${line.quantity.unit}` : "Amount needed"}</b><span>{line.constraints.claims.map(claimLabel).concat(line.query).join(" ")}</span></div>)}
+                {request.lines.map((line) => (
+                  <div key={line.id}>
+                    <button type="button" className="add-review-edit-value" disabled={!!busy} onClick={() => setEditTarget({ lineId: line.id, field: "quantity" })} aria-label={`Edit quantity for ${line.query}`}>
+                      <small>Quantity</small>
+                      <b>{line.quantity ? `${qty(line.quantity.amount)} ${line.quantity.unit}` : "Amount needed"}</b>
+                    </button>
+                    <button type="button" className="add-review-edit-value" disabled={!!busy} onClick={() => setEditTarget({ lineId: line.id, field: "description" })} aria-label={`Edit description for ${line.query}`}>
+                      <small>Description</small>
+                      <span>{line.constraints.claims.map(claimLabel).concat(line.query).join(" ")}</span>
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -485,7 +495,7 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
           {busy === "check" && !plan && <div className="add-review-loading">Checking products, stock and delivery…</div>}
           {dialogError && <div className="callout red" role="alert">{dialogError}</div>}
 
-          {plan && !editing && (
+          {plan && !editTarget && (
             <>
               <div className="item-dialog-section add-review-section">
                 <h3>Products found</h3>
