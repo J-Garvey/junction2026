@@ -5,6 +5,7 @@ import { api, ApiError } from "../api";
 import { answerers, canAnswer, namesOf, useApp, waitingForText } from "../ctx";
 import { countdown, eur, when, qty } from "../format";
 import { Icon } from "./icons";
+import { OrderItemDialog } from "./OrderItemDialog";
 
 type Row = { field: string; original: string; substitute: string; differs: boolean };
 type ApprovalLine = { lineId: string; productId: string; product: string; quantity: number; unit: string | null; lineTotal: number | null };
@@ -30,6 +31,7 @@ export function QuestionCard({ q: initial, compact, onAnswered }: { q: Question;
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [showSame, setShowSame] = useState(false);
+  const [selectedLine, setSelectedLine] = useState<ApprovalLine | null>(null);
   const [open, setOpen] = useState(!compact && !(typeof window !== "undefined" && window.matchMedia("(max-width: 760px)").matches));
   void compact;
   useEffect(() => setQ(initial), [initial]);
@@ -132,13 +134,13 @@ export function QuestionCard({ q: initial, compact, onAnswered }: { q: Question;
       {open && lines.length > 0 && f.kind === "approval" && (
         <div className="qlines">
           {lines.map((l) => (
-            <div key={l.lineId} className="qline">
+            <button key={l.lineId} type="button" className="qline item-dialog-trigger" onClick={() => setSelectedLine(l)}>
               <span className="trunc">{l.product}</span>
               <span className="num muted">
                 {qty(l.quantity)} {l.unit ?? ""}
               </span>
               <span className="num">{eur(l.lineTotal)}</span>
-            </div>
+            </button>
           ))}
           {typeof f.total === "number" && (
             <div className="qline total">
@@ -153,6 +155,21 @@ export function QuestionCard({ q: initial, compact, onAnswered }: { q: Question;
         <button type="button" className="linkbtn small" onClick={() => setOpen(true)}>
           Details
         </button>
+      )}
+      {selectedLine && (
+        <OrderItemDialog
+          eyebrow="Awaiting approval"
+          title={selectedLine.product}
+          description={q.body}
+          fields={[
+            { label: "Quantity", value: `${qty(selectedLine.quantity)} ${selectedLine.unit ?? ""}` },
+            { label: "Line total", value: eur(selectedLine.lineTotal) },
+            { label: "Product ID", value: selectedLine.productId },
+            { label: "Approval", value: waitingForText(q, me, people) },
+            ...(typeof f.total === "number" ? [{ label: "Order total ex VAT", value: eur(f.total) }] : []),
+          ]}
+          onClose={() => setSelectedLine(null)}
+        />
       )}
 
       {err && <div className="callout red small">{err}</div>}

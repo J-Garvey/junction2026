@@ -1,10 +1,13 @@
 /** Orders and receipts from the gateway. */
+import { useState } from "react";
+import type { Order } from "@aimo/contracts";
 import { Link, useSearchParams } from "react-router";
 import { api } from "../api";
 import { useApp, useLoad, outletName } from "../ctx";
 import { Fixture, Status } from "../ui/Status";
 import { stockText } from "../ui/Popover";
 import { day, eur, when } from "../format";
+import { OrderItemDialog } from "../ui/OrderItemDialog";
 
 export function Orders() {
   const [sp] = useSearchParams();
@@ -12,6 +15,7 @@ export function Orders() {
   const { outlets } = useApp();
   const { data, error, loading } = useLoad(() => api.orders(eventId), [eventId]);
   const orders = [...(data?.orders ?? [])].sort((a, b) => b.placedAt.localeCompare(a.placedAt));
+  const [selected, setSelected] = useState<{ line: Order["lines"][number]; order: Order } | null>(null);
   return (
     <div className="page stack-l">
       <div>
@@ -50,7 +54,7 @@ export function Orders() {
           </div>
           <hr />
           {o.lines.map((l) => (
-            <div key={l.lineNo} className={`rline ${l.removed ? "removed" : ""}`}>
+            <button type="button" key={l.lineNo} className={`rline item-dialog-trigger ${l.removed ? "removed" : ""}`} onClick={() => setSelected({ line: l, order: o })}>
               <div className="rl">
                 <span className="trunc">
                   {l.quantity} {l.salesUnit ?? ""} {l.productName}
@@ -64,7 +68,7 @@ export function Orders() {
                   </span>
                 </div>
               )}
-            </div>
+            </button>
           ))}
           <hr />
           <div className="rl">
@@ -78,6 +82,25 @@ export function Orders() {
 
         </div>
       ))}
+      {selected && (
+        <OrderItemDialog
+          eyebrow={`Order ${selected.order.id}`}
+          title={selected.line.productName}
+          description={selected.line.removed ? "This line was removed from the order." : selected.line.riskAccepted ? `Unconfirmed stock was accepted by ${selected.line.riskAccepted.by}.` : undefined}
+          fields={[
+            { label: "Quantity", value: `${selected.line.quantity} ${selected.line.salesUnit ?? ""}` },
+            { label: "Unit price", value: eur(selected.line.unitPrice) },
+            { label: "Line total", value: eur(selected.line.lineTotal) },
+            { label: "Product ID", value: selected.line.productId },
+            { label: "Stock", value: stockText(selected.line.stock) },
+            { label: "Delivery", value: day(selected.order.deliveryDate) },
+            { label: "Placed by", value: selected.order.placedBy },
+            { label: "Placed", value: when(selected.order.placedAt) },
+            { label: "State", value: selected.line.removed ? "Removed" : selected.order.state },
+          ]}
+          onClose={() => setSelected(null)}
+        />
+      )}
     </div>
   );
 }
