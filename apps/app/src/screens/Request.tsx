@@ -8,10 +8,17 @@ import { Composer } from "./Home";
 import { Candidates, LinesList, MoneyView, CutoffBoard, Section, shortfallText } from "../ui/PlanView";
 import { QuestionCard } from "../ui/QuestionCard";
 import { Status, planStatusKind, PLAN_STATUS_TEXT, RuleChip, Fixture } from "../ui/Status";
-import { claimLabel, day, eur, when } from "../format";
+import { claimLabel, day, eur, when, helsinkiDate, addDays } from "../format";
 
 const UNITS: Unit[] = ["l", "dl", "ml", "kg", "g", "pcs"];
 const CLAIMS = ["FREE_FROM_LACTOSE", "FREE_FROM_GLUTEN", "FREE_FROM_MILK", "FREE_FROM_EGG"];
+/** Needed-by shortcuts, counted from the simulated today. One week is the default. */
+const DATE_PRESETS = [
+  { id: "1d", label: "Tomorrow", days: 1 },
+  { id: "2d", label: "In 2 days", days: 2 },
+  { id: "7d", label: "In a week", days: 7 },
+];
+const DEFAULT_DAYS = 7;
 
 export function Requests() {
   const { data, error } = useLoad(() => api.home(), []);
@@ -45,8 +52,13 @@ export function Requests() {
 export function RequestNew() {
   const loc = useLocation();
   const nav = useNavigate();
+  const { now } = useApp();
   const st = loc.state as { resp?: Extract<MessageResp, { request: SingleRequest }>; text?: string } | null;
-  const [req, setReq] = useState<SingleRequest | null>(st?.resp?.request ?? null);
+  const today = helsinkiDate(now);
+  const initial = st?.resp?.request ?? null;
+  // A date the request itself names ("by Monday") wins; otherwise one week out.
+  const [req, setReq] = useState<SingleRequest | null>(initial && { ...initial, neededBy: initial.neededBy ?? addDays(today, DEFAULT_DAYS) });
+  const [custom, setCustom] = useState(() => Boolean(initial?.neededBy) && !DATE_PRESETS.some((p) => addDays(today, p.days) === initial?.neededBy));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -78,7 +90,6 @@ export function RequestNew() {
     <div className="page stack-l">
       <div className="msg-me">{req.originalText}</div>
       <div className="card pad stack">
-        {st.resp.note && <div className="callout blue small">Built-in parser</div>}
         {req.lines.map((l, i) => (
           <div key={l.id} className="chipline">
             <label className="chip">
@@ -125,12 +136,29 @@ export function RequestNew() {
 
           </div>
         ))}
-        <div className="chipline">
-          <label className="chip">
-            <span className="chip-k">By</span>
-            <input type="date" value={req.neededBy ?? ""} onChange={(e) => setReq({ ...req, neededBy: e.target.value || null })} />
+        <div className="chipline" role="group" aria-label="Needed by">
+          <span className="chip-k">Needed by</span>
+          {DATE_PRESETS.map((p) => {
+            const d = addDays(today, p.days);
+            const on = !custom && req.neededBy === d;
+            return (
+              <button key={p.id} type="button" className={`datebtn ${on ? "on" : ""}`} aria-pressed={on} onClick={() => { setCustom(false); setReq({ ...req, neededBy: d }); }}>
+                <span>{p.label}</span>
+                <span className="small muted">{day(d)}</span>
+              </button>
+            );
+          })}
+          <label className={`datebtn ${custom ? "on" : ""}`}>
+            <span>Custom</span>
+            <input
+              type="date"
+              aria-label="Custom date"
+              min={today}
+              value={custom ? req.neededBy ?? "" : ""}
+              onFocus={() => setCustom(true)}
+              onChange={(e) => { setCustom(true); setReq({ ...req, neededBy: e.target.value || null }); }}
+            />
           </label>
-
         </div>
         {err && <div className="callout red small">{err}</div>}
         <div className="row">

@@ -30,6 +30,17 @@ export const day = (s: string | null | undefined) => {
   const d = /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(`${s}T12:00:00Z`) : parseTime(s);
   return d ? df.format(d) : s;
 };
+/** The Helsinki calendar date (YYYY-MM-DD) of an instant, e.g. the simulated now. */
+export const helsinkiDate = (s: string | null | undefined) => {
+  const d = parseTime(s) ?? new Date();
+  return new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+};
+/** A plain date plus n calendar days. */
+export const addDays = (date: string, n: number) => {
+  const d = new Date(`${date}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
 export const clockTime = (s: string | null | undefined) => {
   const d = parseTime(s);
   return d ? tf.format(d) : "–";
