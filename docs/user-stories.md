@@ -2,7 +2,7 @@
 
 > **What this is:** the story backlog the PRD agent builds from, grouped by avatar and sorted by importance. Each story is one sentence, **"X so that Y"**: what the avatar does or gets, and why it matters to them. Every story names what it rests on: a team decision (**D1** to **D14**, in [prd-context.md](prd-context.md)), the brief, the data or a research file.
 >
-> It replaces [hotel-catering-user-stories.md](hotel-catering-user-stories.md) (US01 to US12) as the PRD's input. That file is kept as history: its Purchasing Manager role, supermarket top-up and multi-channel demo were dropped or parked on 14 Nov (D1, D2).
+> It replaces [hotel-catering-user-stories.md](hotel-catering-user-stories.md) (US01 to US12) as the PRD's input. That file is kept as history. Since then (14 Nov): the multi-channel demo (SMS, phone, email) is **cut**; the supermarket top-up is a **non-core add-on**; the Purchasing Manager is **kept for now as an optional role** (prd-context D1, D2, revised).
 
 ## How to read it
 
@@ -11,8 +11,11 @@
 | Avatar | Who | Role in one line |
 |---|---|---|
 | **Chef** (CH) | Banquet or executive chef, or a bar manager | Says what the event needs; answers recipe questions; never commits money |
-| **Approver** (AP) | F&B Director or finance manager | Sets the hotel's rules once; signs off only what breaks them |
+| **Approver** (AP) | F&B Director or finance manager: in charge of finances | Sets the hotel's rules once; signs off only what breaks them |
 | **Valio Aimo** (VA) | The wholesaler, through the Agent Gateway API, plus its rep | Answers lookups and quotes, takes orders, enforces the hotel's mandate, keeps the audit log |
+| **Purchasing Manager** (optional) | A separate buyer, where the hotel has one | Decides what is bought and how much, with maximum authority for now (D20). No stories yet |
+
+The hotel acts as one entity: the product doesn't verify individual people or permissions (D17). The core is how the hotel can trust the agent to spend (D15), and most food orders are approved automatically (D16).
 
 **Importance**
 
@@ -169,15 +172,15 @@ Add-ons and parked stories are listed at the end of each avatar's section.
 | CH-A3 | Get compatibility tags suggested ahead of time so that fewer substitutes need my answer | D6 |
 | CH-A4 | Subtract stock the hotel already has so that we don't buy what's already in the store room | old US02; chef interview Q12 |
 | CH-A5 | Set a buffer above the confirmed count, per dish, so that late extra guests don't run us short | research/07 open; chef interview Q11 |
-| CH-A6 | Send requests and get updates by email, SMS or phone so that I can use the agent mid-service | ICP.md |
 | CH-A7 | Get a reminder, then have my named backup (e.g. sous chef) asked, so that a question never dies because I'm busy | D9 |
+| CH-A8 | Fill a small gap from an external partner shop (supermarket, Valio Aimo partner or local store, e.g. small alcohol purchases), clearly labelled as externally sourced, so that a short line is still covered | D21: non-core; no per-line Valio Aimo approval; same hotel rules |
 
 ### Parked
 
 | ID | Story | Why parked |
 |---|---|---|
 | CH-P1 | Handle a client's change in the last 1–3 days before the event so that very late changes are covered | Low confidence it reaches Valio Aimo [OPEN]; same mechanism as S3 (D4) |
-| CH-P2 | Fill a small gap from a supermarket that ships to the venue so that a short line is still covered | No supermarket data; spend leaves Valio Aimo (D2) |
+| CH-P2 | Send requests and get updates by email, SMS or phone | Cut on 14 Nov: not enough value for the effort and the approval risk; the product aims for one decision per event, made in the app |
 
 ---
 
@@ -249,8 +252,8 @@ Add-ons and parked stories are listed at the end of each avatar's section.
 | ID | Story | Basis |
 |---|---|---|
 | AP-A1 | Choose a detailed or a "just handle it" explanation mode so that the agent explains as much as I want | research/06 |
-| AP-A2 | Edit the mandate in the product so that I can change our rules without a developer | D11 |
-| AP-A3 | See a partner-sourcing request's status ("awaiting Valio Aimo") on my order so that I know what Valio Aimo is still working on | D2, D3 |
+| AP-A2 | Set up our hotel in the app ourselves (sites, roles, per-order spend cap, approved products, tolerances) so that we can start without Valio Aimo onboarding us | D18, D19 |
+| AP-A3 | See which lines are externally sourced, and from where, on my order so that I know what isn't coming from Valio Aimo | D21 |
 | AP-A4 | Review an event's purchasing cost and issues afterwards so that the next event is cheaper and smoother | old US12 |
 | AP-A5 | Name a backup for each role so that questions still get answered when someone is away | D9 |
 
@@ -312,6 +315,7 @@ Add-ons and parked stories are listed at the end of each avatar's section.
 **VA-11** Require every call to name the hotel, site and role so that I can check it against the mandate.
 *all · D11, GROUND_TRUTH 7*
 - A header for Junction; OAuth 2.0 Token Exchange (`act` claim) named as the production path.
+- Identifies the hotel only: the hotel acts as one entity, and individual people aren't verified (D17).
 
 **VA-12** Send unresolved-at-cut-off flags to the rep so that they can call the hotel before picking.
 *S4 · D9*
@@ -325,7 +329,7 @@ Add-ons and parked stories are listed at the end of each avatar's section.
 
 | ID | Story | Basis |
 |---|---|---|
-| VA-A1 | Receive and approve or decline partner-sourcing requests for very large orders so that I fill what my catalogue can't, on my terms | D2, D3 |
+| VA-A1 | See externally sourced lines on a hotel's order, labelled with their source, so that I know what my catalogue didn't cover | D21: no per-line approval by Valio Aimo |
 | VA-A2 | Give reps a screen for flags and sourcing requests so that nothing waits unseen in a log | D9 |
 | VA-A3 | Show a carbon range per line (product-group averages, labelled as such) so that hotels can weigh sustainability, not only price | BRIEF optional |
 | VA-A4 | Suggest seasonal or new products to the buyer's agent so that I can sell, not only answer | BRIEF scenario |

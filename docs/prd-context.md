@@ -13,6 +13,7 @@
 - **The brief's three core requirements:** product, price and availability lookup; inquiry to order at fixed prices; permission and human-approval management. [BRIEF]
 - **The mock API only looks things up.** No order, cart, approval or audit endpoint: we build all of those. It ignores `customer` and `requestedDate`, and reports unknown stock with sentinels (999999 on Terminal; 9,999,999,999 base units on some Stock). [SPEC][API]
 - **Two tiers of scope.** **Core** must be built. Everything else is an **add-on**, built only if core is done. A third list, **parked**, is out and says why. [TEAM D3]
+- **Cut, 14 Nov: SMS, phone calls and email channels.** They don't add enough value: the product aims for about one human decision per event, made in the app. [TEAM, Darragh]
 
 ## Goal
 
@@ -32,7 +33,7 @@ When goals conflict: correct beats trustworthy beats fast. A fast wrong order co
 | **Approver** | F&B Director, finance manager, or whoever signs orders off | Sets the hotel's rules once (the mandate); signs off only what breaks them; answers money and policy questions | Answer recipe questions; waive a diet rule; confirm unknown stock |
 | **Valio Aimo** | The wholesaler, reached through the Agent Gateway API; its sales rep receives flags | Serves lookups, quotes and orders; enforces the hotel's mandate itself; keeps the shared audit log | |
 
-- The separate Purchasing Manager in [ICP.md](../ICP.md) is **dropped as a role**: research/07 found no separate purchasing role in Finnish hotels, and one approver keeps the approval story clean. [TEAM D1][SRC research/07]
+- **Purchasing Manager: kept for now as an optional role (revised 14 Nov, Darragh).** Whether a hotel has a separate purchaser depends on the hotel: research/07 found none in Finnish hotels, where the kitchen manager orders, but other hotels may. The hotel's own role setup decides who places orders and who approves. The approval rules stay as above: one Approver signs off what breaks the mandate. [TEAM D1, revised][SRC research/07]
 - **Questions are routed by type, not by person.** Recipe fit goes to the Chef. Money and policy go to the Approver. If both, Chef first; the Approver sees it only after a Chef yes. [TEAM D6]
 - **Tension to keep visible:** in the one practitioner interview, the manager reviews and approves **every** order before it is submitted ([research/08](../research/08-interview-owen-bar-events.md), drinks not hotel food, poor audio). We designed for exceptions-only approval (D1). A hotel that wants to approve everything sets its spend cap to zero; the PRD should make that a valid mandate, not a special mode. [INF]
 
@@ -70,9 +71,9 @@ All four moments run the same pipeline; the demo shows them as four scenes on on
 ## Supplier scope
 
 - **Valio Aimo only.** Nobody picks a wholesaler. [TEAM D2]
-- **Add-on: partner sourcing.** For **very large orders** only, a line Valio Aimo cannot fill (an item outside its catalogue entirely) can go to a Valio Aimo partner, **only with Valio Aimo's approval**. In scope it is a handoff: the agent writes a structured sourcing request to the rep and the order shows "awaiting Valio Aimo". No partner catalogue or partner order. [TEAM D2, D3]
+- **Add-on: partner sourcing.** A line Valio Aimo cannot fill can go to a partner shop. **Revised by D21:** any partnered shop, no per-line Valio Aimo approval, clearly labelled as externally sourced. [TEAM D2, D3, D21]
 - A **Terminal line with unknown stock is not "unfillable"**: it stays a normal block-or-ask to the hotel. [TEAM D2]
-- **Parked: supermarket dropshipping** (in ICP.md and the old user stories). No supermarket data exists, every offer would be invented, and it sends spend away from the company we want to sell to. [TEAM D2]
+- **Add-on (non-core): external sourcing, such as supermarket dropshipping** (revised from parked, 14 Nov, Darragh). Fills a small gap in a large order, or a quantity below a wholesale pack, from an external source shipped to the venue. Built only after the core; offers are simulated in Junction, since no supermarket data exists. Same mandate and approval rules as any line. Risk to state: it sends spend away from Valio Aimo, the company we want to sell to. [TEAM D2, revised]
 
 ## When nobody answers
 
@@ -99,14 +100,29 @@ All four moments run the same pipeline; the demo shows them as four scenes on on
 2. **The brief's milk request:** "1,000 litres of lactose-free milk by Monday". No single lactose-free milk with a real stock figure covers it [API, GROUND_TRUTH 4.3], so the honest outcome is a partial fill across several products for the Approver to approve, plus unknown stock named as unknown. [TEAM D10]
 3. **A blocked path:** an allergen or diet failure, or a past cut-off, that no approval can push through. [AGENTS.md]
 
+## Decisions, 14 Nov evening (Darragh)
+
+These answer the follow-up questions and take precedence over anything above that they contradict.
+
+- **D15. The core is the trust algorithm.** The core feature is how a hotel can trust an AI agent to spend money: the mandate, the hard rules, auto-approval within limits, and the audit trail. Everything else is non-core unless it is needed to show that.
+- **D16. The app approves most food orders by itself.** The target is a highly agentic workflow: orders inside the hotel's mandate go through without a human. Approval of every order (research/08) describes how hotels work today, not the default we design for. A hotel can still set its spend cap to zero.
+- **D17. The hotel acts as one entity.** We were told to assume the hotel makes decisions as one body, so the product doesn't verify individual identities or permissions. The split of work is already agreed: the **Chef** is in charge of food, the **manager (Approver)** of finances. A detailed permission model is non-core.
+- **D18. Hotels set themselves up, self-serve.** Each hotel enters its own sites, roles, spend caps, approved products and tolerances in the app; Valio Aimo doesn't onboard them. The setup screens are **non-core**; the core can run on one pre-filled hotel.
+- **D19. Spend caps are per order**, for now.
+- **D20. The Purchasing Manager has maximum authority** over what is bought and how much, for now. What the role may do in different situations is left open and may become a non-core refinement.
+- **D21. External sourcing: any partner shop, clearly labelled.** Sources can be a supermarket, a Valio Aimo partner, or another partnered shop, including small local stores (for example small purchases of alcohol). Valio Aimo does **not** approve each externally sourced line; the line must be clearly marked as externally sourced, with its source. Still non-core (see Supplier scope). This replaces the "only with Valio Aimo's approval" condition on partner sourcing.
+- **D22. Not decided yet:** what a "food charge" is (to be defined in the final product document), how recipes are uploaded, the tech stack, and the demo. The Decisions API may still be useful for some decisions; it stays optional.
+
 ## Still open
 
 | Item | Status | Who answers |
 |---|---|---|
+| **How each hotel sets itself up** | **Decided (D18, D19):** self-serve, non-core; spend caps per order. Still open: what a "food charge" is | Team, final product document |
 | Who pays: Valio Aimo, the hotel, or both | Open, **does not block the build**. The secondary goal (rep time saved) serves either answer | Team; mentor Q3 |
-| Team members, skills and stack | Not answered in the session. Suggested: Python/FastAPI gateway (generates OpenAPI 3.1, reuses `scripts/aimo_api.py`), SQLite, React from `designs/mockups/src` | Jack |
+| Team members, skills and stack | Not decided (D22). The Decisions API stays optional. Suggested: Python/FastAPI gateway (generates OpenAPI 3.1, reuses `scripts/aimo_api.py`), SQLite, React from `designs/mockups/src` | Jack |
 | Does My Aimo keep customer recipes an agent could read, with past accepted substitutes? | Decides whether the recipe library add-on is cheap | Valio Aimo stand |
-| Does a hotel want exceptions-only approval, or approval of every order (research/08)? | Decides the default mandate for the demo | Chef or F&B interview |
+| ~~Does a hotel want exceptions-only approval, or approval of every order?~~ | **Decided (D16):** the app auto-approves most food orders within the mandate | |
+| How recipes get into the app (typed, uploaded, imported) | Open (D22) | Team |
 | Buffer above the confirmed count; rounding vs on-hand stock; tolerance before re-ordering | Sets mandate defaults | Chef interview |
 | Is a side-by-side enough for a chef to judge a substitute? | Validates D6 | Chef interview |
 | What happens at Valio Aimo picking when a line is short | Decides what scene 4 replaces | Valio Aimo, stand question 14 |

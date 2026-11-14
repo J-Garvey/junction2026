@@ -74,6 +74,7 @@ Reference request: "I need 1,000 litres of lactose-free milk by Monday. Find an 
 - Guardrails are designed separately, later. Mentors said € spend limits are not an expected pain point. (The brief itself names "spend threshold" as an example sign-off trigger.)
 - Target customer (decided 14 Nov): large hotels, conference hotels and event venues with high-volume catering; product framed as an "AI Banquet Procurement Copilot", chef-first and purchasing-compatible (see `ICP.md`). The base challenge features are still built for any buyer.
 - Aim: sellable to Valio Aimo or a similar wholesaler after Junction. Who pays is still an open team decision (see `QUESTIONS.md`).
+- Scope (14 Nov): SMS, phone and email channels are cut. External sourcing (e.g. supermarket dropshipping) is a non-core add-on, built only after the core. The Purchasing Manager role is kept for now; whether a hotel has one varies.
 
 ## Mock API
 Base `https://junction26.valioaimo.fi`. Header `X-API-Key`. Docs at `/docs`, `/redoc` (the live docs and `/openapi.json` sit behind an event-password page; use `api/openapi.json`).
