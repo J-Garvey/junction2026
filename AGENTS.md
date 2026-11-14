@@ -1,5 +1,19 @@
 # Junction 2026 · Valio Aimo
 
+## Git workflow for people and coding agents
+
+Keep `C:\Users\benfh\junction` as a clean, local mirror of GitHub's `main` branch. Do not develop, commit or switch feature branches in that checkout.
+
+- Create a separate Git worktree and branch from the latest `origin/main` for every task. Use a sibling path such as `C:\Users\benfh\junction-worktrees\<task>`.
+- Give each person, agent and concurrent task its own worktree and branch. Never let two active sessions share a worktree or branch.
+- Before creating a worktree, run `git fetch origin` and base it on `origin/main`. Do not pull, rebase, switch branches or remove a worktree that another session may be using.
+- Make all changes on the task branch. Push the branch, open a GitHub pull request targeting `main`, and merge through the pull request; never push commits directly to `main`.
+- Before merging, bring the branch up to date with `origin/main` when needed and run the checks appropriate to the change.
+- After a pull request merges, fast-forward the clean primary checkout with `git pull --ff-only`. Remove only the completed task's worktree and local branch, then run `git fetch --prune`.
+- If the primary checkout has tracked modifications, stop and identify their owner instead of overwriting or stashing them. Treat untracked directories and other worktrees as potentially active work until verified otherwise.
+- When running multiple app instances, use distinct ports and, where applicable, separate databases or temporary data directories. Keep credentials out of Git; configure each worktree safely through its own ignored environment file or an external shared secret source.
+- Finish agent work by reporting the branch, pull-request URL, checks performed and whether local `main` matches `origin/main`.
+
 ## Start here
 
 - [README.md](README.md) gives the repo map and quick start. The repo currently has research, data and Python tools. Check the current tree before choosing a stack or naming app commands.
