@@ -151,6 +151,22 @@ export function appRouter(): Router {
     res.json({ plan: getPlan(plan.id), questions: allQuestions().filter((q) => q.planId === plan.id) });
   });
 
+  // DLV-06: a too-late request is either dropped from the quote or kept, unordered, for someone to review.
+  r.post("/plans/:id/too-late", (req, res) => {
+    const plan = getPlan(String(req.params.id));
+    if (!plan) return res.status(404).json({ error: "No such plan" });
+    if (!plan.tooLate) return res.status(409).json({ error: "This request isn't too late" });
+    const { choice } = z.object({ choice: z.enum(["remove", "review"]) }).parse(req.body);
+    const p = P(req);
+    plan.tooLateChoice = choice === "remove" ? "removed" : "review";
+    audit({
+      actor: personActor(p), action: "request_received", eventId: plan.eventId, details: { kind: "confirmation", planId: plan.id, ...plan.tooLate }, visibility: "hotel",
+      summary: choice === "remove" ? `${p.name} removed ${plan.title} from the quote: it can't arrive in time` : `${p.name} kept ${plan.title} in the order for review, although it can't arrive in time`,
+    });
+    savePlan(plan);
+    res.json({ plan, questions: allQuestions().filter((q) => q.planId === plan.id) });
+  });
+
   r.get("/questions/:id", (req, res) => {
     const q = getQuestion(String(req.params.id));
     if (!q) return res.status(404).json({ error: "No such question" });
@@ -165,8 +181,11 @@ export function appRouter(): Router {
   });
 
   // Order baskets: one per event, named by the event and its delivery date. Requests attach to one.
-  const basketPlans = (eventId: string) => listPlans().filter((pl) => pl.kind === "single" && pl.eventId === eventId);
-  const planRow = (pl: ReturnType<typeof listPlans>[number]) => ({ id: pl.id, title: pl.title, status: pl.status, summary: pl.summary, createdAt: pl.createdAt, createdBy: pl.createdBy.name, totalExVat: pl.totalExVat, orderIds: pl.orderIds });
+  const basketPlans = (eventId: string) => listPlans().filter((pl) => pl.kind === "single" && pl.eventId === eventId && pl.tooLateChoice !== "removed");
+  const planRow = (pl: ReturnType<typeof listPlans>[number]) => ({
+    id: pl.id, title: pl.title, status: pl.status, summary: pl.summary, createdAt: pl.createdAt, createdBy: pl.createdBy.name, totalExVat: pl.totalExVat, orderIds: pl.orderIds,
+    tooLate: pl.tooLate ?? null, tooLateChoice: pl.tooLateChoice ?? null,
+  });
   r.get("/baskets", async (_req, res) => {
     const { orders } = await gw.orders();
     const open = allQuestions().filter((q) => q.state === "open" || q.state === "waiting");

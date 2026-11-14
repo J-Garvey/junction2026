@@ -419,6 +419,7 @@ export async function quoteAndDecide(plan: StoredPlan, personToken?: string): Pr
     plan.status = "blocked";
     plan.quoteId = null;
     plan.summary = t.earliest ? `No products available for delivery in time. Earliest delivery: ${fmtHelsinki(`${t.earliest}T12:00:00Z`, false)}.` : "No products available for delivery in time.";
+    plan.tooLateChoice = null;
     audit({ actor: AGENT, action: "line_verdict_set", summary: `Not in time: needed by ${t.neededBy}, earliest ${t.earliest ?? "unknown"}`, eventId: plan.eventId, ruleIds: ["DLV-06"], details: { planId: plan.id, ...t }, visibility: "hotel" });
     savePlan(plan);
     return plan;
@@ -539,7 +540,7 @@ export function newPlan(kind: "single" | "event", by: { personId: string; name: 
   return {
     id: newId("plan"), kind, eventId: null, title: "", createdAt: nowIso(), createdBy: by, siteId: m.sites[0].id, outletId, neededBy: null, deliveryDate: null, urgent: false,
     stage: "order", status: "needs_input", request: null, inputRules: [], needs: [], lines: [], quoteId: null, fingerprint: null, totalExVat: null, approvalsNeeded: [],
-    approvalId: null, orderIds: [], idemKey: newId("idem"), usesFixtures: false, note: null, summary: "", questionIds: [], shortfall: null, tooLate: null, error: null,
+    approvalId: null, orderIds: [], idemKey: newId("idem"), usesFixtures: false, note: null, summary: "", questionIds: [], shortfall: null, tooLate: null, tooLateChoice: null, error: null,
     overrides: emptyOverrides(), event: null, questionsAnswered: 0, ...extra,
   };
 }

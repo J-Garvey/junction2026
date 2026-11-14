@@ -233,6 +233,8 @@ export interface BasketPlan {
   createdBy: string;
   totalExVat: number | null;
   orderIds: string[];
+  tooLate: Plan["tooLate"];
+  tooLateChoice: Plan["tooLateChoice"];
 }
 export interface BasketResp extends EventResp {
   requests: BasketPlan[];
@@ -254,6 +256,7 @@ export const api = {
   newBasket: (name: string, deliveryDate: string) => post<{ basket: { id: string; name: string; deliveryDate: string } }>("/api/baskets", { name, deliveryDate }),
   plan: (id: string) => get<PlanResp>(`/api/plans/${encodeURIComponent(id)}`),
   accept: (id: string) => post<PlanResp>(`/api/plans/${encodeURIComponent(id)}/accept`),
+  tooLate: (id: string, choice: "remove" | "review") => post<PlanResp>(`/api/plans/${encodeURIComponent(id)}/too-late`, { choice }),
   choose: (id: string, needId: string, productId: string) => post<PlanResp>(`/api/plans/${encodeURIComponent(id)}/choose`, { needId, productId }),
   answer: (id: string, optionId: string) => post<AnswerResp>(`/api/questions/${encodeURIComponent(id)}/answer`, { optionId }),
   event: (id: string) => get<EventResp>(`/api/events/${encodeURIComponent(id)}`),

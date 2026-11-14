@@ -118,11 +118,13 @@ export async function rankNeed(need: Need, list: Product[], pool: Pool, opts: { 
   // NOT-IN-TIME (DLV-06): nothing that passes every other check arrives by the needed-by date.
   // One clear rule with the earliest date replaces the per-product reasons.
   const nb = need.neededBy;
-  if (nb && !opts.lockedOk && (passing.length || cutOnly.length) && passing.every((s) => s.l.availableDate && s.l.availableDate > nb)) {
-    const dates = [...passing.map((s) => s.l), ...cutOnly].map((l) => earliestDelivery(l, at, opts.deliveryDays ?? [1, 2, 3, 4, 5], opts.holidays ?? [])).filter((d): d is string => Boolean(d)).sort();
+  // Every product's own earliest date must fall after the needed-by date; an empty list proves nothing.
+  const dates = nb && !opts.lockedOk ? [...passing.map((s) => s.l), ...cutOnly].map((l) => earliestDelivery(l, at, opts.deliveryDays ?? [1, 2, 3, 4, 5], opts.holidays ?? [])) : [];
+  if (nb && dates.length && dates.every((d) => d !== null && d > nb)) {
+    dates.sort();
     for (const s of passing) need.excluded.push({ productId: s.p.id, name: s.p.name, reason: `Arrives ${s.l.availableDate}, after ${nb}`, ruleId: "DLV-03" });
     passing = [];
-    need.earliestDelivery = dates[0] ?? null;
+    need.earliestDelivery = dates.find((d): d is string => Boolean(d)) ?? null;
     const day = (d: string) => fmtHelsinki(`${d}T12:00:00Z`, false);
     need.rules = need.rules.filter((r) => r.ruleId !== "CUT-01");
     need.rules.push(fire("DLV-06", { need: need.label, neededBy: nb, neededByText: day(nb), earliest: need.earliestDelivery, earliestText: need.earliestDelivery ? day(need.earliestDelivery) : "not known yet" }));
