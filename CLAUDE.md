@@ -42,7 +42,9 @@ Reference request: "I need 1,000 litres of lactose-free milk by Monday. Find an 
 | `research/02-initial-deep-dive.md` | Archived public-kitchen pass; draft guardrails, trust protocol, audit trail, demo pattern |
 | `research/03-data-profile.md` | Data coverage and API behaviour |
 | `research/04-segment-research-chain-first.md` | Chain-first segment research, order-quantity primer |
-| `research/mentor-questions.md` | The single list of mentor questions (Q1–45) |
+| `research/05-spike-orders-under-time-pressure.md` | Which customers place large, urgent, variable orders; best-fit segments for the agent; how wholesalers and ordering tools handle rush orders |
+| `research/notes/spike-orders/` | Cited source notes behind research/05 |
+| `research/mentor-questions.md` | The single list of mentor questions (Q1–49) |
 | `docs/data-dictionary.md` | Every field of the slim dataset, code glossaries, measured facts |
 | `api/openapi.json` | Full OpenAPI 3.1 spec of the mock API |
 | `data/products_slim.jsonl` | Main product table, 17 546 rows, carbon and reliability joined in |

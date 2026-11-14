@@ -29,6 +29,8 @@ This is the biggest disagreement between the two research passes.
 
 **What would settle it:** the mentors' answers to Q1 (revenue split by segment) and Q2 (which segment Valio Aimo wants first). Then score the candidates with the six criteria in 01.
 
+**New evidence (14 Nov):** [research/05](research/05-spike-orders-under-time-pressure.md) looked for customers with large, urgent, variable orders where speed and accuracy beat price. It rates **event and venue caterers** and **conference and banquet hotels outside S Group** (especially Lapland in December) highest. Its reason is that the urgent order is the correction when the final headcount and diet list arrive 1–3 days before service. Arenas, festival vendors and municipal kitchens under surge come next; cruise, ferry, airline and rail catering fit poorly. This supports chains and hotels, and adds event caterers, a segment neither earlier pass considered on its own.
+
 **Decision:** _open_
 
 ---
