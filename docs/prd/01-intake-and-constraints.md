@@ -2,7 +2,8 @@
 
 | | |
 |---|---|
-| **Owner** | _unassigned_ |
+| **Owner** | Jack |
+| **Second check** | Pavit answers Q01.6 (which model parses, and what happens when it fails) |
 | **Track** | A: request to basket |
 | **Needs from** | Nothing. This chunk starts the pipeline. |
 | **Feeds** | 02 (matching), 03 (quantities), 04 (timing) |

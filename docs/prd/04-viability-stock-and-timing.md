@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Owner** | _unassigned_ |
+| **Owner** | Darragh |
 | **Track** | A: request to basket |
 | **Needs from** | 02 (candidates), 03 (pack quantities), 11 (the simulated clock) |
 | **Feeds** | 06 (questions), 07 (the final check uses the same stock and cut-off rules) |

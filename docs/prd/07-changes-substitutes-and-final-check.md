@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Owner** | _unassigned_ |
+| **Owner** | Darragh |
 | **Track** | B: trust core |
 | **Needs from** | 02 (ranking), 04 (stock and cut-off rules), 06 (questions), 08 (amendments) |
 | **Feeds** | 09 (audit), 10 (the diff view and the "covered" summary) |

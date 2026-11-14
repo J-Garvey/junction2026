@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Owner** | _unassigned_ |
+| **Owner** | Pavit |
 | **Track** | C: gateway, interface, tests |
 | **Needs from** | 05 (the mandate), 02 (search fields) |
 | **Feeds** | Every chunk that quotes, orders or amends: 04, 06, 07, 09 |
@@ -66,7 +66,7 @@ Each function is one problem that can be built and tested alone. "Deterministic 
   - `GET /audit`, filtered by event or order.
 - **Answer:** _open_
 
-**Q08.2 Where is the line between Valio Aimo's gateway and the hotel's agent, inside one service?** **Major question: answer first.** Responsibility: whoever builds the core brief functions (`PRODUCT-SEARCH`, `LOOKUP`, quoting and ordering).
+**Q08.2 Where is the line between Valio Aimo's gateway and the hotel's agent, inside one service?** **Major question: answer first.** Responsibility: Pavit, who builds the core brief functions (`PRODUCT-SEARCH`, `LOOKUP`, quoting and ordering).
 - Recommended: two folders in `apps/api` that may not import each other's internals: `gateway/` (Valio Aimo's side) and `agent/` (the hotel's side). The agent reaches the gateway only through the same HTTP routes an outside agent uses. That keeps it honest: our own agent has no back door.
 - **Answer:** **Agreed in outline, incomplete** (Jack, team review 14 Nov): our own agent uses the same gateway routes as an outside agent, and we host the gateway ourselves. Still to be written in detail by the owner:
   - where the gateway is hosted and its address;

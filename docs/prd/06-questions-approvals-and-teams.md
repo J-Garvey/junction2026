@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Owner** | _unassigned_ |
+| **Owner** | Jack |
 | **Track** | B: trust core |
 | **Needs from** | 05 (rule outcomes and the mandate), 08 (quotes to bind approvals to) |
 | **Feeds** | 07 (change and final-check questions), 09 (audit), 10 (the question card and home list) |

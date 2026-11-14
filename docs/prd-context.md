@@ -179,7 +179,7 @@ These answer the follow-up questions and take precedence over anything above tha
 - **D23 made louder (team review, Jack).** A product with unknown stock is still suggested and labelled, and it now always carries a visible warning wherever it appears, not only a label. It stays a risk the Approver can accept, and the warning stays after acceptance.
 - **Confirmed in the team review (Jack):** D26, D27, D28, D29 and D30 as written. Decisions API thresholds: 0.90 or above is a fact, 0.10 or below rejects. Decisions API answers are stored and reused. An order can't go in while a line is blocked. The allergy warning (D28) shows everywhere, in the same words.
 - **Open after the review:** one complete list of every rule and parameter ([prd chunk 05, Q05.10](prd/05-rules-mandate-and-preferences.md)); the seed event, deferred until the demo is planned.
-- **Team:** Jack, Darragh, Pavit and Ben. Who owns which PRD chunk or function is a team decision; nothing is pre-assigned.
+- **Team:** Jack, Darragh, Pavit and Ben. **Chunk owners were assigned on 14 Nov** from each person's strengths: Jack 01, 06, 10; Darragh 04, 05, 07; Pavit 02, 08 and the two major questions; Ben 03, 09, 11. The team can swap them. See [prd/README.md](prd/README.md#who-owns-what).
 
 ## Still open
 
@@ -187,7 +187,7 @@ These answer the follow-up questions and take precedence over anything above tha
 |---|---|---|
 | **How each hotel sets itself up** | **Decided (D18, D19):** self-serve, non-core; spend caps per order | |
 | Who pays: Valio Aimo, the hotel, or both | Open, **does not block the build**. The secondary goal (rep time saved) serves either answer | Team; mentor Q3 |
-| Team members, skills and stack | **Stack decided:** see [TechStack.md](../TechStack.md) (TypeScript monorepo, React and Vite, Express, SQLite). The Decisions API is in (D29). Team: Jack, Darragh, Pavit, Ben. Still open: who owns which PRD chunk or function ([docs/prd](prd/README.md)) | Team |
+| Team members, skills and stack | **Stack decided:** see [TechStack.md](../TechStack.md) (TypeScript monorepo, React and Vite, Express, SQLite). The Decisions API is in (D29). Team: Jack, Darragh, Pavit, Ben. Chunk owners are assigned ([docs/prd](prd/README.md#who-owns-what)) | Team |
 | Does My Aimo keep customer recipes an agent could read, with past accepted substitutes? | Decides whether the recipe library add-on is cheap | Valio Aimo stand |
 | ~~Does a hotel want exceptions-only approval, or approval of every order?~~ | **Decided (D16):** the app auto-approves most food orders within the mandate | |
 | How recipes get into the app (typed, uploaded, imported) | Open (D22) | Team |

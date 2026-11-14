@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Owner** | _unassigned_ |
+| **Owner** | Jack |
 | **Track** | C: gateway, interface, tests |
 | **Needs from** | 06 (question cards), 07 (the diff and the summary), 09 (source popovers) |
 | **Feeds** | 11 (the test cases run on these screens) |
