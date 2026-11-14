@@ -1,0 +1,214 @@
+<!-- @dsCard group="Screens" -->
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Banquet Copilot: receipt</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700;800&family=Source+Code+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Tokens from designs/posthog/DESIGN.md (npx getdesign add posthog). */
+:root {
+  --primary: #f7a501;
+  --primary-pressed: #dd9001;
+  --ink: #23251d;
+  --body: #4d4f46;
+  --mute: #6c6e63;
+  --ash: #9b9c92;
+  --hairline: #bfc1b7;
+  --hairline-soft: #dcdfd2;
+  --canvas: #eeefe9;
+  --soft: #e5e7e0;
+  --card: #ffffff;
+  --doc: #fcfcfa;
+  --dark: #23251d;
+  --link: #1078a3;
+  --blue: #2c84e0;
+  --blue-soft: #dceaf6;
+  --red: #cd4239;
+  --red-soft: #f7d6d3;
+  --green: #2c8c66;
+  --green-soft: #d9eddf;
+  --purple: #7c44a6;
+  --purple-soft: #e7d8ee;
+  --font: "IBM Plex Sans", -apple-system, system-ui, sans-serif;
+  --mono: "Source Code Pro", ui-monospace, monospace;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: var(--font); font-size: 15px; line-height: 1.5; color: var(--body); background: #dcdfd2; -webkit-font-smoothing: antialiased; }
+button { font: inherit; cursor: pointer; }
+h1, h2, h3 { color: var(--ink); margin: 0; }
+h1 { font-size: 24px; font-weight: 800; letter-spacing: -0.6px; line-height: 1.33; }
+h2 { font-size: 21px; font-weight: 700; letter-spacing: -0.5px; line-height: 1.4; }
+h3 { font-size: 16px; font-weight: 600; line-height: 1.5; }
+
+/* canvas */
+.canvas { padding: 40px 48px 80px; }
+.canvas-head { margin-bottom: 40px; }
+.canvas-head h1 { font-size: 36px; font-weight: 700; letter-spacing: 0; }
+.screen-sec { margin-bottom: 80px; }
+.screen-sec > h2 { margin-bottom: 14px; }
+.frames { display: flex; gap: 40px; align-items: flex-start; }
+.frame-label { font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--mute); margin-bottom: 8px; }
+.frame { background: var(--canvas); overflow: hidden; border: 1px solid var(--hairline); border-radius: 8px; }
+.frame.desktop { width: 1280px; height: 820px; }
+.frame.mobile { width: 390px; height: 844px; border-radius: 40px; border: 9px solid var(--dark); }
+
+/* logo */
+.lockup { display: flex; align-items: center; gap: 8px; }
+.lockup b { font-size: 16px; font-weight: 800; color: var(--ink); letter-spacing: -0.3px; }
+
+/* shell */
+.shell { display: flex; height: 100%; }
+.side { width: 240px; flex-shrink: 0; display: flex; flex-direction: column; padding: 14px 10px; gap: 2px; border-right: 1px solid var(--hairline-soft); }
+.side .lockup { padding: 2px 8px 14px; }
+.switch { display: flex; align-items: center; gap: 8px; border: 1px solid var(--hairline); background: var(--card); border-radius: 6px; padding: 6px 8px; margin-bottom: 10px; font-size: 14px; font-weight: 600; color: var(--ink); }
+.switch .sq { width: 22px; height: 22px; border-radius: 4px; background: var(--dark); color: #fff; display: grid; place-items: center; font-size: 11px; font-weight: 700; }
+.side a { display: flex; align-items: center; gap: 9px; padding: 6px 8px; border-radius: 6px; font-size: 14px; font-weight: 500; color: var(--body); }
+.side a.on { background: var(--card); color: var(--ink); font-weight: 600; box-shadow: inset 0 0 0 1px var(--hairline); }
+.side a .n { margin-left: auto; font-size: 12px; font-weight: 700; color: var(--ink); background: var(--primary); border-radius: 4px; padding: 0 6px; }
+.side a.sub { padding-left: 35px; font-size: 13.5px; color: var(--mute); }
+.side .sec { font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--ash); padding: 14px 8px 4px; }
+.side .gap { height: 14px; }
+.side .me { margin-top: auto; display: flex; align-items: center; gap: 8px; padding: 6px 8px; font-size: 14px; font-weight: 600; color: var(--ink); }
+.main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.head { padding: 22px 28px 0; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.filters { display: flex; gap: 8px; align-items: center; padding: 14px 28px 0; }
+.content { flex: 1; overflow: hidden; padding: 18px 28px 28px; }
+
+/* mobile shell */
+.mshell { display: flex; flex-direction: column; height: 100%; }
+.mstatus { height: 40px; display: flex; align-items: center; justify-content: space-between; padding: 0 26px; font-size: 14px; font-weight: 600; color: var(--ink); flex-shrink: 0; }
+.mbar { display: flex; align-items: center; gap: 12px; padding: 4px 16px 12px; flex-shrink: 0; }
+.mcontent { flex: 1; overflow: hidden; padding: 4px 14px 0; }
+.mtabs { height: 78px; display: flex; border-top: 1px solid var(--hairline-soft); padding: 8px 6px 20px; flex-shrink: 0; }
+.mtabs a { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11px; font-weight: 500; color: var(--mute); position: relative; }
+.mtabs a.on { color: var(--ink); font-weight: 700; }
+.mtabs a .n { position: absolute; top: -4px; right: 18px; font-size: 10px; font-weight: 700; background: var(--primary); color: var(--ink); border-radius: 4px; padding: 0 4px; }
+
+/* buttons */
+.btn { height: 40px; padding: 0 16px; border: 0; border-radius: 6px; background: var(--soft); color: var(--ink); font-size: 14px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; }
+.btn.primary { background: var(--primary); }
+.btn.ghost { background: transparent; }
+.btn.danger { background: transparent; color: var(--red); }
+.btn.full { width: 100%; }
+.btn.sm { height: 32px; padding: 0 12px; font-size: 13px; }
+.fbtn { height: 32px; padding: 0 10px; border: 1px solid var(--hairline); border-radius: 6px; background: var(--card); font-size: 13px; font-weight: 500; color: var(--ink); display: inline-flex; align-items: center; gap: 6px; }
+
+/* surfaces */
+.card { background: var(--card); border: 1px solid var(--hairline); border-radius: 6px; }
+.tile { background: var(--card); border: 1px solid var(--hairline); border-radius: 6px; display: flex; flex-direction: column; min-width: 0; }
+.tile-h { display: flex; align-items: center; gap: 10px; padding: 14px 16px 0; }
+.tile-h .bar { display: none; }
+.tile-h .act { margin-left: auto; font-size: 13px; color: var(--mute); }
+.tile-b { padding: 12px 16px 16px; flex: 1; min-height: 0; }
+.big { font-size: 64px; font-weight: 800; letter-spacing: -2px; line-height: 1; color: var(--ink); }
+.callout { border-radius: 6px; padding: 12px 16px; font-size: 14px; color: var(--ink); }
+.callout.blue { background: var(--blue-soft); }
+.callout.red { background: var(--red-soft); }
+.callout.green { background: var(--green-soft); }
+.callout.yellow { background: #fbe7bd; }
+.dashed { border: 1px dashed var(--hairline); border-radius: 6px; }
+
+/* badges */
+.stamp { display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase; line-height: 1; padding: 5px 7px; border-radius: 4px; white-space: nowrap; }
+.stamp.order { color: var(--green); background: var(--green-soft); }
+.stamp.ask { color: #7a4d00; background: #fbe7bd; }
+.stamp.block { color: var(--red); background: var(--red-soft); }
+.stamp.unknown { color: var(--mute); background: transparent; box-shadow: inset 0 0 0 1px var(--hairline); }
+.stamp.info { color: var(--blue); background: var(--blue-soft); }
+.tag { display: inline-block; font-size: 12.5px; font-weight: 500; color: var(--body); background: var(--soft); border-radius: 4px; padding: 1px 8px; }
+
+/* price */
+.price { font-weight: 700; color: var(--ink); line-height: 1; white-space: nowrap; letter-spacing: -0.5px; }
+.price sup { font-size: 0.55em; vertical-align: 0.6em; margin-left: 1px; }
+.price .cur { font-size: 0.6em; margin-left: 2px; }
+.unitp { font-size: 12px; color: var(--mute); white-space: nowrap; }
+.pricetag { display: inline-block; background: var(--primary); border-radius: 6px; padding: 6px 10px; }
+
+/* table */
+table.t { width: 100%; border-collapse: collapse; font-size: 14px; }
+table.t th { text-align: left; font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--mute); padding: 0 12px 8px; border-bottom: 1px solid var(--hairline); }
+table.t td { padding: 11px 12px; border-bottom: 1px solid var(--hairline-soft); vertical-align: middle; color: var(--ink); }
+table.t tr:last-child td { border-bottom: 0; }
+table.t tr.dim td { color: var(--ash); }
+.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mono { font-family: var(--mono); font-size: 12.5px; }
+.muted { color: var(--mute); }
+.small { font-size: 13px; }
+.row { display: flex; gap: 10px; align-items: center; }
+.grid { display: grid; gap: 16px; }
+.stack > * + * { margin-top: 12px; }
+.ic { flex-shrink: 0; }
+.li { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--hairline-soft); align-items: center; }
+.li:last-child { border-bottom: 0; }
+.avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--soft); color: var(--ink); display: grid; place-items: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+.kv { display: grid; grid-template-columns: 90px 1fr; gap: 6px 12px; font-size: 14px; margin: 0; }
+.kv dt { color: var(--mute); }
+.kv dd { margin: 0; color: var(--ink); font-weight: 500; }
+
+/* cut-off board */
+.board { background: var(--dark); color: #e9eae4; border-radius: 6px; padding: 6px 14px; font-family: var(--mono); font-size: 13px; }
+.board .br { display: grid; grid-template-columns: minmax(0, 1fr) auto 70px; gap: 12px; padding: 9px 0; border-bottom: 1px solid #3a3c33; white-space: nowrap; }
+.board .br:last-child { border-bottom: 0; }
+.board .t { color: var(--primary); }
+.board .left { text-align: right; color: #fff; }
+.board .gone { text-align: right; color: #f08c84; }
+
+/* stepper, toggle, seg */
+.stepper { display: inline-flex; align-items: center; border: 1px solid var(--hairline); border-radius: 6px; background: var(--card); height: 32px; overflow: hidden; }
+.stepper b { width: 28px; text-align: center; color: var(--mute); font-weight: 500; }
+.stepper span { font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--ink); min-width: 64px; text-align: center; }
+.toggle { width: 34px; height: 20px; border-radius: 10px; background: var(--hairline); position: relative; flex-shrink: 0; }
+.toggle::after { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: #fff; }
+.toggle.on { background: var(--ink); }
+.toggle.on::after { left: 17px; }
+.seg { display: inline-flex; background: var(--soft); border-radius: 6px; padding: 3px; }
+.seg span { padding: 5px 12px; font-size: 13px; font-weight: 600; color: var(--body); border-radius: 4px; }
+.seg span.on { background: var(--card); color: var(--ink); box-shadow: inset 0 0 0 1px var(--hairline); }
+
+/* chat */
+.chathome { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.chathome h2 { font-size: 36px; font-weight: 700; letter-spacing: -0.5px; line-height: 1.25; }
+.composer { width: 100%; background: var(--card); border: 1px solid var(--hairline); border-radius: 6px; text-align: left; }
+.composer .ctx { display: flex; gap: 6px; padding: 10px 12px 0; }
+.composer .add { border: 1px solid var(--hairline); border-radius: 4px; font-size: 13px; padding: 1px 8px; color: var(--body); display: inline-flex; gap: 4px; align-items: center; }
+.composer .txt { padding: 8px 10px 10px 12px; font-size: 16px; display: flex; align-items: flex-end; gap: 12px; color: var(--ink); }
+.composer .txt span { flex: 1; padding-bottom: 6px; }
+.composer .ph { color: var(--ash); }
+.send { width: 38px; height: 38px; border-radius: 6px; background: var(--soft); display: grid; place-items: center; flex-shrink: 0; color: var(--ink); }
+.send.go { background: var(--primary); }
+.sugg { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.sugg span { border: 1px solid var(--hairline); background: var(--card); border-radius: 6px; padding: 6px 12px; font-size: 14px; font-weight: 500; color: var(--ink); }
+.msg-me { margin-left: auto; background: var(--card); border: 1px solid var(--hairline); border-radius: 6px; padding: 10px 14px; max-width: 70%; color: var(--ink); }
+.msg-ai { display: flex; gap: 12px; align-items: flex-start; color: var(--ink); font-size: 15.5px; }
+.steps { font-size: 13px; color: var(--mute); display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+
+/* records */
+.receipt { background: var(--doc); font-family: var(--mono); font-size: 13px; color: var(--ink); padding: 20px; border: 1px solid var(--hairline); border-radius: 6px; }
+.receipt .rl { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; }
+.receipt hr { border: 0; border-top: 1px dashed var(--hairline); margin: 10px 0; }
+.arow { display: grid; grid-template-columns: 74px 110px 1fr; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--hairline-soft); font-size: 14px; color: var(--ink); }
+.arow:last-child { border-bottom: 0; }
+.code { background: var(--dark); color: #fff; border-radius: 6px; padding: 16px 20px; font-family: var(--mono); font-size: 13px; line-height: 1.5; white-space: pre; overflow: hidden; }
+.code .k { color: #9cc3f0; }
+.code .s { color: #a6d6b8; }
+.method { font-family: var(--mono); font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 4px; }
+.method.get { color: var(--green); background: var(--green-soft); }
+.method.post { color: var(--blue); background: var(--blue-soft); }
+.chk { display: flex; gap: 8px; align-items: center; padding: 4px 0; font-size: 14px; color: var(--ink); }
+.tick { width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center; background: var(--green); flex-shrink: 0; }
+.tick.warn { background: var(--primary); }
+.tick.no { background: var(--red); }
+.fn { font-size: 10px; color: var(--mute); vertical-align: 0.5em; }
+.right { margin-left: auto; font-size: 13px; color: var(--mute); display: flex; gap: 6px; align-items: center; }
+.composer .txt .send { flex: none; padding: 0; }
+</style></head><body><div id="root"></div>
+<script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script>window.SCREEN="receipt";</script><script>
+const{createContext,useContext}=React,Mobile=createContext(!1),useMobile=()=>useContext(Mobile),P={chat:"M4 5h16v11H9l-5 4z",dash:"M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z",plus:"M12 5v14M5 12h14",check:"M5 12l5 5 9-10",box:"M3 7l9-4 9 4-9 4-9-4zM3 7v10l9 4 9-4V7M12 11v10",list:"M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01",shield:"M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z",plug:"M9 2v6M15 2v6M6 8h12v4a6 6 0 01-12 0zM12 18v4",search:"M11 19a8 8 0 110-16 8 8 0 010 16zM21 21l-4.3-4.3",x:"M6 6l12 12M18 6L6 18",alert:"M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z",q:"M9.1 9a3 3 0 015.8 1c0 2-3 3-3 3M12 17h.01M12 21a9 9 0 110-18 9 9 0 010 18z",users:"M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.9M16 3.1a4 4 0 010 7.8",cal:"M3 5h18v16H3zM3 10h18M8 3v4M16 3v4",lock:"M5 11h14v10H5zM8 11V7a4 4 0 018 0v4",chev:"M9 18l6-6-6-6",down:"M6 9l6 6 6-6",edit:"M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z",dots:"M5 12h.01M12 12h.01M19 12h.01",refresh:"M21 12a9 9 0 11-3-6.7L21 8M21 3v5h-5",up:"M3 17l6-6 4 4 8-8M15 7h6v6",arrow:"M5 12h14M13 6l6 6-6 6",dl:"M12 3v12M7 10l5 5 5-5M4 21h16",back:"M15 18l-6-6 6-6",clock:"M12 7v5l3 2M12 21a9 9 0 110-18 9 9 0 010 18z",book:"M4 4h6a2 2 0 012 2v14a2 2 0 00-2-2H4zM20 4h-6a2 2 0 00-2 2v14a2 2 0 012-2h6z",help:"M12 21a9 9 0 110-18 9 9 0 010 18zM12 17h.01M12 13c0-2 3-2 3-4a3 3 0 00-6 0",bell:"M6 8a6 6 0 0112 0c0 7 3 9 3 9H3s3-2 3-9M10 21h4",menu:"M4 6h16M4 12h16M4 18h16",at:"M16 12a4 4 0 11-8 0 4 4 0 018 0zM16 12v1.5a2.5 2.5 0 005 0V12a9 9 0 10-3.5 7.1",bars:"M5 20V10M12 20V4M19 20v-7",cart:"M3 4h2l2.5 11h11L21 7H6.5M9 20h.01M18 20h.01",swap:"M7 4L3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7",send:"M5 12h14M13 6l6 6-6 6"},I=({n:s,s:a=18,c:e="currentColor",w:t=1.8})=>React.createElement("svg",{width:a,height:a,viewBox:"0 0 24 24",fill:"none",stroke:e,strokeWidth:t,strokeLinecap:"round",strokeLinejoin:"round",className:"ic"},React.createElement("path",{d:P[s]})),Mark=({s=28})=>React.createElement("svg",{width:s,height:s*1.15,viewBox:"0 0 32 37",className:"ic"},React.createElement("path",{d:"M4 11L10 3h12l6 8v20H15l-6 5v-5H4z",fill:"#f7a501",stroke:"#23251d",strokeWidth:"2.4",strokeLinejoin:"round"}),React.createElement("path",{d:"M4 11h24M10 3l2.5 8M22 3l-2.5 8",fill:"none",stroke:"#23251d",strokeWidth:"2",strokeLinejoin:"round"}),React.createElement("circle",{cx:"10.5",cy:"21",r:"2",fill:"#23251d"}),React.createElement("circle",{cx:"16",cy:"21",r:"2",fill:"#23251d"}),React.createElement("circle",{cx:"21.5",cy:"21",r:"2",fill:"#23251d"})),Lockup=({s=24})=>React.createElement("div",{className:"lockup"},React.createElement(Mark,{s}),React.createElement("b",null,"Aimo Copilot")),Carton=()=>React.createElement("svg",{width:"18",height:"24",viewBox:"0 0 22 30",fill:"none",stroke:"#6c6e63",strokeWidth:"1.6",strokeLinejoin:"round",className:"ic"},React.createElement("path",{d:"M5 8l3-5h6l3 5v20H5z"}),React.createElement("path",{d:"M5 8h12"})),fi=(s,a=2)=>s.toLocaleString("fi-FI",{minimumFractionDigits:a,maximumFractionDigits:a}),eur=s=>fi(s)+" \u20AC",Price=({v:s,size:a=28,unit:e,per:t})=>{const[l,i]=fi(s).split(",");return React.createElement("div",{style:{textAlign:"right"}},React.createElement("span",{className:"price",style:{fontSize:a}},l,React.createElement("sup",null,",",i),React.createElement("span",{className:"cur"},"\u20AC")),(e||t)&&React.createElement("div",{className:"unitp"},e&&"/"+e,e&&t&&" \xB7 ",t))},ST={order:"Ordered",ask:"Ask",block:"Blocked",unknown:"Unknown",info:"Info"},Stamp=({k:s,children:a})=>React.createElement("span",{className:"stamp "+s},a||ST[s]),Chk=({ok:s,warn:a,children:e})=>React.createElement("div",{className:"chk"},React.createElement("span",{className:"tick"+(s?"":a?" warn":" no")},React.createElement(I,{n:s?"check":a?"q":"x",s:10,c:"#fff",w:3.4})),React.createElement("span",null,e)),Tile=({title:s,bar:a="#005670",act:e,children:t,style:l,bodyStyle:i})=>React.createElement("div",{className:"tile",style:l},s&&React.createElement("div",{className:"tile-h"},React.createElement("span",{className:"bar",style:{background:a}}),React.createElement("h3",null,s),e&&React.createElement("div",{className:"act"},e)),React.createElement("div",{className:"tile-b",style:i},t)),NAV=[["ask","chat","Ask Aimo"],["approvals","q","Approvals",2],["orders","box","Orders"],["events","cal","Events"],["dashboard","bars","Dashboard"]],NAV2=[["audit","list","Audit log"],["policy","shield","Policy"],["agents","plug","Agent access"]],TABS=[["ask","chat","Ask"],["approvals","q","Approvals",2],["orders","box","Orders"],["more","menu","More"]],SideItem=({k:s,ic:a,l:e,n:t,nav:l})=>React.createElement("a",{className:l===s?"on":""},React.createElement(I,{n:a,s:17}),e,t&&React.createElement("span",{className:"n"},t));function Shell({nav:s,tab:a,title:e,titleAside:t,filters:l,children:i,back:c,bare:r}){return useMobile()?React.createElement("div",{className:"mshell"},React.createElement("div",{className:"mstatus"},React.createElement("span",null,"15.05"),React.createElement("span",{style:{fontSize:11}},"5G \u25AE\u25AE\u25AE")),React.createElement("div",{className:"mbar"},c?React.createElement(I,{n:"back",s:22,c:"#005670",w:2.4}):React.createElement(I,{n:"menu",s:22,c:"#005670",w:2.2}),r?React.createElement(Lockup,{s:20}):React.createElement("h1",{style:{fontSize:22}},e),React.createElement("div",{className:"avatar",style:{marginLeft:"auto"}},"ML")),React.createElement("div",{className:"mcontent"},i),React.createElement("div",{className:"mtabs"},TABS.map(([n,d,o,m])=>React.createElement("a",{key:n,className:(a||s)===n?"on":""},React.createElement(I,{n:d,s:22}),o,m&&React.createElement("span",{className:"n"},m))))):React.createElement("div",{className:"shell"},React.createElement("aside",{className:"side"},React.createElement(Lockup,null),React.createElement("div",{className:"switch"},React.createElement("span",{className:"sq"},"HA"),React.createElement("span",{style:{flex:1}},"Hotel Aurora"),React.createElement(I,{n:"down",s:14})),NAV.map(([n,d,o,m])=>React.createElement(SideItem,{key:n,k:n,ic:d,l:o,n:m,nav:s})),React.createElement("div",{className:"sec"},"Chats"),React.createElement("a",{className:"sub"},"Lactose-free milk"),React.createElement("a",{className:"sub"},"Wedding, 132 guests"),React.createElement("div",{className:"gap"}),NAV2.map(([n,d,o])=>React.createElement(SideItem,{key:n,k:n,ic:d,l:o,nav:s})),React.createElement("div",{className:"me"},React.createElement("div",{className:"avatar"},"ML"),React.createElement("b",null,"Mikko Laine"))),React.createElement("div",{className:"main"},!r&&React.createElement("div",{className:"head"},React.createElement("h1",null,e),t),!r&&l&&React.createElement("div",{className:"filters"},l),React.createElement("div",{className:"content",style:r?{padding:0}:null},i)))}const Drop=({children:s,icon:a})=>React.createElement("button",{className:"fbtn"},a&&React.createElement(I,{n:a,s:15}),s,React.createElement(I,{n:"down",s:14})),Updated=({t:s="Prices checked 15.05"})=>React.createElement("span",{className:"right"},React.createElement(I,{n:"refresh",s:14})," ",s),MILK=[{id:"464306",name:"Valio Arki Eila semi-skimmed milk drink 1 l",pack:"1 l carton",su:"ST",price:1.01,perL:1.01,stock:"640",cut:"SU 15.11. 17.00",model:"Stock",o:"order",why:"What you asked for. 640 l in stock."},{id:"463335",name:"Valio Eila 3 % milk drink 1 l",pack:"1 l carton",su:"ST",price:1.4,perL:1.4,stock:"500",cut:"SU 15.11. 17.00",model:"Stock",o:"ask",why:"Higher fat. A different ingredient, so a person signs off."},{id:"464201",name:"Valio semi-skimmed milk 1 l UHT",pack:"1 l carton",su:"ST",price:1.56,perL:1.56,stock:null,cut:"SU 15.11. 17.00",model:"Stock",o:"unknown",why:"API sends a placeholder stock figure. We don't count it."},{id:"463038",name:"Valio Eila semi-skimmed 10 l Novobox",pack:"2 \xD7 10 l",su:"KI",price:31.31,perL:1.57,stock:null,cut:"TO 12.11. 15.00",model:"Terminal",o:"block",why:"Order cut-off passed on Thursday."},{id:"464179",name:"Arla semi-skimmed 10 l Novobox ESL",pack:"10 l",su:"ST",price:27.22,perL:2.72,stock:null,cut:"TO 12.11. 15.00",model:"Terminal",o:"block",why:"Order cut-off passed on Thursday."}],BOARD=[["Most products","SU 17.00","25 h 55"],["Early group","PE 13.00","Passed",!0],["Supplier direct","TO 15.00","Passed",!0]],Board=({rows:s=BOARD})=>React.createElement("div",{className:"board"},s.map(([a,e,t,l])=>React.createElement("div",{key:a,className:"br"},React.createElement("span",null,a),React.createElement("span",{className:"t"},e),React.createElement("span",{className:l?"gone":"left"},t)))),Composer=({go:s,text:a})=>React.createElement("div",{className:"composer"},React.createElement("div",{className:"ctx"},React.createElement("span",{className:"add"},React.createElement(I,{n:"at",s:13})," Add context")),React.createElement("div",{className:"txt"},React.createElement("span",{className:a?"":"ph"},a||"Ask for products, prices or delivery"),React.createElement("span",{className:"send"+(s?" go":"")},React.createElement(I,{n:"send",s:18,w:2.2})))),SUGG=["1 000 l lactose-free milk by Monday","Guest count changed","Find a substitute"];function Home(){return useMobile()?React.createElement(Shell,{nav:"ask",bare:!0},React.createElement("div",{style:{display:"flex",flexDirection:"column",height:"100%"}},React.createElement("div",{className:"chathome",style:{paddingTop:60}},React.createElement(Mark,{s:48}),React.createElement("h2",{style:{fontSize:28,marginTop:14}},"What does the kitchen need?"),React.createElement("div",{className:"sugg",style:{marginTop:18}},SUGG.map(a=>React.createElement("span",{key:a},a)))),React.createElement("div",{style:{marginTop:"auto",paddingBottom:12}},React.createElement(Composer,{go:!0})))):React.createElement(Shell,{nav:"ask",bare:!0},React.createElement("div",{style:{height:"100%",display:"flex",flexDirection:"column",alignItems:"center",padding:"150px 40px 28px"}},React.createElement("div",{className:"chathome",style:{width:640}},React.createElement(Mark,{s:56}),React.createElement("h2",{style:{margin:"18px 0 24px"}},"What does the kitchen need?"),React.createElement(Composer,{go:!0}),React.createElement("div",{className:"sugg",style:{marginTop:16}},SUGG.map(a=>React.createElement("span",{key:a},a)))),React.createElement("div",{className:"row",style:{marginTop:"auto",gap:8}},React.createElement(Stamp,{k:"ask"},"2"),React.createElement("span",{className:"small",style:{color:"var(--ink)",fontWeight:600}},"questions waiting"),React.createElement(I,{n:"chev",s:14}))))}const ME="1,000 litres of lactose-free milk by Monday. Best price and availability.",BASKET=[["Arki Eila semi-skimmed 1 l",640],["Eila 3 % 1 l",360]];function Basket(){return React.createElement("div",{className:"card",style:{padding:16}},React.createElement("div",{className:"row",style:{justifyContent:"space-between",marginBottom:4}},React.createElement("h3",null,"Basket \xB7 MA 16.11."),React.createElement(Stamp,{k:"ask"})),BASKET.map(([s,a])=>React.createElement("div",{key:s,className:"li"},React.createElement("span",{style:{flex:1,color:"var(--ink)",fontSize:14}},s),React.createElement("div",{className:"stepper"},React.createElement("b",null,"\u2013"),React.createElement("span",null,a),React.createElement("b",null,"+")))),React.createElement("div",{className:"row",style:{justifyContent:"space-between",margin:"14px 0"}},React.createElement("span",{className:"muted small"},"1 000 l, before VAT"),React.createElement(Price,{v:1150.4,size:26})),React.createElement("button",{className:"btn primary full"},"Ask Sanna to approve"))}function Thread(){const s=useMobile(),a=React.createElement("div",{className:"msg-ai"},React.createElement(Mark,{s:22}),React.createElement("div",{style:{flex:1,minWidth:0}},React.createElement("div",{className:"steps"},React.createElement(I,{n:"check",s:13,w:2.4})," Checked 25 milks, price and stock"),"Valio has 640 l of your semi-skimmed. The rest has to be Eila 3 %, which needs Sanna's yes.")),e=React.createElement("table",{className:"t"},React.createElement("thead",null,React.createElement("tr",null,React.createElement("th",null,"Product"),React.createElement("th",{className:"num"},"\u20AC/l"),React.createElement("th",null,"Monday"))),React.createElement("tbody",null,MILK.slice(0,4).map(t=>React.createElement("tr",{key:t.id,className:t.o==="block"?"dim":""},React.createElement("td",null,t.name.replace("Valio ","")),React.createElement("td",{className:"num"},fi(t.perL)),React.createElement("td",null,React.createElement(Stamp,{k:t.o},{order:"640 l",ask:"500 l",unknown:"Unknown",block:"Too late"}[t.o]))))));return s?React.createElement(Shell,{nav:"ask",title:"Lactose-free milk",back:!0},React.createElement("div",{className:"stack"},React.createElement("div",{className:"msg-me"},ME),a,React.createElement(Basket,null))):React.createElement(Shell,{nav:"ask",title:"Lactose-free milk"},React.createElement("div",{className:"grid",style:{gridTemplateColumns:"1fr 320px",gap:24,height:"100%"}},React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:16}},React.createElement("div",{className:"msg-me"},ME),a,React.createElement("div",{className:"card",style:{padding:"14px 4px 2px",marginLeft:34}},e),React.createElement("div",{style:{marginTop:"auto"}},React.createElement(Composer,null))),React.createElement("div",null,React.createElement(Basket,null))))}const OUTC=[[22,3,0],[31,4,1],[18,2,0],[40,5,1],[36,3,2],[12,1,0],[6,0,0],[28,4,1],[35,2,0],[44,6,1],[39,3,1],[47,5,2],[24,2,1]];function Bars({h:s=150,w:a=420}){const t=a/OUTC.length;return React.createElement("svg",{width:"100%",height:s,viewBox:`0 0 ${a} ${s}`,preserveAspectRatio:"none"},OUTC.map(([l,i,c],r)=>{const v=r*t+4,n=t-8,d=l/56*s,o=i/56*s,m=c/56*s;return React.createElement("g",{key:r},React.createElement("rect",{x:v,y:s-d,width:n,height:d,fill:"#23251d",rx:"2"}),React.createElement("rect",{x:v,y:s-d-o-1,width:n,height:o,fill:"#f7a501",rx:"2"}),React.createElement("rect",{x:v,y:s-d-o-m-2,width:n,height:m,fill:"#cd4239",rx:"2"}))}))}const EVENTS=[["Nordic Fintech Summit","MA 16.11.","ask"],["Board dinner","TI 17.11.","order"],["Medical congress","TO 19.11.","order"],["Lindqvist wedding","LA 21.11.","block"]];function Today(){const s=useMobile(),a=React.createElement(Tile,{title:"Ordered without a person"},React.createElement("div",{className:"big"},"86 %"),React.createElement("div",{className:"small muted",style:{marginTop:8}},"This week \xB7 up 9 pts")),e=React.createElement(Tile,{title:"Events"},EVENTS.map(([t,l,i])=>React.createElement("div",{key:t,className:"li"},React.createElement("span",{style:{flex:1,color:"var(--ink)"}},t),React.createElement("span",{className:"small muted"},l),React.createElement(Stamp,{k:i}))));return s?React.createElement(Shell,{nav:"more",title:"Dashboard"},React.createElement("div",{className:"stack"},a,React.createElement(Board,{rows:BOARD.slice(0,2)}),e)):React.createElement(Shell,{nav:"dashboard",title:"Dashboard",filters:React.createElement(Drop,{icon:"cal"},"This week")},React.createElement("div",{className:"grid",style:{gridTemplateColumns:"280px 1fr",marginBottom:16}},a,React.createElement(Tile,{title:"Lines per day",act:React.createElement("span",null,React.createElement("b",{style:{color:"#23251d"}},"\u25A0")," Ordered ",React.createElement("b",{style:{color:"#f7a501"}},"\u25A0")," Asked ",React.createElement("b",{style:{color:"#cd4239"}},"\u25A0")," Blocked")},React.createElement(Bars,null))),React.createElement("div",{className:"grid",style:{gridTemplateColumns:"1fr 1fr"}},React.createElement(Tile,{title:"Cut-offs for Monday"},React.createElement(Board,null)),e))}function Approval(){const s=useMobile(),e=React.createElement("div",{className:"stack"},React.createElement("div",{className:"muted small"},"Nordic Fintech Summit \xB7 from Aimo"),React.createElement("h2",{style:{fontSize:s?24:30,lineHeight:1.25}},"Use Eila 3 % for the last 360 l of milk?"),React.createElement("div",{className:"card",style:{padding:"12px 4px 0"}},React.createElement("table",{className:"t"},React.createElement("thead",null,React.createElement("tr",null,React.createElement("th",null),React.createElement("th",null,"Asked for"),React.createElement("th",null,"Eila 3 %"))),React.createElement("tbody",null,[["Fat","1,5 %","3 %"],["Price","1,01 \u20AC/l","1,40 \u20AC/l"],["Allergens","Milk","Milk"]].map(([t,l,i])=>React.createElement("tr",{key:t},React.createElement("td",{className:"muted"},t),React.createElement("td",null,l),React.createElement("td",{style:{fontWeight:l!==i?700:400}},i)))))),React.createElement("div",{className:"row muted small",style:{gap:6}},React.createElement(I,{n:"lock",s:14})," 1 150,40 \u20AC \xB7 MA 16.11. \xB7 expires SU 17.00"),React.createElement("div",{className:"row",style:{gap:8}},React.createElement("button",{className:"btn primary",style:{flex:1}},"Approve"),React.createElement("button",{className:"btn",style:{flex:1}},"Only 640 l"),React.createElement("button",{className:"btn danger"},"Decline")));return s?React.createElement(Shell,{nav:"approvals",title:"Approval",back:!0},e):React.createElement(Shell,{nav:"approvals",title:"Approvals"},React.createElement("div",{style:{maxWidth:620}},e))}function Receipt(){const s=useMobile(),a=React.createElement("div",{className:"receipt"},React.createElement("div",{className:"rl"},React.createElement("span",null,"AIM-20261114-0042"),React.createElement("span",null,"MA 16.11.")),React.createElement("hr",null),React.createElement("div",{className:"rl"},React.createElement("span",null,"640 \xD7 Arki Eila 1 l"),React.createElement("span",null,"646,40")),React.createElement("div",{className:"rl"},React.createElement("span",null,"360 \xD7 Eila 3 % 1 l"),React.createElement("span",null,"504,00")),React.createElement("hr",null),React.createElement("div",{className:"rl"},React.createElement("span",null,"VAT 13,5 %"),React.createElement("span",null,"155,30")),React.createElement("div",{className:"rl",style:{fontWeight:700}},React.createElement("span",null,"Total \u20AC"),React.createElement("span",null,"1 305,70"))),e=React.createElement("div",null,React.createElement(Chk,{ok:!0},"Price, stock and cut-off rechecked"),React.createElement(Chk,{ok:!0},"Approved by Sanna V."),React.createElement(Chk,{ok:!0},"Duplicate submit ignored"));return s?React.createElement(Shell,{nav:"orders",title:"Ordered",back:!0},React.createElement("div",{className:"stack"},a,e)):React.createElement(Shell,{nav:"orders",title:"Ordered",titleAside:React.createElement(Stamp,{k:"order"})},React.createElement("div",{className:"row",style:{alignItems:"flex-start",gap:32}},React.createElement("div",{style:{width:380}},a),e))}function EventChange(){const s=useMobile(),a=[["Salmon fillet","18 kg","20 kg","order"],["Cream 35 %","12 l","14 l","order"],["Butter","4 kg","4,5 kg","order"],["Gluten-free rolls","6","14","order"],["Gluten-free cake base","1","3","block"]],e=React.createElement("div",{className:"callout red"},React.createElement("b",null,"Cake base has no allergen data.")," Pick one with a gluten-free claim.",React.createElement("div",{className:"row",style:{marginTop:10,gap:8}},React.createElement("button",{className:"btn sm primary"},"Sponge base 24 cm"),React.createElement("button",{className:"btn sm",style:{background:"#fff"}},"Tart shell")));return s?React.createElement(Shell,{nav:"more",title:"132 guests",back:!0},React.createElement("div",{className:"stack"},React.createElement("div",{className:"muted small"},"Lindqvist wedding \xB7 was 120"),React.createElement(Chk,{ok:!0},"4 lines reordered"),e)):React.createElement(Shell,{nav:"events",title:"Lindqvist wedding",titleAside:React.createElement("span",{className:"tag"},"120 \u2192 132 guests")},React.createElement("div",{className:"grid",style:{gridTemplateColumns:"1fr 360px",gap:24,alignItems:"start"}},React.createElement("div",{className:"card",style:{padding:"14px 4px 2px"}},React.createElement("table",{className:"t"},React.createElement("thead",null,React.createElement("tr",null,React.createElement("th",null,"Line"),React.createElement("th",{className:"num"},"Was"),React.createElement("th",{className:"num"},"Now"),React.createElement("th",null))),React.createElement("tbody",null,a.map(([t,l,i,c])=>React.createElement("tr",{key:t},React.createElement("td",null,t),React.createElement("td",{className:"num muted"},l),React.createElement("td",{className:"num"},i),React.createElement("td",{className:"num"},React.createElement(Stamp,{k:c}))))))),e))}const AUDIT=[["15.05","Mikko","Asked for 1 000 l lactose-free milk"],["15.05","Aimo","Checked price and stock for 5 products"],["15.05","Rule","Blocked 2 products: cut-off passed"],["15.05","Aimo","Asked Sanna about Eila 3 %"],["15.11","Sanna","Approved"],["15.12","Aimo","Ordered AIM-0042"],["15.12","Agent","Duplicate ignored"]];function Audit(){const s=useMobile(),a=AUDIT.map(([e,t,l])=>React.createElement("div",{key:l,className:"arow",style:s?{gridTemplateColumns:"48px 1fr"}:null},React.createElement("span",{className:"mono muted"},e),!s&&React.createElement("span",{className:"muted"},t),React.createElement("span",null,l)));return s?React.createElement(Shell,{nav:"more",title:"Audit log",back:!0},React.createElement("div",{className:"card",style:{padding:"0 14px"}},a)):React.createElement(Shell,{nav:"audit",title:"Audit log",filters:React.createElement(React.Fragment,null,React.createElement(Drop,null,"Lactose-free milk"),React.createElement("button",{className:"fbtn"},"Export"))},React.createElement("div",{className:"card",style:{padding:"0 16px",maxWidth:760}},a))}function Policy(){const s=useMobile(),a=[["Order alone if rounding adds up to","5 %"],["Order alone if guests change up to","10 %"],["Ask if a substitute costs more than","15 %"]],e=[["Always ask before an ingredient swap",!0],["Spend limit per basket",!1]],t=React.createElement("div",{className:"stack",style:{maxWidth:620}},React.createElement("div",{className:"seg"},React.createElement("span",null,"Explain each choice"),React.createElement("span",{className:"on"},"Just handle it")),React.createElement("div",{className:"card",style:{padding:"0 16px"}},a.map(([l,i])=>React.createElement("div",{key:l,className:"li"},React.createElement("span",{style:{flex:1,color:"var(--ink)"}},l),React.createElement("div",{className:"stepper"},React.createElement("b",null,"\u2013"),React.createElement("span",{style:{minWidth:48}},i),React.createElement("b",null,"+")))),e.map(([l,i])=>React.createElement("div",{key:l,className:"li"},React.createElement("span",{style:{flex:1,color:"var(--ink)"}},l),React.createElement("span",{className:"toggle"+(i?" on":"")})))),React.createElement("div",{className:"row muted small",style:{gap:6}},React.createElement(I,{n:"lock",s:14})," Allergen, diet, cut-off and stock rules are always on."));return s?React.createElement(Shell,{nav:"more",title:"Policy",back:!0},t):React.createElement(Shell,{nav:"policy",title:"Policy"},t)}function Agents(){const s=useMobile(),e=React.createElement("div",{className:"card",style:{padding:"0 16px"}},[["Aurora procurement agent","MCP",!0],["Sanna's email assistant","REST",!0],["Test bot","Sandbox",!1]].map(([l,i,c])=>React.createElement("div",{key:l,className:"li"},React.createElement(I,{n:"plug",s:16}),React.createElement("span",{style:{flex:1,color:"var(--ink)"}},l),React.createElement("span",{className:"small muted"},i),React.createElement("span",{className:"toggle"+(c?" on":"")})))),t=React.createElement("div",{className:"code"},`POST /v1/inquiries
+
+{ `,React.createElement("span",{className:"k"},'"outcome"'),": ",React.createElement("span",{className:"s"},'"ask"'),`,
+  `,React.createElement("span",{className:"k"},'"question"'),": ",React.createElement("span",{className:"s"},'"Use Eila 3 % for 360 l?"'),`,
+  `,React.createElement("span",{className:"k"},'"expires_at"'),": ",React.createElement("span",{className:"s"},'"2026-11-15T17:00+02:00"')," }");return s?React.createElement(Shell,{nav:"more",title:"Agent access",back:!0},React.createElement("div",{className:"stack"},e)):React.createElement(Shell,{nav:"agents",title:"Agent access",filters:React.createElement(React.Fragment,null,React.createElement("button",{className:"fbtn"},React.createElement(I,{n:"plus",s:14})," Connect"),React.createElement("button",{className:"fbtn"},"openapi.json"))},React.createElement("div",{className:"stack",style:{maxWidth:620}},e,t))}const SCREENS=[["home","Home",Home],["thread","Conversation",Thread],["dashboard","Dashboard",Today],["approval","Approval",Approval],["receipt","Ordered",Receipt],["change","Event change",EventChange],["audit","Audit log",Audit],["policy","Policy",Policy],["agents","Agent access",Agents]];function Canvas({only:s}){const a=s?SCREENS.filter(e=>e[0]===s):SCREENS;return React.createElement("div",{className:"canvas"},!s&&React.createElement("div",{className:"canvas-head"},React.createElement("h1",null,"Aimo Copilot")),a.map(([e,t,l])=>React.createElement("section",{key:e,className:"screen-sec"},React.createElement("h2",null,t),React.createElement("div",{className:"frames"},React.createElement("div",null,React.createElement("div",{className:"frame-label"},"Desktop + tablet"),React.createElement("div",{className:"frame desktop"},React.createElement(Mobile.Provider,{value:!1},React.createElement(l,null)))),React.createElement("div",null,React.createElement("div",{className:"frame-label"},"Mobile"),React.createElement("div",{className:"frame mobile"},React.createElement(Mobile.Provider,{value:!0},React.createElement(l,null))))))))}window.PAGE!=="system"&&ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(Canvas,{only:window.SCREEN||null}));
+</script></body></html>
