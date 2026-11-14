@@ -21,6 +21,35 @@ a.btile:hover { text-decoration: none; border-color: var(--ink); box-shadow: 0 1
 
 .bhead { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .bqty { font-family: var(--mono); font-size: 13px; color: var(--ink); white-space: nowrap; min-width: 72px; }
+.staged-lines { margin-bottom: 10px; }
+.add-review-date { display: inline-flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px; background: var(--soft); color: var(--ink); }
+.add-review-date span, .add-review-total { display: flex; flex-direction: column; gap: 2px; }
+.add-review-date small, .add-review-total small { color: var(--mute); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.add-review-section { margin-top: 22px; }
+.add-review-section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.add-review-interpreted { display: grid; gap: 8px; }
+.add-review-interpreted > div { display: grid; grid-template-columns: minmax(90px, auto) 1fr; gap: 16px; padding: 12px 14px; border: 1px solid var(--hairline-soft); border-radius: 10px; color: var(--ink); }
+.add-review-interpreted span { overflow-wrap: anywhere; }
+.add-review-editor { padding: 0 14px 14px; border: 1px solid var(--hairline-soft); border-radius: 10px; }
+.add-review-editor .btn { margin-top: 12px; }
+.add-review-loading { margin-top: 22px; padding: 18px; border-radius: 10px; background: var(--soft); color: var(--mute); text-align: center; }
+.add-review-product { grid-template-columns: minmax(0, 1fr) auto auto auto; }
+.add-review-result { display: flex; flex-direction: column; gap: 5px; margin-top: 22px; }
+.add-review-result ul { margin: 2px 0 0; padding-left: 20px; }
+.replacement-list { overflow: hidden; border: 1px solid var(--hairline-soft); border-radius: 12px; }
+.replacement-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 16px; padding: 13px 15px; border-bottom: 1px solid var(--hairline-soft); color: var(--ink); }
+.replacement-row:last-child { border-bottom: 0; }
+.replacement-row small { display: block; margin-top: 3px; color: var(--mute); }
+.add-review-actions { display: flex; align-items: center; gap: 10px; margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--hairline-soft); }
+.add-review-total { margin-left: auto; text-align: right; color: var(--ink); }
+
+@media (max-width: 700px) {
+  .add-review-product { grid-template-columns: minmax(0, 1fr) auto; }
+  .replacement-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .replacement-row .btn { grid-column: 1 / -1; }
+  .add-review-actions { flex-wrap: wrap; }
+  .add-review-total { width: 100%; margin-left: 0; text-align: left; }
+}
 
 /* The too-late dialog (DLV-06): over the page, two choices, no close without one. */
 .bmodal-back { position: fixed; inset: 0; z-index: 50; background: rgba(35, 37, 29, 0.45); display: flex; align-items: center; justify-content: center; padding: 16px; }

@@ -126,6 +126,10 @@ export interface Plan {
   tooLateChoice?: "removed" | "review" | null;
   /** Single request: products found and priced, waiting for the person to approve adding them to the quote. */
   proposal?: boolean;
+  /** Single request: staged in the hotel's basket, before the final order is submitted. */
+  basketedAt?: string | null;
+  /** The add-item modal is reviewing this plan; it is hidden from order lists until staged. */
+  reviewing?: boolean;
   /** Measured while running: how long each agent step took. */
   timings?: { products: number; lookupMs: number; rankMs: number; quoteMs?: number; totalMs: number } | null;
 }

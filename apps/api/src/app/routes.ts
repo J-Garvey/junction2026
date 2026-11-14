@@ -15,7 +15,7 @@ import { getProduct, catalogSize } from "../catalog.js";
 import { parseRequest } from "../agent/parse.js";
 import { logSearch } from "../searchlog.js";
 import { messageRoute } from "../agent/judge.js";
-import { newPlan, quoteAndDecide, getPlan, listPlans, mandate, savePlan } from "../agent/plan.js";
+import { newPlan, quoteAndDecide, getPlan, listPlans, mandate, savePlan, emptyOverrides } from "../agent/plan.js";
 import { questionsFor, allQuestions, getQuestion, canAnswer } from "../agent/questions.js";
 import { answer } from "../agent/answers.js";
 import { addDietGroup, changeEvent, changeGuests, coverageSummary, EditConflict, eventView, finalCheck, getEvent, listEvents, orderEvent, removeNeed, runCutoff, runViability, saveEvent, warnings, personActor, type StoredEvent } from "../agent/events.js";
@@ -95,7 +95,7 @@ export function appRouter(): Router {
     const p = P(req);
     const mine = questionsFor(p);
     const events = listEvents().map((e) => ({ id: e.id, name: e.name, serviceDate: e.serviceDate, guests: e.guests, coverage: coverageSummary(e.id), version: e.version, outlets: [...new Set(e.dishes.map((d) => d.outletId))] }));
-    const plans = listPlans().filter((pl) => pl.kind === "single").slice(0, 10).map((pl) => ({ id: pl.id, title: pl.title, status: pl.status, summary: pl.summary, createdAt: pl.createdAt, createdBy: pl.createdBy.name }));
+    const plans = listPlans().filter((pl) => pl.kind === "single" && !pl.reviewing).slice(0, 10).map((pl) => ({ id: pl.id, title: pl.title, status: pl.status, summary: pl.summary, createdAt: pl.createdAt, createdBy: pl.createdBy.name }));
     res.json({ questions: mine, events, plans, warnings: warnings().filter((w) => w.state === "open") });
   });
 
@@ -119,11 +119,13 @@ export function appRouter(): Router {
     const request = SingleRequest.parse(req.body.request);
     // An order basket (an event) the request is added to; its delivery date is the needed-by date.
     const eventId = req.body.eventId == null ? null : z.string().parse(req.body.eventId);
+    const reviewing = req.body.reviewing === true;
     if (eventId && !getEvent(eventId)) return res.status(404).json({ error: "No such order" });
     const p = P(req);
     const plan = newPlan("single", { personId: p.id, name: p.name }, request.outletId, { request, title: request.lines.map((l) => `${l.quantity ? `${l.quantity.amount} ${l.quantity.unit} ` : ""}${l.constraints.claims.includes("FREE_FROM_LACTOSE") ? "lactose-free " : ""}${l.query}`).join(", ") || request.originalText.slice(0, 60) });
     plan.eventId = eventId;
-    audit({ actor: personActor(p), action: "request_received", summary: `${p.name} confirmed the request: ${plan.title}`, details: { kind: "confirmation", planId: plan.id }, visibility: "hotel" });
+    plan.reviewing = reviewing;
+    audit({ actor: personActor(p), action: "request_received", summary: reviewing ? `${p.name} checked the request: ${plan.title}` : `${p.name} confirmed the request: ${plan.title}`, details: { kind: reviewing ? "review" : "confirmation", planId: plan.id }, visibility: "hotel" });
     savePlan(plan);
     await quoteAndDecide(plan, T(req));
     res.json({ plan: getPlan(plan.id), questions: allQuestions().filter((q) => q.planId === plan.id) });
@@ -134,6 +136,41 @@ export function appRouter(): Router {
   r.get("/plans/:id", (req, res) => {
     const plan = getPlan(String(req.params.id));
     if (!plan) return res.status(404).json({ error: "No such plan" });
+    res.json({ plan, questions: allQuestions().filter((q) => q.planId === plan.id) });
+  });
+
+  // Re-check an edited, not-yet-accepted request without leaving abandoned plans in the basket.
+  r.post("/plans/:id/requote", async (req, res) => {
+    const plan = getPlan(String(req.params.id));
+    if (!plan) return res.status(404).json({ error: "No such plan" });
+    if (plan.kind !== "single" || plan.orderIds.length || plan.overrides.accepted || plan.basketedAt) return res.status(409).json({ error: "This request can no longer be changed" });
+    const request = SingleRequest.parse(req.body.request);
+    const p = P(req);
+    plan.request = request;
+    plan.title = request.lines.map((l) => `${l.quantity ? `${l.quantity.amount} ${l.quantity.unit} ` : ""}${l.constraints.claims.includes("FREE_FROM_LACTOSE") ? "lactose-free " : ""}${l.query}`).join(", ") || request.originalText.slice(0, 60);
+    plan.overrides = emptyOverrides();
+    audit({ actor: personActor(p), action: "request_received", summary: `${p.name} changed the request: ${plan.title}`, eventId: plan.eventId, details: { kind: "confirmation", planId: plan.id }, visibility: "hotel" });
+    savePlan(plan);
+    await quoteAndDecide(plan, T(req));
+    res.json({ plan: getPlan(plan.id), questions: allQuestions().filter((q) => q.planId === plan.id) });
+  });
+
+  // Adding to an order only stages the checked lines. Supplier submission happens later,
+  // when the hotel sends its final order for approval and processing.
+  r.post("/plans/:id/basket", (req, res) => {
+    const plan = getPlan(String(req.params.id));
+    if (!plan) return res.status(404).json({ error: "No such plan" });
+    if (!plan.eventId || !plan.proposal || plan.orderIds.length) return res.status(409).json({ error: "This request is not ready to add to the order" });
+    const hasIssues = Boolean(plan.tooLate || plan.error || plan.inputRules.some((rule) => rule.outcome !== "order") || plan.lines.some((line) => line.rules.some((rule) => rule.outcome !== "order")));
+    if (hasIssues) return res.status(409).json({ error: "Resolve the stock, delivery or product issues before adding this request" });
+    const p = P(req);
+    plan.basketedAt = now().toISOString();
+    plan.reviewing = false;
+    plan.proposal = false;
+    plan.status = "waiting";
+    plan.summary = "In the order · awaiting final order";
+    audit({ actor: personActor(p), action: "request_received", summary: `${p.name} added ${plan.title} to the order`, eventId: plan.eventId, details: { kind: "confirmation", planId: plan.id, lines: plan.lines.map((l) => l.productId) }, visibility: "hotel" });
+    savePlan(plan);
     res.json({ plan, questions: allQuestions().filter((q) => q.planId === plan.id) });
   });
 
@@ -194,10 +231,11 @@ export function appRouter(): Router {
   });
 
   // Order baskets: one per event, named by the event and its delivery date. Requests attach to one.
-  const basketPlans = (eventId: string) => listPlans().filter((pl) => pl.kind === "single" && pl.eventId === eventId && pl.tooLateChoice !== "removed");
+  const basketPlans = (eventId: string) => listPlans().filter((pl) => pl.kind === "single" && pl.eventId === eventId && !pl.reviewing && pl.tooLateChoice !== "removed");
   const planRow = (pl: ReturnType<typeof listPlans>[number]) => ({
     id: pl.id, title: pl.title, status: pl.status, summary: pl.summary, createdAt: pl.createdAt, createdBy: pl.createdBy.name, totalExVat: pl.totalExVat, orderIds: pl.orderIds,
-    tooLate: pl.tooLate ?? null, tooLateChoice: pl.tooLateChoice ?? null,
+    tooLate: pl.tooLate ?? null, tooLateChoice: pl.tooLateChoice ?? null, basketedAt: pl.basketedAt ?? null,
+    lines: pl.lines.filter((line) => !line.removed),
   });
   r.get("/baskets", async (req, res) => {
     const { orders } = await gw.orders();
@@ -206,14 +244,15 @@ export function appRouter(): Router {
     res.json({
       baskets: listEvents().map((e) => {
         const mine = orders.filter((o) => o.eventId === e.id && o.state !== "rejected");
+        const staged = basketPlans(e.id).filter((pl) => pl.basketedAt && !pl.orderIds.length);
         return {
           id: e.id,
           name: e.name,
           deliveryDate: e.serviceDate,
           guests: e.guests,
           coverage: coverageSummary(e.id),
-          lines: mine.reduce((n, o) => n + o.lines.filter((l) => !l.removed).length, 0),
-          totalExVat: mine.reduce((n, o) => n + o.totalExVat, 0),
+          lines: mine.reduce((n, o) => n + o.lines.filter((l) => !l.removed).length, 0) + staged.reduce((n, pl) => n + pl.lines.filter((l) => !l.removed).length, 0),
+          totalExVat: mine.reduce((n, o) => n + o.totalExVat, 0) + staged.reduce((n, pl) => n + (pl.totalExVat ?? 0), 0),
           // Only what this person can answer; the rest is someone else's to approve.
           waiting: open.filter((q) => q.eventId === e.id && canAnswer(q, p)).length,
           waitingOthers: open.filter((q) => q.eventId === e.id && !canAnswer(q, p)).length,
