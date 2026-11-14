@@ -2,14 +2,14 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import type { Order, Plan, Question, SingleRequest, Unit } from "@aimo/contracts";
-import { api, type BasketPlan, type MessageResp } from "../api";
+import { api, type BasketPlan, type MessageResp, type PlanResp } from "../api";
 import { splitMine, useApp, useLoad, waitingForText } from "../ctx";
 import { OthersWaiting, QuestionCard } from "../ui/QuestionCard";
 import { Status, planStatusKind, PLAN_STATUS_TEXT } from "../ui/Status";
 import { Icon } from "../ui/icons";
 import { OrderItemDialog } from "../ui/OrderItemDialog";
 import { stockText } from "../ui/Popover";
-import { TooLateDialog, tooLateText } from "../ui/TooLate";
+import { tooLateText } from "../ui/TooLate";
 import { addDays, claimLabel, day, eur, helsinkiDate, plural, qty } from "../format";
 import "./baskets.css";
 
@@ -126,8 +126,9 @@ export function BasketPage() {
   if (!data) return <div className="muted">Loading…</div>;
   const { event: ev, questions, requests, orders } = data;
   const live = orders.filter((o) => o.state !== "rejected");
+  const staged = requests.filter((r) => r.basketedAt && !r.orderIds.length);
   const { mine: waitingQs, others } = splitMine(questions.filter((q) => q.state === "open" || q.state === "waiting"), me, people);
-  const pending = requests.filter((r) => r.status !== "ordered" && !r.orderIds.length);
+  const pending = requests.filter((r) => !r.basketedAt && r.status !== "ordered" && !r.orderIds.length);
 
   return (
     <div className="page stack-l">
@@ -170,9 +171,10 @@ export function BasketPage() {
       <section>
         <div className="sechead">
           <h2>In the order</h2>
-          {live.length > 0 && <span className="small muted">{eur(live.reduce((n, o) => n + o.totalExVat, 0))} ex VAT</span>}
+          {(live.length > 0 || staged.length > 0) && <span className="small muted">{eur(live.reduce((n, o) => n + o.totalExVat, 0) + staged.reduce((n, p) => n + (p.totalExVat ?? 0), 0))} ex VAT</span>}
         </div>
-        <OrderedLines orders={live} />
+        <StagedLines plans={staged} />
+        <OrderedLines orders={live} showEmpty={!staged.length} />
       </section>
     </div>
   );
@@ -250,10 +252,27 @@ function RequestRow({ r, question }: { r: BasketPlan; question?: Question }) {
   );
 }
 
-function OrderedLines({ orders }: { orders: Order[] }) {
+function StagedLines({ plans }: { plans: BasketPlan[] }) {
+  const lines = plans.flatMap((plan) => plan.lines.map((line) => ({ ...line, planId: plan.id })));
+  if (!lines.length) return null;
+  return (
+    <div className="card staged-lines">
+      {lines.map((line) => (
+        <div key={`${line.planId}-${line.id}`} className="li">
+          <span className="bqty">{qty(line.quantity)} {line.salesUnit ?? ""}</span>
+          <span className="trunc" style={{ flex: 1, color: "var(--ink)" }}>{line.productName}</span>
+          <span className="stamp ask">Awaiting final order</span>
+          <span className="small">{eur(line.lineTotal)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function OrderedLines({ orders, showEmpty = true }: { orders: Order[]; showEmpty?: boolean }) {
   const lines = orders.flatMap((o) => o.lines.filter((l) => !l.removed).map((l) => ({ ...l, orderId: o.id })));
   const [selected, setSelected] = useState<(typeof lines)[number] | null>(null);
-  if (!lines.length) return <div className="empty">Nothing ordered yet. Add something above.</div>;
+  if (!lines.length) return showEmpty ? <div className="empty">Nothing ordered yet. Add something above.</div> : null;
   return (
     <>
       <div className="card">
@@ -297,148 +316,228 @@ function OrderedLines({ orders }: { orders: Order[] }) {
   );
 }
 
-/** Type what to add; the parsed lines are confirmed, then quoted for this order's delivery date. */
+/** Search, interpret and check an item in one modal before staging it in the order. */
 function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deliveryDate: string; onAdded: () => void }) {
   const { refresh } = useApp();
   const [text, setText] = useState("");
-  const [req, setReq] = useState<SingleRequest | null>(null);
+  const [request, setRequest] = useState<SingleRequest | null>(null);
+  const [review, setReview] = useState<PlanResp | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState<"search" | "check" | "replace" | "add" | null>(null);
+  const [dialogError, setDialogError] = useState<string | null>(null);
   const [note, setNote] = useState<{ cls: string; body: React.ReactNode } | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [late, setLate] = useState<Plan | null>(null);
 
-  async function parse() {
-    const t = text.trim();
-    if (!t) return;
-    setBusy(true);
+  async function search() {
+    const value = text.trim();
+    if (!value || busy) return;
+    setBusy("search");
     setNote(null);
     try {
-      const r: MessageResp = await api.message(t);
-      if (r.route === "new_request" || r.route === "new_request_unsure") setReq({ ...r.request, neededBy: deliveryDate });
-      else if (r.route === "event_change") setNote({ cls: "blue", body: <>Guest changes are made on the <Link to={`/events/${eventId}`}>event page</Link>.</> });
-      else if (r.route === "neither") setNote({ cls: "blue", body: r.message });
+      const parsed: MessageResp = await api.message(value);
+      if (parsed.route === "event_change") {
+        setNote({ cls: "blue", body: <>Guest changes are made on the <Link to={`/events/${eventId}`}>event page</Link>.</> });
+        return;
+      }
+      if (parsed.route === "neither") {
+        setNote({ cls: "blue", body: parsed.message });
+        return;
+      }
+      const next = { ...parsed.request, neededBy: deliveryDate };
+      setRequest(next);
+      setReview(null);
+      setEditing(false);
+      setDialogError(null);
+      setBusy("check");
+      setReview(await api.request(next, eventId, true));
     } catch (e) {
-      setNote({ cls: "red", body: (e as Error).message });
+      setDialogError((e as Error).message);
+      if (!request) setNote({ cls: "red", body: (e as Error).message });
     } finally {
-      setBusy(false);
+      setBusy(null);
+    }
+  }
+
+  const setLine = (i: number, patch: Partial<SingleRequest["lines"][number]>) =>
+    request && setRequest({ ...request, lines: request.lines.map((line, j) => (j === i ? { ...line, ...patch } : line)) });
+  const requestReady = !!request && request.lines.length > 0 && request.lines.every((line) => line.query.trim() && line.quantity && line.quantity.amount > 0);
+
+  async function checkChanges() {
+    if (!request || !requestReady) return;
+    setBusy("check");
+    setDialogError(null);
+    try {
+      setReview(review ? await api.requote(review.plan.id, request) : await api.request(request, eventId, true));
+      setEditing(false);
+    } catch (e) {
+      setDialogError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function choose(needId: string, productId: string) {
+    if (!review) return;
+    setBusy("replace");
+    setDialogError(null);
+    try {
+      setReview(await api.choose(review.plan.id, needId, productId));
+    } catch (e) {
+      setDialogError((e as Error).message);
+    } finally {
+      setBusy(null);
     }
   }
 
   async function add() {
-    if (!req) return;
-    setBusy(true);
-    setNote(null);
+    if (!review) return;
+    setBusy("add");
+    setDialogError(null);
     try {
-      const r = await api.request(req, eventId);
-      const p = r.plan;
-      setReq(null);
+      await api.basketPlan(review.plan.id);
+      setRequest(null);
+      setReview(null);
       setText("");
-      if (p.tooLate) {
-        setLate(p);
-        return;
-      }
-      setNote({
-        cls: p.status === "ordered" ? "green" : p.status === "blocked" || p.status === "failed" || p.status === "rejected" ? "red" : "yellow",
-        body: (
-          <>
-            <b>{PLAN_STATUS_TEXT[p.status] ?? p.status}.</b> {p.summary} <Link to={`/requests/${p.id}`}>Details</Link>
-          </>
-        ),
-      });
+      setNote({ cls: "green", body: <><b>Added to the order.</b> It will go to finance when the final order is submitted.</> });
       onAdded();
       refresh();
     } catch (e) {
-      setNote({ cls: "red", body: (e as Error).message });
+      setDialogError((e as Error).message);
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
-  const setLine = (i: number, patch: Partial<SingleRequest["lines"][number]>) => req && setReq({ ...req, lines: req.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)) });
-  const ready = !!req && req.lines.length > 0 && req.lines.every((l) => l.query.trim() && l.quantity && l.quantity.amount > 0);
+  const plan = review?.plan ?? null;
+  const issues = plan ? [...new Set([
+    ...(plan.tooLate ? [plan.summary] : []),
+    ...(plan.error ? [plan.error] : []),
+    ...plan.inputRules.filter((rule) => rule.outcome !== "order").map((rule) => rule.message),
+    ...plan.lines.flatMap((line) => line.rules.filter((rule) => rule.outcome !== "order").map((rule) => rule.message)),
+  ])] : [];
+  const selected = new Set(plan?.lines.map((line) => line.productId).filter(Boolean));
+  const alternatives = plan?.needs.flatMap((need) => need.candidates
+    .filter((candidate) => !selected.has(candidate.productId))
+    .sort((a, b) => replacementScore(a, deliveryDate) - replacementScore(b, deliveryDate) || a.rank - b.rank)
+    .slice(0, 2)
+    .map((candidate) => ({ need, candidate }))) ?? [];
+  const noIssues = !!plan?.proposal && issues.length === 0 && plan.lines.length > 0;
 
   return (
     <section className="composer-wrap">
-      <form
-        className="composer"
-        onSubmit={(e) => {
-          e.preventDefault();
-          parse();
-        }}
-      >
+      <form className="composer" onSubmit={(event) => { event.preventDefault(); search(); }}>
         <div className="txt">
           <textarea
             rows={1}
             value={text}
             placeholder="Add to this order, e.g. 40 l lactose-free milk"
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                parse();
+            onChange={(event) => setText(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                search();
               }
             }}
             aria-label="Add to this order"
           />
-          <button type="submit" className={`send ${text.trim() ? "go" : ""}`} disabled={busy} aria-label="Add">
-            {busy && !req ? "…" : <Icon n="plus" s={18} w={2.2} />}
+          <button type="submit" className={`send ${text.trim() ? "go" : ""}`} disabled={!!busy} aria-label="Search">
+            {busy === "search" ? "…" : <Icon n="plus" s={18} w={2.2} />}
           </button>
         </div>
       </form>
-      {req && (
-        <div className="card pad stack">
-          {req.lines.map((l, i) => (
-            <div key={l.id} className="chipline">
-              <label className="chip">
-                <span className="chip-k">Quantity</span>
-                <input
-                  type="number"
-                  min={0}
-                  value={l.quantity?.amount ?? ""}
-                  onChange={(e) => setLine(i, { quantity: e.target.value === "" ? null : { amount: Number(e.target.value), unit: l.quantity?.unit ?? "l" } })}
-                  style={{ width: 80 }}
-                />
-                <select value={l.quantity?.unit ?? "l"} onChange={(e) => setLine(i, { quantity: { amount: l.quantity?.amount ?? 0, unit: e.target.value as Unit } })}>
-                  {UNITS.map((u) => (
-                    <option key={u}>{u}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="chip">
-                <span className="chip-k">Product</span>
-                <input value={l.query} onChange={(e) => setLine(i, { query: e.target.value })} style={{ width: 140 }} />
-              </label>
-              {l.constraints.claims.map((c) => (
-                <span key={c} className="chip on">
-                  {claimLabel(c)}
-                </span>
-              ))}
-            </div>
-          ))}
-          <div className="small muted">
-            <Icon n="cal" s={14} /> Delivered with this order on {day(deliveryDate)}
-          </div>
-          <div className="row">
-            <button type="button" className="btn primary" disabled={busy || !ready} onClick={add}>
-              {busy ? "Quoting…" : "Add to order"}
-            </button>
-            <button type="button" className="btn ghost" disabled={busy} onClick={() => setReq(null)}>
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
       {note && <div className={`callout ${note.cls} small`}>{note.body}</div>}
-      {late && (
-        <TooLateDialog
-          plan={late}
-          onDone={(choice) => {
-            setNote(choice === "remove" ? { cls: "blue", body: <>Removed {late.title} from the quote.</> } : { cls: "yellow", body: <>{late.title} is waiting for review below. Nothing is ordered yet.</> });
-            setLate(null);
-            onAdded();
-            refresh();
-          }}
-        />
+
+      {request && (
+        <OrderItemDialog
+          eyebrow="Add to order"
+          title="Review the item"
+          description="Check what was understood and whether it can arrive with this order."
+          onClose={() => { if (!busy) { setRequest(null); setReview(null); } }}
+        >
+          <div className="add-review-date"><Icon n="cal" s={18} /><span><small>Delivery date</small><b>{day(deliveryDate)}</b></span></div>
+
+          <div className="item-dialog-section add-review-section">
+            <div className="add-review-section-head">
+              <h3>Interpreted request</h3>
+              {!editing && <button type="button" className="btn sm ghost" disabled={!!busy} onClick={() => setEditing(true)}>Change</button>}
+            </div>
+            {editing ? (
+              <div className="add-review-editor">
+                {request.lines.map((line, i) => (
+                  <div key={line.id} className="chipline">
+                    <label className="chip">
+                      <span className="chip-k">Amount</span>
+                      <input type="number" min={0} value={line.quantity?.amount ?? ""} onChange={(event) => setLine(i, { quantity: event.target.value === "" ? null : { amount: Number(event.target.value), unit: line.quantity?.unit ?? "l" } })} style={{ width: 80 }} />
+                      <select value={line.quantity?.unit ?? "l"} onChange={(event) => setLine(i, { quantity: { amount: line.quantity?.amount ?? 0, unit: event.target.value as Unit } })}>{UNITS.map((unit) => <option key={unit}>{unit}</option>)}</select>
+                    </label>
+                    <label className="chip"><span className="chip-k">Product</span><input value={line.query} onChange={(event) => setLine(i, { query: event.target.value })} /></label>
+                    {line.constraints.claims.map((claim) => <span key={claim} className="chip on">{claimLabel(claim)}</span>)}
+                  </div>
+                ))}
+                <button type="button" className="btn primary" disabled={!!busy || !requestReady} onClick={checkChanges}>{busy === "check" ? "Checking…" : "Check changes"}</button>
+              </div>
+            ) : (
+              <div className="add-review-interpreted">
+                {request.lines.map((line) => <div key={line.id}><b>{line.quantity ? `${qty(line.quantity.amount)} ${line.quantity.unit}` : "Amount needed"}</b><span>{line.constraints.claims.map(claimLabel).concat(line.query).join(" ")}</span></div>)}
+              </div>
+            )}
+          </div>
+
+          {busy === "check" && !plan && <div className="add-review-loading">Checking products, stock and delivery…</div>}
+          {dialogError && <div className="callout red" role="alert">{dialogError}</div>}
+
+          {plan && !editing && (
+            <>
+              <div className="item-dialog-section add-review-section">
+                <h3>Products found</h3>
+                <div className="item-dialog-lines">
+                  {plan.lines.map((line) => (
+                    <div key={line.id} className="item-dialog-line add-review-product">
+                      <span><b>{line.productName}</b><small>{line.packContent ? `${qty(line.packContent.value)} ${line.packContent.unit} per ${line.salesUnit ?? "sales unit"}` : `Product ${line.productId}`}</small></span>
+                      <span>{qty(line.quantity)} {line.salesUnit ?? ""}</span>
+                      <span><Status k={line.status} /></span>
+                      <b>{eur(line.lineTotal)}</b>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className={`callout ${noIssues ? "green" : "yellow"} add-review-result`}>
+                <b>{noIssues ? "Ready to add" : "Needs attention"}</b>
+                {noIssues ? <span>Stock and delivery timing are confirmed for {day(deliveryDate)}.</span> : issues.length ? <ul>{issues.map((message) => <li key={message}>{message}</li>)}</ul> : <span>{plan.summary}</span>}
+              </div>
+
+              {!noIssues && alternatives.length > 0 && (
+                <div className="item-dialog-section add-review-section">
+                  <h3>Suggested replacements</h3>
+                  <div className="replacement-list">
+                    {alternatives.map(({ need, candidate }) => {
+                      const usable = !!plan.proposal && replacementScore(candidate, deliveryDate) === 0;
+                      return (
+                        <div key={`${need.id}:${candidate.productId}`} className="replacement-row">
+                          <span><b>{candidate.name}</b><small>{stockText(candidate.stock, candidate.salesUnit)} · {candidate.availableDate ? `delivery ${day(candidate.availableDate)}` : "delivery date not supplied"}</small></span>
+                          <span>{eur(candidate.unitPrice)}</span>
+                          {usable && <button type="button" className="btn sm" disabled={!!busy} onClick={() => choose(need.id, candidate.productId)}>{busy === "replace" ? "Checking…" : "Use instead"}</button>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div className="add-review-actions">
+                {noIssues && <button type="button" className="btn primary" disabled={!!busy} onClick={add}>{busy === "add" ? "Adding…" : "Add to order"}</button>}
+                <button type="button" className="btn ghost" disabled={!!busy} onClick={() => { setRequest(null); setReview(null); }}>Cancel</button>
+                {plan.totalExVat != null && <span className="add-review-total"><small>Total ex VAT</small><b>{eur(plan.totalExVat)}</b></span>}
+              </div>
+            </>
+          )}
+        </OrderItemDialog>
       )}
     </section>
   );
+}
+
+function replacementScore(candidate: Plan["needs"][number]["candidates"][number], deliveryDate: string) {
+  if (candidate.stock.kind === "known" && candidate.stock.amount > 0 && (!candidate.availableDate || candidate.availableDate <= deliveryDate)) return 0;
+  return candidate.stock.kind === "unknown" ? 1 : 2;
 }

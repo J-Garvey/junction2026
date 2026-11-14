@@ -240,6 +240,8 @@ export interface BasketPlan {
   orderIds: string[];
   tooLate: Plan["tooLate"];
   tooLateChoice: Plan["tooLateChoice"];
+  basketedAt: string | null;
+  lines: Plan["lines"];
 }
 export interface BasketResp extends EventResp {
   requests: BasketPlan[];
@@ -255,11 +257,13 @@ export const api = {
   me: () => get<{ person: Person }>("/api/me"),
   home: () => get<HomeResp>("/api/home"),
   message: (text: string) => post<MessageResp>("/api/messages", { text }),
-  request: (request: SingleRequest, eventId?: string) => post<PlanResp>("/api/requests", { request, eventId }),
+  request: (request: SingleRequest, eventId?: string, reviewing = false) => post<PlanResp>("/api/requests", { request, eventId, reviewing }),
   baskets: () => get<{ baskets: Basket[] }>("/api/baskets"),
   basket: (id: string) => get<BasketResp>(`/api/baskets/${encodeURIComponent(id)}`),
   newBasket: (name: string, deliveryDate: string) => post<{ basket: { id: string; name: string; deliveryDate: string } }>("/api/baskets", { name, deliveryDate }),
   plan: (id: string) => get<PlanResp>(`/api/plans/${encodeURIComponent(id)}`),
+  requote: (id: string, request: SingleRequest) => post<PlanResp>(`/api/plans/${encodeURIComponent(id)}/requote`, { request }),
+  basketPlan: (id: string) => post<PlanResp>(`/api/plans/${encodeURIComponent(id)}/basket`),
   accept: (id: string) => post<PlanResp>(`/api/plans/${encodeURIComponent(id)}/accept`),
   tooLate: (id: string, choice: "remove" | "review") => post<PlanResp>(`/api/plans/${encodeURIComponent(id)}/too-late`, { choice }),
   choose: (id: string, needId: string, productId: string) => post<PlanResp>(`/api/plans/${encodeURIComponent(id)}/choose`, { needId, productId }),

@@ -39,12 +39,26 @@ describe("order baskets", () => {
     const id = made.basket.id;
     expect((await call("GET", "/baskets")).baskets.find((b: any) => b.id === id)).toMatchObject({ lines: 0, waiting: 0, requests: 0 });
 
-    const m = await call("POST", "/messages", { text: "I need 1,000 litres of lactose-free milk by Monday" });
-    const r = await call("POST", "/requests", { request: { ...m.request, neededBy: "2026-11-20" }, eventId: id });
+    const m = await call("POST", "/messages", { text: "10 kg salmon" });
+    const r = await call("POST", "/requests", { request: { ...m.request, neededBy: "2026-11-20" }, eventId: id, reviewing: true });
     expect(r.plan.eventId).toBe(id);
+    expect((await call("GET", `/baskets/${id}`)).requests).toHaveLength(0);
+
+    const changed = { ...m.request, neededBy: "2026-11-20", lines: m.request.lines.map((line: any) => ({ ...line, productId: "469672", quantity: { amount: 20, unit: "kg" } })) };
+    const requoted = await call("POST", `/plans/${r.plan.id}/requote`, { request: changed });
+    expect(requoted.plan).toMatchObject({ proposal: true, eventId: id, orderIds: [] });
+    expect(requoted.plan.id).toBe(r.plan.id);
+    expect(requoted.plan.request.lines[0].quantity).toEqual({ amount: 20, unit: "kg" });
+
+    const staged = await call("POST", `/plans/${r.plan.id}/basket`);
+    expect(staged.status).toBe(200);
+    expect(staged.plan).toMatchObject({ basketedAt: expect.any(String), summary: "In the order · awaiting final order", orderIds: [] });
+    expect((await call("GET", `/orders?eventId=${id}`)).orders).toHaveLength(0);
 
     const view = await call("GET", `/baskets/${id}`);
     expect(view.requests.map((p: any) => p.id)).toEqual([r.plan.id]);
+    expect(view.requests[0]).toMatchObject({ basketedAt: expect.any(String), lines: expect.any(Array) });
+    expect((await call("GET", "/baskets")).baskets.find((basket: any) => basket.id === id).lines).toBeGreaterThan(0);
     // The request's questions belong to the basket, so they show under "Awaiting approval".
     for (const q of r.questions) expect(view.questions.map((x: any) => x.id)).toContain(q.id);
 
