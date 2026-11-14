@@ -187,6 +187,10 @@ describe("Test case 1: the wedding through four scenes (docs/demo-plan.md)", () 
     // Each person's basket counts only what they can answer; the rest shows as waiting for others.
     expect(a.ainoBasket).toMatchObject({ waiting: 1, waitingOthers: a.sannaAll.length });
     expect(a.sannaBasket).toMatchObject({ waiting: a.sannaAll.length, waitingOthers: 1 });
+    expect(a.ainoBasket.approvalLevels).toEqual([
+      { role: "chef", count: 1 },
+      { role: "approver", count: a.sannaAll.length },
+    ]);
     expect(a.sannaQs).toHaveLength(1);
     expect(a.sannaQs[0].ruleIds).toContain("MAN-01");
     expect(a.approved.plan.status).toBe("ordered");

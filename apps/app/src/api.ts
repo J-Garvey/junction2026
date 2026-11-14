@@ -225,6 +225,8 @@ export interface Basket {
   waiting: number;
   /** Questions waiting for someone else. */
   waitingOthers: number;
+  /** Open decisions at each approval level, regardless of who is signed in. */
+  approvalLevels: { role: "chef" | "approver"; count: number }[];
   requests: number;
 }
 export interface BasketPlan {

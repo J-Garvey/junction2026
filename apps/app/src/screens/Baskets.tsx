@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import type { Order, Plan, Question, SingleRequest, Unit } from "@aimo/contracts";
-import { api, type Basket, type BasketPlan, type MessageResp } from "../api";
+import { api, type BasketPlan, type MessageResp } from "../api";
 import { splitMine, useApp, useLoad, waitingForText } from "../ctx";
 import { OthersWaiting, QuestionCard } from "../ui/QuestionCard";
 import { Status, planStatusKind, PLAN_STATUS_TEXT } from "../ui/Status";
@@ -13,16 +13,8 @@ import "./baskets.css";
 
 const UNITS: Unit[] = ["l", "dl", "ml", "kg", "g", "pcs"];
 
-/** One word for a basket's state; the numbers follow it. */
-function BasketState({ b }: { b: Basket }) {
-  if (b.coverage.level === "warning") return <Status k="allergy_warning" />;
-  if (b.waiting) return <span className="stamp ask">{b.waiting} for you</span>;
-  if (b.waitingOthers) return <span className="stamp unknown">{b.waitingOthers} waiting for others</span>;
-  if (b.lines) return <Status k="ordered" />;
-  return <span className="stamp unknown">Empty</span>;
-}
-
 export function BasketsHome() {
+  const { me } = useApp();
   const { data, error, loading } = useLoad(() => api.baskets(), []);
   const baskets = [...(data?.baskets ?? [])].sort((a, b) => a.deliveryDate.localeCompare(b.deliveryDate));
   return (
@@ -33,15 +25,25 @@ export function BasketsHome() {
       <div className="bgrid">
         {baskets.map((b) => (
           <Link key={b.id} to={`/baskets/${b.id}`} className="btile">
-            <div className="btile-top">
-              <BasketState b={b} />
-            </div>
             <div className="btile-name">{b.name}</div>
-            <div className="small">
-              <Icon n="cal" s={14} /> Delivery {day(b.deliveryDate)}
+            <div className="btile-context small muted">
+              <span><Icon n="cal" s={14} /> Delivery {day(b.deliveryDate)}</span>
+              {b.guests > 0 && <span>{plural(b.guests, "guest")}</span>}
+            </div>
+            <div className="btile-stats" aria-label="Order summary">
+              <div><strong>{b.lines}</strong><span>Items in order</span></div>
+              <div><strong>{eur(b.totalExVat)}</strong><span>Total ex VAT</span></div>
+            </div>
+            <div className="btile-approvals" aria-label="Waiting for approval">
+              {b.approvalLevels.map((level) => (
+                <div key={level.role} className={level.role === me.role ? "current" : undefined}>
+                  <span>{level.role === "chef" ? "Chef review" : "Manager approval"}</span>
+                  <strong>{level.count}</strong>
+                </div>
+              ))}
             </div>
             <div className="btile-foot small muted">
-              <span>{b.lines ? `${plural(b.lines, "line")} · ${eur(b.totalExVat)}` : "Nothing ordered yet"}</span>
+              <span>{b.approvalLevels.reduce((sum, level) => sum + level.count, 0)} waiting for approval</span>
               <Icon n="chev" s={16} />
             </div>
           </Link>
