@@ -37,6 +37,7 @@ What changed when the two uploads were merged is in **[CHANGES.md](CHANGES.md)**
 | [ICP.md](ICP.md) | Target customers, buyer roles, and product scope; external sourcing (e.g. supermarket dropshipping) is non-core, and SMS and calls are cut |
 | [Tech stack](TechStack.md) | TypeScript workspace, web and mobile apps, Agent Gateway, and Sentry |
 | [Hotel catering user stories](docs/hotel-catering-user-stories.md) · [HTML](docs/hotel-catering-user-stories.html) | Draft backlog with acceptance criteria and a suggested Junction demo |
+| [docs/prd/](docs/prd/README.md) | **The PRD, in 11 chunks and 65 named functions.** Each chunk says how a group of user stories is delivered, the functions to build, and the questions and edge cases still to rule on |
 | [QUESTIONS.md](QUESTIONS.md) | Open team decisions, with both positions for each |
 | [CHANGES.md](CHANGES.md) | Every change made when the two uploads were merged |
 | [AGENTS.md](AGENTS.md) | Shared instructions for Codex and Claude Code, with the hotel demo and data workflow |
