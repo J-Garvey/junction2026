@@ -49,7 +49,7 @@ Each function is one problem that can be built and tested alone. "Deterministic 
   - one bar line, so two outlets appear;
   - one dish that conflicts with a late-added allergy, for the blocked case and the D28 warning.
 - Someone has to write these recipes and pick the products before chunks 01 to 04 can be tested.
-- **Answer:** **Deferred** (Jack, team review 14 Nov): the seed event is decided later, together with the demo. Until then, chunks 01 to 04 are tested against the milk request and single lines.
+- **Answer:** **Decided in outline** (Jack, 14 Nov): the seed event is Emma and Lauri's wedding, 180 guests, as set out in the [demo plan](../demo-plan.md), which lists the real products and their stock and prices. Still open for Ben: the menu's other lines, the recipes and the amounts per guest.
 
 **Q11.2 What dates does the clock use?**
 - Recommended, built around what the mock returns:

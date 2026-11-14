@@ -4,7 +4,7 @@
 >
 > **Status, 14 Nov 2026:** draft. **Every chunk has an owner**, assigned on 14 Nov from each person's strengths (see "Who owns what"). The team can swap chunks by changing the Owner row. When the chunks are answered, they are folded into one final PRD and the build agents start from that.
 >
-> **Not in this PRD:** the demo script and the pitch (D30). This covers only building the product.
+> **Not in this PRD:** the demo script and the pitch (D30). This covers only building the product. The demo has its own file, [demo-plan.md](../demo-plan.md).
 
 ## How to use it
 
@@ -167,7 +167,7 @@ All from Jack, 14 Nov. The rest of the team hasn't confirmed them yet.
 | [Q05.4](05-rules-mandate-and-preferences.md): the hotel's rule values | **Placeholders for now.** A complete list of rules and parameters is a new open question, [Q05.10](05-rules-mandate-and-preferences.md). |
 | [Q06.5](06-questions-approvals-and-teams.md): seeded accounts or a "viewing as" switcher | **Both.** The switcher swaps between seeded people. |
 | [Q09.4](09-audit-and-explanations.md): templates or the language model for explanations | **Templates are the floor.** The model may only rephrase. |
-| [Q11.1](11-fixtures-clock-and-tests.md): the seed event | **Deferred**, to be decided with the demo. |
+| [Q11.1](11-fixtures-clock-and-tests.md): the seed event | **A wedding**, as set out in the [demo plan](../demo-plan.md). The recipes and amounts are still open. |
 | Demo script, pitch and submission | **Out of this PRD** (D30). |
 
 Not yet answered by anyone: the proposed list of five Decisions API uses, and the two things proposed as not built for Junction (the Purchasing Manager role in Q06.8, and CEL in Q05.5).
