@@ -33,6 +33,7 @@ What changed when the two uploads were merged is in **[CHANGES.md](CHANGES.md)**
 |---|---|
 | [GROUND_TRUTH.md](GROUND_TRUTH.md) | **Verified facts**: data, API behaviour, brief, code meanings, Valio Aimo, standards. Wins where another file disagrees |
 | [ICP.md](ICP.md) | Target customers, buyer roles, and product scope, including supermarket dropshipping and AI agents for email, SMS, and phone calls |
+| [Hotel catering user stories](docs/hotel-catering-user-stories.md) | Draft backlog with acceptance criteria and a suggested Junction demo |
 | [QUESTIONS.md](QUESTIONS.md) | Open team decisions, with both positions for each |
 | [CHANGES.md](CHANGES.md) | Every change made when the two uploads were merged |
 | [AGENTS.md](AGENTS.md) | Shared instructions for Codex and Claude Code, with the hotel demo and data workflow |
