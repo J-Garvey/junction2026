@@ -217,6 +217,10 @@ export function appRouter(): Router {
           // Only what this person can answer; the rest is someone else's to approve.
           waiting: open.filter((q) => q.eventId === e.id && canAnswer(q, p)).length,
           waitingOthers: open.filter((q) => q.eventId === e.id && !canAnswer(q, p)).length,
+          approvalLevels: (["chef", "approver"] as const).map((role) => ({
+            role,
+            count: open.filter((q) => q.eventId === e.id && q.forRole === role).length,
+          })),
           requests: basketPlans(e.id).length + (e.dishes.length ? 1 : 0),
         };
       }),
