@@ -245,8 +245,12 @@ export function ModelStatus({ status }: { status: StatusResp | null }) {
 }
 
 function TopBar({ status, me, onSwitch }: { status: StatusResp | null; me: Person; onSwitch: () => void }) {
+  const loc = useLocation();
+  const basketId = loc.pathname.match(/^\/baskets\/([^/]+)$/)?.[1];
+
   return (
     <div className="topbar">
+      {basketId && <OrderSwitcher currentId={decodeURIComponent(basketId)} />}
       {status && !status.chain.ok && <span className="stamp block">Audit chain broken</span>}
       <div className="hide-m account-slot"><AccountMenu me={me} onSwitch={onSwitch} /></div>
     </div>
