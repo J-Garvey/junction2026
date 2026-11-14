@@ -50,6 +50,7 @@ Reference request: "I need 1,000 litres of lactose-free milk by Monday. Find an 
 | `research/mentor-questions.md` | The single list of mentor questions (Q1–49) |
 | `docs/data-dictionary.md` | Every field of the slim dataset, code glossaries, measured facts |
 | `docs/human-approval-rules.md` | Order / ask / block rules for edge cases (draft guardrails) |
+| `docs/hotel-catering-customer-journeys.md` | Current journeys of chef, buyer and F&B director (hypothesis), hand-off risks, questions for hotel staff |
 | `api/openapi.json` | Full OpenAPI 3.1 spec of the mock API |
 | `data/products_slim.jsonl` | Main product table, 17 546 rows, carbon and reliability joined in |
 | `data/products_core.csv` | Flat subset for grep |
