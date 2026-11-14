@@ -104,35 +104,71 @@ Each function is one problem that can be built and tested alone. "Deterministic 
 - This question is for the owner to complete, not just to agree. It needs two lists:
   1. **Every rule**, from Q05.1: ID, trigger, outcome, who is asked.
   2. **Every parameter**: its value, who can change it (the hotel, or fixed in the product), and which function reads it.
-- Starting list of parameters, gathered from the recommendations in all eleven chunks. None of these values is agreed unless marked:
+- **Parameters, settled by Darragh on 14 Nov.** "Shown in settings" means the hotel sees and changes it; "fixed" means it's a product constant, not shown.
 
-| Parameter | Proposed value | Who sets it | Read by | From |
-|---|---|---|---|---|
-| Spend cap per order, before VAT | €5,000 | Hotel | `MANDATE-CHECK` | Q05.4 |
-| Guest-count change that needs no question | ±5% | Hotel | `CHANGE-APPLY` | Q07.1 |
-| Price rise that needs no question | 5% | Hotel | `QUOTE-RECHECK` | Q05.4 |
-| Rounding overshoot that needs no question | Up to 10% or up to €25 | Hotel | `OVERSHOOT-CHECK` | Q03.2 |
-| Partial fill accepted without asking | Not set | Hotel | `PREANSWER-MATCH` | Q05.6 |
-| Unconfirmed stock: continue without asking | Not set | Hotel | `PREANSWER-MATCH` | Q05.6 |
-| "Very large order" threshold | Not set | Hotel | Add-on only | D2 |
-| Agreed delivery days | Monday to Friday | Hotel | `NEEDED-BY` | Q04.4 |
-| Days before service that goods must arrive | 1 day; 2 days for frozen | Hotel or recipe | `NEEDED-BY` | Q04.3 |
-| Decisions API: confidence that counts as a fact | 0.90 or above | Fixed | `TYPE-CHECK` and the other Decisions API functions | Q02.2, agreed |
-| Decisions API: confidence that rejects | 0.10 or below | Fixed | Same | Q02.2, agreed |
-| Delivery reliability below which a line is amber | 0.95 | Fixed | `LINE-VERDICT` | D7 |
-| Delivery reliability below which ordering asks | 0.80 | Fixed | `LINE-VERDICT` | Q04.5 |
-| Days to needed-by that make a request urgent | 4 or fewer | Fixed | `URGENCY-CHECK` | Q04.1 |
-| How long before a cut-off the final check runs | 24 hours | Fixed | `FINAL-CHECK` | Q07.2 |
-| How long a quote is valid | Until its earliest cut-off, at most 24 hours | Fixed | `QUOTE-CREATE` | Q08.3 |
-| Candidates kept by a search | 50 | Fixed | `PRODUCT-SEARCH` | Q02.1 |
-| Candidates shown to a person | 3 | Fixed | `RANK`, `SUBSTITUTE-FIND` | Q02.6, Q07.3 |
-| Product IDs per lookup call | 1,000 (the API's limit) | Fixed by Valio Aimo | `LOOKUP` | SPEC |
-| Pack-content disagreement that turns a line amber | More than 5% | Fixed | `PACK-CONTENT` | Chunk 03 |
-| Per-guest amount that triggers a sanity question | Above 1 kg or 1 L; below 1 g or 1 ml | Fixed | `QUANTITY-SANITY` | Q01.7 |
+| # | Parameter | Value | Who sets it | Shown in settings? | Read by |
+|---|---|---|---|---|---|
+| 1 | Spend cap per order | €5,000 | Hotel | Yes | `MANDATE-CHECK` |
+| 1a | Is VAT included in the cap? | No (before VAT), by default | Hotel | Yes | `MANDATE-CHECK` |
+| 2 | Guest-count change applied without asking | 5% rounded down, **or** a ± guest band by event size: ±2 up to 50 guests, ±5 for 51–200, ±10 above 200 | Hotel; editable by whoever runs the event | Yes | `CHANGE-APPLY` |
+| 3 | Price rise accepted without asking | 5% | Hotel | Yes | `QUOTE-RECHECK` |
+| 4 | Extra from rounding up to whole packs, accepted without asking | Up to **20% or €30** | Hotel | Yes | `OVERSHOOT-CHECK` |
+| 5 | Partial delivery | **Never pre-answered.** Always one question with three options: partial; partial plus a substitute for the difference; or a substitute only. The substitute in "partial plus substitute" can differ from the one in "substitute only", since it only has to cover the difference; "substitute only" must be able to cover the whole quantity by itself | Fixed behaviour | No | `SHORTFALL-RESOLVE`, chunk 06 |
+| 6 | Unknown stock accepted without asking, on cheap lines | Lines under €50 each; also learned from orders the hotel flagged as okay | Hotel | Yes | `PREANSWER-MATCH` |
+| 7 | ~~"Very large order" threshold~~ | **Removed:** it only existed for Valio Aimo approval of partner sourcing, which D21 dropped | | | |
+| 8 | Delivery days | Each weekday is its own toggle square; Monday to Friday on by default, Saturday and Sunday off | Hotel (venue) | Yes | `NEEDED-BY` |
+| 8a | Receive on public holidays | A checkbox; off by default, so holidays are blocked | Hotel (venue) | Yes | `NEEDED-BY` |
+| 9 | How early goods must arrive | 1 day before the event; 2 days for frozen | Hotel, or per recipe | Yes | `NEEDED-BY` |
+| 10 | When a request counts as urgent | Needed within 5 days | Fixed | **No** (removed from settings) | `URGENCY-CHECK` |
+| 11 | When the final check runs | **24 hours and 1 hour** before each cut-off | Fixed | No | `FINAL-CHECK` |
+| 12 | How long a price quote lasts | Until its earliest cut-off, at most 24 hours | Fixed | No | `QUOTE-CREATE` |
+| 13 | Delivery reliability below which ordering asks | 90% | Hotel | Yes | `LINE-VERDICT` |
+| 14 | Delivery reliability below which a line shows a warning colour | **The same number as row 13**, tied to it directly | Follows row 13 | No | `LINE-VERDICT`, `RANK` |
+| 15 | Decisions API: confidence that counts as a fact | 0.90 or above | Fixed | No | `TYPE-CHECK` and the other Decisions API functions |
+| 16 | Decisions API: confidence that counts as a no | 0.10 or below | Fixed | No | Same |
+| 17 | Candidates kept by a search | 50, **not yet confirmed**: Darragh asked what it means (see below) | Fixed | No | `PRODUCT-SEARCH` |
+| 18 | Options shown to a person | 3, unlabelled; one highlighted only if it's a clear winner | Fixed | No | `RANK`, `SUBSTITUTE-FIND` |
+| 19 | Product codes per lookup call | 1,000, the API's own limit | Fixed by Valio Aimo | **No** (removed from settings) | `LOOKUP` |
+| 20 | Pack-size mismatch that turns a line amber | The two sources disagree by more than 5% | Fixed | No | `PACK-CONTENT` |
+| 21 | Quantity scrutiny | **Low / Medium / High**, default Medium. Drives the quantity anomaly check below | Hotel | Yes | `QUANTITY-SANITY` (chunk 01) |
 
-- To settle for each row: is the value right, and should the hotel be able to change it?
-- To add: any parameter this list has missed. If a function uses a number that isn't in this table, the table is incomplete.
-- **Answer:** _open_
+- **Still to settle on this list:** row 17; whether the memory of "flagged as okay" answers (row 6, Q05.6) can be viewed and cleared by the hotel; whether the stored hierarchy of clashing constraints (Q05.7) can be viewed and edited.
+- **Row 17 explained:** a search first collects candidate products from the local catalogue, then checks them against the rules and ranks them, and only the top 3 are shown. Row 17 is how many it collects before that. Higher means fewer good products are missed, but more products to check and more calls to Valio Aimo's API, which has undisclosed rate limits. 50 is a middle value.
+
+#### Quantity anomaly check (row 21): design
+
+Direction from Darragh (14 Nov): this check must be much more than fixed per-guest bounds. It should catch amounts that are far too large or small, typos, and breaks from a product's trend; scrutinise products ordered consistently more than ones that vary; and be reviewed by a more capable AI model. The algorithm below is a **proposal to confirm**. It replaces the two simple checks recommended in Q01.7 (chunk 01, Jack's), which Jack still has to agree.
+
+**Signals, all deterministic and computed for every line:**
+
+1. **Per-guest bounds:** more than 1 kg or 1 L, or less than 1 g or 1 ml, per guest. This is a backstop for a hotel with no history.
+2. **Deviation from this hotel's own history** for the same product, or the same recipe line, measured **per guest** so that a bigger event isn't flagged just for being bigger. Use the median and the median absolute deviation (MAD) of past per-guest amounts, so one odd past order doesn't distort it. Score = |amount − median| ÷ MAD, with MAD floored at 5% of the median so a perfectly constant history doesn't divide by zero.
+   - This automatically **scrutinises consistent products more**: a small MAD means a small change scores high. **Variable products get more room**: a large MAD means the same change scores low.
+3. **Trend:** compare against an exponentially weighted moving average of recent orders, not only the last order, so a steady rise isn't flagged while a sudden jump is.
+4. **Typo patterns**, flagged at every scrutiny level whatever the history says:
+   - a factor of exactly 10, 100 or 1,000 against the expected amount (within ±3%), for example 1,000 last week and 100 now;
+   - a one-digit slip against the previous amount: a digit dropped, added, doubled or two digits swapped (1,250 vs 1,520; 125 vs 1,250);
+   - a unit slip: a factor of 1,000 (grams vs kg, ml vs litres), or the pack's case size (units vs cases).
+
+   A change that matches no typo pattern (1,000 to 85) is still flagged by signals 2 and 3 if it's large, but it's treated as a likely real change, not a slip.
+
+**Thresholds by scrutiny level** (score from signal 2, plus a ratio against the median):
+
+| Level | Flags when |
+|---|---|
+| Low | Score above 4.5 **and** more than 3× or less than ⅓ of the median |
+| Medium (default) | Score above 3.5 **or** more than 2× or less than ½ of the median |
+| High | Score above 2.5 **or** more than 1.5× or less than ⅔ of the median |
+
+Typo patterns (signal 4) and per-guest bounds (signal 1) flag at every level. A deviation the hotel has flagged as okay before, for the same product and similar size, lowers the severity (Q05.6).
+
+**AI review:**
+- A more capable language model reviews every flagged line, and at **High** every quantity change, with the facts: the line, the guest count, the product's history, the trend and which signals fired.
+- It returns plausible or suspicious, a one-sentence reason, and, if it looks like a slip, the amount it thinks was meant. Its answer and confidence are logged as a model judgement (SF-05).
+- It **never changes a quantity.** A suspicious line becomes one question to the chef: "You ordered 100 kg. The last 6 orders were about 1,000 kg. Did you mean 1,000?", with keep, use the suggestion, or edit.
+- **No history** (a new hotel or product): signals 1 and 4 against the recipe-scaled amount, plus the model review.
+
+- **Answer:** **Partly answered** (Darragh, 14 Nov): the parameter list above is settled except row 17 and the two memory questions. The rule list waits on Q05.1.
 
 ## Edge cases to rule on
 
