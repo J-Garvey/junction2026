@@ -1,12 +1,13 @@
 /** Order baskets: one tile per event (name + delivery date); inside, what is ordered, what waits, and a box to add more. */
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
-import type { Order, SingleRequest, Unit } from "@aimo/contracts";
+import type { Order, Plan, SingleRequest, Unit } from "@aimo/contracts";
 import { api, type Basket, type BasketPlan, type MessageResp } from "../api";
 import { splitMine, useApp, useLoad } from "../ctx";
 import { OthersWaiting, QuestionCard } from "../ui/QuestionCard";
 import { Status, planStatusKind, PLAN_STATUS_TEXT } from "../ui/Status";
 import { Icon } from "../ui/icons";
+import { TooLateDialog, tooLateText } from "../ui/TooLate";
 import { addDays, claimLabel, day, eur, helsinkiDate, plural, qty } from "../format";
 import "./baskets.css";
 
@@ -231,9 +232,10 @@ function RequestRow({ r }: { r: BasketPlan }) {
         <div className="trunc" style={{ color: "var(--ink)", fontWeight: 600 }}>
           {r.title}
         </div>
-        <div className="small muted">{r.summary}</div>
+        <div className="small muted">{r.tooLate ? tooLateText(r.tooLate) : r.summary}</div>
       </div>
-      <Status k={planStatusKind(r.status)} title={PLAN_STATUS_TEXT[r.status]} />
+      {/* Too late is something to review, not a hard block: no "Blocked" stamp. */}
+      {r.tooLate ? <span className="stamp ask">Too late</span> : <Status k={planStatusKind(r.status)} title={PLAN_STATUS_TEXT[r.status]} />}
     </Link>
   );
 }
@@ -270,6 +272,7 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
   const [req, setReq] = useState<SingleRequest | null>(null);
   const [note, setNote] = useState<{ cls: string; body: React.ReactNode } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [late, setLate] = useState<Plan | null>(null);
 
   async function parse() {
     const t = text.trim();
@@ -297,6 +300,10 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
       const p = r.plan;
       setReq(null);
       setText("");
+      if (p.tooLate) {
+        setLate(p);
+        return;
+      }
       setNote({
         cls: p.status === "ordered" ? "green" : p.status === "blocked" || p.status === "failed" || p.status === "rejected" ? "red" : "yellow",
         body: (
@@ -389,6 +396,17 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
         </div>
       )}
       {note && <div className={`callout ${note.cls} small`}>{note.body}</div>}
+      {late && (
+        <TooLateDialog
+          plan={late}
+          onDone={(choice) => {
+            setNote(choice === "remove" ? { cls: "blue", body: <>Removed {late.title} from the quote.</> } : { cls: "yellow", body: <>{late.title} is waiting for review below. Nothing is ordered yet.</> });
+            setLate(null);
+            onAdded();
+            refresh();
+          }}
+        />
+      )}
     </section>
   );
 }

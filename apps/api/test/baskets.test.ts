@@ -51,4 +51,31 @@ describe("order baskets", () => {
     expect((await call("POST", "/requests", { request: m.request, eventId: "evt_nope" })).status).toBe(404);
     expect((await call("POST", "/baskets", { name: "", deliveryDate: "2026-11-20" })).status).toBeGreaterThanOrEqual(400);
   });
+
+  it("a passed Monday cut-off doesn't make a later order too late (DLV-06)", async () => {
+    // Tuesday evening: every Monday cut-off the mock returns has passed.
+    await call("POST", "/clock", { time: "2026-11-17T18:00:00Z" });
+    const id = (await call("POST", "/baskets", { name: "Birthday", deliveryDate: "2026-11-30" })).basket.id;
+    const m = await call("POST", "/messages", { text: "40 l lactose-free milk" });
+    const r = await call("POST", "/requests", { request: { ...m.request, neededBy: "2026-11-30" }, eventId: id });
+    expect(r.plan.tooLate).toBeNull();
+    expect(r.plan.needs[0].rules.map((x: any) => x.ruleId)).not.toContain("DLV-06");
+  });
+
+  it("too late: removed from the quote, or kept in the order for review", async () => {
+    await call("POST", "/clock", { time: "2026-11-14T10:00:00Z" });
+    const id = (await call("POST", "/baskets", { name: "Tomorrow lunch", deliveryDate: "2026-11-15" })).basket.id;
+    const m = await call("POST", "/messages", { text: "40 l lactose-free milk" });
+    const add = () => call("POST", "/requests", { request: { ...m.request, neededBy: "2026-11-15" }, eventId: id });
+    const a = await add();
+    expect(a.plan.tooLate).toEqual({ neededBy: "2026-11-15", earliest: "2026-11-16" });
+    expect((await call("POST", `/plans/${a.plan.id}/too-late`, { choice: "remove" })).plan.tooLateChoice).toBe("removed");
+    expect((await call("GET", `/baskets/${id}`)).requests).toHaveLength(0);
+
+    const b = await add();
+    await call("POST", `/plans/${b.plan.id}/too-late`, { choice: "review" });
+    const view = await call("GET", `/baskets/${id}`);
+    expect(view.requests).toHaveLength(1);
+    expect(view.requests[0]).toMatchObject({ id: b.plan.id, tooLateChoice: "review", orderIds: [] });
+  });
 });

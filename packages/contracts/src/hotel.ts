@@ -122,6 +122,8 @@ export interface Plan {
   error: string | null;
   /** DLV-06: nothing arrives by the needed-by date. The plan shows only this until the date moves. */
   tooLate?: { neededBy: string; earliest: string | null } | null;
+  /** The person's answer to a too-late plan: dropped from the quote, or kept in the order for review. */
+  tooLateChoice?: "removed" | "review" | null;
   /** Single request: products found and priced, waiting for the person to approve adding them to the quote. */
   proposal?: boolean;
   /** Measured while running: how long each agent step took. */

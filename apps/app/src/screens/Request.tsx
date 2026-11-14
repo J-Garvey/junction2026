@@ -227,13 +227,25 @@ export function Outcome({ plan }: { plan: Plan }) {
 
 /**
  * DLV-06: nothing arrives by the needed-by date. Only this is shown until the date moves;
- * the button re-runs the same request for the earliest date.
+ * the button re-runs the same request for the earliest date. A request in an order basket
+ * has the basket's date, so it is removed from the quote or kept for review instead.
  */
 function TooLate({ plan }: { plan: Plan }) {
   const nav = useNavigate();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const t = plan.tooLate!;
+  async function choose(choice: "remove" | "review") {
+    setBusy(true);
+    setErr(null);
+    try {
+      await api.tooLate(plan.id, choice);
+      nav(`/baskets/${plan.eventId}`);
+    } catch (e) {
+      setErr((e as Error).message);
+      setBusy(false);
+    }
+  }
   async function move() {
     if (!plan.request || !t.earliest) return;
     setBusy(true);
@@ -248,14 +260,27 @@ function TooLate({ plan }: { plan: Plan }) {
     }
   }
   return (
-    <div className="callout red stack" role="alert">
+    <div className={`callout ${plan.tooLateChoice === "review" ? "yellow" : "red"} stack`} role="alert">
       <b>No products available for delivery in time.</b>
       <span>
         Nothing can arrive by {day(t.neededBy)}.{" "}
         {t.earliest ? <>The earliest delivery is <b>{day(t.earliest)}</b>.</> : "No later delivery date is known yet."}
       </span>
       {err && <span className="small">{err}</span>}
-      {t.earliest && plan.request && (
+      {plan.eventId ? (
+        plan.tooLateChoice === "review" ? (
+          <span className="small">Kept in the order for review. Nothing is ordered.</span>
+        ) : (
+          <div className="row" style={{ flexWrap: "wrap" }}>
+            <button type="button" className="btn primary" disabled={busy} onClick={() => choose("review")}>
+              Add to order for review
+            </button>
+            <button type="button" className="btn ghost" disabled={busy} onClick={() => choose("remove")}>
+              Remove from quote
+            </button>
+          </div>
+        )
+      ) : t.earliest && plan.request && (
         <div className="row">
           <button type="button" className="btn primary" disabled={busy} onClick={move}>
             {busy ? "…" : `Change the date to ${day(t.earliest)}`}

@@ -92,6 +92,11 @@ export const LookupLine = z.object({
   stock: StockFact,
   availableDate: z.string().nullable(),
   closingTime: z.string().nullable().describe("Order cut-off, ISO 8601 with offset"),
+  projectedFrom: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("The mock ignores requestedDate and offers its own date. When the requested date is later, availableDate is the requested date and closingTime is the mock's cut-off moved forward by the same number of days. This holds the mock's original date. The cut-off is an estimate"),
   price: z
     .object({
       value: z.number().describe("catalogPrice.value per sales unit, ex VAT"),
