@@ -3,6 +3,8 @@
 Nov 14, 2026
 
 > The live, editable version of this brief is a Claude Doc. This file is a snapshot.
+>
+> **Reconciled 14 Nov 2026** with Darragh's research ([04-segment-research-chain-first.md](04-segment-research-chain-first.md)) and the challenge data. Data facts were corrected (allergen coverage, "free from", substitutes, lactose-free milk count, API documentation). The mentor questions moved to [mentor-questions.md](mentor-questions.md), keeping their numbers. If the Claude Doc has changed since, bring those changes here so the repo stays the single source.
 
 ## What this doc is for
 
@@ -45,7 +47,8 @@ To keep the comparison fair, every candidate is described with the same headings
 
 ## What we know about Valio Aimo itself
 
-- About **20,000 customers, 20,000 products, 700 suppliers and 350 staff**. Its stated target groups are **horeca, food services and the food industry**. (Valio Aimo sustainability review 2025)
+- About **20,000 customers, 20,000 products, 700 suppliers and 350 staff**. Its stated target groups are **horeca, food services and the food industry**. (Valio Aimo sustainability review 2025) The challenge brief says **25,000 product names**; the two sources count differently. The brief itself gives Valio's revenue as both €2.4B and €2.3B.
+- Heinon Tukku, acquired in 2021, had 4,200 active delivery customers, about €240M normal-year turnover and 11% of Finnish HoReCa trade at the time (Maito ja me; see [04](04-segment-research-chain-first.md)).
 - Customer types named on its website: **restaurants, hotels, cafés, catering services, large kitchens, service stations and kiosks**.
 - It's a **challenger**: Kesko says Kespro held about **49%** of the foodservice wholesale peer group in 2025. Competitors listed are Meira Nova, Metro, Valio Aimo and others.
 - The whole foodservice wholesale market was estimated at about **€4B** (Kespro, 2021).
@@ -57,13 +60,13 @@ To keep the comparison fair, every candidate is described with the same headings
 
 From our own pass over the product files (17,546 products, 648 vendors, 349 category codes). Details in [03-data-profile.md](03-data-profile.md).
 
-- **Allergen info exists for only 41% of products.** It's recorded only as "contains" or "may contain", never "free from". So a missing allergen doesn't mean safe. This matters more for some candidates than others.
-- **Ready-made substitution rules exist for only 189 products (1.1%).** Any "suggest a replacement" feature means building our own matching logic.
+- **Allergen info exists for 54% of products** (9,424). It's recorded as "contains", "may contain" and, on 5,119 products, "free from" (the `nonAllergen` group, which the first profile missed). The other **46% have no declaration at all**, so a missing allergen doesn't mean safe. This matters more for some candidates than others.
+- **Ready-made substitution rules exist for only 188 products (1.1%)**, not counting one product listed as its own substitute. Any "suggest a replacement" feature means building our own matching logic.
 - **Delivery reliability scores exist for ~25% of products.** 564 score below 0.95 and 150 below 0.8.
 - **Carbon estimates exist for ~63% of products**, but as averages for product groups, not exact per-product figures.
 - **Labels are well filled**: about 3,800 products carry Finnish-origin markings, 826 the Heart Symbol and 456 EU organic.
-- **The brief's own example works**: there are ~68 lactose-free milk-type products (Valio and Arla).
-- We couldn't read the API documentation from our research environment (the site blocks automated access). We still need to check whether prices differ per customer or contract.
+- **The brief's own example works**: there are **35 lactose-free drinking milks** (category `10400` with the `FREE_FROM_LACTOSE` claim), mostly Valio and Arla. A name search finds 68, but that includes cocoa drinks, quark and milk powder.
+- **The API is documented** in [../api/openapi.json](../api/openapi.json) and has been called successfully. It is read-only (no order endpoint). The mock ignores the customer, so prices behave as list prices; whether real prices differ per customer or contract is still a mentor question.
 
 ## The candidates
 
@@ -136,82 +139,13 @@ The ratings below summarise the facts above. **"?" means we need Valio Aimo's in
 5. **Fit to the brief and judges**: does it show off lookup, fixed-price ordering, approvals and audit trail?
 6. **Buildable in our time**: does the challenge data support it?
 
-## Questions for the Valio Aimo team (grouped by mentor)
+## Questions for the Valio Aimo team
 
-We're choosing between **A. Independent restaurants**, **B. Hotel & restaurant chains**, **C. Contract caterers** and **E. Private care homes**. Each question below includes a short *why we ask*, so whoever is talking to the mentor knows what to listen for.
-
-### 1. The decider: ask this first
-
-Ask **Hanna Forsström or Pirjo Kaartinen** (commercial mentors):
-
-1. **Roughly what share of Valio Aimo's revenue, and of its margin, comes from A, B, C and E?** A ranking is fine if exact numbers are confidential. *Why we ask:* this is the biggest unknown in our comparison. A segment that's large but low-margin, or small but growing fast, changes the answer.
-2. **Which of these four would you most want to win or protect over the next 2–3 years, and why?** *Why we ask:* the judges are Valio Aimo, so their own priority carries real weight.
-3. **Who would pay for this, and how?** Would Valio Aimo fund it as a service to keep customers, or would customers pay (subscription, per order)? Which of the four would actually pay? *Why we ask:* we dropped F and G partly for unwillingness to pay, so we should test the same thing on the shortlist.
-
-### 2. Strategy and competition (commercial mentors)
-
-4. Which of the four segments are you **losing to competitors** (Kespro, Meira Nova, Metro), and why do they leave?
-5. Has any customer in these groups already **asked for automated or AI ordering**, or connected their own system?
-6. Which group places the **most orders per euro of revenue**, i.e. is the most expensive to serve today?
-7. Are prices for these customers **list prices or individually negotiated contracts**?
-
-### 3. Candidate-specific questions
-
-**A. Independent restaurants**
-
-8. Who orders, when, and how often? (We assume the chef or owner, late at night, several times a week.)
-9. What's their most common complaint: missing items, wrong substitutes, delivery times, prices?
-10. How many order the same thing every week (standing or repeat orders)?
-11. How many independent restaurant customers have you lost in the recent bankruptcy wave? Is this segment shrinking?
-
-**B. Hotel & restaurant chains**
-
-12. Which hotel and restaurant chains are customers today, and roughly how big are they?
-13. Do chains negotiate centrally while each hotel or restaurant orders separately?
-14. How are **event and banquet orders** handled today, and how often are they last-minute?
-15. Are some chains tied to a competitor? (Sokos Hotels belong to S Group, which also owns the wholesaler Meira Nova.)
-16. Do chains ask for sustainability or carbon reporting on their purchases?
-
-**C. Contract caterers (Compass/Amica, Sodexo, ISS and others)**
-
-17. Are any of the big caterers significant customers, or mainly other wholesalers' customers?
-18. Do they order via **EDI** (direct system-to-system ordering) from their own purchasing systems?
-19. Would they let an **outside agent** order on their behalf, or would they insist on building their own?
-20. Do they split their spend across several wholesalers? If so, what decides who gets which share?
-
-**E. Private care homes (Attendo, Mehiläinen, Esperi and others)**
-
-21. Are care-home chains customers? Do the homes **cook on site** or buy in ready meals?
-22. Who places the orders: kitchen staff or care staff?
-23. How do they handle residents' **special and texture-modified diets** when ordering?
-24. Is the decision made centrally (head office) or home by home?
-
-### 4. How customers order today: ask Minni Ruhtinas (online sales / webshop)
-
-25. For A, B, C and E: what share orders through the **webshop, mobile, phone, EDI or a salesperson**?
-26. Which group makes the **most corrections, complaints or returns**?
-27. What takes customers the longest in the webshop today? Searching, comparing, checking availability, or approvals?
-28. What happens today when an item is out of stock: who picks the substitute, and how often do customers reject it?
-
-### 5. Data and trust: ask Tommi Nurmi-Aro, Ville Takanen or Riku Tapper (IT and data)
-
-29. Are prices in the mock API the same for everyone, or **contract-specific per customer**?
-30. How does the availability API show **partial quantities** and alternative delivery dates?
-31. How reliable and up to date is **allergen** data? What does the `nonAllergen` field contain?
-32. Which customers already connect **system-to-system** (EDI, or kitchen software like Aromi or Jamix)?
-33. What would you need to see before trusting an outside agent to place orders **without a human**?
-
-### 6. What the answers will tell us
-
-- If one segment clearly leads on **revenue or margin (Q1)** and on **Valio Aimo's priority (Q2)**, that's a strong pointer.
-- If a segment mostly orders via **EDI** or wants its **own platform (Q18–19)**, an agent built by us adds less, and the "someone else's platform" risk rises.
-- If the most **corrections and complaints (Q26)** come from one segment, that's where accuracy saves the most.
-- If a segment won't pay **or** Valio Aimo won't fund serving it **(Q3)**, drop it.
-- Then fill the "?" cells in the side-by-side table, agree weights and score.
+Moved to **[mentor-questions.md](mentor-questions.md)**, the single list for the whole team. Q1–33 keep their original numbers, and "What the answers will tell us" moved with them. Q34–45 were added from Darragh's research and the data review.
 
 ## How we'll make the call
 
-1. Ask the questions above (Commercial first: the revenue split changes everything).
+1. Ask the questions in [mentor-questions.md](mentor-questions.md) (Commercial first: the revenue split changes everything).
 2. Fill in the "?" cells in the side-by-side table.
 3. Agree weights for the six criteria as a team.
 4. Score each candidate, pick one, and note which candidate is the runner-up "second demo".

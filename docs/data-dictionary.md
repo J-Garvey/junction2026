@@ -12,7 +12,8 @@ All data is synthetic and for Junction 2026 only.
 | `categories.csv` | 55 kB | Category code → product count, dominant temperature label, top vendor, 3 example names. Category names are not in the dataset; this is the only decode. |
 | `carbon_footprint.csv` | raw | `productId, AVG kg CO2-eq/kg`. Already joined into slim as `co2_kg_per_kg`. |
 | `delivery_reliability.csv` | raw | `productId, deliveryReliability`. Already joined into slim as `reliability`. |
-| `product_data_schema.json` | raw | JSON Schema of the full 87 MB catalogue. |
+
+The JSON Schema of the full 87 MB catalogue is in `challenge/product_data_schema.json`.
 
 The full catalogue (87 MB) is not in the pack. Fetch it with `scripts/fetch_raw.sh` if a dropped field is needed.
 Dropped fields: marketing texts, media ids, storage / usage / preparation / disposal texts, producers, structured ingredient origins, fishing reports, safety data, pack dimensions and gross weights, per-unit GTINs, Swedish names, minerals and vitamins.
@@ -39,7 +40,7 @@ Dropped fields: marketing texts, media ids, storage / usage / preparation / disp
 | `contains` | [str] | Allergen codes declared CONTAINS. |
 | `may_contain` | [str] | Allergen codes declared MAY_CONTAIN. |
 | `allergen_undeclared` | [str]? | Allergen codes with status UNDECLARED (303 values in total). |
-| `free_from` | [str] | Allergen codes declared FREE_FROM. |
+| `free_from` | [str] | Allergen codes from the raw `nonAllergen` classification group, read as "declared free from" (our interpretation; confirm with mentors, Q31). |
 | `has_allergen_data` | bool | false = no allergen declaration at all. NOT the same as allergen-free. |
 | `claims` | [str] | Nutritional / diet claims, e.g. `FREE_FROM_LACTOSE`, `VEGAN`. |
 | `labels` | [str] | Certificates and origin marks, e.g. `EU_ORGANIC_FARMING`. |
@@ -62,7 +63,7 @@ Assumption: the net content belongs to one base unit. This holds on the lactose-
 Coverage: `net_kg` 12 804 products, `net_l` 3 555, neither 2 452.
 
 ## Measured facts
-- Allergen declaration present on 9 424 products (54%).
+- Allergen declaration present on 9 424 products (54%): 7 205 with CONTAINS / MAY_CONTAIN / UNDECLARED entries, plus 2 231 with FREE_FROM entries only. FREE_FROM appears on 5 119 products in total. 8 122 products (46%) have no declaration.
 - `FREE_FROM_LACTOSE` claim: 4 178 products. `LOW_LACTOSE`: 321. Use the claim, not a name match.
 - Category `10400` holds the lactose-free milk drinks (35 products with the claim).
 - Reliability: mean 0.972; 291 products below 0.9; some at 0.0.

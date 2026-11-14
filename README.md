@@ -1,42 +1,77 @@
 # Junction 2026 — Valio Aimo agentic purchasing challenge
 
-How can a food-service wholesaler let autonomous purchasing agents find products, compare offers and place orders with the right approvals, safely and openly? Valio Aimo (Valio's wholesale arm, ~20,000 professional kitchen customers) is mocking its webshop and backend for this challenge.
+How can a food-service wholesaler let autonomous purchasing agents find products, compare offers and place orders with the right approvals, safely and openly? Valio Aimo (Valio's wholesale arm, ~20,000 professional kitchen customers) is mocking its webshop and backend for this challenge. Full text: [challenge/brief.txt](challenge/brief.txt).
 
-**Our goal:** save customers time and get orders right, making ordering from the wholesaler nearly invisible in their day while staying reliable.
+**Our goal:** save customers time and get orders right, making ordering from the wholesaler nearly invisible in their day while staying reliable. The agent's output is either a **buy order** or **one clear question** for the owner, with just enough context to answer it fast. How often it asks is tuned to each customer's risk profile and situation. We're building it to be sellable to Valio Aimo or a similar wholesaler after Junction, not only as a demo.
 
 ## Status
 
-- ✅ Research on candidate customer segments
-- ✅ Shortlist: **A. Independent restaurants · B. Hotel & restaurant chains · C. Contract caterers · E. Private care homes**
-- ⏳ Ask the Valio Aimo mentors the question brief, then score and pick one
+- ✅ Challenge material, data and mock API in the repo; API calls verified
+- ✅ Two research passes on customer segments (they disagree; see [QUESTIONS.md](QUESTIONS.md))
+- ⏳ Ask the mentors ([research/mentor-questions.md](research/mentor-questions.md)), then pick a segment
+- ⬜ Guardrails design (deliberately later)
 - ⬜ Build
+
+## Open decisions (team)
+
+Three decisions have no single right answer. **[QUESTIONS.md](QUESTIONS.md)** sets out both positions for each:
+
+1. Which customer segment to build for first (the two research passes disagree).
+2. Who pays: the wholesaler or the kitchens.
+3. Whether the API key, portal password and data stay committed.
+
+What changed when the two uploads were merged is in **[CHANGES.md](CHANGES.md)**.
 
 ## Repo map
 
 | Path | What's there |
 |---|---|
-| [research/01-customer-options-brief.md](research/01-customer-options-brief.md) | **Start here.** Candidate segments, facts, unknowns, glossary of Finnish terms, scoring criteria and the 33-question brief for the mentors |
-| [research/02-initial-deep-dive.md](research/02-initial-deep-dive.md) | Archived first pass (public kitchens, now ruled out) plus reusable design ideas: guardrails model, trust protocol, audit trail, demo pattern |
-| [research/03-data-profile.md](research/03-data-profile.md) | What the challenge data covers and where it's thin (allergens, substitutions, reliability, CO₂) |
-| [challenge/brief.txt](challenge/brief.txt) | The original challenge brief |
-| [challenge/resources.md](challenge/resources.md) | Data download links, API docs, auth, mentors |
-| [challenge/product_data_schema.json](challenge/product_data_schema.json) | JSON schema for the product data |
-| [scripts/profile_products.py](scripts/profile_products.py) | Reproduces the data profile |
+| [QUESTIONS.md](QUESTIONS.md) | Open team decisions, with both positions for each |
+| [CHANGES.md](CHANGES.md) | Every change made when the two uploads were merged |
+| [CLAUDE.md](CLAUDE.md) | Compact context for AI coding agents: goal, judging, API behaviour, design constraints |
+| [challenge/brief.txt](challenge/brief.txt) | The full challenge text, including judging criteria (credentials removed; see `.env`) |
+| [challenge/resources.md](challenge/resources.md) | Data downloads, API docs and auth, mentors |
+| [challenge/product_data_schema.json](challenge/product_data_schema.json) | JSON Schema of the raw 87 MB product catalogue |
+| [api/openapi.json](api/openapi.json) | OpenAPI 3.1 spec of the mock API |
+| [research/01-customer-options-brief.md](research/01-customer-options-brief.md) | **Start here for segments.** Candidates A–G with facts, unknowns, glossary of Finnish terms and scoring criteria |
+| [research/02-initial-deep-dive.md](research/02-initial-deep-dive.md) | Archived public-kitchen pass, plus reusable design ideas: guardrails (draft, deferred), trust protocol, audit trail, demo pattern |
+| [research/03-data-profile.md](research/03-data-profile.md) | What the data covers and where it's thin; API behaviour |
+| [research/04-segment-research-chain-first.md](research/04-segment-research-chain-first.md) | The chain-first research pass, the order-quantity primer and kitchen-system notes |
+| [research/mentor-questions.md](research/mentor-questions.md) | The single list of 45 mentor questions, with what's already answered |
+| [docs/data-dictionary.md](docs/data-dictionary.md) | Every field of the slim dataset, quantity conversion, code glossaries (unverified) |
+| `data/products_slim.jsonl` | Main product table: 17,546 rows, carbon and reliability joined in |
+| `data/products_core.csv` | Flat subset for grep and spreadsheets |
+| `data/ingredients.jsonl` | Ingredient statements (en, fi) |
+| `data/categories.csv` | Category codes decoded by example |
+| `data/carbon_footprint.csv`, `data/delivery_reliability.csv` | Raw side files from the portal |
+| [scripts/aimo_api.py](scripts/aimo_api.py) | API client and CLI (stdlib only) |
+| [scripts/build_slim.py](scripts/build_slim.py) | Rebuilds `data/` from the raw files |
+| [scripts/fetch_raw.sh](scripts/fetch_raw.sh) | Downloads the raw files into `data/raw/` (git-ignored) and rebuilds `data/` |
+| [scripts/profile_products.py](scripts/profile_products.py) | Reproduces the data profile from the raw files |
 
 ## Quick start
 
+The slim data is already in `data/`, so most work needs no download.
+
 ```bash
-mkdir data   # git-ignored; download the files listed in challenge/resources.md here
-python3 scripts/profile_products.py \
-  data/valio_aimo_junction26_product_data.json \
-  data/valio_aimo_junction26_delivery_reliability.csv \
-  data/valio_aimo_junction26_carbon_footprint.csv
+python3 scripts/aimo_api.py ping
+python3 scripts/aimo_api.py availability 2026-11-16 460000 460001
+python3 scripts/aimo_api.py price 2026-11-16 460000
 ```
 
-The API key goes in `.env` (git-ignored). Never commit it.
+For fields the slim build dropped, fetch the raw 87 MB catalogue and profile it:
+
+```bash
+scripts/fetch_raw.sh
+python3 scripts/profile_products.py data/raw/product_data.json data/raw/delivery_reliability.csv data/raw/carbon_footprint.csv
+```
+
+The API key is read from `.env` (`AIMO_API_KEY`).
 
 ## Key data findings
 
-- Allergen statements cover only **41%** of products, and none are marked "free from". Missing data must never be treated as safe.
-- Only **1.1%** of products have ready-made substitution rules, so we need our own ranking.
-- Delivery reliability covers **25%** of products; CO₂ covers **63%** (product-group averages).
+- **Allergen declarations cover 54% of products** (9,424): "contains", "may contain" and, on 5,119 products, "free from". The other **46% have none**, and missing data must never be treated as safe.
+- **Only 188 products (1.1%) list substitutes**, so we need our own ranking.
+- **Delivery reliability covers 25%** of products; **CO₂ covers 63%** (product-group averages). Missing means unknown, not bad.
+- **35 lactose-free drinking milks** fit the brief's example. Filter by the `FREE_FROM_LACTOSE` claim, not by name.
+- **The API is read-only.** Ordering, approval and audit are ours to build. Shortlist from local data before calling it; rate limits are undisclosed.
