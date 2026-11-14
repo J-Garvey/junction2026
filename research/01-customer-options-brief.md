@@ -4,6 +4,8 @@ Nov 14, 2026
 
 > The live, editable version of this brief is a Claude Doc. This file is a snapshot.
 >
+> **Facts re-checked 14 Nov 2026** against public sources and the data; see [../GROUND_TRUTH.md](../GROUND_TRUTH.md). Only facts changed. The shortlist, ratings and criteria are untouched.
+>
 > **Reconciled 14 Nov 2026** with Darragh's research ([04-segment-research-chain-first.md](04-segment-research-chain-first.md)) and the challenge data. Data facts were corrected (allergen coverage, "free from", substitutes, lactose-free milk count, API documentation). The mentor questions moved to [mentor-questions.md](mentor-questions.md), keeping their numbers. If the Claude Doc has changed since, bring those changes here so the repo stays the single source.
 
 ## What this doc is for
@@ -33,13 +35,13 @@ To keep the comparison fair, every candidate is described with the same headings
 | **Tommi Nurmi-Aro, Ville Takanen, Riku Tapper** | Valio Aimo mentors for *IT, integrations and data governance*. Ask them about the API, product data and what can be trusted. |
 | **HoReCa / horeca** | Industry shorthand for **Ho**tels, **Re**staurants, **Ca**fés. |
 | **Ruokapalvelut** | "Food services": organisations whose job is feeding people in institutions, such as schools, daycare, hospitals, care homes and staff canteens. |
-| **Toimitustukku / Pikatukku / Suoramyynti** | Valio Aimo's three sales channels. *Delivery wholesale* means they deliver to you. *Cash & carry* means you go to the warehouse store. *Direct sales* is handled by a salesperson for bigger accounts. |
+| **Toimitustukku / Pikatukku / Suoramyynti** | Valio Aimo's three sales channels. *Delivery wholesale* means they deliver to you. *Cash & carry* means you go to the warehouse store. *Direct sales* means ordering straight from the manufacturer, without an intermediary (valioaimo.fi/en/become-a-customer). There are two cash & carry stores: Sörnäinen (Helsinki) and Koivuhaka (Vantaa). |
 | **Minun Aimo** | "My Aimo", Valio Aimo's self-service customer portal (invoices, purchase reports, carbon data). |
 | **VALO Tilauspalvelu** | "VALO ordering service", a Valio Aimo service that lets kitchens order directly from major suppliers. |
 | **Kespro** | The market-leading foodservice wholesaler, owned by Kesko (the K-Group retail chain). Valio Aimo's biggest competitor. |
 | **Meira Nova** | Another foodservice wholesaler, owned by SOK, i.e. S Group (the other big retail co-op, which also owns Sokos Hotels). |
 | **Metro-tukku** | Metro wholesale, a foodservice wholesaler owned by the Wihuri group. |
-| **Hyvinvointialue** | "Wellbeing services county". Since 2023, 21 regional authorities run health and social care in Finland, so hospitals and many elderly-care kitchens sit under them. Many are under heavy pressure to cut deficits. |
+| **Hyvinvointialue** | "Wellbeing services county". Since 1 Jan 2023, 21 regional authorities run health and social care in Finland, plus the City of Helsinki (which runs its own) and Åland, so hospitals and many elderly-care kitchens sit under them. Many are under heavy pressure to cut deficits. |
 | **Synkka** | GS1 Finland's product data service, where manufacturers publish product info (ingredients, allergens, nutrition). Our product file comes from it. |
 | **Sydänmerkki** | The "Heart Symbol", a Finnish label for healthier choices. Public and workplace kitchens use it. |
 | **Aromi, Jamix** | Kitchen management software used by many Finnish professional kitchens for recipes, menus and purchase orders. |
@@ -50,9 +52,9 @@ To keep the comparison fair, every candidate is described with the same headings
 - About **20,000 customers, 20,000 products, 700 suppliers and 350 staff**. Its stated target groups are **horeca, food services and the food industry**. (Valio Aimo sustainability review 2025) The challenge brief says **25,000 product names**; the two sources count differently. The brief itself gives Valio's revenue as both €2.4B and €2.3B.
 - Heinon Tukku, acquired in 2021, had 4,200 active delivery customers, about €240M normal-year turnover and 11% of Finnish HoReCa trade at the time (Maito ja me; see [04](04-segment-research-chain-first.md)).
 - Customer types named on its website: **restaurants, hotels, cafés, catering services, large kitchens, service stations and kiosks**.
-- It's a **challenger**: Kesko says Kespro held about **49%** of the foodservice wholesale peer group in 2025. Competitors listed are Meira Nova, Metro, Valio Aimo and others.
-- The whole foodservice wholesale market was estimated at about **€4B** (Kespro, 2021).
-- The market is soft. In Nov 2025 foodservice wholesale sales were down **5.5%** year on year (Finnish Grocery Trade Association).
+- It's a **challenger**: Kesko estimates Kespro held **49.2%** of the Finnish Grocery Trade Association's foodservice wholesale peer group in 2025 (the peer group is Kespro, Meira Nova, Suomen Palvelutukkurit, Valio Aimo and Metro-tukku, not the whole market). Competitors listed are Meira Nova, Metro, Valio Aimo and others.
+- The whole foodservice wholesale market was estimated at about **€4B** (Kesko investor blog, Nov 2021; no method given).
+- In Nov 2025 foodservice wholesale sales were down **5.5%** year on year, but **Jan–Nov 2025 was down only 0.9%**, and Nov 2025 had one fewer delivery day (Finnish Grocery Trade Association).
 - Valio Aimo already shows customers the **carbon footprint of their purchases** in Minun Aimo (since May 2025). It plans reports on domestic origin, organic and Heart Symbol shares.
 - **We do NOT know** how its revenue splits across customer types. That is the single most important fact to get from the Valio Aimo team.
 
@@ -65,8 +67,8 @@ From our own pass over the product files (17,546 products, 648 vendors, 349 cate
 - **Delivery reliability scores exist for ~25% of products.** 564 score below 0.95 and 150 below 0.8.
 - **Carbon estimates exist for ~63% of products**, but as averages for product groups, not exact per-product figures.
 - **Labels are well filled**: about 3,800 products carry Finnish-origin markings, 826 the Heart Symbol and 456 EU organic.
-- **The brief's own example works**: there are **35 lactose-free drinking milks** (category `10400` with the `FREE_FROM_LACTOSE` claim), mostly Valio and Arla. A name search finds 68, but that includes cocoa drinks, quark and milk powder.
-- **The API is documented** in [../api/openapi.json](../api/openapi.json) and has been called successfully. It is read-only (no order endpoint). The mock ignores the customer, so prices behave as list prices; whether real prices differ per customer or contract is still a mentor question.
+- **The brief's own example works**: there are **35 lactose-free products in category `10400`** (the milks, with the `FREE_FROM_LACTOSE` claim), **all Valio or Arla**; 25 are plain drinking milk, the rest piimä, coffee milk and one portion creamer. A name search finds 68, but that adds coffee-milk drinks, quark, milk powder, cocoa and chocolate.
+- **The API is documented** in [../api/openapi.json](../api/openapi.json) and has been called successfully. It is read-only (no order endpoint). The mock ignores the customer and the requested date. `catalogPrice` is the price paid; `listPrice` is a higher pre-discount reference, and `netPriceFound` is true on about 1.6% of products. Valio Aimo's public site confirms that customer-specific net prices exist in production; their details are still a mentor question.
 
 ## The candidates
 
@@ -94,12 +96,12 @@ From our own pass over the product files (17,546 products, 648 vendors, 349 cate
 - **Accuracy stakes:** Medium. Running out at breakfast or an event damages the guest experience. Allergen safety matters for guests.
 - **What invisible ordering looks like:** Breakfast is automatically replenished from occupancy forecasts. Events trigger a recipe-based order. Each hotel has a spending limit, and head office sees everything.
 - **Why Valio Aimo might care:** Clear multi-site volume. Central purchasing makes a chain a natural early adopter of a buyer-side agent. Sustainability matters to the big chains: Scandic lists increasing plant-based food as a 2025 goal.
-- **Risks / reasons against:** Some chains may be tied to a rival wholesaler. Sokos Hotels belong to S Group, which also owns the wholesaler Meira Nova. The Finnish hotel market is soft: Scandic called Finland a weak spot in its 2025 results.
+- **Risks / reasons against:** Some chains may be tied to a rival wholesaler. Sokos Hotels belong to S Group, which also owns the wholesaler Meira Nova. The Finnish hotel market is soft: Scandic's Q4 2025 report cites a "cautious market in Finland" ("weak spot" is CoStar's headline wording).
 - **Questions for Valio Aimo:** Which hotel and restaurant chains are customers today, and how big are they? Do chains negotiate central prices? Who places the orders at each site? How are event orders handled now?
 
 ### C. Contract caterers (private food-service companies)
 
-- **Who they are:** Companies that run staff canteens, school and hospital kitchens and similar sites on behalf of employers and public bodies. Examples: Compass Group (Amica), Sodexo, ISS. Compass Group Finland had revenue of about **€278M and 2,525 staff** (fiscal 2025). Compass bought Fazer Food Services, about 1,000 restaurants, half of them in Finland.
+- **Who they are:** Companies that run staff canteens, school and hospital kitchens and similar sites on behalf of employers and public bodies. Examples: Compass Group (Amica), Sodexo, ISS. Compass Group Finland had revenue of about **€278M and 2,525 staff** (fiscal 2025). Compass bought Fazer Food Services in 2019, about 1,000 restaurants, half of them in Finland.
 - **How they order today:** Probably central purchasing with their own systems and approved product lists. Hundreds of site kitchens order within those lists. (Assumption: ask.)
 - **Time pain:** High in total across many sites. Lower for central buyers, who have systems already.
 - **Accuracy stakes:** Medium to high. They often serve schools and care homes, so special diets apply. They also face contract penalties from their own clients.
@@ -110,10 +112,10 @@ From our own pass over the product files (17,546 products, 648 vendors, 349 cate
 
 ### E. Private care homes (elderly care chains)
 
-- **Who they are:** Private chains running care homes, mostly on contract to wellbeing counties: Attendo (about **430 care and service homes** in Finland), Mehiläinen and Esperi Care.
+- **Who they are:** Private chains running care homes, mostly on contract to wellbeing counties: Attendo (about **430 care and service homes** in Finland, per a 2023 document; later contract terminations mean the current count is unconfirmed), Mehiläinen and Esperi Care.
 - **How they order today:** Unknown. Possibly each home orders for itself, possibly through central contracts. (Ask.)
 - **Time pain:** High. Ordering is often done by care staff, not trained kitchen buyers, in a sector short of staff.
-- **Accuracy stakes:** High. Residents need special and texture-modified diets, and nutrition failures have drawn regulator attention (Yle reported undernourished residents at an Attendo home).
+- **Accuracy stakes:** High. Residents need special and texture-modified diets, and nutrition failures have drawn regulator attention (Yle reported in 2019 that a 2016 regulator inspection found undernourished residents at an Attendo home).
 - **What invisible ordering looks like:** Like public kitchens, but without public tender rules. Central rules come from head office, and each home's order is automatic with diet checks built in.
 - **Why Valio Aimo might care:** Many sites with steady, all-year demand (care homes serve every meal every day). As private companies they can decide faster than public bodies.
 - **Risks / reasons against:** The chains are under price pressure from wellbeing counties and have renegotiated contracts. The sector faces reputational scrutiny. Some homes may get meals from caterers instead of cooking themselves.

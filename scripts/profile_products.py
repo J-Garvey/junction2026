@@ -29,7 +29,7 @@ def fi_name(p):
 
 
 def main(products_path, reliability_path, carbon_path):
-    d = json.load(open(products_path))
+    d = json.load(open(products_path, encoding="utf-8"))
     n = len(d)
     pct = lambda x: f"{x} ({x / n * 100:.1f}%)"
 
@@ -76,8 +76,8 @@ def main(products_path, reliability_path, carbon_path):
     print("top vendors:", vendors.most_common(10))
 
     ids = {p["id"] for p in d}
-    rel = {r["productId"]: float(r["deliveryReliability"]) for r in csv.DictReader(open(reliability_path))}
-    co2 = {r["productId"]: float(r["AVG kg CO2-eq/kg"]) for r in csv.DictReader(open(carbon_path))}
+    rel = {r["productId"]: float(r["deliveryReliability"]) for r in csv.DictReader(open(reliability_path, encoding="utf-8"))}
+    co2 = {r["productId"]: float(r["AVG kg CO2-eq/kg"]) for r in csv.DictReader(open(carbon_path, encoding="utf-8"))}
     rv = [v for k, v in rel.items() if k in ids]
     print(f"delivery reliability coverage: {pct(len(rv))}; <0.95: {sum(v < 0.95 for v in rv)}; "
           f"<0.8: {sum(v < 0.8 for v in rv)}; perfect: {sum(v == 1.0 for v in rv)}")
@@ -90,8 +90,8 @@ def main(products_path, reliability_path, carbon_path):
     lf = [p for p in d if p["category"] == "10400" and "FREE_FROM_LACTOSE" in claims(p)]
     by_name = [p for p in d if "laktoositon" in fi_name(p).lower() and "maito" in fi_name(p).lower()]
     print(f"lactose-free drinking milks (cat 10400 + FREE_FROM_LACTOSE): {len(lf)}; "
-          f"name match 'laktoositon'+'maito': {len(by_name)} (includes cocoa, quark, powder)")
-    for p in lf[:25]:
+          f"name match 'laktoositon'+'maito': {len(by_name)} (also coffee-milk drinks, quark, powder, cocoa)")
+    for p in lf:
         print(" ", p["id"], fi_name(p), p["salesUnit"], p["vendorName"], rel.get(p["id"]), co2.get(p["id"]))
 
 

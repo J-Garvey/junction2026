@@ -1,6 +1,8 @@
 # Questions for the Valio Aimo mentors
 
-The single list of questions for the mentors. Q1–33 come from [01-customer-options-brief.md](01-customer-options-brief.md) and keep their numbers, because 01 refers to them. Q34–45 were added from [04-segment-research-chain-first.md](04-segment-research-chain-first.md) and the data review. Tick answers off here and record them in the relevant research file.
+**At the stand, use [stand-questions.md](stand-questions.md)**: the 15 that matter before the deadline, in order. This file is the full list.
+
+The single list of questions for the mentors. **Before asking, check [../GROUND_TRUTH.md](../GROUND_TRUTH.md)**: questions marked **[answered]** or **[partly public]** below were settled or narrowed on 14 Nov from the data, the API, the brief or Valio Aimo's own website. Q1–33 come from [01-customer-options-brief.md](01-customer-options-brief.md) and keep their numbers, because 01 refers to them. Q34–45 were added from [04-segment-research-chain-first.md](04-segment-research-chain-first.md) and the data review. Tick answers off here and record them in the relevant research file.
 
 ## Q1–33: customer-segment questions (from 01)
 
@@ -19,7 +21,7 @@ Ask **Hanna Forsström or Pirjo Kaartinen** (commercial mentors):
 4. Which of the four segments are you **losing to competitors** (Kespro, Meira Nova, Metro), and why do they leave?
 5. Has any customer in these groups already **asked for automated or AI ordering**, or connected their own system?
 6. Which group places the **most orders per euro of revenue**, i.e. is the most expensive to serve today?
-7. Are prices for these customers **list prices or individually negotiated contracts**?
+7. Are prices for these customers **list prices or individually negotiated contracts**? **[partly public]** Customer-specific net prices exist (My Aimo shows "net-priced products and discount levels by product group"). Ask how widespread they are by segment.
 
 ### 3. Candidate-specific questions
 
@@ -54,17 +56,17 @@ Ask **Hanna Forsström or Pirjo Kaartinen** (commercial mentors):
 
 ### 4. How customers order today: ask Minni Ruhtinas (online sales / webshop)
 
-25. For A, B, C and E: what share orders through the **webshop, mobile, phone, EDI or a salesperson**?
+25. For A, B, C and E: what share orders through the **webshop, mobile, phone, EDI or a salesperson**? **[partly public]** Public channels: webshop (works on mobile; file import, templates, recurring orders), phone and email, Click & Collect, VALO. No public app, EDI or customer API. Shares are still unknown.
 26. Which group makes the **most corrections, complaints or returns**?
 27. What takes customers the longest in the webshop today? Searching, comparing, checking availability, or approvals?
-28. What happens today when an item is out of stock: who picks the substitute, and how often do customers reject it?
+28. What happens today when an item is out of stock: who picks the substitute, and how often do customers reject it? **[partly public]** In the webshop, substitutes are only suggested and the customer decides. What happens at picking is not public.
 
 ### 5. Data and trust: ask Tommi Nurmi-Aro, Ville Takanen or Riku Tapper (IT and data)
 
-29. Are prices in the mock API the same for everyone, or **contract-specific per customer**? **[Partly answered: the mock ignores `customer` and `netPriceFound` has been false on every call. Ask instead: will production prices be contract-specific, and how long does a price hold?]**
-30. How does the availability API show **partial quantities** and alternative delivery dates? **[Answered for the mock: one schedule line per product, with `availableAmount` and an `availableDate` that may differ from the requested date. Still ask: will production return several lines, i.e. split deliveries?]**
-31. How reliable and up to date is **allergen** data? What does the `nonAllergen` field contain? **[Our reading: `nonAllergen` holds "free from" declarations, on 5,119 products. Confirm.]**
-32. Which customers already connect **system-to-system** (EDI, or kitchen software like Aromi or Jamix)?
+29. Are prices in the mock API the same for everyone, or **contract-specific per customer**? **[Partly answered: the mock ignores `customer`; `netPriceFound` is true on about 1.6% of products whatever the customer; `catalogPrice` is below `listPrice` on almost all. Customer-specific prices exist in production (public site). Ask instead: how long does a price hold, and how should an agent get a customer's own prices?]**
+30. How does the availability API show **partial quantities** and alternative delivery dates? **[Answered for the mock: one schedule line per product. The mock ignores `requestedDate`: `availableDate` is always 2026-11-16. Two sentinels mean "unknown": 999999 (Terminal) and 9,999,999,999 base units (some Stock). Still ask: will production return several lines, i.e. split deliveries, and real dates?]**
+31. How reliable and up to date is **allergen** data? What does the `nonAllergen` field contain? **[Every `nonAllergen` value carries `unit: FREE_FROM` (5,119 products). Still ask: why is it a separate group, is "free from" tested or declared, and why do most Valio products have no free-from list?]**
+32. Which customers already connect **system-to-system** (EDI, or kitchen software like Aromi or Jamix)? *(Nothing is public about this.)*
 33. What would you need to see before trusting an outside agent to place orders **without a human**?
 
 ### 6. What the answers to Q1–33 will tell us
@@ -81,26 +83,26 @@ Ask **Hanna Forsström or Pirjo Kaartinen** (commercial mentors):
 
 34. What is a **typical order value** per site? *Why we ask:* sizes the business case. (Spend-limit sign-off came up, but mentors said it is not an expected pain point, so don't build around it unless this changes.)
 35. Do chains and public kitchens order from a **restricted contract assortment**? *Why we ask:* it defines what the agent may see and pick. Related: Q7, Q13.
-36. What does **"comparing offers"** mean inside a single wholesaler: across products, pack sizes or delivery dates? *Why we ask:* prices are fixed and the assortment is Aimo's own.
+36. What does **"comparing offers"** mean inside a single wholesaler: across products, pack sizes or delivery dates? *Why we ask:* prices are fixed and the assortment is Aimo's own. **[partly answered by the brief]** It names price, availability, delivery reliability, certificates and labels, and "good-better-best" substitution ranking within Aimo's assortment.
 
 ### 8. Online sales: Minni Ruhtinas
 
-37. What are the **order cut-off times and lead times** by product category or route? *Partly known:* the API returns a per-product `closingTime`; for Monday delivery the products checked closed Sunday 17:00.
+37. What are the **order cut-off times and lead times** by product category or route? *Partly known:* the API returns a per-product `closingTime` (Monday delivery: most Stock Sun 17:00, some Stock Fri 13:00, Terminal 10–12 Nov, already past yet still offered). Publicly: delivery on agreed delivery days, orders editable until picking starts, recurring orders take 7 days to change. Also ask: what should an agent do when the cut-off has passed?
 38. What is your **fill rate**? Complements Q28.
 39. How does the customer **learn about a substitution**, and when?
 
 ### 9. IT and data: Tommi Nurmi-Aro, Ville Takanen, Riku Tapper
 
-40. What data must **stay hidden** from external agents?
+40. What data must **stay hidden** from external agents? *(The brief names only categories: "real systems, confidential data or the marketplace roadmap".)*
 41. How should an agent **prove it acts for a specific customer**?
 42. How are **stock, price and origin data verified** today? Complements Q31.
-43. What does **`allowedLotSize` 0.01** mean (it's on 96% of products)? Can a buyer really order 0.01 of a case?
-44. A **Terminal** product always reports `availableAmount` 999999. Does that mean "always fillable" or "unknown"?
-45. What do the **unit codes** (KI, ST, PAK, KRS, …), **temperature classes 1–9** and **category codes** officially mean? Our glossaries in the data dictionary are guesses.
+43. What does **`allowedLotSize` 0.01** mean (it's on 96% of products)? Can a buyer really order 0.01 of a case? *(The schema defines it as the order step in sales units; the API does not use it.)*
+44. ~~A **Terminal** product always reports `availableAmount` 999999. Does that mean "always fillable" or "unknown"?~~ **[answered]** Unknown: the API spec says "actual value is not known". New question instead: some Stock products return 9,999,999,999 base units; does that also mean unknown?
+45. What do the **unit codes** (KI, ST, PAK, KRS, …), **temperature classes 1–9** and **category codes** officially mean? *(Allergen, claim, label and nutrient codes are now verified against GS1. Units are inferred from the data, except ST; temperature and category codes are undocumented.)*
 
 ### Junction organisers (not Valio Aimo)
 
-- What are the submission rules and format?
+- What are the submission rules and format? **[deadline answered]** Final submissions Sun 15 Nov 10:00 (junction2026.com/about.md). Format and required artefacts are not public.
 
 ## Already answered by the data (no need to ask)
 

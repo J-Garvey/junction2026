@@ -51,6 +51,8 @@ This is the biggest disagreement between the two research passes.
 
 **Current state:** `.env` (API key and portal password) and `data/` (about 20 MB of slim product data) are committed. The repo is private. They were uploaded deliberately, so everything the team needs is in one place.
 
+**Fact (checked 14 Nov):** the same API key and portal password are printed in plain text on the public challenge page, https://junction2026.com/challenges/valio-aimo-trusted-trade-agents.md. See [GROUND_TRUTH.md](GROUND_TRUTH.md) section 1.
+
 **The conflict:** Jack's files said never to commit the key or the data. His `.gitignore` lists `.env`, but git keeps tracking a file once it's committed, so that line has no effect while `.env` is in the repo.
 
 | Option | For | Against |
