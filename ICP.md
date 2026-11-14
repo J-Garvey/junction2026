@@ -47,7 +47,7 @@ These are illustrative mindsets, not direct customer interview quotes.
 
 ## 6. Our product opportunity
 
-**AI Banquet Procurement Copilot:** a tool that translates event requirements into reliable, optimised food orders using Valio Aimo product data.
+**AI Banquet Procurement Copilot** turns event needs into food orders using Valio Aimo product data and external supermarket offers.
 
 Core capabilities:
 
@@ -56,6 +56,10 @@ Core capabilities:
 - Identify dietary-compatible products and alternatives for verification.
 - Recalculate orders when guest numbers change.
 - Estimate ingredient-related carbon emissions and potential over-ordering.
+- **Supermarket dropshipping.** Use an external supermarket to fill small parts of a large Valio Aimo order, such as missing items or quantities below a wholesale pack. The supermarket or its delivery partner ships those items straight to the venue. Show the supermarket, items, cost including delivery, and expected arrival. Apply the hotel's product and approval rules to each part of the order.
+- **AI agents for email, SMS, and phone calls.** Take order requests and changes through all three channels. Ask for missing details, request approval, and send order and delivery updates through the hotel's chosen channel. Tie messages and calls to the same order record and use the same approval rules across channels.
+
+The Valio Aimo mock API covers its own product, price, and availability lookups. Simulated supermarket offers and communications can cover the added capabilities in Junction.
 
 ## 7. Positioning and value proposition
 
