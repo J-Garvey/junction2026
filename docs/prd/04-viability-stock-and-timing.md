@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Owner** | _unassigned_ |
+| **Owner** | Darragh |
 | **Track** | A: request to basket |
 | **Needs from** | 02 (candidates), 03 (pack quantities), 11 (the simulated clock) |
 | **Feeds** | 06 (questions), 07 (the final check uses the same stock and cut-off rules) |
@@ -12,7 +12,7 @@
 | ID | Tier | Story |
 |---|---|---|
 | CH-02 | P0 | See every line as green, amber or red months ahead so that I know whether I can realistically make the menu from Valio Aimo goods |
-| CH-05 | P0 | Still see products with unknown stock, flagged as unknown and needing approval, so that I keep options without ever mistaking them for confirmed stock |
+| CH-05 | P0 | Be asked whether to continue when a product's stock can't be confirmed so that I keep the option without ever mistaking it for confirmed stock |
 | CH-17 | P1 | Have delivery planned for when prep starts, including thawing, not just for the service date, so that frozen and long-prep items arrive in time |
 | SF-07 | P0 | Use real stock straight away when the delivery date is inside the lead time so that urgent requests are checked against what can actually ship |
 | AP-14 | P1 | Be asked when lines can't all arrive on one agreed delivery day so that I choose between a split delivery and a different product |
@@ -25,7 +25,7 @@
   - Red: nothing passes the diet rules, or nothing is deliverable.
 - **Stock counts only close to delivery.** Until then it is shown as "today's stock, not a promise for your date". [D8]
 - **Inside the lead time, real stock is used straight away** (SF-07). This is what the milk request needs.
-- **Unknown stock is suggested, never confirmed, and always carries a warning** (D23, made louder in review). It ranks below real stock. It is labelled "unknown stock" and shows a warning wherever it appears, not only a label. It needs the Approver to accept the risk. At the final check it reads "covered at risk", still with the warning.
+- **Unconfirmed stock is a question, never a block and never confirmed** (D31, which replaces D23). It never loses on stock alone: the product that is best on the other ranking steps is picked (D32). When such a product is picked, the person building the order is asked "Valio Aimo can't confirm stock for [product]. Continue with it?" and can continue or pick another. The Approver is not asked. The line is labelled "stock not confirmed" everywhere, including after the final check.
 - **A past cut-off is always caught by us**, because the mock still shows a Monday delivery after a cut-off has passed. [GROUND_TRUTH 3]
 - **Delivery is planned for when prep starts**, including thawing, not for the service date. [CH-17]
 
@@ -46,49 +46,49 @@ Each function is one problem that can be built and tested alone. "Deterministic 
 
 **Q04.1 What exactly is "inside the lead time"?** Lead times run from next day to about 4 days, and the mock always answers for next Monday.
 - Recommended: a request is urgent when its needed-by date is 4 days or fewer from the clock's "now". Urgent requests skip the stock-blind step and get the full check at once.
-- **Answer:** _open_
+- **Answer:** **Answered** (Darragh, 14 Nov): urgent when the goods are needed within **5 days** (not 4), to be safe.
 
 **Q04.2 When is the price fixed for an order placed months ahead?**
 - Recommended: at the moment the order is placed, from the quote (the brief says fixed prices). If the price's `validTo` is before the delivery date, that is a question to the Approver, as the approval rules already say.
-- **Answer:** _open_
+- **Answer:** **Answered** (Darragh, 14 Nov): agreed as recommended.
 
 **Q04.3 What is the default needed-by date?**
 - Recommended: one day before the service date for chilled and ambient goods, two days before for frozen (temperature class 7), so there is time to thaw. A recipe line can override it.
-- **Answer:** _open_
+- **Answer:** **Answered** (Darragh, 14 Nov): agreed as recommended.
 
 **Q04.4 Which days can the hotel receive deliveries, and which holidays count?**
 - Recommended: the mandate fixture lists Monday to Friday as agreed delivery days, plus a short list of Finnish public holidays for the test period. A needed-by date that falls on any other day moves to the delivery day before it, and that move is shown.
-- **Answer:** _open_
+- **Answer:** **Answered** (Darragh, 14 Nov): delivery days are **set by the venue** as its availability to receive. Default is Monday to Friday. Saturday and Sunday are one easy setting to switch on. Public holidays are blocked.
 
 **Q04.5 Does very poor delivery reliability do more than turn a line amber?** Twelve products have a reliability of 0.0.
 - Recommended: below 0.80, the line also raises a question when the order is placed: "This product was delivered as ordered only X% of the time. Order it anyway?"
-- **Answer:** _open_
+- **Answer:** **Answered** (Darragh, 14 Nov): yes, but the threshold is **90%**: below 90% delivered as ordered, ordering asks. This is a default and must be easy to change, especially from the place where the line is flagged.
 
-**Q04.6 Once the Approver accepts unknown stock, does the final check ask again?**
-- Recommended: no. The acceptance stays with the line. The final check restates it as "covered at risk, accepted by [person] on [date]". It asks again only if the product or quantity changed.
-- **Answer:** _open_
+**Q04.6 Once someone continues with unconfirmed stock, does the final check ask again?** (Reworded on 14 Nov for D31. Darragh's answer was given to the earlier wording and still applies.)
+- Recommended: no. The choice stays with the line. The final check restates it as "stock not confirmed, continued by [person] on [date]". It asks again only if the product or quantity changed.
+- **Answer:** **Answered** (Darragh, 14 Nov): check again on the **last day the line can still be changed**. Unless something major has changed, it approves automatically.
 
 **Q04.7 What are the options when lines can't all arrive on one day?** (AP-14)
 - Recommended, offered in this order on one card:
   1. Take the latest of the dates, if it is still on or before the needed-by date.
   2. Switch the late line to another product that arrives in time.
   3. Accept two deliveries, recorded as two linked orders, since the API can't express a split.
-- **Answer:** _open_
+- **Answer:** **Answered** (Darragh, 14 Nov): **all options are calculated** and offered, and the hotel can pick any of them. They are **ranked by least disruption**, using the hotel's past responses to inform the ranking.
 
 ## Edge cases to rule on
 
 | Case | Proposed rule | Ruling |
 |---|---|---|
-| Stock amount is 0 and there is no available date | Treated as not available now; amber months ahead, a shortfall when urgent | _open_ |
-| Real stock covers part of the need | Partial availability: a partial-fill question (chunk 06) | _open_ |
-| `salesBlock` is true (never seen in the mock) | Not deliverable | _open_ |
-| The service date is a Sunday or a holiday | Needed-by moves back to the last agreed delivery day | _open_ |
-| The chef changes a dish after viability ran | Only the changed lines are re-checked; the rest keep their verdict | _open_ |
-| A line is green months ahead and red at the final check | It enters the shortfall flow in chunk 07 | _open_ |
+| Stock amount is 0 and there is no available date | Treated as not available now; amber months ahead, a shortfall when urgent | Agreed (Darragh, 14 Nov) |
+| Real stock covers part of the need | Partial availability: a partial-fill question (chunk 06) | **Changed** (Darragh, 14 Nov): ask, but assume the partial delivery will be rejected. With the question, suggest a substitute that can be ordered in the full quantity, and offer three options: partial, partial plus substitute, or substitute only |
+| `salesBlock` is true (never seen in the mock) | Not deliverable | Agreed (Darragh, 14 Nov) |
+| The service date is a Sunday or a holiday | Needed-by moves back to the last agreed delivery day | **Depends on the hotel's settings** (Darragh, 14 Nov): it follows the delivery days the venue has set (Q04.4) |
+| The chef changes a dish after viability ran | Only the changed lines are re-checked; the rest keep their verdict | Agreed (Darragh, 14 Nov) |
+| A line is green months ahead and red at the final check | It enters the shortfall flow in chunk 07 | Agreed (Darragh, 14 Nov) |
 
 ## Done when
 
 - The seed event shows at least one green, one amber and one red line months ahead, each with its reason.
 - The milk request "by Monday" is checked against real stock at once.
-- A Terminal product appears as "unknown stock" and never as available.
+- A Terminal product appears as "stock not confirmed" and never as available.
 - A frozen line's delivery is planned two days before service.

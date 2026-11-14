@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Owner** | _unassigned_ |
+| **Owner** | Pavit |
 | **Track** | C: gateway, interface, tests |
 | **Needs from** | 05 (the mandate), 02 (search fields) |
 | **Feeds** | Every chunk that quotes, orders or amends: 04, 06, 07, 09 |
@@ -66,13 +66,14 @@ Each function is one problem that can be built and tested alone. "Deterministic 
   - `GET /audit`, filtered by event or order.
 - **Answer:** _open_
 
-**Q08.2 Where is the line between Valio Aimo's gateway and the hotel's agent, inside one service?** **Major question: answer first.** Responsibility: whoever builds the core brief functions (`PRODUCT-SEARCH`, `LOOKUP`, quoting and ordering).
+**Q08.2 Where is the line between Valio Aimo's gateway and the hotel's agent, inside one service?** **Major question.** Responsibility: Pavit, who builds the core brief functions (`PRODUCT-SEARCH`, `LOOKUP`, quoting and ordering).
 - Recommended: two folders in `apps/api` that may not import each other's internals: `gateway/` (Valio Aimo's side) and `agent/` (the hotel's side). The agent reaches the gateway only through the same HTTP routes an outside agent uses. That keeps it honest: our own agent has no back door.
-- **Answer:** **Agreed in outline, incomplete** (Jack, team review 14 Nov): our own agent uses the same gateway routes as an outside agent, and we host the gateway ourselves. Still to be written in detail by the owner:
-  - where the gateway is hosted and its address;
-  - how our agent authenticates compared with an outside agent;
-  - whether our agent calls the routes over HTTP or through the same handlers in-process;
-  - whether any route exists that only our agent may call, and if so why.
+- **Answer:** **Use the same REST contract for both agents.** Keep the hotel agent and gateway in one Express process on the T3 devbox. [Tech stack](../../TechStack.md)
+  - **Hosting.** Use `http://127.0.0.1:5690/api` for local calls. The planned demo API base is `https://junction-gateway.bestinhop23.com/api`. Web and Capacitor clients use that HTTPS origin. Publish the gateway contract at `/openapi.json` on the same origin, with the demo API base in its server URL. The gateway keeps the Aimo mock key server-side.
+  - **Boundary.** Put request parsing, recipe and event context, and buyer preferences in `apps/api/agent/`. Put catalog lookup, quote and order writes, mandate checks, approval checks, and gateway audit in `apps/api/gateway/`. The agent's HTTP client uses the Zod schemas in `packages/contracts/` and sends only the fields the gateway needs for the trade. Our agent uses loopback HTTP to reach the same Express routes outside agents call over HTTPS. Those routes run the same validation and checks. The agent has no direct write path to gateway tables in SQLite.
+  - **Agent credentials.** Both agents use opaque bearer tokens. Store token digests with an agent ID, hotel, allowed delivery sites, scopes, and expiry. The server resolves the actor from the credential and checks each resource against its scope. Our agent's short-lived token is issued server-side from the current seeded person's session and records which person asked it to act. An outside agent gets its own revocable token for the same actions within its grant. Client-supplied hotel, site, role, or person fields cannot expand access.
+  - **Human decisions.** The web uses an HTTP-only session cookie and mobile holds a short-lived session token in memory. The demo switcher selects a seeded person's server session. An agent can submit an order with an existing approval bound to the exact quote. Only an Approver's server session can record an exception approval. [Seeded people and switcher](06-questions-approvals-and-teams.md)
+  - **Routes.** No gateway route is reserved for our agent. App routes for intake, sessions, and the demo switcher serve the app. They grant no extra ordering access. Limit the switcher to the seeded demo session and keep it outside the agent contract. Apply the audit read rules in Q09.2 to `GET /audit`. [Audit and explanations](09-audit-and-explanations.md)
 
 **Q08.3 How long is a quote valid?** The mock can't say anything about a date months away.
 - Recommended: until its earliest cut-off, and never more than 24 hours. An order placed months ahead is built from a fresh quote, and the final check re-quotes it.
@@ -122,6 +123,7 @@ Each function is one problem that can be built and tested alone. "Deterministic 
 
 - `/openapi.json` describes every endpoint, and lists the mock's quirks as stated assumptions.
 - A script acting as an outside agent can search, quote and order using only the published spec.
+- The built-in agent and the outside script get the same quote terms and rule outcomes for the same scoped request against the same fixture. A token for one hotel or site cannot submit an order for another. An agent token cannot record a human approval.
 - An order over the cap is refused with `mandate_violation`, then accepted with a matching approval.
 - Sending the same order twice returns one order.
 - An order on a line past its cut-off is refused even though the mock shows a delivery date.

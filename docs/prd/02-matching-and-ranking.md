@@ -2,11 +2,12 @@
 
 | | |
 |---|---|
-| **Owner** | _unassigned_ |
+| **Owner** | Pavit |
+| **Second check** | Darragh signs off Q02.3 (the diet-to-data table) and the ranking order (Q02.4 to Q02.6) |
 | **Track** | A: request to basket |
 | **Needs from** | 01 (the `Request` object), 05 (the diet-to-claim table sits with the hard rules) |
 | **Feeds** | 03 (quantities), 04 (viability), 07 (substitutes reuse this ranking) |
-| **Also this owner's** | Two major questions to answer first: [Q08.2](08-gateway-and-orders.md) and [Q09.2](09-audit-and-explanations.md). See the index. |
+| **Also Pavit's** | Two major questions to answer first: [Q08.2](08-gateway-and-orders.md) and [Q09.2](09-audit-and-explanations.md). See the index. |
 
 ## What: the stories this chunk delivers
 
@@ -24,7 +25,7 @@
 - **Shortlist locally, then ask the API.** Candidates come from `data/products_slim.jsonl`. The mock is called only for the shortlist, at most 1,000 IDs per call. [SPEC, VA-13]
 - **Diets are matched on claims and allergen codes, never on names.** No allergen declaration means unknown, never safe. [GROUND_TRUTH 4.2]
 - **Product type is a model judgement.** Where claims can't tell types apart (plain milk vs coffee milk in category 10400), the Gemini Decisions API answers yes/no per candidate. Below the threshold the line becomes a question. The Decisions API is in the build. [D12, D29]
-- **Ranking is one fixed order** (SF-06): passes hard rules, then real stock over unknown, recipe-approved or brand match, delivery reliability, price per kg or L after rounding, then labels, origin and carbon as preferences weigh them. Ties break on product ID.
+- **Ranking is one fixed order** (SF-06): passes hard rules, then recipe-approved or brand match, delivery reliability, price per kg or L after rounding, then labels, origin and carbon as preferences weigh them, and confirmed stock only as the last tie-breaker (D32, which moved stock from first to last). Ties break on product ID.
 - **Labels and origin** come from the data's `labels` and `origin` fields. A required one is a hard rule for that event; a preferred one only changes rank. [CH-15, CH-16]
 
 ## Functions: the problems to solve
@@ -69,19 +70,19 @@ Each function is one problem that can be built and tested alone. "Deterministic 
   - Vegan: has claim `VEGAN`.
   - Allergy to X: the product has an allergen declaration, and X is in neither CONTAINS nor MAY_CONTAIN.
   - A product that claims lactose-free but lists lactose as CONTAINS (4 known products) fails.
-- **Answer:** _open_
+- **Answer:** **Signed off** (Darragh, 14 Nov): agreed, with one addition. Lactose-free, gluten-free and vegan rows as recommended. **Allergic to X:** the product must have an allergen declaration, and X must not be listed as CONTAINS, MAY_CONTAIN **or UNDECLARED**. The 4 products that claim lactose-free but list lactose fail.
 
 **Q02.4 How does delivery reliability order candidates?**
 - Recommended: three bands. Known and 0.95 or above ranks first, unknown second, known and below 0.95 last. Inside a band, higher is better, compared to two decimal places.
-- **Answer:** _open_
+- **Answer:** **Signed off, changed** (Darragh, 14 Nov): **unreliable is 90% or lower** (not below 0.95). Other ranking factors can come before reliability where needed; reliability is not automatically the first sort key.
 
 **Q02.5 Where do "recipe-approved" and "brand match" come from?**
 - Recommended: a brand or product ID written on the recipe line, plus the remembered substitute approvals from chunk 07. Nothing is inferred.
-- **Answer:** _open_
+- **Answer:** **Signed off** (Darragh, 14 Nov): agreed as recommended.
 
 **Q02.6 How many candidates does the user see?**
 - Recommended: three, labelled best, better and good, with the ranking step that separated them. The rest sit behind "more options".
-- **Answer:** _open_
+- **Answer:** **Signed off, changed** (Darragh, 14 Nov): **don't label** the options best, better and good. Show them in the order the agent thinks is best, but make the trade-offs between them clearer, without an obvious ranking the reviewer would just pick. **Highlight one only if there is a clear winner.**
 
 **Q02.7 How is price compared when the API gives no comparison price?** This happens on 164 of 999 priced products.
 - Recommended: compute price per kg or L from the pack content. If that can't be computed either, the product ranks last in the price step and its line is amber.

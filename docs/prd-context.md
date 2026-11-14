@@ -1,6 +1,6 @@
 # PRD context: decisions the PRD builds on
 
-> **What this is:** the agreed context base for the agent that writes the PRD. It records the decisions made in a grilling session with Jack on 14 Nov 2026 (D1 to D14), Darragh's follow-up decisions (D15 to D22) and Jack's review of the stories and the PRD draft (D23 to D30), what each rests on, and what is still open. The user stories built on it are in [user-stories.md](user-stories.md). The PRD, split into chunks that each say how a group of stories is delivered, is in [prd/](prd/README.md).
+> **What this is:** the agreed context base for the agent that writes the PRD. It records the decisions made in a grilling session with Jack on 14 Nov 2026 (D1 to D14), Darragh's follow-up decisions (D15 to D22) and Jack's review of the stories and the PRD draft (D23 to D32), what each rests on, and what is still open. The user stories built on it are in [user-stories.md](user-stories.md). The PRD, split into chunks that each say how a group of stories is delivered, is in [prd/](prd/README.md).
 >
 > **How to read the tags:** **[TEAM Dn]** a decision from this session; **[BRIEF]**, **[API]**, **[SPEC]**, **[DATA]**, **[SRC]**, **[STAND]**, **[INF]**, **[OPEN]** mean what they mean in [GROUND_TRUTH.md](../GROUND_TRUTH.md) and [research/07](../research/07-hotel-event-ordering-journey.md). Where this file and GROUND_TRUTH.md disagree on a fact, GROUND_TRUTH.md wins.
 >
@@ -30,7 +30,7 @@ When goals conflict: correct beats trustworthy beats fast. A fast wrong order co
 | Avatar | Who in real life | Does | Can't |
 |---|---|---|---|
 | **Chef** | Banquet or executive chef; also a bar manager or anyone who specifies what an event needs | States needs; checks viability; answers recipe questions (will the dish still work with this substitute?) | Commit money |
-| **Approver** | F&B Director, finance manager, or whoever signs orders off | Sets the hotel's rules once (the mandate); signs off only what breaks them; answers money and policy questions | Answer recipe questions; waive a diet rule; turn unknown stock into confirmed stock (they can only accept the risk, D23) |
+| **Approver** | F&B Director, finance manager, or whoever signs orders off | Sets the hotel's rules once (the mandate); signs off only what breaks them; answers money and policy questions | Answer recipe questions; waive a diet rule; turn unknown stock into confirmed stock (nobody can; D31) |
 | **Valio Aimo** | The wholesaler, reached through the Agent Gateway API; its sales rep receives flags | Serves lookups, quotes and orders; enforces the hotel's mandate itself; keeps the shared audit log | |
 
 - **Purchasing Manager: kept for now as an optional role (revised 14 Nov, Darragh).** Whether a hotel has a separate purchaser depends on the hotel: research/07 found none in Finnish hotels, where the kitchen manager orders, but other hotels may. The hotel's own role setup decides who places orders and who approves. The approval rules stay as above: one Approver signs off what breaks the mandate. [TEAM D1, revised][SRC research/07]
@@ -68,13 +68,13 @@ All four moments run the same pipeline; the demo shows them as four scenes on on
 - **The Chef sees a side-by-side** of original and substitute (ingredient statement, macros per 100 g, claims, allergens, pack, price per kg or L, delivery reliability) and answers one yes/no: "Will [dish] still work with this?" [TEAM D6]
 - **A yes is remembered** for that recipe and product pair, so the same swap never asks twice. This is how compatibility tags fill in. [TEAM D6]
 - Ranking is good-better-best **within Valio Aimo's own assortment**, as the brief names it. [BRIEF][TEAM D2]
-- **The ranking order is fixed** (story SF-06): only candidates passing every hard rule; then real stock over unknown; recipe-approved or brand match; delivery reliability; price per kg or L after rounding; then labels, origin and carbon as preferences weigh them. Ties break on product ID so the same input always gives the same pick.
+- **The ranking order is fixed** (story SF-06): only candidates passing every hard rule; then recipe-approved or brand match; delivery reliability; price per kg or L after rounding; labels, origin and carbon as preferences weigh them; and confirmed stock only as the last tie-breaker (D32). Ties break on product ID so the same input always gives the same pick.
 
 ## Supplier scope
 
 - **Valio Aimo only.** Nobody picks a wholesaler. [TEAM D2]
 - **Add-on: partner sourcing.** A line Valio Aimo cannot fill can go to a partner shop. **Revised by D21:** any partnered shop, no per-line Valio Aimo approval, clearly labelled as externally sourced. [TEAM D2, D3, D21]
-- A **Terminal line with unknown stock is not "unfillable"**: it stays a normal question to the hotel (accept the unknown-stock risk, D23). [TEAM D2]
+- A **Terminal line with unknown stock is not "unfillable"**: it stays a normal question to the hotel (continue with unconfirmed stock, or pick another product; D31). [TEAM D2]
 - **Add-on (non-core): external sourcing, such as supermarket dropshipping** (revised from parked, 14 Nov, Darragh). Fills a small gap in a large order, or a quantity below a wholesale pack, from an external source shipped to the venue. Built only after the core; offers are simulated in Junction, since no supermarket data exists. Same mandate and approval rules as any line. Risk to state: it sends spend away from Valio Aimo, the company we want to sell to. [TEAM D2, revised]
 
 ## When nobody answers
@@ -83,12 +83,13 @@ All four moments run the same pipeline; the demo shows them as four scenes on on
 - **Soft decisions can have defaults set in advance** in the mandate (accept a partial fill, round up within tolerance). That is a prior decision, not silence. [TEAM D9]
 - Who can answer never widens: the Approver cannot answer a recipe question, no approval waives a diet rule, and no approval turns unknown stock into confirmed stock. [TEAM D9][approval rules]
 
-## Unknown stock (D23, changed 14 Nov)
+## Unconfirmed stock (D31, replaces D23)
 
-- **Always shown with a warning, not as a plain label** (made louder in the team review, 14 Nov).
-- **Products with unknown stock are suggested, not blocked.** They rank below any product with a real stock figure that passes the same rules, are always labelled "unknown stock", and need the **Approver to accept the risk** before they are ordered. [TEAM D23]
-- Accepting the risk is not confirming the stock. The label stays everywhere; at the final check the line reads "covered at risk", never "covered". A pre-answer (AP-11) can accept it in advance. Under D16 most orders go through without a human, so a hotel that wants unknown-stock lines to go through automatically sets that pre-answer.
-- **This changes an earlier rule.** [human-approval-rules.md](human-approval-rules.md) and [AGENTS.md](../AGENTS.md) treated unknown stock as a block. Both are updated to match. It matters for the milk case: 20 of the 35 lactose-free products are Terminal, so they always report unknown stock. [API, GROUND_TRUTH 4.3]
+- **It is a question, not a warning and not a block.** When a product's stock can't be confirmed, the person building the order (normally the Chef) is asked: "Valio Aimo can't confirm stock for [product]. Continue with it?" They can continue or pick another product. It does not go to the Approver. [TEAM D31]
+- **It is never shown as confirmed.** The line keeps a plain "stock not confirmed" label everywhere, including after the final check, and the summary says how many lines are unconfirmed.
+- **It does not lose on stock alone** (D32). The product that wins on the other ranking steps is picked. If its stock is unconfirmed, that is when the question is asked. Confirmed stock is only the last tie-breaker.
+- **A hotel can skip the question** with a pre-answer (AP-11), for example on cheap lines.
+- **How this rule got here.** Unknown stock began as a block (the approval rules). It became a risk the Approver accepted (D23), then a louder warning in the team review, and then this, on 14 Nov, once the demo was planned ([demo-plan.md](demo-plan.md)). It matters for the milk case: 20 of the 35 lactose-free products are Terminal, so they always report unknown stock. [API, GROUND_TRUTH 4.3]
 
 ## Preferences (D24)
 
@@ -124,7 +125,7 @@ Customers buy whole sales units: 1.5 needed means 2 [STAND, research/06]. The da
 - Why: the secondary goal is fewer human decisions (D14), so the app opens on the few that are waiting. Open-ended chat is the least precise and least auditable way to use the product. The existing mockups have a chat-first home (designs/mockups screen 01); that screen changes.
 - **Type to ask, tap to decide.** Free text is an input only; every decision is a card with two or three buttons and everything needed to answer it. No free-text approvals.
 - **Compact by default, checkable on tap.** Any number or verdict opens its source: rule ID, data field, or model judgement with confidence.
-- **One set of status labels everywhere**, and gaps (blocked, unresolved, at risk) always shown above what's fine.
+- **One set of status labels everywhere**, and gaps (blocked, unresolved, stock not confirmed) always shown above what's fine.
 - See the [interface stories](user-stories.md#interface).
 
 ## Teams and outlets (D27, overrides D17)
@@ -155,7 +156,7 @@ Several people share a hotel, and a bar and a restaurant coordinate on the same 
 ## Test cases the PRD must cover
 
 1. **The hotel event:** a 500-guest conference with diet counts, through all four scenes. [TEAM D4, D8]
-2. **The brief's milk request:** "1,000 litres of lactose-free milk by Monday". No single lactose-free milk with a real stock figure covers it [API, GROUND_TRUTH 4.3], so the honest outcome is a partial fill across several products for the Approver to approve, plus unknown-stock products offered for the Approver to accept the risk on, labelled as unknown. [TEAM D10, D23]
+2. **The brief's milk request:** "1,000 litres of lactose-free milk by Monday". The agent proposes the product that is best on delivery reliability and price, which is Valio's own Eila at €1.01 per litre [API, 14 Nov]. Its stock is unconfirmed, so the person is asked whether to continue (D31, D32). The alternative offered is a split across the milks whose stock is confirmed; no single one of those covers 1,000 L [API, GROUND_TRUTH 4.3]. [TEAM D10, D32]
 3. **A blocked path:** an allergen or diet failure, or a past cut-off, that no approval can push through. [AGENTS.md]
 
 ## Decisions, 14 Nov evening (Darragh)
@@ -176,10 +177,12 @@ These answer the follow-up questions and take precedence over anything above tha
 - **D28. A late allergy conflict that nobody resolves: the order goes ahead, with a big warning.** If a new allergy makes an already-ordered line unsafe, the hotel is warned at once and the warning stays very visible everywhere until someone resolves it. If nobody does, the order still goes ahead unchanged. The agent never removes the line by itself. This keeps D9 (silence never changes the order) and is the one stated exception to D14's "zero hard-rule violations reach an order": the conflict is never hidden, but it doesn't stop an order that was already placed. Before an order is placed, an allergen failure is still a block.
 - **D29. The Gemini Decisions API is in the build**, for several functions, not optional as D22 had it. It still never decides a hard rule (D12). The PRD is broken down to named functions (for example `LOOKUP` and `PRODUCT-SEARCH`), each marked as deterministic code, a Decisions API call or a language-model call. See [prd/README.md](prd/README.md).
 - **D30. The demo script and the pitch are not part of the PRD.** The PRD covers building the product only. Seed data, the simulated clock and test cases stay in, because the build needs them.
-- **D23 made louder (team review, Jack).** A product with unknown stock is still suggested and labelled, and it now always carries a visible warning wherever it appears, not only a label. It stays a risk the Approver can accept, and the warning stays after acceptance.
+- **D23 made louder (team review, Jack).** A product with unknown stock always carried a visible warning, and the Approver accepted the risk. **Replaced by D31 below.**
 - **Confirmed in the team review (Jack):** D26, D27, D28, D29 and D30 as written. Decisions API thresholds: 0.90 or above is a fact, 0.10 or below rejects. Decisions API answers are stored and reused. An order can't go in while a line is blocked. The allergy warning (D28) shows everywhere, in the same words.
 - **Open after the review:** one complete list of every rule and parameter ([prd chunk 05, Q05.10](prd/05-rules-mandate-and-preferences.md)); the seed event, deferred until the demo is planned.
-- **Team:** Jack, Darragh, Pavit and Ben. Who owns which PRD chunk or function is a team decision; nothing is pre-assigned.
+- **D31. Unconfirmed stock is a question the person building the order can continue past** (Jack, 14 Nov, after planning the demo). It replaces D23's warning and the Approver's risk acceptance. The person, normally the Chef, is asked "Valio Aimo can't confirm stock for [product]. Continue with it?" and can continue or pick another. The line is labelled "stock not confirmed" and is never shown as confirmed. Story AP-13 is withdrawn; CH-05 carries the behaviour.
+- **D32. Confirmed stock no longer ranks first** (Jack, 14 Nov). A product that wins on every other ranking step is picked even if its stock is unconfirmed, and the person is then asked whether to continue (D31). Confirmed stock is only the last tie-breaker. The reason: today's stock says little about a delivery months away, most of all for perishables, and it was making a dearer product win on stock alone. Checked on the data: of the 34 deliverable lactose-free products in the milk category, Valio's Eila is the best on reliability and price, and under the old order it lost to a product costing more than twice as much. This settles the conflict between D7 and the old first step of SF-06.
+- **Team:** Jack, Darragh, Pavit and Ben. **Chunk owners were assigned on 14 Nov** from each person's strengths: Jack 01, 06, 10; Darragh 04, 05, 07; Pavit 02, 08 and the two major questions; Ben 03, 09, 11. The team can swap them. See [prd/README.md](prd/README.md#who-owns-what).
 
 ## Still open
 
@@ -187,7 +190,7 @@ These answer the follow-up questions and take precedence over anything above tha
 |---|---|---|
 | **How each hotel sets itself up** | **Decided (D18, D19):** self-serve, non-core; spend caps per order | |
 | Who pays: Valio Aimo, the hotel, or both | Open, **does not block the build**. The secondary goal (rep time saved) serves either answer | Team; mentor Q3 |
-| Team members, skills and stack | **Stack decided:** see [TechStack.md](../TechStack.md) (TypeScript monorepo, React and Vite, Express, SQLite). The Decisions API is in (D29). Team: Jack, Darragh, Pavit, Ben. Still open: who owns which PRD chunk or function ([docs/prd](prd/README.md)) | Team |
+| Team members, skills and stack | **Stack decided:** see [TechStack.md](../TechStack.md) (TypeScript monorepo, React and Vite, Express, SQLite). The Decisions API is in (D29). Team: Jack, Darragh, Pavit, Ben. Chunk owners are assigned ([docs/prd](prd/README.md#who-owns-what)) | Team |
 | Does My Aimo keep customer recipes an agent could read, with past accepted substitutes? | Decides whether the recipe library add-on is cheap | Valio Aimo stand |
 | ~~Does a hotel want exceptions-only approval, or approval of every order?~~ | **Decided (D16):** the app auto-approves most food orders within the mandate | |
 | How recipes get into the app (typed, uploaded, imported) | Open (D22) | Team |

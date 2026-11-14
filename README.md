@@ -40,6 +40,7 @@ What changed when the two uploads were merged is in **[CHANGES.md](CHANGES.md)**
 | [docs/build.md](docs/build.md) | **The prototype:** how to run it, how it fits together, the three test cases and the PRD answers the build chose |
 | `apps/api`, `apps/app`, `packages/contracts` | The TypeScript workspace: gateway and hotel agent, React app, shared Zod schemas |
 | [docs/prd/](docs/prd/README.md) | **The PRD, in 11 chunks and 65 named functions.** Each chunk says how a group of user stories is delivered, the functions to build, and the questions and edge cases still to rule on |
+| [docs/demo-plan.md](docs/demo-plan.md) | **The three-minute demo video:** a wedding followed from the chef's, the finance manager's and Valio Aimo's seats, with the real products it uses and what has to work on camera |
 | [QUESTIONS.md](QUESTIONS.md) | Open team decisions, with both positions for each |
 | [CHANGES.md](CHANGES.md) | Every change made when the two uploads were merged |
 | [AGENTS.md](AGENTS.md) | Shared instructions for Codex and Claude Code, with the hotel demo and data workflow |

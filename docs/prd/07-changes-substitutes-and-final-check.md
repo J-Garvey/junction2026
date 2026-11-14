@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Owner** | _unassigned_ |
+| **Owner** | Darragh |
 | **Track** | B: trust core |
 | **Needs from** | 02 (ranking), 04 (stock and cut-off rules), 06 (questions), 08 (amendments) |
 | **Feeds** | 09 (audit), 10 (the diff view and the "covered" summary) |
@@ -51,7 +51,7 @@ Each function is one problem that can be built and tested alone. "Deterministic 
 | `SPEC-COMPARE` | Deterministic code | Two products | Side-by-side rows with the differences marked | Built from the data only. | Q07.5 |
 | `APPROVAL-RECALL` | Deterministic code | Recipe, original product, substitute | A remembered yes, or none | Void if the substitute's spec has changed. | Q07.6 |
 | `SILENCE-RESOLVE` | Deterministic code | The questions still open at a cut-off | The order unchanged, and flags to the Approver and the rep | Never change the order. | Q07.8 |
-| `COVERAGE-SUMMARY` | Deterministic code | The order's state | One summary line | Never "covered" alone while a line is at risk or carries a warning. | Q07.7 |
+| `COVERAGE-SUMMARY` | Deterministic code | The order's state | One summary line | Never "covered" alone while a line's stock is unconfirmed or a line carries a warning. | Q07.7 |
 
 **Decisions API calls in this chunk.** The question wording is a recommendation for the owner to settle.
 
@@ -63,11 +63,11 @@ Each function is one problem that can be built and tested alone. "Deterministic 
 
 **Q07.1 What is the default tolerance for a guest-count change?**
 - Recommended: up to ±5% of guests goes through with no question, as long as every changed line still passes its rules and the order stays under the spend cap. Decreases reduce the order automatically within the same tolerance.
-- **Answer:** _open_
+- **Answer:** **Answered** (Darragh, 14 Nov): **5%, rounded down**, or a pre-set **± guest count banded by event capacity**. The person who runs the event can edit it.
 
 **Q07.2 When exactly does the final check run?**
 - Recommended: 24 hours before each cut-off. Lines that share a cut-off are checked together. In the test cases there is one run, started by moving the clock.
-- **Answer:** _open_
+- **Answer:** **Answered** (Darragh, 14 Nov): agreed as recommended.
 
 **Q07.3 In what order does the agent try to fix a shortfall?**
 - Recommended:
@@ -76,30 +76,30 @@ Each function is one problem that can be built and tested alone. "Deterministic 
   3. Up to three substitutes ranked best, better, good: one question to the chef.
   4. A partial fill: one question to the Approver.
   5. Otherwise the line is unresolved and shown at the top of the event.
-- **Answer:** _open_
+- **Answer:** **Answered** (Darragh, 14 Nov): agreed: the order 1, 2, 3, 4, 5 as recommended.
 
 **Q07.4 How are substitute candidates chosen and ordered?**
 - Recommended: start with the data's own listed substitutes where they exist (188 products have them). Then products of the same type and category that pass every event constraint. Order them by closeness to the original (fat, protein and sugar per 100 g, then same brand), then by the normal ranking in chunk 02.
-- **Answer:** _open_
+- **Answer:** **Answered** (Darragh, 14 Nov): **pre-approved substitutes first**. Every candidate must still meet all the rules that apply; **only then** rank by similarity.
 
 **Q07.5 What fields does the side-by-side show?** A chef hasn't yet confirmed these are enough.
 - Recommended: ingredient statement, fat, protein and sugar per 100 g, claims, allergens, pack size, price per kg or L, delivery reliability. Differences are highlighted; identical rows are collapsed.
-- **Answer:** _open_
+- **Answer:** **Answered** (Darragh, 14 Nov): show **nutritional content, allergens (prominent), cost and delivery**. Order the rows by both how important each factor generally is **and** how big the difference is between the two products.
 
 **Q07.6 How long does a remembered approval last, and what cancels it?**
 - Recommended: it lasts until the chef removes it, and it applies within the outlet that gave it. It is cancelled automatically if the substitute's ingredient statement, allergens or claims change.
-- **Answer:** _open_
+- **Answer:** **Answered** (Darragh, 14 Nov): agreed as recommended.
 
 **Q07.7 What does the hotel see when the final check finishes?**
-- Recommended: one of three summaries per event, and never "covered" alone while anything is at risk:
+- Recommended: one of three summaries per event, and never "covered" alone while any line's stock is unconfirmed:
   - "Covered."
-  - "Covered, 2 lines at risk (unknown stock)."
+  - "Covered. Valio Aimo can't confirm stock on 2 lines." (Reworded on 14 Nov for D31; it was "Covered, 2 lines at risk".)
   - "Not covered: 1 line needs an answer by Sun 17:00."
-- **Answer:** _open_
+- **Answer:** **Answered** (Darragh, 14 Nov): agreed as recommended.
 
 **Q07.8 What reaches the Valio Aimo rep at the cut-off, and how?** (VA-12)
 - Recommended: one audit entry per unresolved line, tagged for Valio Aimo, with the product, quantity, what was short and when the hotel was asked. A screen for the rep is an add-on.
-- **Answer:** _open_
+- **Answer:** **Answered** (Darragh, 14 Nov): **a short sentence or two about what is wrong, plus two or more possible solutions**, for each unresolved line.
 
 **Q07.9 A new allergy makes an already-ordered line unsafe, and nobody answers. What happens?** Two decisions collide here: "silence never changes the order" (D9) and "no hard-rule violation reaches an order" (D14).
 - Recommended: this is the one case that doesn't wait for the cut-off.
@@ -116,20 +116,20 @@ Each function is one problem that can be built and tested alone. "Deterministic 
   - in the summary, which reads "Warning: 1 line conflicts with a stated allergy", never "covered";
   - in the audit, and in the flag sent to the Valio Aimo rep at the cut-off.
 - Recommended wording: "[Product] contains [allergen]. [N] guests at [event] must avoid it. This line is still in the order." with two buttons: remove the line, or replace it.
-- **Answer:** **Agreed** (Jack, team review 14 Nov): the warning shows in every place listed, in the same words, until it is resolved. An allergy conflict is a major concern and has to be shown consistently everywhere. The wording is still for the owner to finalise.
+- **Answer:** **Agreed** (Jack, team review 14 Nov): the warning shows in every place listed, in the same words, until it is resolved. An allergy conflict is a major concern and has to be shown consistently everywhere. **Wording agreed (Darragh, 14 Nov)** as recommended.
 
 ## Edge cases to rule on
 
 | Case | Proposed rule | Ruling |
 |---|---|---|
-| The guest count drops but pack rounding means no pack changes | Shown as "no change"; nothing is asked | _open_ |
-| The guest count rises after a line's cut-off | That line can't change; the shortfall is a new urgent request | _open_ |
-| A late allergy conflict is resolved after the cut-off | The order can't change; the warning stays and says the delivery will include the product | _open_ |
-| A new diet group has no passing product for one dish | That dish's line for the group is red; the chef changes the dish | _open_ |
-| A substitute passes with the chef but costs more than the price tolerance | Chef first, then one Approver question | _open_ |
-| The price changed between order and final check | A price question to the Approver unless a pre-answer covers it | _open_ |
-| Real stock equals the need exactly | Passes | _open_ |
-| The final check itself can't reach the API | Nothing is marked covered; the event shows "check failed, retrying" and the cut-off deadline | _open_ |
+| The guest count drops but pack rounding means no pack changes | Shown as "no change"; nothing is asked | Agreed (Darragh, 14 Nov) |
+| The guest count rises after a line's cut-off | That line can't change; the shortfall is a new urgent request | Agreed (Darragh, 14 Nov), only if the rise is outside the accepted tolerance (Q07.1) |
+| A late allergy conflict is resolved after the cut-off | The order can't change; the warning stays and says the delivery will include the product | Agreed (Darragh, 14 Nov) |
+| A new diet group has no passing product for one dish | That dish's line for the group is red; the chef changes the dish | Agreed (Darragh, 14 Nov) |
+| A substitute passes with the chef but costs more than the price tolerance | Chef first, then one Approver question | **Changed** (Darragh, 14 Nov): ask the Approver first, since the chef already likes the item. The Approver can then flag it back to the chef to ask whether the chef can change it |
+| The price changed between order and final check | A price question to the Approver unless a pre-answer covers it | Agreed (Darragh, 14 Nov), unless the change is within the price tolerance; then leave it |
+| Real stock equals the need exactly | Passes | Agreed (Darragh, 14 Nov) |
+| The final check itself can't reach the API | Nothing is marked covered; the event shows "check failed, retrying" and the cut-off deadline | Agreed (Darragh, 14 Nov) |
 
 ## Done when
 

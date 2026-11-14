@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Owner** | _unassigned_ |
+| **Owner** | Darragh |
 | **Track** | B: trust core |
 | **Needs from** | Nothing. Other chunks call these rules. |
 | **Feeds** | Every chunk. 06 turns rule outcomes into questions; 08 enforces the mandate. |
@@ -34,7 +34,7 @@ D15 names this the core of the product: how a hotel can trust an agent to spend 
 | Preferences | Brand, origin, price vs reliability, pre-answers | Chef or Approver | Hotel agent | Yes, per event or request |
 
 - **Hard rules are code with stable IDs.** About 30 are already written in [human-approval-rules.md](../human-approval-rules.md). Each has an outcome (order, ask, block), a message template and a test. [D12]
-- **Blocked lines have no approve option.** Blocked means: allergen or diet failure, no delivery dates, no price, past cut-off. Unknown stock is not blocked; it is a risk the Approver can accept. [D23]
+- **Blocked lines have no approve option.** Blocked means: allergen or diet failure, no delivery dates, no price, past cut-off. Unconfirmed stock is not blocked; it is a question the person building the order can continue past. [D31]
 - **The mandate is one object**, registered with the gateway, which refuses orders that break it. [D11]
 - **Spend caps are per order.** [D19]
 - **For Junction the mandate and profile are pre-filled.** Setup screens are non-core. [D18]
@@ -62,7 +62,7 @@ Each function is one problem that can be built and tested alone. "Deterministic 
 
 **Q05.2 When several rules fire on one line, which outcome wins?**
 - Recommended: block beats ask-the-chef, which beats ask-the-approver, which beats order. All fired rules are still shown and logged, not only the winner.
-- **Answer:** _open_
+- **Answer:** **Answered** (Darragh, 14 Nov): agreed as recommended.
 
 **Q05.3 Can an order go in while one of its lines is blocked?**
 - Recommended: no. A blocked line has to be changed or removed by the chef first. The other lines wait. This keeps "what was ordered" identical to "what the event needs".
@@ -82,23 +82,23 @@ Each function is one problem that can be built and tested alone. "Deterministic 
 
 **Q05.5 Is hotel policy evaluated with CEL or plain JSON thresholds?**
 - Recommended: plain JSON thresholds, checked in TypeScript, for Junction. CEL is named in the docs as the production path. I haven't verified a CEL library for Node, so treat CEL tonight as a risk, not a plan.
-- **Answer:** _open_
+- **Answer:** **Answered** (Darragh, 14 Nov): agreed as recommended: plain JSON checked in TypeScript; CEL named as the production path.
 
 **Q05.6 Which question types can have a pre-answer?**
 - Recommended: partial fill up to x% short; overshoot from rounding; price rise up to x%; unknown stock on products under €y per line; guest-count change up to x%. Never: recipe fit of a substitute, anything allergen or diet related, a past cut-off.
-- **Answer:** _open_
+- **Answer:** **Answered** (Darragh, 14 Nov): pre-answers come from **memory of previous orders the hotel has flagged as okay**, not only from settings. By type: **accepting a partial delivery can't be pre-answered**; extra from rounding up can; a price rise up to x% can; unknown stock on cheap lines can. Never: recipe fit, allergens or diets, a past cut-off. (Guest-count changes are covered by the tolerance in Q07.1.)
 
 **Q05.7 Which preferences exist in core, and which level wins when they disagree?**
 - Recommended preferences: preferred brands, origin, labels, and one price-versus-reliability setting. Carbon is an add-on. The most specific level wins: request, then event, then outlet, then hotel profile.
-- **Answer:** _open_
+- **Answer:** **Answered** (Darragh, 14 Nov): hotels can enter **custom constraints in natural language**. The agent attempts all of them; if they can't all be met, it flags that. While flagging, the person ranks the clashing constraints, and **that ranking is stored in memory as a hierarchy**, created only when constraints clash and are flagged for the first time. The level order (request, event, outlet, hotel) is still used where it applies.
 
 **Q05.8 What happens to placed orders when a profile setting changes?** (PF-04)
 - Recommended: orders not yet past their cut-off are re-checked. A re-check never changes a placed order by itself. If the pick would now be different, it raises a question.
-- **Answer:** _open_
+- **Answer:** **Answered** (Darragh, 14 Nov): agreed as recommended.
 
 **Q05.9 How do a standing allergy and an event allergy combine?** (PF-05)
 - Recommended: the event gets both. Standing constraints can't be removed for one event, only added to.
-- **Answer:** _open_
+- **Answer:** **Answered** (Darragh, 14 Nov): agreed as recommended.
 
 **Q05.10 What is the complete list of rules and parameters?** Raised in the team review: the values so far are placeholders, and nobody has one list of everything that can be set.
 - This question is for the owner to complete, not just to agree. It needs two lists:
@@ -113,7 +113,7 @@ Each function is one problem that can be built and tested alone. "Deterministic 
 | Price rise that needs no question | 5% | Hotel | `QUOTE-RECHECK` | Q05.4 |
 | Rounding overshoot that needs no question | Up to 10% or up to €25 | Hotel | `OVERSHOOT-CHECK` | Q03.2 |
 | Partial fill accepted without asking | Not set | Hotel | `PREANSWER-MATCH` | Q05.6 |
-| Unknown stock accepted without asking | Not set | Hotel | `PREANSWER-MATCH` | Q05.6 |
+| Unconfirmed stock: continue without asking | Not set | Hotel | `PREANSWER-MATCH` | Q05.6 |
 | "Very large order" threshold | Not set | Hotel | Add-on only | D2 |
 | Agreed delivery days | Monday to Friday | Hotel | `NEEDED-BY` | Q04.4 |
 | Days before service that goods must arrive | 1 day; 2 days for frozen | Hotel or recipe | `NEEDED-BY` | Q04.3 |
@@ -138,12 +138,12 @@ Each function is one problem that can be built and tested alone. "Deterministic 
 
 | Case | Proposed rule | Ruling |
 |---|---|---|
-| The order total equals the spend cap exactly | Passes; the cap is "up to and including" | _open_ |
-| The spend cap is 0 | Every order asks the Approver; this is a valid mandate, not a special mode | _open_ |
-| Is the cap compared with or without VAT? | Without VAT, matching the API's prices | _open_ |
-| An amendment pushes a placed order over the cap | The amendment needs an approval; the original order stands meanwhile | _open_ |
-| Two preferences conflict (Finnish origin and a brand that isn't Finnish) | A required one beats a preferred one; two required ones that can't both be met ask | _open_ |
-| A pre-answer and a hard rule both apply | The hard rule wins | _open_ |
+| The order total equals the spend cap exactly | Passes; the cap is "up to and including" | Agreed (Darragh, 14 Nov): it passes |
+| The spend cap is 0 | Every order asks the Approver; this is a valid mandate, not a special mode | Agreed (Darragh, 14 Nov) |
+| Is the cap compared with or without VAT? | Without VAT, matching the API's prices | Agreed (Darragh, 14 Nov), without VAT by default; whether VAT is included should be a hotel setting |
+| An amendment pushes a placed order over the cap | The amendment needs an approval; the original order stands meanwhile | Agreed (Darragh, 14 Nov) |
+| Two preferences conflict (Finnish origin and a brand that isn't Finnish) | A required one beats a preferred one; two required ones that can't both be met ask | Agreed, extended (Darragh, 14 Nov): a required one beats a nice-to-have. If both are nice-to-haves, use the stored hierarchy (Q05.7) if there is one; otherwise flag |
+| A pre-answer and a hard rule both apply | The hard rule wins | Agreed (Darragh, 14 Nov): the hard rule wins, and it is flagged if it is a crucial rule |
 
 ## Done when
 
