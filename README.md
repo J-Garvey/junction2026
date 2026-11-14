@@ -33,7 +33,8 @@ What changed when the two uploads were merged is in **[CHANGES.md](CHANGES.md)**
 | [GROUND_TRUTH.md](GROUND_TRUTH.md) | **Verified facts**: data, API behaviour, brief, code meanings, Valio Aimo, standards. Wins where another file disagrees |
 | [QUESTIONS.md](QUESTIONS.md) | Open team decisions, with both positions for each |
 | [CHANGES.md](CHANGES.md) | Every change made when the two uploads were merged |
-| [CLAUDE.md](CLAUDE.md) | Compact context for AI coding agents: goal, judging, API behaviour, design constraints |
+| [AGENTS.md](AGENTS.md) | Shared instructions for Codex and Claude Code, with the hotel demo and data workflow |
+| [CLAUDE.md](CLAUDE.md) | Imports the shared instructions and keeps the team's challenge background |
 | [challenge/brief.txt](challenge/brief.txt) | The full challenge text, including judging criteria (credentials removed; see `.env`) |
 | [challenge/resources.md](challenge/resources.md) | Data downloads, API docs and auth, mentors |
 | [challenge/product_data_schema.json](challenge/product_data_schema.json) | JSON Schema of the raw 87 MB product catalogue |
