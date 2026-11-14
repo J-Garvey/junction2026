@@ -22,6 +22,7 @@ const DATE_PRESETS = [
 const DEFAULT_DAYS = 7;
 
 export function Requests() {
+  const { me, people } = useApp();
   const { data, error } = useLoad(() => api.home(), []);
   return (
     <div className="page stack-l">
@@ -40,7 +41,14 @@ export function Requests() {
                 </div>
                 <div className="small muted">{p.summary}</div>
               </div>
-              <Status k={planStatusKind(p.status)} title={PLAN_STATUS_TEXT[p.status]} />
+              <Status
+                k={planStatusKind(p.status)}
+                title={PLAN_STATUS_TEXT[p.status]}
+                label={p.status === "waiting" ? (() => {
+                  const q = data?.questions.find((x) => x.planId === p.id && (x.state === "open" || x.state === "waiting"));
+                  return q ? waitingForText(q, me, people) : undefined;
+                })() : undefined}
+              />
             </Link>
           ))}
           {data && !data.plans.length && <div className="li muted small">No requests yet.</div>}
@@ -196,12 +204,12 @@ export function RequestNew() {
   );
 }
 
-export function Outcome({ plan }: { plan: Plan }) {
+export function Outcome({ plan, waitingLabel }: { plan: Plan; waitingLabel?: string }) {
   const cls: Record<string, string> = { ordered: "green", kept_short: "yellow", waiting: "yellow", needs_input: "yellow", blocked: "red", rejected: "red", failed: "red", viability: "blue" };
   return (
     <div className={`callout ${cls[plan.status] ?? "yellow"}`}>
       <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
-        <Status k={planStatusKind(plan.status)} />
+        <Status k={planStatusKind(plan.status)} label={plan.status === "waiting" ? waitingLabel : undefined} />
         <b>{plan.summary}</b>
         {plan.timings && (
           <span className="small muted" title="Measured while the agent ran">
@@ -401,14 +409,14 @@ export function RequestPlan() {
   return (
     <div className="page stack-l">
       {head}
-      <Outcome plan={plan} />
+      <Outcome plan={plan} waitingLabel={open[0] ? waitingForText(open[0], me, people) : undefined} />
 
       {next ? (
         <QuestionCard key={next.id} q={next} onAnswered={() => api.plan(plan.id).then(setData)} />
       ) : (
         elsewhere && (
           <div className="callout blue small" role="status">
-            {elsewhere.state === "waiting" ? "Waiting for the chef to answer first." : `Sent for approval. ${waitingForText(elsewhere, me, people)}.`}
+            {waitingForText(elsewhere, me, people)}.
           </div>
         )
       )}

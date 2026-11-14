@@ -20,9 +20,9 @@ const DEF: Record<Kind, { text: string; cls: string; warn?: boolean }> = {
   needs_input: { text: "Needs input", cls: "ask" },
 };
 
-export function Status({ k, role, title }: { k: Kind; role?: string | null; title?: string }) {
+export function Status({ k, role, title, label }: { k: Kind; role?: string | null; title?: string; label?: string }) {
   const d = DEF[k] ?? { text: String(k), cls: "unknown" };
-  const text = k === "waiting" && role ? `Waiting for ${ROLE_LABEL[role]?.toLowerCase() === "approver" ? "the approver" : ROLE_LABEL[role]?.toLowerCase() === "chef" ? "the chef" : role}` : d.text;
+  const text = label ?? (k === "waiting" && role ? `Waiting for ${ROLE_LABEL[role]?.toLowerCase() === "approver" ? "the approver" : ROLE_LABEL[role]?.toLowerCase() === "chef" ? "the chef" : role}` : d.text);
   return (
     <span className={`stamp ${d.cls}`} title={title}>
       {d.warn && <span aria-hidden="true">⚠ </span>}
@@ -60,7 +60,7 @@ export function planStatusKind(s: string): Kind {
 export const PLAN_STATUS_TEXT: Record<string, string> = {
   needs_input: "Needs input",
   viability: "Viability check",
-  waiting: "Waiting for answers",
+  waiting: "Waiting for order decision",
   ordered: "Ordered",
   blocked: "Blocked",
   rejected: "Rejected",

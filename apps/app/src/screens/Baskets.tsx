@@ -1,9 +1,9 @@
 /** Order baskets: one tile per event (name + delivery date); inside, what is ordered, what waits, and a box to add more. */
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
-import type { Order, Plan, SingleRequest, Unit } from "@aimo/contracts";
+import type { Order, Plan, Question, SingleRequest, Unit } from "@aimo/contracts";
 import { api, type Basket, type BasketPlan, type MessageResp } from "../api";
-import { splitMine, useApp, useLoad } from "../ctx";
+import { splitMine, useApp, useLoad, waitingForText } from "../ctx";
 import { OthersWaiting, QuestionCard } from "../ui/QuestionCard";
 import { Status, planStatusKind, PLAN_STATUS_TEXT } from "../ui/Status";
 import { Icon } from "../ui/icons";
@@ -190,7 +190,7 @@ export function BasketPage() {
 
       <section>
         <div className="sechead">
-          <h2>Awaiting your approval</h2>
+          <h2>Decisions before processing</h2>
           {waitingQs.length > 0 && <span className="countb">{waitingQs.length}</span>}
         </div>
         {waitingQs.length ? (
@@ -208,7 +208,7 @@ export function BasketPage() {
         {pending.length > 0 && (
           <div className="card" style={{ marginTop: 12 }}>
             {pending.map((r) => (
-              <RequestRow key={r.id} r={r} />
+              <RequestRow key={r.id} r={r} question={questions.find((q) => q.planId === r.id && (q.state === "open" || q.state === "waiting"))} />
             ))}
           </div>
         )}
@@ -225,7 +225,9 @@ export function BasketPage() {
   );
 }
 
-function RequestRow({ r }: { r: BasketPlan }) {
+function RequestRow({ r, question }: { r: BasketPlan; question?: Question }) {
+  const { me, people } = useApp();
+  const waitingLabel = question ? waitingForText(question, me, people) : undefined;
   return (
     <Link to={`/requests/${r.id}`} className="li evrow">
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -235,7 +237,7 @@ function RequestRow({ r }: { r: BasketPlan }) {
         <div className="small muted">{r.tooLate ? tooLateText(r.tooLate) : r.summary}</div>
       </div>
       {/* Too late is something to review, not a hard block: no "Blocked" stamp. */}
-      {r.tooLate ? <span className="stamp ask">Too late</span> : <Status k={planStatusKind(r.status)} title={PLAN_STATUS_TEXT[r.status]} />}
+      {r.tooLate ? <span className="stamp ask">Too late</span> : <Status k={planStatusKind(r.status)} title={waitingLabel ?? PLAN_STATUS_TEXT[r.status]} label={r.status === "waiting" ? waitingLabel : undefined} />}
     </Link>
   );
 }
