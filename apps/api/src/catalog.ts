@@ -13,6 +13,10 @@ type Raw = Record<string, any>;
 
 let products: Map<string, Product> | null = null;
 let raw: Map<string, Raw> | null = null;
+let orderedProducts: Product[] = [];
+// Only local catalogue matches are reused. Price, stock and cut-off facts are never cached here.
+const searchCache = new Map<string, Match[]>();
+const SEARCH_CACHE_LIMIT = 100;
 
 function toProduct(p: Raw, ingredients: Map<string, string>): Product {
   const su = Number(p.su_in_bu ?? 1) || 1;
@@ -63,6 +67,7 @@ export function loadCatalog() {
     products.set(String(p.id), prod);
     registerBrand(prod.name, prod.brand);
   }
+  orderedProducts = [...products.values()].sort((a, b) => a.id.localeCompare(b.id));
 }
 
 export function getProduct(id: string): Product | null {
@@ -103,19 +108,25 @@ export function searchProducts(q: ProductSearchQuery): Product[] {
 export function searchMatches(q: ProductSearchQuery): Match[] {
   loadCatalog();
   const limit = q.limit ?? 50;
+  const text = q.q?.trim();
+  const key = text ? JSON.stringify([text.toLowerCase().normalize("NFC"), q.category ?? null, [...(q.claims ?? [])].sort(), [...(q.excludeAllergens ?? [])].sort(), q.origin ?? null, [...(q.labels ?? [])].sort(), limit]) : null;
+  const cached = key ? searchCache.get(key) : null;
+  if (cached) return cached.map((m) => ({ ...m }));
   const pool: Product[] = [];
-  for (const id of [...products!.keys()].sort()) {
-    const p = products!.get(id)!;
+  for (const p of orderedProducts) {
     if (q.category && !p.category.startsWith(q.category)) continue;
     if (q.claims?.length && !q.claims.every((c) => p.claims.includes(c))) continue;
     if (q.excludeAllergens?.length && failsAllergens(p, q.excludeAllergens)) continue;
     if (q.origin && p.origin !== q.origin) continue;
     if (q.labels?.length && !q.labels.every((l) => p.labels.includes(l))) continue;
     pool.push(p);
-    if (!q.q?.trim() && pool.length >= limit) break;
+    if (!text && pool.length >= limit) break;
   }
-  if (!q.q?.trim()) return pool.map((product) => ({ product, tier: 0, role: null, term: "" }));
-  return relevance(q.q, pool, [...products!.values()], q.category, q.claims).slice(0, limit);
+  if (!text) return pool.map((product) => ({ product, tier: 0, role: null, term: "" }));
+  const matches = relevance(text, pool, orderedProducts, q.category, q.claims).slice(0, limit);
+  if (searchCache.size >= SEARCH_CACHE_LIMIT) searchCache.delete(searchCache.keys().next().value!);
+  searchCache.set(key!, matches);
+  return matches.map((m) => ({ ...m }));
 }
 
 /** Every product whose name mentions the text, whatever it is (fixture recording wants them all). */

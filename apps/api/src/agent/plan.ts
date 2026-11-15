@@ -344,6 +344,7 @@ export async function runPipeline(plan: StoredPlan): Promise<StoredPlan> {
     for (const l of r.lines) pool.set(l.productId, l);
     if (r.fallback) plan.note = r.fallback;
   }
+  const tRank = performance.now();
   for (const n of needs) {
     n.rules = n.rules.filter((r) => r.ruleId === "DLV-04" || r.ruleId === "QTY-02");
     const list = lists.get(n.id)!.filter((p) => !ov.excluded.includes(`${n.id}:${p.id}`));
@@ -354,7 +355,6 @@ export async function runPipeline(plan: StoredPlan): Promise<StoredPlan> {
     const pick = n.candidates.find((c) => (ov.chosen ?? []).includes(`${n.id}:${c.productId}`));
     if (pick) n.candidates = [pick, ...n.candidates.filter((c) => c !== pick)];
   }
-  const tRank = performance.now();
   plan.needs = needs;
   // One date for the whole plan: the latest of the needs' earliest dates, so every late need fits.
   const late = needs.filter((n) => n.rules.some((r) => r.ruleId === "DLV-06"));
@@ -369,7 +369,7 @@ export async function runPipeline(plan: StoredPlan): Promise<StoredPlan> {
   plan.shortfall = built.shortfall;
   plan.usesFixtures = built.lines.some((l) => l.source === "fixture");
   const tEnd = performance.now();
-  plan.timings = { products: ids.length, lookupMs: Math.round(tRank - tLookup), rankMs: Math.round(tEnd - tRank), totalMs: Math.round(tEnd - t0) };
+  plan.timings = { products: ids.length, searchMs: Math.round(tLookup - t0), lookupMs: Math.round(tRank - tLookup), rankMs: Math.round(tEnd - tRank), totalMs: Math.round(tEnd - t0) };
   for (const n of needs.filter((x) => x.judgements.length)) audit({
     actor: AGENT, action: "model_judgement", summary: `Type check for ${n.label}: ${n.judgements.length} products judged`, eventId: plan.eventId,
     judgements: n.judgements, details: { planId: plan.id, needId: n.id }, visibility: "hotel",
@@ -399,6 +399,7 @@ export function verdictSummary(p: Plan): string {
 
 /** Scene 2 and every request: quote at the gateway, then ask or order. */
 export async function quoteAndDecide(plan: StoredPlan, personToken?: string): Promise<StoredPlan> {
+  const t0 = performance.now();
   plan.stage = "order";
   plan.error = null;
   plan.proposal = false;
@@ -458,6 +459,10 @@ export async function quoteAndDecide(plan: StoredPlan, personToken?: string): Pr
     return { claims: [...new Set(ns.flatMap((n) => n.constraints.claims))], avoidAllergens: [...new Set(ns.flatMap((n) => n.constraints.avoidAllergens))], labels: [] };
   };
   let quote: Quote;
+  const tQuote = performance.now();
+  const recordQuoteTiming = () => {
+    if (plan.timings) Object.assign(plan.timings, { quoteMs: Math.round(performance.now() - tQuote), totalMs: Math.round(performance.now() - t0) });
+  };
   try {
     quote = await gw.quote({
       siteId: plan.siteId,
@@ -466,12 +471,14 @@ export async function quoteAndDecide(plan: StoredPlan, personToken?: string): Pr
       lines: orderable.map((l) => ({ productId: l.productId!, quantity: l.quantity, outletId: l.outletId, ref: l.id, requires: requiresFor(l) })),
     });
   } catch (e) {
+    recordQuoteTiming();
     plan.status = "failed";
     plan.error = e instanceof GatewayError ? e.body.message : (e as Error).message;
     plan.summary = "Price check failed · nothing ordered";
     savePlan(plan);
     return plan;
   }
+  recordQuoteTiming();
   plan.quoteId = quote.id;
   plan.fingerprint = quote.fingerprint;
   const hasUnknownPrice = quote.lines.some((line) => line.lineTotal === null);
