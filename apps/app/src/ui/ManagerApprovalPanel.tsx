@@ -92,7 +92,16 @@ export function ManagerApprovalPanel({ q: initial, orderContext, onAnswered }: {
     : q.state === "replaced" ? "Review replaced" : q.state === "expired" || dl.past ? "Review expired" : "Waiting for approval";
 
   return (
-    <article ref={card} id={`question-${q.id}`} tabIndex={-1} className={`manager-approval ${q.state}`} aria-labelledby={`${fieldId}-title`} aria-busy={busy}>
+    <article ref={card} id={`question-${q.id}`} tabIndex={-1} className={`manager-approval ${q.state}`} aria-labelledby={`${fieldId}-title`} aria-busy={busy}
+      onKeyDown={(event) => {
+        // Deep links focus the panel itself; controls keep their native keyboard actions.
+        if (event.target !== event.currentTarget || event.key !== "Enter" || !actionable || refusing
+          || event.defaultPrevented || event.repeat || event.nativeEvent.isComposing
+          || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+        event.preventDefault();
+        void decide("approve");
+      }}
+    >
       <div className="manager-approval-main">
         <div className="stack-s">
           <h3 id={`${fieldId}-title`}>{title}</h3>

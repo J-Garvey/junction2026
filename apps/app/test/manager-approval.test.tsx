@@ -114,6 +114,47 @@ describe("manager order review", () => {
     expect(refresh).toHaveBeenCalled();
   });
 
+  it("saves once when Return is pressed on the focused approval panel", async () => {
+    let resolve!: (result: AnswerResp) => void;
+    const answer = vi.spyOn(api, "answer").mockReturnValue(new Promise((done) => { resolve = done; }));
+    const user = userEvent.setup();
+    mount();
+    const panel = screen.getByRole("article", { name: "Waiting for approval" });
+    panel.focus();
+    await user.keyboard("{Enter}{Enter}");
+    expect(answer).toHaveBeenCalledExactlyOnceWith(question.id, "approve", undefined);
+    expect((screen.getByRole("button", { name: "Saving…" }) as HTMLButtonElement).disabled).toBe(true);
+    resolve({ ok: true, question: answered("approve") });
+    await screen.findByRole("heading", { name: "Approval recorded" });
+    expect(onAnswered).toHaveBeenCalledWith(answered("approve"), undefined);
+    expect(refresh).toHaveBeenCalled();
+    await user.keyboard("{Enter}");
+    expect(answer).toHaveBeenCalledOnce();
+  });
+
+  it("keeps Return scoped to the focused control during refusal", async () => {
+    const answer = vi.spyOn(api, "answer").mockResolvedValue({ ok: true, question: answered() });
+    const user = userEvent.setup();
+    mount();
+    screen.getByRole("button", { name: "Refuse order" }).focus();
+    await user.keyboard("{Enter}");
+    await user.type(screen.getByRole("textbox"), "Reduce the quantity.{Enter}Keep the milk.");
+    expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("Reduce the quantity.\nKeep the milk.");
+    screen.getByRole("article", { name: "Waiting for approval" }).focus();
+    await user.keyboard("{Enter}");
+    expect(answer).not.toHaveBeenCalled();
+  });
+
+  it("does not approve on modified, repeating or composing Return keys", () => {
+    const answer = vi.spyOn(api, "answer");
+    mount();
+    const panel = screen.getByRole("article", { name: "Waiting for approval" });
+    for (const key of ["altKey", "ctrlKey", "metaKey", "shiftKey", "repeat", "isComposing"]) {
+      fireEvent.keyDown(panel, { key: "Enter", [key]: true });
+    }
+    expect(answer).not.toHaveBeenCalled();
+  });
+
   it("keeps the note after failure and permits a retry", async () => {
     const answer = vi.spyOn(api, "answer").mockRejectedValueOnce(new ApiError(500, { message: "Could not save the note" })).mockResolvedValueOnce({ ok: true, question: answered() });
     const user = userEvent.setup();
@@ -157,8 +198,11 @@ describe("manager order review", () => {
     { q: { ...question, state: "expired" as const }, me: manager },
     { q: { ...question, deadline: "2026-11-14T09:00:00Z" }, me: manager },
   ])("offers no actions without permission or an open, unexpired review: %j", ({ q, me }) => {
+    const answer = vi.spyOn(api, "answer");
     mount(q, me);
     expect(screen.queryByRole("button")).toBeNull();
+    fireEvent.keyDown(screen.getByRole("article"), { key: "Enter" });
+    expect(answer).not.toHaveBeenCalled();
   });
 
   it("preserves distinct request and chef decision cards", () => {
