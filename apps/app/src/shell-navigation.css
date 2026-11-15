@@ -1,4 +1,4 @@
-/* Keep the hotel's daily work visible without opening an account or order menu. */
+/* Shared shell layout and keyboard access. */
 .skip-to-content {
   position: fixed;
   top: 8px;
@@ -27,35 +27,13 @@
 }
 .app-brand b { font-size: 15px; font-weight: 800; }
 .app-brand:hover { text-decoration: none; }
-.app-brand:focus-visible, .app-nav-link:focus-visible {
+.app-brand:focus-visible {
   outline: 2px solid var(--ink);
   outline-offset: -2px;
   border-radius: 4px;
 }
 .shell .topbar .order-switcher { width: 250px; min-width: 0; }
 .shell .topbar .order-switcher-trigger { min-height: 44px; }
-.primary-navigation {
-  display: flex;
-  gap: 12px;
-  padding-inline: 28px;
-  border-bottom: 1px solid var(--hairline-soft);
-}
-.app-nav-link {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  min-height: 46px;
-  padding: 8px 10px;
-  border-bottom: 3px solid transparent;
-  color: var(--body);
-  font-size: 14px;
-  font-weight: 500;
-  text-align: center;
-  white-space: nowrap;
-}
-.app-nav-link:hover { background: var(--soft); color: var(--ink); text-decoration: none; }
-.app-nav-link.current { border-bottom-color: var(--primary); color: var(--ink); font-weight: 700; }
 #main-content:focus { outline: none; }
 
 @media (max-width: 760px) {
@@ -64,11 +42,4 @@
   .shell .topbar .order-switcher-menu { left: 0; width: min(320px, calc(100vw - 28px)); }
   .app-brand { gap: 5px; }
   .app-brand b { font-size: 13px; }
-  .primary-navigation { gap: 4px; padding-inline: 14px; }
-  .app-nav-link { flex: 1; padding-inline: 6px; }
-}
-@media (max-width: 480px) {
-  .primary-navigation { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0; }
-  .app-nav-link { min-width: 0; min-height: 48px; padding: 7px 2px; font-size: 12px; white-space: normal; line-height: 1.25; }
-  .app-nav-link .ic { display: none; }
 }
