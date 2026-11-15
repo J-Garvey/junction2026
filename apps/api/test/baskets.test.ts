@@ -24,6 +24,26 @@ async function call(method: string, path: string, body?: unknown): Promise<any> 
   return { status: r.status, ...(await r.json()) };
 }
 
+async function signIn(personId: string) {
+  const session = await call("POST", "/session", { personId });
+  cookie = `aimo_session=${session.token}`;
+}
+
+async function readyBasket(productId = "469672", text = "10 kg salmon") {
+  await call("POST", "/reset");
+  await signIn("p-aino");
+  await call("POST", "/clock", { time: "2026-11-14T10:00:00Z" });
+  const id = (await call("POST", "/baskets", { name: "Conference dinner", deliveryDate: "2026-11-16" })).basket.id;
+  const message = await call("POST", "/messages", { text });
+  const request = { ...message.request, neededBy: "2026-11-16", lines: message.request.lines.map((line: any) => ({ ...line, productId })) };
+  const add = async () => {
+    const { plan } = await call("POST", "/requests", { request, eventId: id, reviewing: true });
+    expect((await call("POST", `/plans/${plan.id}/basket`, { continueWithWarnings: true })).status).toBe(200);
+    return plan.id;
+  };
+  return { id, planId: await add(), add };
+}
+
 describe("order baskets", () => {
   it("creates a basket and attaches a request to it", async () => {
     await fetch(`${BASE}/api/reset`, { method: "POST" });
@@ -130,5 +150,86 @@ describe("order baskets", () => {
     const view = await call("GET", `/baskets/${id}`);
     expect(view.requests).toHaveLength(1);
     expect(view.requests[0]).toMatchObject({ id: b.plan.id, tooLateChoice: "review", orderIds: [] });
+  });
+
+  it("submits one finance review, then only finance can approve and place one order", async () => {
+    const { id, planId } = await readyBasket();
+    const [submitted, retry] = await Promise.all([
+      call("POST", `/baskets/${id}/submit-review`),
+      call("POST", `/baskets/${id}/submit-review`),
+    ]);
+    expect(submitted.status).toBe(200);
+    expect(submitted.review).toMatchObject({ type: "order_review", forRole: "approver", state: "open", eventId: id, facts: { kind: "approval", planIds: [planId] } });
+    expect(retry.review.id).toBe(submitted.review.id);
+    expect((await call("GET", `/baskets/${id}`)).review.id).toBe(submitted.review.id);
+    expect((await call("GET", `/orders?eventId=${id}`)).orders).toHaveLength(0);
+    expect((await call("POST", `/questions/${submitted.review.id}/answer`, { optionId: "approve" })).status).toBe(409);
+
+    await signIn("p-sanna");
+    expect((await call("GET", "/home")).questions.filter((q: any) => q.eventId === id)).toHaveLength(1);
+    const approved = await call("POST", `/questions/${submitted.review.id}/answer`, { optionId: "approve" });
+    expect(approved.error).toBeUndefined();
+    expect(approved.question).toMatchObject({ state: "answered", answeredBy: { name: "Sanna" } });
+    const orders = (await call("GET", `/orders?eventId=${id}`)).orders;
+    expect(orders).toHaveLength(1);
+    expect(orders[0].approvalId).toEqual(expect.any(String));
+    expect((await call("GET", `/plans/${planId}`)).plan.orderIds).toEqual([orders[0].id]);
+    expect((await call("POST", `/questions/${submitted.review.id}/answer`, { optionId: "approve" })).status).toBe(409);
+    expect((await call("GET", `/orders?eventId=${id}`)).orders).toHaveLength(1);
+    expect((await call("GET", "/baskets")).baskets.find((b: any) => b.id === id)).toMatchObject({ lines: 1, totalExVat: orders[0].totalExVat });
+  });
+
+  it("replaces the finance request when items change and combines repeated products", async () => {
+    const { id, add } = await readyBasket();
+    const first = (await call("POST", `/baskets/${id}/submit-review`)).review;
+    await add();
+    expect((await call("GET", `/baskets/${id}`)).review).toBeNull();
+    await signIn("p-sanna");
+    expect((await call("POST", `/questions/${first.id}/answer`, { optionId: "approve" })).status).toBe(409);
+    await signIn("p-aino");
+    const next = await call("POST", `/baskets/${id}/submit-review`);
+    expect(next.status).toBe(200);
+    expect(next.review.id).not.toBe(first.id);
+    expect(next.review.facts.lines).toHaveLength(1);
+    expect(next.review.facts.lines[0].quantity).toBe(first.facts.lines[0].quantity * 2);
+    expect((await call("GET", `/orders?eventId=${id}`)).orders).toHaveLength(0);
+  });
+
+  it("allows a returned order to be submitted again without placing anything", async () => {
+    const { id } = await readyBasket();
+    const first = (await call("POST", `/baskets/${id}/submit-review`)).review;
+    await signIn("p-sanna");
+    expect((await call("POST", `/questions/${first.id}/answer`, { optionId: "reject" })).error).toBeUndefined();
+    await signIn("p-aino");
+    const next = await call("POST", `/baskets/${id}/submit-review`);
+    expect(next.status).toBe(200);
+    expect(next.review.id).not.toBe(first.id);
+    expect((await call("GET", `/orders?eventId=${id}`)).orders).toHaveLength(0);
+  });
+
+  it("refuses empty orders and rechecks expired cutoffs at finance approval", async () => {
+    const { id } = await readyBasket();
+    const empty = (await call("POST", "/baskets", { name: "Empty", deliveryDate: "2026-11-16" })).basket.id;
+    expect((await call("POST", `/baskets/${empty}/submit-review`)).status).toBe(409);
+    const submitted = await call("POST", `/baskets/${id}/submit-review`);
+    await call("POST", "/clock", { time: "2026-11-15T18:00:00Z" });
+    await signIn("p-sanna");
+    const approved = await call("POST", `/questions/${submitted.review.id}/answer`, { optionId: "approve" });
+    expect(approved.error).toMatch(/expired|cut-off/i);
+    expect((await call("GET", `/orders?eventId=${id}`)).orders).toHaveLength(0);
+    expect((await call("POST", `/baskets/${id}/submit-review`)).status).toBe(409);
+  });
+
+  it("keeps explicitly accepted unknown stock unconfirmed after finance approval", async () => {
+    const { id } = await readyBasket("464306", "1000 l lactose-free milk");
+    const submitted = await call("POST", `/baskets/${id}/submit-review`);
+    expect(submitted.status).toBe(200);
+    expect(submitted.review.facts.items.some((item: any) => /stock/i.test(item.text))).toBe(true);
+    await signIn("p-sanna");
+    const approved = await call("POST", `/questions/${submitted.review.id}/answer`, { optionId: "approve" });
+    expect(approved.error).toBeUndefined();
+    const orders = (await call("GET", `/orders?eventId=${id}`)).orders;
+    expect(orders).toHaveLength(1);
+    expect(orders[0].lines[0]).toMatchObject({ stock: { kind: "unknown" }, riskAccepted: { by: "Aino" } });
   });
 });
