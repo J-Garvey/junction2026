@@ -39,7 +39,7 @@ export const MANDATE: Mandate = {
   spendCapEur: 1950,
   blockedProducts: [],
   // Explicit category scope and mixed-bucket limits: docs/category-origin-policy.md.
-  categoryOriginRequirements: [{ categories: ["18701", "18702", "18705", "18706", "18707", "18708", "41720", "41722", "41723"], origin: "fi" }],
+  categoryOriginRequirements: [{ categories: ["18701", "18702", "18706", "18707", "18708", "41720", "41722"], origin: "fi" }],
   deliveryDays: [1, 2, 3, 4, 5],
   holidays: ["2026-12-06", "2026-12-24", "2026-12-25", "2026-12-26"],
   preAnswers: { partialFillMaxShortPct: null, unknownStockMaxLineEur: null, overshootMaxPct: 10, overshootMaxEur: 25, priceRiseMaxPct: 5, guestChangeMaxPct: 5 },

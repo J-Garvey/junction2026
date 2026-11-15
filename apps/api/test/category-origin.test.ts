@@ -116,7 +116,7 @@ describe("signed category-scoped mandate", () => {
 
 describe("category boundaries and effective constraints", () => {
   it("matches exact codes from catalogue evidence, including fish with no allergen declaration", () => {
-    expect(policy().categoryOriginRequirements![0].categories).toEqual(["18701", "18702", "18705", "18706", "18707", "18708", "41720", "41722", "41723"]);
+    expect(policy().categoryOriginRequirements![0].categories).toEqual(["18701", "18702", "18706", "18707", "18708", "41720", "41722"]);
     for (const category of policy().categoryOriginRequirements![0].categories) {
       const records = allProducts().filter((p) => p.category === category);
       expect(records.length).toBeGreaterThan(0);
@@ -125,8 +125,13 @@ describe("category boundaries and effective constraints", () => {
     const undeclaredFish = getProduct("462361")!;
     expect(undeclaredFish.hasAllergenData).toBe(false);
     expect(passesMandateOrigin(undeclaredFish, policy())).toBe(false);
-    for (const category of ["187", "187010", "18703", "18704", "18710", "18720", "41721", "10400", "85028", "17300", ""]) {
+    for (const category of ["187", "187010", "18703", "18704", "18705", "18710", "18720", "41721", "41723", "10400", "85028", "17300", ""]) {
       expect(passesMandateOrigin({ category, origin: "no" }, policy()), category).toBe(true);
+    }
+    // The mixed buckets also contain octopus, meat timbales and vegan burgers.
+    // A fish policy must not restrict unrelated foods through their category.
+    for (const productId of ["462557", "461743", "461754", "468987"]) {
+      expect(requiredOrigins(getProduct(productId)!, policy()), productId).toEqual([]);
     }
     expect(passesMandateOrigin(finnish, { categoryOriginRequirements: [] })).toBe(true);
   });

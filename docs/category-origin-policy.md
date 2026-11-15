@@ -6,17 +6,15 @@ The signed `aimo.mandate.standing.1` returned by `GET /gateway/v1/mandate` inclu
 |---|---|---:|
 | 18701 | Fresh whole fish and fillets | 81 |
 | 18702 | Smoked fish | 16 |
-| 18705 | Herring and other preserved seafood | 59 |
 | 18706 | Rainbow trout, trout and salmon fillets | 3 |
 | 18707 | Grilled and flamed trout | 3 |
 | 18708 | Marinated, cold-smoked and other prepared fish | 18 |
 | 41720 | Frozen fish and fish preparations, including wedding SKU 469672 | 122 |
 | 41722 | Frozen roe | 8 |
-| 41723 | Frozen fish dishes and a mixed prepared-food bucket | 74 |
 
 This is explicit **demo fixture policy**, based on the records in `data/products_slim.jsonl` and examples in `data/categories.csv`, not an official category-name dictionary. Category codes are undocumented upstream (GROUND_TRUTH section 4). Counts refer to the committed Junction extract.
 
-The policy deliberately covers every product in these buckets, including their mixed contents: 18705 also contains octopus (e.g. 462557); 41723 also contains meat timbales (461743, 461754), vegan burgers (468987) and other prepared foods. The Rules page and signed mandate expose the exact codes; a name or fish-allergen declaration never changes the scope. Using AF to narrow the scope would let fish without allergen declarations escape it. A future finer product policy needs its own verified classification.
+The mixed buckets 18705 and 41723 are outside the seeded rule: 18705 also contains octopus (e.g. 462557); 41723 also contains meat timbales (461743, 461754), vegan burgers (468987) and other prepared foods. Applying the fish rule to these entire categories would restrict unrelated products. Their fish products need a future verified product classification before this policy can cover them. The Rules page and signed mandate expose the exact codes; a name or fish-allergen declaration never changes the scope. Using AF to narrow the scope would let fish without allergen declarations escape it.
 
 Excluded categories include chilled shellfish 18703, mixed caviar/seaweed 18704, frozen shellfish 41721, chilled meat 18710–18761, milk 10400 and beverages such as 85028. General ready meals, sauces and other categories containing fish ingredients are outside this category-scoped rule. This is not a claim that every fish ingredient anywhere in the catalogue has Finnish provenance. In particular, never use prefix `187` (it includes meat) or prefix `4172` (it includes shellfish).
 
