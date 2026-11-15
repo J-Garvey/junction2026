@@ -290,7 +290,7 @@ describe("saved request review controls", () => {
   });
 
   it("keeps the selection after a failed replacement and allows a retry", async () => {
-    vi.spyOn(api, "choose").mockRejectedValue(new ApiError(0, { message: "Can't reach the server right now. Nothing has been ordered." }));
+    vi.spyOn(api, "choose").mockRejectedValue(new ApiError(0, { message: "Can't reach the server right now." }));
     show(fixture());
     fireEvent.click(screen.getByRole("button", { name: "View details" }));
     fireEvent.click(screen.getByRole("button", { name: "Suggest replacements" }));

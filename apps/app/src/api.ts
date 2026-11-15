@@ -25,7 +25,8 @@ async function call<T>(method: string, path: string, body?: unknown, signal?: Ab
     });
   } catch (error) {
     if (signal?.aborted) throw error;
-    throw new ApiError(0, { message: "Can't reach the server right now. Nothing has been ordered." });
+    // A lost response cannot tell us whether a mutation committed.
+    throw new ApiError(0, { message: "Can't reach the server right now." });
   }
   const text = await res.text();
   let data: any = null;
