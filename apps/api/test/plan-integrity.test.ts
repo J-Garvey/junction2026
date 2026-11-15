@@ -31,14 +31,20 @@ beforeEach(async () => {
 });
 afterEach(() => vi.restoreAllMocks());
 
-async function planFor(text: string) {
-  const request = { ...rulesParse(text), siteId: "site-main", outletId: "banquet", neededBy: "2026-11-16" };
+async function planFor(text: string, neededBy = "2026-11-16") {
+  const request = { ...rulesParse(text), siteId: "site-main", outletId: "banquet", neededBy };
   const plan = newPlan("single", { personId: "p-aino", name: "Aino" }, "banquet", { request, reviewing: true });
   await quoteAndDecide(plan);
   return plan;
 }
 
 describe("purchasing plan line integrity", () => {
+  it("keeps litres and kilograms separate when the same product is requested ahead", async () => {
+    const plan = await planFor("5 l lactose-free milk 469363 and 5 kg lactose-free milk 469363", "2027-03-01");
+    expect(plan.lines.some((line) => line.rules.some((rule) => rule.ruleId === "QTY-05"))).toBe(true);
+    expect(plan.lines.filter((line) => line.needAmount.unit === "l").reduce((sum, line) => sum + line.quantity, 0)).toBe(5);
+  });
+
   it("keeps repeated salmon line refs unique and totals correct (AUD-MAIN-007)", async () => {
     const plan = await planFor("10 kg salmon and 5 kg salmon");
     expect(new Set(plan.lines.map((line) => line.id)).size).toBe(plan.lines.length);

@@ -224,7 +224,6 @@ function OrderSwitcher({ currentId }: { currentId?: string }) {
                   <span>Delivery {day(order.deliveryDate)}</span>
                 </span>
                 {order.waiting > 0 && <span className="order-switcher-count">{order.waiting}</span>}
-                {order.id === currentId && <span className="order-switcher-check"><Icon n="check" s={14} w={2.2} /></span>}
               </Link>
             ))}
           </div>
