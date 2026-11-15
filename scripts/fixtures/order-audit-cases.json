@@ -1686,5 +1686,47 @@
     "expected": {
       "previewMustMatchAppliedChange": true
     }
+  },
+  {
+    "caseId": "AUD-delivery-hour",
+    "family": "delivery-hour",
+    "channel": "main",
+    "input": "10 l milk before Monday at 10am",
+    "plan": true,
+    "expected": {
+      "mustNotPromiseHour": true
+    }
+  },
+  {
+    "caseId": "AUD-future-invalid-date",
+    "family": "invalid-date",
+    "channel": "main",
+    "input": "10 kg salmon by 2027-02-30",
+    "plan": true,
+    "expected": {
+      "disposition": "clarify_or_block_invalid_calendar_date"
+    }
+  },
+  {
+    "caseId": "AUD-invalid-site",
+    "family": "site-scope",
+    "channel": "main",
+    "input": "10 l milk for delivery site-mars",
+    "plan": true,
+    "expected": {
+      "mustNotOrder": true,
+      "site": "site-mars"
+    }
+  },
+  {
+    "caseId": "AUD-expired-cutoff",
+    "family": "expired-cutoff",
+    "channel": "main",
+    "input": "10 kg salmon 469672 by 2026-11-16",
+    "plan": true,
+    "clock": "2026-11-15T18:00:00Z",
+    "expected": {
+      "mustNotOrder": true
+    }
   }
 ]

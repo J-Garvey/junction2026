@@ -12,6 +12,7 @@ Run from the repository root:
 python scripts/order_campaign_audit.py C:/path/to/campaign
 python -m unittest discover -s scripts/tests -p test_order_campaign_audit.py -v
 pnpm.cmd --filter @aimo/api exec tsx src/scripts/order-audit-probe.ts C:/path/to/campaign/audit-probes.jsonl
+python scripts/order_campaign_audit.py C:/path/to/campaign --finish
 ```
 
 The probe runs its own ephemeral local server with in-memory SQLite and the model
@@ -20,6 +21,14 @@ fixtures can prevent planning; those errors are preserved, and no plan is
 certified from that evidence. Session credentials are used in memory and omitted
 from the evidence. The hand-authored probe cases include local/global dietary
 scope on 60-item lists, explicit SKUs, repeated products and numeric edge cases.
+
+Pass comma-separated case IDs as the probe's final argument to replay a focused
+subset. Coordinator probes record all sequence replies and basket/order snapshots.
+Actual gateway quote request bodies are captured with credentials omitted so
+constraint retention can be checked across the HTTP boundary. `--finish` refuses
+to write a completion marker before the generator is done or while rows lack a
+verdict; its counts distinguish all attempts, latest case attempts, and manual
+samples.
 
 The auditor reads complete lines from `requests.jsonl` and `audit-probes.jsonl`
 by default. Use repeated `--input` arguments to choose other evidence files.

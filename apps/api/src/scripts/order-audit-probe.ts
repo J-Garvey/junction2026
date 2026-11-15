@@ -54,6 +54,7 @@ try {
   for (const c of cases) {
     intercepted.length = 0;
     gatewayQuoteRequests.length = 0;
+    await call("/clock", { time: c.clock ?? "2026-11-14T10:00:00Z" });
     const start = performance.now();
     let result: any;
     if (c.channel === "whatsapp_coordinator") {
@@ -102,12 +103,15 @@ try {
           matches: searchMatches({ q: line.query, limit: 50 }).map((m) => ({ tier: m.tier, id: m.product.id, name: m.product.name })) }));
       }
       if (c.plan && result.response.request) {
-        const planning = await call("/requests", { request: { ...result.response.request, neededBy: "2026-11-16" }, reviewing: true });
+        const planBody = { request: { ...result.response.request, neededBy: result.response.request.neededBy ?? "2026-11-16" }, reviewing: true };
+        const planning = await call("/requests", planBody);
+        result.response.planRequest = { method: "POST", path: "/api/requests", body: planBody,
+          dateSource: result.response.request.neededBy ? "preserved parsed request date" : "explicit selected-basket fixture date" };
         result.response.planResponse = planning;
       }
     }
     const row = { ...c, attemptId: `${c.caseId}-${sha.slice(0, 8)}-${Date.now()}`, timestamp: new Date().toISOString(),
-      codeSha: sha, source: "auditor-hand-authored", parserModelMode: "disabled/fallback", stage: c.plan ? "plan" : "parse",
+      codeSha: sha, source: "auditor-hand-authored", parserModelMode: "disabled/fallback", stage: c.plan ? "plan" : "parse", scenario: { clock: c.clock ?? "2026-11-14T10:00:00Z" },
       http: c.channel === "whatsapp_interpreter" ? null : { method: "POST", path: c.channel === "whatsapp_coordinator" ? "/api/whatsapp/messages" : "/api/messages", body: { text: c.input } },
       ...result, gatewayQuoteRequests: [...gatewayQuoteRequests], elapsedMs: performance.now() - start, network: { upstreamBlocked: true, intercepted: [...intercepted] } };
     appendFileSync(destination, JSON.stringify(row) + "\n");

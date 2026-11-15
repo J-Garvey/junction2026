@@ -342,6 +342,15 @@ def audit(row, catalog, fixture=None):
         if isinstance(obj.get("needs"), list) and isinstance(obj.get("lines"), list):
             ids = [l.get("id") for l in obj["lines"] if l.get("id")]
             checks.append("unique plan line identity")
+            if obj.get("deliveryDate"):
+                try:
+                    dt.date.fromisoformat(obj["deliveryDate"])
+                    checks.append("proposed delivery calendar date exists")
+                except ValueError:
+                    if obj.get("proposal") or obj.get("orderIds"):
+                        failures.append({"rule": "invalid_calendar_delivery", "path": path, "observed": obj["deliveryDate"]})
+                    else:
+                        limitations.append("invalid calendar date retained in a non-actionable plan; no valid date certified")
             if len(set(ids)) != len(ids):
                 failures.append({"rule": "duplicate_plan_line_ids", "path": path, "observed": ids})
             # Shares describe how one selected product supplies each original
@@ -437,6 +446,7 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("campaign", type=Path)
     p.add_argument("--input", action="append", default=[])
+    p.add_argument("--finish", action="store_true", help="Write completion only after generator.done.json exists and every complete input row has a verdict")
     args = p.parse_args()
     catalog = {r["id"]: r for _, r in rows(ROOT / "data/products_slim.jsonl")}
     fixture_path = ROOT / "data/fixtures/aimo/base.json"
@@ -480,6 +490,53 @@ def main():
         generatorState={k: generator.get(k) for k in ("state", "phase", "uniqueExecuted", "executedRows", "sha", "modelMode")},
         limitation="Rule passes certify listed checks only. All automatic failures are provisional until reproduced in findings.jsonl. Revisions supersede older oracle records by evidence path+line+method. Manual samples are finite and separately counted. Generator still active."))
     print(json.dumps({"rows": len(automatic), "verdicts": counts, "manualReviews": len(manual)}))
+    if args.finish:
+        done_path = args.campaign / "generator.done.json"
+        if not done_path.exists():
+            raise SystemExit("Generator has not published generator.done.json; audit remains active")
+        covered = {(r["evidence"]["path"], r["evidence"]["line"]) for r in automatic}
+        channel_counts, modes, sha_counts = collections.Counter(), collections.Counter(), collections.Counter()
+        source_counts, latest_cases = {}, {}
+        plans, candidates = set(), set()
+        unresolved = {key: value["state"] for key, value in findings.items() if not value["state"].startswith("verified")}
+        for name in inputs:
+            path = args.campaign / name
+            source_counts[name] = 0
+            if path.exists() and path.stat().st_size and not path.read_bytes().endswith(b"\n"):
+                raise SystemExit(f"Incomplete final input line in {path}; audit remains active")
+            for number, row in rows(path):
+                if (str(path), number) not in covered:
+                    raise SystemExit(f"Missing verdict for {path}:{number}")
+                source_counts[name] += 1
+                channel_counts[row.get("channel", "unknown")] += 1
+                modes[row.get("modelMode", row.get("parserModelMode", "unknown"))] += 1
+                sha_counts[row.get("sha", row.get("codeSha", "unknown"))] += 1
+                latest_cases[(name, row.get("caseId"), row.get("channel"))] = (str(path), number)
+                response = {"response": row.get("response"), "related": [r.get("response") for r in row.get("related", [])], "snapshots": row.get("snapshots")}
+                for _, obj in walk(response):
+                    if isinstance(obj.get("needs"), list) and isinstance(obj.get("lines"), list) and obj.get("id"):
+                        plans.add((row.get("attemptId"), obj["id"]))
+                        for need in obj["needs"]:
+                            for candidate in need.get("candidates", []):
+                                candidates.add((row.get("attemptId"), obj["id"], need.get("id"), candidate.get("productId")))
+        current = {(r["evidence"]["path"], r["evidence"]["line"]): r for r in automatic}
+        completion = dict(
+            completedAt=dt.datetime.now(dt.timezone.utc).isoformat(), state="drained", oracleVersion=VERSION, oracleRevision=ORACLE_REVISION,
+            sourceRows=source_counts, auditedRows=len(automatic), automaticVerdictsAllAttempts=dict(counts),
+            latestAttemptVerdictsByCaseChannel=dict(collections.Counter(current[key]["verdict"] for key in latest_cases.values())),
+            manualReviewedAttempts=len(manual), manualVerdicts=dict(collections.Counter(r["verdict"] for r in manual)),
+            channels=dict(channel_counts), modelModes=dict(modes), codeShas=dict(sha_counts),
+            uniquePlansInspected=len(plans), uniqueNeedCandidatesInspected=len(candidates),
+            findingStates={key: value["state"] for key, value in findings.items()}, unresolvedConfirmedFindings=unresolved,
+            worktree=str(ROOT), generatorCompletion=str(done_path),
+            limitations=["Drained means every available row has an explicit scoped verdict; it does not mean every outcome is correct.",
+                         "Automatic failures are provisional review flags. Confirmed reproducible defects and repair verification live in findings.jsonl.",
+                         "Missing-fixture interception, explicit input-length rejection and model/service errors do not certify downstream execution.",
+                         "Manual reviews are finite semantic samples; all other rows were reviewed by independent rules or explicitly left inconclusive/unreviewed.",
+                         "Verified model-disabled repairs certify the exact tested replay, not untested model outputs or real WhatsApp transport."])
+        atomic_json(args.campaign / "audit.done.json", completion)
+        atomic_json(args.campaign / "audit-status.json", completion)
+        print(json.dumps({"state": "drained", "sourceRows": source_counts, "unresolvedConfirmedFindings": unresolved}))
 
 
 if __name__ == "__main__":

@@ -117,6 +117,10 @@ class EvidenceBoundaries(unittest.TestCase):
         row = {"expected": {"lines": [{"product": "milk", "productId": "469363"}]}, "response": {"request": {"lines": [actual]}}}
         self.assertEqual(audit.audit(row, {})[0], "pass")
 
+    def test_nonexistent_delivery_date_cannot_be_proposed(self):
+        row = {"response": {"plan": {"needs": [], "lines": [], "deliveryDate": "2027-02-30", "proposal": True}}}
+        self.assertTrue(any(f["rule"] == "invalid_calendar_delivery" for f in audit.audit(row, {})[1]))
+
 
 if __name__ == "__main__":
     unittest.main()
