@@ -152,7 +152,15 @@ export async function rankNeed(need: Need, list: Product[], pool: Pool, opts: { 
           need.excluded.push({ productId: group[i].p.id, name: group[i].p.name, reason: `Not ${typeTarget} (model ${j.probability?.toFixed(2)})`, ruleId: "TYP-02" });
           group.splice(i, 1);
           lastFilter = "product type check";
-        } else if (j?.verdict === "unsure") group[i].notes.push(fire("TYP-01", { product: group[i].p.name, type: typeTarget, probability: j.probability === null ? "model unreachable" : j.probability.toFixed(2) }));
+        } else if (j?.verdict === "unsure") {
+          const typ = fire("TYP-01", { product: group[i].p.name, type: typeTarget, probability: j.probability === null ? "model unreachable" : j.probability.toFixed(2) });
+          // RULE-POLICY: a hotel that blocks unsure types leaves them out instead of asking.
+          if (typ.outcome === "block") {
+            need.excluded.push({ productId: group[i].p.id, name: group[i].p.name, reason: typ.message, ruleId: "TYP-01" });
+            group.splice(i, 1);
+            lastFilter = "product type check";
+          } else group[i].notes.push(typ);
+        }
       }
     }
   }

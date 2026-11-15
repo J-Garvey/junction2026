@@ -46,6 +46,7 @@ async function call<T>(method: string, path: string, body?: unknown, signal?: Ab
 
 export const get = <T>(p: string) => call<T>("GET", p);
 export const post = <T>(p: string, b?: unknown) => call<T>("POST", p, b ?? {});
+export const put = <T>(p: string, b?: unknown) => call<T>("PUT", p, b ?? {});
 
 // ---------- response shapes ----------
 
@@ -192,19 +193,52 @@ export interface AuditResp {
   decisions: DecisionCount | null;
 }
 
+export type Outcome = FiredRule["outcome"];
+export interface RuleControl {
+  /** Outcomes the hotel may pick; one entry means locked. */
+  choices: Outcome[];
+  lock?: string;
+  params?: string[];
+  names?: Partial<Record<Outcome, string>>;
+  active?: boolean;
+}
 export interface RuleDef {
   label: string;
   id: string;
   area: string;
-  outcome: FiredRule["outcome"];
+  outcome: Outcome;
+  defaultOutcome: Outcome;
   hard: boolean;
   who: string;
   trigger: string;
   template: string;
+  control: RuleControl;
+}
+export type ParamKind = "pct" | "fraction" | "eur" | "days" | "number" | "grams" | "bool" | "weekdays" | "dates" | "products";
+export interface ParamDef {
+  key: string;
+  scope: "mandate" | "policy";
+  label: string;
+  help?: string;
+  kind: ParamKind;
+  unit?: string;
+  min?: number;
+  max?: number;
+  step?: number;
+  nullLabel?: string;
+}
+export type ParamValue = number | boolean | null | number[] | string[];
+export interface RuleEdit {
+  outcomes?: Record<string, Outcome>;
+  params?: Record<string, ParamValue>;
 }
 export interface RulesResp {
   rules: RuleDef[];
   mandate: Mandate;
+  params: Record<string, ParamDef>;
+  policy: { params: Record<string, ParamValue>; version: number; updatedBy: string | null; updatedAt: string | null };
+  canEdit: boolean;
+  changes?: string[];
   fixed: Record<string, number | string>;
   remembered: { dish: string; original: string; sub: string; by: string; at: string; spec?: string }[];
   tokens: { outsideAgent: string; valioViewer: string };
@@ -291,6 +325,8 @@ export const api = {
   orders: (eventId?: string) => get<OrdersResp>(`/api/orders${eventId ? `?eventId=${encodeURIComponent(eventId)}` : ""}`),
   audit: (viewer: "hotel" | "valio", eventId?: string) => get<AuditResp>(`/api/audit?viewer=${viewer}${eventId ? `&eventId=${encodeURIComponent(eventId)}` : ""}`),
   rules: () => get<RulesResp>("/api/rules"),
+  saveRules: (edit: RuleEdit) => put<RulesResp>("/api/rules", edit),
+  resetRules: () => post<RulesResp>("/api/rules/reset"),
   clock: (scene: SceneKey | "live") => post<unknown>("/api/clock", { scene }),
   reset: () => post<{ ok: boolean }>("/api/reset"),
 };

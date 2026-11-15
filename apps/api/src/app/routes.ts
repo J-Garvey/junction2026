@@ -10,7 +10,9 @@ import { allPeople, getPerson, issueToken, resolveToken, tokenFrom, type Person 
 import { clockState, setClock, SCENES, now } from "../clock.js";
 import { audit, auditView, verifyChain, decisionCount, SYSTEM } from "../audit.js";
 import { kvGet, kvSet } from "../db.js";
-import { RULES, FIXED } from "../rules/catalogue.js";
+import { FIXED, rulesView } from "../rules/catalogue.js";
+import { PARAMS, policyParams, storedPolicy } from "../rules/policy.js";
+import { editRules, resetRules, RuleEditError } from "../rules/editor.js";
 import { getProduct, catalogSize } from "../catalog.js";
 import { interpretMessage } from "../agent/message.js";
 import { logSearch } from "../searchlog.js";
@@ -445,15 +447,40 @@ export function appRouter(): Router {
     res.json({ viewer, chain: verifyChain(), entries: auditView(viewer, { eventId }), decisions: eventId ? decisionCount(eventId) : null });
   });
 
-  r.get("/rules", (_req, res) =>
-    res.json({
-      rules: RULES,
+  const rulesPayload = (req: Request) => {
+    const p = storedPolicy();
+    return {
+      rules: rulesView(),
       mandate: mandate(),
       fixed: FIXED,
+      params: PARAMS,
+      policy: { params: policyParams(), version: p.version, updatedBy: p.updatedBy, updatedAt: p.updatedAt },
+      canEdit: P(req).role === "approver",
       remembered: listRemembered(),
       tokens: { outsideAgent: OUTSIDE_AGENT_TOKEN, valioViewer: VALIO_VIEWER_TOKEN },
-    }),
-  );
+    };
+  };
+  r.get("/rules", (req, res) => res.json(rulesPayload(req)));
+  // RULE-EDIT: an approver changes outcomes and limits. The next quote uses them.
+  r.put("/rules", (req, res) => {
+    const b = z.object({ outcomes: z.record(z.string(), z.string()).optional(), params: z.record(z.string(), z.unknown()).optional() }).parse(req.body);
+    try {
+      const changes = editRules(P(req), b);
+      res.json({ ...rulesPayload(req), changes });
+    } catch (e) {
+      if (e instanceof RuleEditError) return res.status(P(req).role === "approver" ? 400 : 403).json({ error: e.message });
+      throw e;
+    }
+  });
+  r.post("/rules/reset", (req, res) => {
+    try {
+      const changes = resetRules(P(req));
+      res.json({ ...rulesPayload(req), changes });
+    } catch (e) {
+      if (e instanceof RuleEditError) return res.status(403).json({ error: e.message });
+      throw e;
+    }
+  });
   r.get("/products/:id", (req, res) => {
     const p = getProduct(String(req.params.id));
     if (!p) return res.status(404).json({ error: "Not in catalogue" });
