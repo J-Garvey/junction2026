@@ -8,6 +8,7 @@ import { Status, Fixture, UnknownStockMark } from "./Status";
 import { Pop, LineSource, CandidateSource, stockText } from "./Popover";
 import { Icon } from "./icons";
 import { BudgetCalculation, TotalCalculation, VatCalculation, matchingVatLines } from "./CalculationEvidence";
+import { SelectionFunnel } from "./SelectionFunnel";
 import { CarbonEstimate } from "./CarbonEstimate";
 
 const ORDER: Record<string, number> = { allergy_warning: 0, blocked: 1, not_available: 2, unresolved: 3, unknown_stock: 4, covered_at_risk: 5, waiting: 6, check: 7, covered: 8 };
@@ -125,6 +126,7 @@ export function DishView({ plan, warnings, onRemove }: { plan: Plan; warnings: W
                     <div className="pline-name small" title={n.rules[0]?.message}>{n.text}</div>
                   </div>
                 )}
+                <SelectionFunnel need={n} lines={plan.lines} />
               </div>
             );
           })}
@@ -172,7 +174,7 @@ export function MoneyView({ plan, warnings, cap, vat, vatOrder, onRemove }: { pl
 }
 
 /** Candidates per need, best first, with the ranking step that decided each. */
-export function Candidates({ need }: { need: Need }) {
+export function Candidates({ need, lines }: { need: Need; lines: PlanLine[] }) {
   const top = need.candidates.slice(0, 3);
   return (
     <div className="cands">
@@ -218,6 +220,7 @@ export function Candidates({ need }: { need: Need }) {
           )}
         </tbody>
       </table>
+      <SelectionFunnel need={need} lines={lines} />
     </div>
   );
 }
