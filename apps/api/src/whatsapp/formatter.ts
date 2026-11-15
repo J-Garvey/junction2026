@@ -44,7 +44,7 @@ function money(value: number | null | undefined): string {
 }
 
 /** Pure presentation of supplied facts: no quoting, stock checks or order decisions. */
-export function formatWhatsAppReply(facts: WhatsAppReplyFacts): WhatsAppReply {
+export function formatWhatsAppReply(facts: WhatsAppReplyFacts, channel: "web" | "simulator" = "simulator"): WhatsAppReply {
   const status = STATUS[facts.status];
   let shortened = false;
   const display = (value: string, limit: number, identifier = false): string => {
@@ -88,7 +88,7 @@ export function formatWhatsAppReply(facts: WhatsAppReplyFacts): WhatsAppReply {
     const omittedWarnings = warnings.length - shownWarningCount;
     const omittedReceipts = receipts.length - shownReceipts.length;
     const sections = [
-      ["FAKE WhatsApp · demo", `*${status.heading}*`, status.note, headline].filter(Boolean).join("\n"),
+      [channel === "web" ? "Aimo Copilot · demo orders" : "FAKE WhatsApp · demo", `*${status.heading}*`, status.note, headline].filter(Boolean).join("\n"),
       orderText,
       detail,
     ];
@@ -117,10 +117,11 @@ export function formatWhatsAppReply(facts: WhatsAppReplyFacts): WhatsAppReply {
     }
     if (shortened) sections.push("Text shortened; full details and warnings are in the app.");
     if (moreActions) sections.push(`${moreActions} more ${moreActions === 1 ? "action" : "actions"} in the app.`);
+    if (channel === "web" && actions.length) sections.push(["*Reply options*", ...actions.map((action) => `${display(action.label, 80)}: ${id(action.text)}`)].join("\n"));
     const needsApp = shortened || omittedWarnings || omittedReceipts || moreActions;
     const next = omittedItems ? "open the full basket in the app."
       : needsApp ? "open the basket in the app for full details."
-      : primaryLabel ? `choose “${primaryLabel}”.`
+      : primaryLabel ? (channel === "web" ? `reply ${id(actions[0].text)}.` : `choose “${primaryLabel}”.`)
       : status.next;
     sections.push(`Next: ${next}`);
     return sections.filter(Boolean).join("\n\n");
