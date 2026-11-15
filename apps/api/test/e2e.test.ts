@@ -203,7 +203,7 @@ describe("Test case 1: the wedding through four scenes (docs/demo-plan.md)", () 
     expect(a.viability.lines).toHaveLength(7);
     expect(a.viability.lines.find((l: any) => l.productId === "469672").verdict).toBe("green");
     expect(a.viability.lines.find((l: any) => l.productId === "467767").status).toBe("unknown_stock");
-    const milk = a.viability.lines.find((l: any) => l.needIds.includes("coffee:milk:regular"));
+    const milk = a.viability.lines.find((l: any) => l.needIds.includes("coffee:milk:event-total"));
     expect(milk.productId).toBe("464306"); // Price wins; unknown stock remains visible.
   });
   it("scene 2: the plan's quantities and €2,003.37; Aino continues with 4 lines, then one card for Sanna", () => {
