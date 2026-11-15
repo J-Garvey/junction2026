@@ -303,6 +303,8 @@ export interface Basket extends BasketStatus {
 }
 export interface BasketPlan {
   id: string;
+  outletId?: string;
+  changeToken?: string;
   title: string;
   status: Plan["status"];
   summary: string;
@@ -335,6 +337,7 @@ export const api = {
   baskets: () => get<{ baskets: Basket[] }>("/api/baskets"),
   basket: (id: string) => get<BasketResp>(`/api/baskets/${encodeURIComponent(id)}`),
   submitBasketForReview: (id: string) => post<{ review: Question }>(`/api/baskets/${encodeURIComponent(id)}/submit-review`),
+  correctBasketRequest: (eventId: string, planId: string, changeToken: string, action: "edit" | "remove") => post<PlanResp>(`/api/baskets/${encodeURIComponent(eventId)}/requests/${encodeURIComponent(planId)}/correct`, { changeToken, action }),
   newBasket: (name: string, deliveryDate: string) => post<{ basket: { id: string; name: string; deliveryDate: string } }>("/api/baskets", { name, deliveryDate }),
   plan: (id: string) => get<PlanResp>(`/api/plans/${encodeURIComponent(id)}`),
   product: (id: string) => get<ProductDetails>(`/api/products/${encodeURIComponent(id)}`),
