@@ -301,6 +301,8 @@ function TooLate({ plan }: { plan: Plan }) {
 
 /** Products found, in stock and in time: a summary and one button to add them to the quote. */
 function Proposal({ plan, onDone }: { plan: Plan; onDone: (r: PlanResp) => void }) {
+  const { me } = useApp();
+  const inScope = me.hotelScope || me.outlets.includes(plan.outletId);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const lines = plan.lines.filter((l) => !l.removed && l.productId);
@@ -308,6 +310,7 @@ function Proposal({ plan, onDone }: { plan: Plan; onDone: (r: PlanResp) => void 
   // Two other passing products per need, offered quietly below.
   const alts = plan.needs.flatMap((n) => n.candidates.filter((c) => !used.has(c.productId)).slice(0, 2).map((c) => ({ n, c })));
   async function run(key: string, f: () => Promise<PlanResp>) {
+    if (busy || !inScope) return;
     setBusy(key);
     setErr(null);
     try {
@@ -339,8 +342,9 @@ function Proposal({ plan, onDone }: { plan: Plan; onDone: (r: PlanResp) => void 
           <b className="price">{eur(plan.totalExVat)}</b>
         </div>
         {err && <div className="callout red small">{err}</div>}
+        {!inScope && <div className="callout blue small" role="status">This request is outside your outlet scope. Someone with access to this outlet must add it to the quote or choose alternatives.</div>}
         <div className="row">
-          <button type="button" className="btn primary" disabled={!!busy} onClick={() => run("accept", () => api.accept(plan.id))}>
+          <button type="button" className="btn primary" disabled={!!busy || !inScope} onClick={() => run("accept", () => api.accept(plan.id))}>
             {busy === "accept" ? "…" : "Add to quote"}
           </button>
           <Link to="/" className="btn ghost">
@@ -352,7 +356,7 @@ function Proposal({ plan, onDone }: { plan: Plan; onDone: (r: PlanResp) => void 
         <div className="alts small muted">
           <span>Or instead:</span>
           {alts.map(({ n, c }) => (
-            <button key={`${n.id}:${c.productId}`} type="button" className="linkbtn" disabled={!!busy} onClick={() => run(c.productId, () => api.choose(plan.id, n.id, c.productId))}>
+            <button key={`${n.id}:${c.productId}`} type="button" className="linkbtn" disabled={!!busy || !inScope} onClick={() => run(c.productId, () => api.choose(plan.id, n.id, c.productId))}>
               {busy === c.productId ? "…" : `${c.name} · ${eur(c.pricePerBase)}/${n.amount.unit}`}
             </button>
           ))}
