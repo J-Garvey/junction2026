@@ -253,6 +253,9 @@ export function appRouter(): Router {
       baskets: listEvents().map((e) => {
         const mine = orders.filter((o) => o.eventId === e.id && o.state !== "rejected");
         const staged = basketPlans(e.id).filter((pl) => pl.basketedAt && !pl.orderIds.length);
+        const totalExVat = staged.some((pl) => pl.totalExVat === null)
+          ? null
+          : mine.reduce((n, o) => n + o.totalExVat, 0) + staged.reduce((n, pl) => n + pl.totalExVat!, 0);
         return {
           id: e.id,
           name: e.name,
@@ -260,7 +263,7 @@ export function appRouter(): Router {
           guests: e.guests,
           coverage: coverageSummary(e.id),
           lines: mine.reduce((n, o) => n + o.lines.filter((l) => !l.removed).length, 0) + staged.reduce((n, pl) => n + pl.lines.filter((l) => !l.removed).length, 0),
-          totalExVat: mine.reduce((n, o) => n + o.totalExVat, 0) + staged.reduce((n, pl) => n + (pl.totalExVat ?? 0), 0),
+          totalExVat,
           // Only what this person can answer; the rest is someone else's to approve.
           waiting: open.filter((q) => q.eventId === e.id && canAnswer(q, p)).length,
           waitingOthers: open.filter((q) => q.eventId === e.id && !canAnswer(q, p)).length,

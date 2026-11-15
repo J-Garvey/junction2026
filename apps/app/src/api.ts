@@ -220,7 +220,7 @@ export interface Basket {
   guests: number;
   coverage: Coverage;
   lines: number;
-  totalExVat: number;
+  totalExVat: number | null;
   /** Questions this person can answer. */
   waiting: number;
   /** Questions waiting for someone else. */

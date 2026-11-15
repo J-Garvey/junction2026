@@ -468,8 +468,9 @@ export async function quoteAndDecide(plan: StoredPlan, personToken?: string): Pr
   }
   plan.quoteId = quote.id;
   plan.fingerprint = quote.fingerprint;
-  plan.totalExVat = quote.totalExVat;
-  plan.totalVat = quote.totalVat;
+  const hasUnknownPrice = quote.lines.some((line) => line.lineTotal === null);
+  plan.totalExVat = hasUnknownPrice ? null : quote.totalExVat;
+  plan.totalVat = hasUnknownPrice ? null : quote.totalVat;
   plan.approvalsNeeded = quote.mandateCheck.approvalsNeeded;
   // Gateway facts win: copy the quoted price and the gateway's own rules onto each line.
   for (const ql of quote.lines) {

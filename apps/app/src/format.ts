@@ -2,8 +2,8 @@
 const TZ = "Europe/Helsinki";
 
 export const fi = (v: number, d = 2) => v.toLocaleString("fi-FI", { minimumFractionDigits: d, maximumFractionDigits: d });
-/** 1 150,40 € */
-export const eur = (v: number | null | undefined) => (v == null ? "–" : `${fi(v)} €`);
+/** 1 150,40 €, or TBC when a price has not been confirmed. */
+export const eur = (v: number | null | undefined) => (v == null ? "TBC" : `${fi(v)} €`);
 /** Quantity with up to 2 decimals, no trailing zeros. */
 export const qty = (v: number | null | undefined) => (v == null ? "–" : v.toLocaleString("fi-FI", { maximumFractionDigits: 2 }));
 

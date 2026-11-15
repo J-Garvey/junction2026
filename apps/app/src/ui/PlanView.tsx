@@ -136,7 +136,9 @@ export function DishView({ plan, warnings, onRemove }: { plan: Plan; warnings: W
 /** UI-09 money view: by cost, with total, VAT and distance from the cap. */
 export function MoneyView({ plan, warnings, cap, vat, onRemove }: { plan: Plan; warnings: WarningRecord[]; cap: number | null; vat?: number | null; onRemove?: (l: PlanLine) => void }) {
   const lines = [...plan.lines].filter((l) => !l.removed).sort((a, b) => (b.lineTotal ?? 0) - (a.lineTotal ?? 0));
-  const total = plan.totalExVat ?? lines.reduce((s, l) => s + (l.lineTotal ?? 0), 0);
+  const total = lines.some((line) => line.lineTotal == null)
+    ? null
+    : plan.totalExVat ?? (lines.length > 0 ? lines.reduce((sum, line) => sum + line.lineTotal!, 0) : null);
   return (
     <div>
       <div className="moneybar">
@@ -148,12 +150,14 @@ export function MoneyView({ plan, warnings, cap, vat, onRemove }: { plan: Plan; 
         </div>
         <div>
           <div className="small muted">VAT</div>
-          <div style={{ color: "var(--ink)", fontWeight: 600 }}>{vat != null ? eur(vat) : "–"}</div>
+          <div style={{ color: "var(--ink)", fontWeight: 600 }}>{eur(vat)}</div>
         </div>
         {cap != null && (
           <div>
             <div className="small muted">Cap {eur(cap)}</div>
-            <div style={{ color: total > cap ? "var(--red)" : "var(--green)", fontWeight: 700 }}>{total > cap ? `+${eur(total - cap)}` : `${eur(cap - total)} left`}</div>
+            <div style={{ color: total != null && total > cap ? "var(--red)" : "var(--green)", fontWeight: 700 }}>
+              {total == null ? "TBC" : total > cap ? `+${eur(total - cap)}` : `${eur(cap - total)} left`}
+            </div>
           </div>
         )}
       </div>
