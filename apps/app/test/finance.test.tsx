@@ -12,6 +12,7 @@ import { eur } from "../src/format";
 
 const manager: Person = { id: "sanna", name: "Sanna", title: "Finance manager", role: "approver", hotelScope: true, outlets: ["banquet"] };
 const chef: Person = { ...manager, id: "aino", name: "Aino", title: "Chef", role: "chef", hotelScope: false };
+const bar: Person = { ...chef, id: "mikko", name: "Mikko", title: "Bar manager", outlets: ["bar"] };
 const question: Question = {
   id: "review", planId: "basket:wedding", eventId: "wedding", type: "order_review", forRole: "approver", outletId: null,
   quoteId: null, fingerprint: "saved", title: "Review order: Wedding", body: "Aino submitted this order to finance for approval · €120 ex VAT · 1 item",
@@ -33,7 +34,7 @@ const detail = {
   event: { id: "wedding", name: "Wedding", serviceDate: "2026-11-16" }, questions: [question], requests: [staged], orders: [order("placed", 20)], review: question,
   orderBy: basket.orderBy, confirmed: false,
 } as unknown as BasketResp;
-const context = (me = manager): AppCtx => ({ me, people: [manager, chef], outlets: [], status: null, now: "2026-11-14T10:00:00Z", tick: 0, refresh: vi.fn(), switchPerson: vi.fn() });
+const context = (me = manager): AppCtx => ({ me, people: [manager, chef, bar], outlets: [], status: null, now: "2026-11-14T10:00:00Z", tick: 0, refresh: vi.fn(), switchPerson: vi.fn() });
 const mount = (element: React.ReactNode, me = manager) => render(<MemoryRouter><Ctx.Provider value={context(me)}>{element}</Ctx.Provider></MemoryRouter>);
 const mountDetail = (me = manager) => render(<MemoryRouter initialEntries={["/baskets/wedding"]}><Ctx.Provider value={context(me)}><Routes><Route path="/baskets/:id" element={<BasketPage />} /></Routes></Ctx.Provider></MemoryRouter>);
 
@@ -59,7 +60,7 @@ describe("manager and finance workspace", () => {
     expect(screen.getByRole("link", { name: "Audit log" }).getAttribute("href")).toBe("/audit");
     expect(screen.queryByRole("button", { name: "New order" })).toBeNull();
     expect(screen.queryByRole("textbox", { name: "Type a request" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Approve order" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Order" })).toBeNull();
   });
 
   it("shows only current decisions within the person's authority, earliest expiry first", async () => {
@@ -109,10 +110,10 @@ describe("manager and finance workspace", () => {
     expect(within(summary).getByText(question.body)).toBeTruthy();
     expect(within(summary).getByText("Over the hotel spend cap")).toBeTruthy();
     expect(within(summary).getByText("Stock is unconfirmed; the chef chose to continue")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Approve order" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Order" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Refuse order" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Add to the order" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Order" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Submit order for review" })).toBeNull();
   });
 
   it("keeps unknown basket prices unknown in the manager's summary", async () => {
@@ -134,15 +135,15 @@ describe("manager and finance workspace", () => {
     expect(within(summary).queryByText(eur(120))).toBeNull();
   });
 
-  it("keeps the chef's Order action on the existing approval submission path", async () => {
+  it.each([chef, bar])("keeps Submit order for review in the $title view", async (person) => {
     vi.mocked(api.basket).mockResolvedValueOnce({ ...detail, questions: [], review: null }).mockResolvedValue(detail);
     const submit = vi.spyOn(api, "submitBasketForReview").mockResolvedValue({ review: question });
-    mountDetail(chef);
-    await userEvent.click(await screen.findByRole("button", { name: "Order" }));
+    mountDetail(person);
+    await userEvent.click(await screen.findByRole("button", { name: "Submit order for review" }));
     expect(submit).toHaveBeenCalledExactlyOnceWith("wedding");
-    await waitFor(() => expect((screen.getByRole("button", { name: "Awaiting approval" }) as HTMLButtonElement).disabled).toBe(true));
+    await waitFor(() => expect((screen.getByRole("button", { name: "Submitted for review" }) as HTMLButtonElement).disabled).toBe(true));
     expect(screen.getByRole("heading", { name: "Add to the order" })).toBeTruthy();
     expect(screen.queryByRole("region", { name: "Financial summary" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Approve order" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Order" })).toBeNull();
   });
 });
