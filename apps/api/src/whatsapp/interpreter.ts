@@ -96,6 +96,16 @@ function resolveOrder(text: string, context: WhatsAppInterpretContext): Resoluti
     const reference = masked().slice(after, end).replace(/\bplease\b[.!?\s]*$/i, "").trim();
     // "10 l of milk" and "put milk in" are product grammar.
     if (/^of\b/i.test(match[0]) && ADD.test(text)) continue;
+    if (/^(?:from|in)\b/i.test(match[0]) && ADD.test(text) && reference) {
+      // "salmon from Finland" and "salmon in sauce" describe the product.
+      // A basket called Finland/Sauce must not capture and erase those words.
+      const matches = referenceMatches(reference, context);
+      if (matches.length) return {
+        order: null, body: text, explicit: true, choices: uniqueOrders(matches),
+        question: "Is that part of the product description or an order reference? Please identify the target with 'to order' and keep the complete product description.",
+      };
+      continue;
+    }
     if (reference) addSpan(start, end, reference);
   }
   for (const match of masked().matchAll(DATE)) addSpan(match.index!, match.index! + match[0].length, match[0]);
@@ -190,9 +200,18 @@ function removeItems(body: string, orderId: string, context: WhatsAppInterpretCo
 export async function interpretWhatsApp(text: string, context: WhatsAppInterpretContext): Promise<WhatsAppInterpretation> {
   text = text.normalize("NFKC").replace(/[’‘]/g, "'").trim();
   if (!text) return ask("Which order would you like to view or change?");
+  if (/\b(?:all|both|every|each|multiple|several|two)\s+(?:the\s+)?(?:orders|baskets)\b/i.test(text)) {
+    return ask("I can work on one order at a time. Please identify one order by its name or ID.", { choices: context.orders });
+  }
   // Negated commands and compound instructions cannot authorize a change.
   if (/\b(?:do\s+not|don't|dont|never|not|cannot|can't)\s+(?:(?:please|ever|yet)\s+)*(?:add|include|put|remove|delete|drop|confirm|place|submit|accept|apply|approve)\b/i.test(text)) {
     return ask("Please send one positive instruction: view an order, add items, remove items, or confirm the order.");
+  }
+  // These need more than the supported add/whole-line-remove operation. Do not
+  // let the product parser reduce a choice, replacement or condition to an add.
+  if ((ADD.test(text) || REMOVE.test(text) || CONFIRM.test(text))
+    && /\b(?:instead\s+of|rather\s+than|replace|replacement|swap|if|unless|otherwise|or)\b/i.test(text)) {
+    return ask("Please send one unconditional change for one order. For a replacement, remove the original line and add the replacement separately.");
   }
   const pendingCommand = command(text);
   const accepting = /^(?:confirm|accept|apply|approve)\s+(?:the\s+)?(?:change|changes|addition|removal)$/.test(pendingCommand);
