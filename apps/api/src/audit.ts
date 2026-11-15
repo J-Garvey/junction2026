@@ -64,14 +64,15 @@ export function audit(input: AppendInput): AuditEntry {
 }
 
 export function auditView(viewer: "hotel" | "valio", f: { hotelIds?: string[]; hotelId?: string; eventId?: string; orderId?: string; limit?: number } = {}): AuditEntry[] {
-  let rows = allJson<AuditEntry>("SELECT json FROM audit ORDER BY seq DESC");
+  const filters: string[] = [], params: string[] = [];
+  if (f.eventId !== undefined) { filters.push("json_extract(json, '$.eventId') = ?"); params.push(f.eventId); }
+  if (f.orderId !== undefined) { filters.push("json_extract(json, '$.orderId') = ?"); params.push(f.orderId); }
+  let rows = allJson<AuditEntry>(`SELECT json FROM audit${filters.length ? ` WHERE ${filters.join(" AND ")}` : ""} ORDER BY seq DESC`, ...params);
   rows = rows.filter((row) => {
     const owner = hotelFor(row);
     return owner !== null && (f.hotelIds === undefined || f.hotelIds.includes(owner)) && (f.hotelId === undefined || owner === f.hotelId);
   });
   if (viewer === "valio") rows = rows.filter((r) => r.visibility === "shared" && Object.hasOwn(SHARED_ACTIONS, r.action));
-  if (f.eventId !== undefined) rows = rows.filter((r) => r.eventId === f.eventId);
-  if (f.orderId !== undefined) rows = rows.filter((r) => r.orderId === f.orderId);
   rows = rows.slice(0, f.limit ?? 500);
   return viewer === "valio" ? rows.map(redactForValio) : rows;
 }

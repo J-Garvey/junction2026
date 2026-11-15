@@ -78,10 +78,10 @@ export async function correctBasketRequest(eventId: string, planId: string, toke
   });
 }
 
-const stagedPlans = (eventId: string) => listPlans().filter((p) => p.eventId === eventId && p.basketedAt && !p.orderIds.length);
+const stagedPlans = (eventId: string) => listPlans(eventId).filter((p) => p.basketedAt && !p.orderIds.length);
 const liveOrders = (orders: Order[]) => orders.filter((o) => o.state !== "rejected");
 export function invalidateBasketReview(eventId: string) {
-  for (const q of allQuestions().filter((q) => q.eventId === eventId && q.type === "order_review" && q.state === "open")) {
+  for (const q of allQuestions(eventId).filter((q) => q.type === "order_review" && q.state === "open")) {
     q.state = "replaced";
     saveQuestion(q);
   }
@@ -99,9 +99,11 @@ const snapshot = (eventId: string, orders: Order[]) => {
 
 /** Stale requests disappear from the approval queue as soon as the basket is read again. */
 export function basketReview(eventId: string, orders: Order[]): Question | null {
+  const pending = allQuestions(eventId).filter((q) => q.type === "order_review" && q.state === "open");
+  if (!pending.length) return null;
   const current = snapshot(eventId, orders);
   let review: Question | null = null;
-  for (const q of allQuestions().filter((q) => q.eventId === eventId && q.type === "order_review" && q.state === "open")) {
+  for (const q of pending) {
     if (q.deadline && new Date(q.deadline).getTime() <= now().getTime()) {
       q.state = "expired";
       saveQuestion(q);
