@@ -16,17 +16,23 @@ beforeEach(() => {
     constructor() { super(); stream = this; }
     close() {}
   });
-  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ order: { lines: [], totalExVat: 12.4 }, signature: { valid: true, alg: "ES256", jwks: "/.well-known/jwks.json", jws: "synthetic-receipt-signature" } }) }));
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => ({ ok: true, json: async () => url === "/api/live/state" ? state : ({ order: { lines: [], totalExVat: 12.4 }, signature: { valid: true, alg: "ES256", jwks: "/.well-known/jwks.json", jws: "synthetic-receipt-signature" } }) })));
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 async function load(reducedMotion = false) {
   vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: reducedMotion }));
-  render(<Live />);
+  await act(async () => { render(<Live />); });
   await act(async () => stream.dispatchEvent(new MessageEvent("state", { data: JSON.stringify(state) })));
 }
 
 describe("live console accessibility", () => {
+  it("offers hotel sign-in when the console session is unauthenticated", async () => {
+    vi.mocked(fetch).mockResolvedValue({ ok: false } as Response);
+    await act(async () => { render(<Live />); });
+    expect(screen.getByRole("link", { name: "Open hotel sign-in" }).getAttribute("href")).toBe("/");
+    expect(screen.queryByRole("button", { name: /Send/ })).toBeNull();
+  });
   it.each([true, false])("respects reduced motion when following new activity (%s)", async (reducedMotion) => {
     const scroll = vi.spyOn(HTMLElement.prototype, "scrollTo").mockImplementation(() => {});
     await load(reducedMotion);
