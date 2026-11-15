@@ -31,7 +31,7 @@ describe("app shell", () => {
     render(<MemoryRouter><App /></MemoryRouter>);
     (await screen.findByRole("button", { name: "Signed in as Aino" })).focus();
     await user.keyboard("{Enter}");
-    await user.tab();
+    await user.keyboard("{ArrowDown}{ArrowDown}");
     expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: "Products" }));
     await user.keyboard("{Enter}");
     expect(await screen.findByRole("heading", { name: "Products" })).toBeTruthy();
