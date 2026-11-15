@@ -311,14 +311,14 @@ async function findReplacements(e: StoredEvent, productId: string, ing: EventSpe
   for (let k = out.length - 1; k >= 0; k--) if (judged.get(out[k].productId)?.verdict === "no") out.splice(k, 1);
   const named = (id: string) => (`${getProduct(id)?.name ?? ""} ${getProduct(id)?.nameFi ?? ""}`.toLowerCase().includes(typeWord) ? 0 : 1);
   // Safety first: a product that declares itself free from every avoided allergen beats one that
-  // merely doesn't list it. Then the SF-06 idea: reliability band, price per unit, id.
+  // merely doesn't list it. Then compare price per unit, reliability band and id.
   const declared = (id: string) => {
     const ff: string[] = getRaw(id)?.free_from ?? [];
     return avoid.every((a) => ff.includes(a)) ? 0 : 1;
   };
   const band = (r: number | null) => (r === null ? 1 : r >= 0.95 ? 0 : 2);
   return out
-    .sort((a, b) => declared(a.productId) - declared(b.productId) || named(a.productId) - named(b.productId) || band(a.reliability) - band(b.reliability) || (a.pricePerUnit ?? 1e9) - (b.pricePerUnit ?? 1e9) || a.productId.localeCompare(b.productId))
+    .sort((a, b) => declared(a.productId) - declared(b.productId) || named(a.productId) - named(b.productId) || (a.pricePerUnit ?? 1e9) - (b.pricePerUnit ?? 1e9) || band(a.reliability) - band(b.reliability) || a.productId.localeCompare(b.productId))
     .slice(0, 3)
     .map((r) => ({ ...r, declaredFree: declared(r.productId) === 0 }));
 }
@@ -479,12 +479,12 @@ async function findSubstitutes(line: Order["lines"][number], need: Need | undefi
     const n = `${getProduct(id)?.name ?? ""} ${getProduct(id)?.nameFi ?? ""}`.toLowerCase();
     return -words.filter((w) => n.includes(w)).length;
   };
-  // D32: listed substitutes first, then reliability band and price; confirmed stock only breaks ties.
+  // Listed substitutes and product identity first, then price, reliability and id; stock is disclosed separately.
   const band = (id: string) => {
     const r = getProduct(id)?.reliability ?? null;
     return r === null ? 1 : r >= 0.95 ? 0 : 2;
   };
-  return out.sort((a, b) => Number(b.listed) - Number(a.listed) || overlap(a.productId) - overlap(b.productId) || band(a.productId) - band(b.productId) || (a.pricePerBase ?? 1e9) - (b.pricePerBase ?? 1e9) || Number(a.unknown) - Number(b.unknown) || a.productId.localeCompare(b.productId)).slice(0, 3);
+  return out.sort((a, b) => Number(b.listed) - Number(a.listed) || overlap(a.productId) - overlap(b.productId) || (a.pricePerBase ?? 1e9) - (b.pricePerBase ?? 1e9) || band(a.productId) - band(b.productId) || a.productId.localeCompare(b.productId)).slice(0, 3);
 }
 
 /** SHORTFALL-RESOLVE (Q07.3): remembered substitute first, then up to three candidates for the chef. */

@@ -107,9 +107,9 @@ What a full run gives (`pnpm test`, and by hand on the preview):
 
 | Beat | Result |
 |---|---|
-| Booking | Quantities 31 kg, 3, 45, 12, 1, 40, 5; €2,062.17, as in the plan. Aino gets one question for 3 lines with stock not confirmed (D31) and continues; Sanna gets one card, €112.17 over budget |
+| Booking | Quantities 31 kg, 3, 45, 12, 1, 40, 5; €2,003.37. Aino gets one question for 4 lines with stock not confirmed (D31) and continues; Sanna gets one card, €53.37 over budget |
 | Two weeks out | 194 guests and Onni's tree-nut allergy in one step. The allergy is checked first and the change waits: the princess cake contains almond. Aino replaces it for everyone; Sanna approves the whole change on one card |
-| Before the cut-off | 188 guests: applied with no question (inside 5%). Final check: cream 37 in stock for 47 ordered. Aino keeps the 37 and adds 10 L of Valio cream. Result: "Ready · 4 stock not confirmed" |
+| Before the cut-off | 188 guests: applied with no question (inside 5%). Final check: cream 37 in stock for 47 ordered. Aino keeps the 37 and adds 10 L of Valio cream. Result: "Ready · 5 stock not confirmed" |
 | Safety drill | Demo-only button: an outside agent orders over budget with no approval; the gateway refuses with `mandate_violation` |
 
 Where the build differs from the demo plan, by rule:
@@ -120,7 +120,7 @@ Where the build differs from the demo plan, by rule:
 
 ## The milk request (PRD test case 2)
 
-The automatic pick uses confirmed stock first: 435 of 1,000 L from 469363 and 462775, then offers 565 L of Valio Eila (464306) with unconfirmed stock. The chef decides on that remainder (D31); keeping only the confirmed 435 L remains an alternative and requires partial-fill approval.
+The automatic pick prioritises price: 1,000 L of Valio Eila (464306), with unconfirmed stock visibly disclosed. The chef decides whether to continue (D31); keeping only the confirmed 435 L from 469363 and 462775 remains an alternative and requires partial-fill approval.
 
 ## Answers the build had to choose
 
@@ -134,7 +134,7 @@ The PRD left these open. Each choice follows the chunk's recommended answer unle
 | Q02.1 Shortlist | A recipe-approved product is used when it passes every hard rule. Otherwise the line searches its text, category and claims, capped at 50. Unmatched qualifiers remain unmatched; there is no category-only fallback. Mention-only results cannot be automatic picks. Meat and dairy requests exclude plant analogues unless explicitly requested by text or claim. These identity exclusions never establish dietary or allergen safety. |
 | Q02.3 Diet table | Claim first. Without the claim, a diet passes "by declaration" (DIET-05) only when the product has allergen data and none of the relevant codes (lactose: AM, ML; gluten: AW, UW, GB, NR, GO, GS, GK). Vegan needs the claim. |
 | Q02.4 Reliability | Three bands as recommended. |
-| SF-06 ranking (D33, supersedes D32) | Preserve priced explicit buyer/recipe choices. Automatic picks: sufficient confirmed stock, partial confirmed stock, unknown stock, zero stock; then price per kg or L, reliability and product ID. Missing prices always last and blocked from ordering. |
+| SF-06 ranking (D34, supersedes D33) | Preserve priced explicit buyer/recipe choices. Automatic picks: price per kg or L, reliability, then product ID. Stock does not affect rank; unknown stock stays visible and requires the builder's decision before ordering. Missing prices always last and blocked from ordering. |
 | Q03.2 Overshoot | Ask only above both 10% and €25. |
 | Q04.1 Urgent | 4 days or fewer to the needed-by date. |
 | Q04.3 Needed-by | 1 day before service; 2 for frozen (temperature class 7); then back to a delivery day. |

@@ -25,7 +25,7 @@
 - **Shortlist locally, then ask the API.** Candidates come from `data/products_slim.jsonl`. The mock is called only for the shortlist, at most 1,000 IDs per call. [SPEC, VA-13]
 - **Diets are matched on claims and allergen codes, never on names.** No allergen declaration means unknown, never safe. [GROUND_TRUTH 4.2]
 - **Product type is a model judgement.** Where claims can't tell types apart (plain milk vs coffee milk in category 10400), the Gemini Decisions API answers yes/no per candidate. Below the threshold the line becomes a question. The Decisions API is in the build. [D12, D29]
-- **Ranking is one fixed order** (SF-06, updated 15 Nov): after hard requirements, preserve explicit buyer and recipe choices when priced. For automatic picks, prefer enough confirmed stock for the whole request, then partial confirmed stock, then unknown stock, then zero stock. Within each stock group compare price per kg or L, then delivery reliability, then product ID. Missing prices always go last and still block ordering. This supersedes D32.
+- **Ranking is one fixed order** (SF-06, D34, updated 15 Nov): after hard requirements, preserve explicit buyer and recipe choices when priced. For automatic picks, compare price per kg or L, then delivery reliability, then product ID. Stock does not affect ranking, including ties. Unknown stock stays visible and the builder decides whether to continue (D31). Missing prices always go last and still block ordering. This supersedes D33.
 - **Labels and origin** come from the data's `labels` and `origin` fields. A required one is a hard rule for that event; a preferred one only changes rank. [CH-15, CH-16]
 
 ## Functions: the problems to solve
