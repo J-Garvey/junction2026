@@ -175,11 +175,18 @@ channel, disposition and setup/planning overhead; no speedup claim is made.
 
 External evidence is under
 `C:/Users/benfh/junction-trials/api-quality-20261115-c8a4/A4/`:
-`early-gate.md`, `source-review-03.json`, `baseline-final-03.*`, posted review
+`early-gate.md`, `source-review-03.json`, `source-review-final-05.json`,
+`baseline-final-03.*`, posted review
 bodies and test logs. Earlier incremental audits and source-review-01/-02 remain.
 Source-review-01 over-reported invalid boundary amounts because the first audit
 helper conflated known pack content with a valid requested amount; that helper
 was corrected, regression-tested and rerun. No frozen corpus was changed.
+Final source replay04 initially failed because the focused task branch did not
+check out PR129's source files. The tool now reports missing local files and
+verifies the explicitly supplied reviewed Git blobs; regression test and replay05
+pass with unchanged counts. **25 A4 tests plus8 A1 audit tests pass**; the earlier
+18 author/harness tests also passed during review. No failed audit artifact was
+overwritten.
 
 The tooling is read-only and streamable, preserves append-only observations,
 emits verdicts separately and refuses to overwrite audit artifacts. Production

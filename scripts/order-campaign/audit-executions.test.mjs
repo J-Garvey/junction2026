@@ -4,7 +4,7 @@ import { mkdtempSync, writeFileSync, appendFileSync, readFileSync, rmSync } from
 import { tmpdir } from 'node:os';
 import { resolve, dirname, basename } from 'node:path';
 import { hash, inputHash, quantity, loadCorpus, scanJsonl, callsFor, checkLines, persisted, setupFor, factualClaims, auditObservation, auditFile } from './audit-executions.mjs';
-import { sourcePack } from './audit-executions-sources.mjs';
+import { sourcePack, sourceHashEvidence } from './audit-executions-sources.mjs';
 
 const line = (extra = {}) => ({ lineId: 'L001', productId: 'milk', amount: 2, unit: 'l', claims: ['FREE_FROM_LACTOSE'], avoidAllergens: ['AN'], origin: 'fi', ...extra });
 const parsed = (extra = {}) => ({ productId: 'milk', quantity: { amount: 2000, unit: 'ml' }, constraints: { claims: ['FREE_FROM_LACTOSE'], avoidAllergens: ['AN'], origin: 'fi' }, ...extra });
@@ -142,3 +142,8 @@ test('matching declared input cannot disguise different wire payloads', () => {
   const o = observed({ http: { path: '/api/messages', body: { text: 'different order' } } });
   const v = auditObservation(o, frozen({ plan: false })); assert.equal(v.disposition, 'ambiguous_expectation'); assert.ok(v.reasons.includes('actual_http_payloads_do_not_match_frozen_sequence'));
 });
+test('reviewed source need not be checked out: missing files remain explicit and Git-blob evidence is retained', async () => temporary(async dir => {
+  const blob = Buffer.from('reviewed\nsource\n');
+  const result = sourceHashEvidence('missing-source.mjs', hash(blob), dir, blob);
+  assert.equal(result.workingTreeSourceMissing, true); assert.equal(result.matches, false); assert.equal(result.reviewedGitBlobMatches, true);
+}));

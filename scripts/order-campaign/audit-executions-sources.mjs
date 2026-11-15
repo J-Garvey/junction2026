@@ -1,5 +1,5 @@
 /** Independent corpus/source review. No imports from the corpus author or application. */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
@@ -8,6 +8,12 @@ import { hash, inputHash, loadCorpus, rows, quantity } from './audit-executions.
 const equal = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const close = (a, b) => Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) < 1e-7;
 const cent = n => Math.round(n * 100) / 100;
+export function sourceHashEvidence(path, expected, repo, reviewed = null) {
+  const target = resolve(repo, path), bytes = existsSync(target) ? readFileSync(target) : null;
+  return { path, workingTreeSourceMissing: !bytes, matches: !!bytes && hash(bytes) === expected,
+    lfTextMatches: !!bytes && hash(bytes.toString('utf8').replaceAll('\r\n', '\n')) === expected,
+    ...(reviewed ? { reviewedGitBlobMatches: hash(reviewed) === expected, reviewedCrlfMatches: hash(reviewed.toString('utf8').replaceAll('\r\n', '\n').replaceAll('\n', '\r\n')) === expected } : {}) };
+}
 /** Manufacturer content per base unit multiplied by returned API sales-unit hierarchy. */
 export function sourcePack(line, product, price, availability) {
   const q = quantity(Number.isFinite(line.amount) ? line.amount : 1, line.unit), sale = availability?.scheduleLines?.[0]?.salesUnit;
@@ -136,10 +142,8 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const catalog = new Map(rows(resolve(args.repo, 'data/products_slim.jsonl')).map(p => [p.id, p])), fixture = JSON.parse(readFileSync(resolve(args.repo, 'data/fixtures/aimo/base.json')));
   const result = reviewRows(original.records, revised.records, catalog, fixture, rows(resolve(args.revised, 'revision-ledger.jsonl')));
   result.sourceHashes = Object.entries(revised.manifest.sourceHashes).map(([path, expected]) => {
-    const bytes = readFileSync(resolve(args.repo, path));
     const reviewed = args['source-ref'] ? execFileSync('git', ['show', `${args['source-ref']}:${path}`], { cwd: args.repo, maxBuffer: 30e6 }) : null;
-    return { path, matches: hash(bytes) === expected, lfTextMatches: hash(bytes.toString('utf8').replaceAll('\r\n', '\n')) === expected,
-      ...(reviewed ? { reviewedGitBlobMatches: hash(reviewed) === expected, reviewedCrlfMatches: hash(reviewed.toString('utf8').replaceAll('\r\n', '\n').replaceAll('\n', '\r\n')) === expected } : {}) };
+    return sourceHashEvidence(path, expected, args.repo, reviewed);
   });
   result.revisedFiles = Object.entries(revised.manifest.files).filter(([name]) => args.auditor === true || !['holdout.jsonl', 'full.jsonl'].includes(name))
     .map(([name, f]) => ({ name, matches: hash(readFileSync(resolve(args.revised, name))) === f.sha256 }));
