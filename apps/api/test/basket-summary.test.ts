@@ -152,4 +152,13 @@ describe("conditional approvals and whole-order confirmation", () => {
     expect(basketStatus("2026-11-15", [order()], [plan()], [], at).confirmed).toBe(false);
     expect(basketStatus(delivery, [order()], [plan({ status: "kept_short" })], [], at).confirmed).toBe(false);
   });
+
+  it("requires enough supplier stock for repeated SKUs across all committed orders", () => {
+    const first = order();
+    const second = order({ id: "second" });
+    expect(basketStatus(delivery, [first, second], [], [], at).confirmed).toBe(true);
+    first.lines[0].quantity = 15;
+    second.lines[0].quantity = 15;
+    expect(basketStatus(delivery, [first, second], [], [], at)).toMatchObject({ confirmed: false, orderBy: { state: "unavailable" } });
+  });
 });

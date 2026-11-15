@@ -107,5 +107,5 @@ export function basketStatus(deliveryDate: string, orders: Order[], plans: Plan[
   const orderBy = pending.some((plan) => !plan.lines.some((line) => !line.removed))
     ? { state: "unknown" as const, at: null, reason: "Some requested items have no supplier terms yet.", usesFixtures: items.some((item) => item.source === "fixture") }
     : orderDeadline(items, deliveryDate, at);
-  return { orderBy, confirmed };
+  return { orderBy, confirmed: confirmed && (orderBy.state === "known" || orderBy.state === "expired") };
 }
