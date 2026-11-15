@@ -45,6 +45,19 @@ describe("manager order review", () => {
     expect(screen.getByRole("link", { name: "HackJunction" }).getAttribute("href")).toBe("/baskets/conference");
   });
 
+  it("does not invent a review deadline when none was saved", () => {
+    const { container } = mount({ ...question, deadline: null });
+    expect(container.textContent).not.toContain("Review expires");
+    expect(container.querySelector("time")).toBeNull();
+    expect(screen.getByRole("button", { name: "Approve order" })).toBeTruthy();
+  });
+
+  it("keeps older return decisions without claiming they sent a note", () => {
+    mount({ ...answered(), answerNote: undefined });
+    expect(screen.getByRole("status").textContent).toBe("Returned to the order builder.");
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+
   it("requires a trimmed note and allows cancelling without sending an answer", async () => {
     const answer = vi.spyOn(api, "answer");
     const user = userEvent.setup();
@@ -82,6 +95,8 @@ describe("manager order review", () => {
     expect(answer).toHaveBeenCalledWith(question.id, "reject", "Reduce the quantity.");
     expect((screen.getByRole("button", { name: "Sending…" }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole("button", { name: "Cancel" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Escape" });
+    expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("  Reduce the quantity.  ");
     resolve({ ok: true, question: answered() });
     await waitFor(() => expect(screen.getByRole("heading", { name: "Returned for changes" })).toBeTruthy());
     expect(screen.getByRole("status").textContent).toContain("Refusal note sent to the order builder.");

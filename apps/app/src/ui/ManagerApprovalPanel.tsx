@@ -123,7 +123,7 @@ export function ManagerApprovalPanel({ q: initial, orderContext, onAnswered }: {
         </form>
       )}
       {error && <div className="callout red small" role="alert">{error}</div>}
-      {q.state === "answered" && <div className="small" role="status">{q.answer === "reject" ? "Refusal note sent to the order builder." : "The decision has been recorded."}{q.answerNote && <p className="decision-note">{q.answerNote}</p>}</div>}
+      {q.state === "answered" && <div className="small" role="status">{q.answer === "reject" ? q.answerNote ? "Refusal note sent to the order builder." : "Returned to the order builder." : "The decision has been recorded."}{q.answerNote && <p className="decision-note">{q.answerNote}</p>}</div>}
       {!closed && !mine && <p className="small">Manager approval is required.</p>}
       {q.state === "waiting" && mine && <p className="small">The chef finishes the order first.</p>}
     </article>
