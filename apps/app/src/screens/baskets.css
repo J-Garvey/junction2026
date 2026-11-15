@@ -75,6 +75,7 @@
 .add-review-request { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 5px; margin-top: 3px; }
 .add-review-row-quantity, .add-review-row-price { white-space: nowrap; }
 .add-review-row-price { text-align: right; }
+.add-review-row-price > small { display: block; margin-top: 3px; font-size: 12px; }
 .add-review-row-actions { text-align: right; }
 .add-review-row-tools { display: flex; justify-content: flex-end; align-items: center; gap: 2px; margin-top: 3px; }
 .add-review-row-tools .btn { padding: 3px 5px; }
@@ -104,10 +105,13 @@
 .search-help { margin-top: 12px; display: grid; gap: 6px; }
 .search-help h4 { margin: 4px 0 0; }
 .search-help p { margin: 0; }
-.search-help-possible { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-.search-help-possible li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; border: 1px solid var(--hairline-soft); border-radius: 8px; }
-.search-help-possible li > span { display: grid; min-width: 0; overflow-wrap: anywhere; }
-@media (max-width: 560px) { .search-help-possible li { flex-direction: column; align-items: flex-start; } }
+.add-review-suggestions { margin-top: 10px; }
+.add-review-suggestion { border-bottom: 1px solid var(--hairline-soft); background: var(--blue-soft); }
+.add-review-suggestion.outside { background: var(--yellow-soft); }
+.add-review-suggestion-mark { display: flex; align-items: center; gap: 5px; margin-bottom: 5px; color: var(--blue-ink); font-size: 12px; font-weight: 600; }
+.add-review-suggestion.outside .add-review-suggestion-mark { color: var(--ink); }
+.add-review-suggestion-block { color: var(--red-ink); }
+.add-review-suggestion .add-review-supplier-note { margin-top: 4px; }
 .add-review-item-warnings { margin: 10px 0 0; padding-left: 20px; color: var(--body); }
 .add-review-approved { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); }
 .add-review-sales-quantity { display: grid; justify-items: start; gap: 8px; margin-top: 16px; padding: 14px; background: var(--soft); border-radius: 8px; }
@@ -128,6 +132,7 @@
   .add-review-table thead { border-bottom: 1px solid var(--hairline); }
   .add-review-row { padding: 12px 0; }
   .add-review-row > td { padding: 0; }
+  .add-review-suggestion { padding-inline: 10px; }
   .add-review-row-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; }
   .add-review-row-tools { margin: 0; }
   .add-review-support, .add-review-support > td { display: block; padding-inline: 0; }
@@ -147,6 +152,11 @@
 .bmodal-item { font-weight: 600; color: var(--ink); }
 
 /* Files attached to the order, stored in this browser only. */
+.composer .composer-input { display: grid; flex: 1; min-width: 0; font-size: 16px; line-height: 1.5; }
+.composer .composer-input > * { grid-area: 1 / 1; min-width: 0; }
+.composer .composer-input textarea { width: 100%; line-height: inherit; }
+.composer .composer-hint { z-index: 1; padding: 8px 0; color: var(--mute); pointer-events: none; }
+.composer .composer-hint button { padding: 0; border: 0; background: transparent; color: var(--body); text-decoration: underline; pointer-events: auto; }
 .composer .send.attach { background: transparent; color: var(--mute); }
 .composer .send.attach:hover { background: var(--soft); color: var(--ink); }
 .composer .attachments { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px 10px; }

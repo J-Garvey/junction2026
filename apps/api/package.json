@@ -18,7 +18,8 @@
     "search:shortlist": "tsx src/scripts/q.ts",
     "search:roles": "tsx src/scripts/roles.ts",
     "tags": "tsx src/scripts/category-tags.ts",
-    "latency:check": "tsx src/scripts/latency-check.ts"
+    "latency:check": "tsx src/scripts/latency-check.ts",
+    "database:check": "tsx src/scripts/database-latency-check.ts"
   },
   "dependencies": {
     "@aimo/contracts": "workspace:*",

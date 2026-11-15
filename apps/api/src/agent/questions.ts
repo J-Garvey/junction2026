@@ -22,7 +22,9 @@ export function saveQuestion(q: Question) {
     .run(q.id, q.planId, q.state, JSON.stringify(q));
 }
 export const getQuestion = (id: string) => getJson<Question>("questions", id);
-export const allQuestions = () => allJson<Question>("SELECT json FROM questions ORDER BY rowid DESC");
+export const allQuestions = (eventId?: string) => eventId === undefined
+  ? allJson<Question>("SELECT json FROM questions ORDER BY rowid DESC")
+  : allJson<Question>("SELECT json FROM questions WHERE json_extract(json, '$.eventId') = ? ORDER BY rowid DESC", eventId);
 export const openQuestionsForPlan = (planId: string) => allJson<Question>("SELECT json FROM questions WHERE plan_id = ? AND state IN ('open','waiting') ORDER BY rowid", planId);
 
 export function expireOpenQuestions(planId: string, state: "replaced" | "expired") {
