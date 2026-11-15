@@ -164,6 +164,16 @@ export function buildCorpus() {
     ['add another 1 kg salmon to Darragh','additive_confirm',{drafts:['Darragh'],noSeedEvent:true},{scope:['Darragh'],operation:'increment',initialKg:2,finalKg:3},['add another 1 kg salmon to Darragh','confirm change']],
     ['add 1 additional kilo of salmon to Darragh','additive_kilo',{drafts:['Darragh'],noSeedEvent:true},{scope:['Darragh'],operation:'increment',initialKg:2,finalKg:3},['add 1 additional kilo of salmon to Darragh','confirm change']],
   ])add(input,family,expected,{channel:'whatsapp',scenario,sequence,...(family==='reconnect_replay'?{special:'reconnect_replay'}:{})});
+  for(const[input,family,expected]of[
+    ['Everything must be vegan: 10 kg burgers and 5 l milk','finding_global_vegan',{lineCount:2,globalClaims:['VEGAN']}],
+    ['300 l lactose-free milk 469363 and 300 l lactose-free milk 469363','finding_shared_stock',{lineCount:2,productId:'469363',requestedLitres:600,knownFixtureLitres:384,mustNotDoubleCountStock:true}],
+    ['1,000,000 l lactose-free milk','finding_million',{lines:[{product:'milk',amount:1000000,unit:'l',claims:['FREE_FROM_LACTOSE']}]}],
+    ['.5 kg salmon','finding_leading_decimal',{lines:[{product:'salmon',amount:0.5,unit:'kg'}]}],
+    ['10 l lactose-free milk\n5 kg salmon\n3 kg potatoes','finding_newlines',{lineCount:3,lines:[{product:'milk',amount:10,unit:'l',claims:['FREE_FROM_LACTOSE']},{product:'salmon',amount:5,unit:'kg'},{product:'potatoes',amount:3,unit:'kg'}]}],
+    ['10 l milk by Monday and 5 kg salmon','finding_date_tail',{lineCount:2,neededBy:'2026-11-16'}],
+    ['10 l milk and 12 bread both vegan','finding_global_suffix',{lineCount:2,globalClaims:['VEGAN']}],
+    ['10 l lactose-free milk 469363 and 5 kg salmon 469672','finding_quote_line_refs',{lineCount:2,uniqueQuoteLineIds:true}],
+  ])add(input,family,expected,{plan:true,modelSample:true,tags:['published_finding_replay']});
   return cases;
 }
 if(process.argv[1]&&resolve(process.argv[1])===resolve(import.meta.filename)) {
