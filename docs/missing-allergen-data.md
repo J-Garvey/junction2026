@@ -23,6 +23,8 @@ For an amendment, `quoteOnly: true` returns current amendment terms without chan
 
 Final basket consolidation can change these terms. If it invalidates an earlier acknowledgement, submission asks the chef again; after answering, submit the basket for finance review again. Older snapshots without the new fields must be rechecked and cannot infer consent from generic item approval, stock acceptance or manager approval.
 
+Quotes with allergy requirements also carry an optional `allergenPolicy` digest in their fingerprint and signed checkout. It binds the full signed mandate and saved rule policy, including their versions. A policy edit invalidates earlier chef consent even if prices, quantities and supplier terms stay identical. The acknowledgement endpoint rejects an old policy snapshot, and both order placement and amendment require consent for the current policy. Older allergy quotes without this digest must be refreshed; existing saved receipts remain readable without migration.
+
 Dietary details, questions, acknowledgements and concern audit entries are hotel-only. Shared sale/amendment audit entries omit dietary rules and constraints. The gateway contract is generated from the same schemas at `/openapi.json`.
 
 Regression coverage: `apps/api/test/missing-allergen-data.test.ts`, `apps/api/test/allergen-safety.test.ts`, the repeatable wedding in `apps/api/test/e2e.test.ts`, and keyboard interactions in `apps/app/test/allergen-data.test.tsx`. Tests use saved Junction supplier evidence; temporary in-memory catalogue changes are labelled fixtures. No seed product is swapped.
