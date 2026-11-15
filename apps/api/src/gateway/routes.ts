@@ -53,7 +53,8 @@ export function gatewayRouter(): Router {
       labels: csv(req.query.labels),
       limit: req.query.limit ? Number(req.query.limit) : 50,
     });
-    const ms = searchMatches(q);
+    const id = req.identity!;
+    const ms = searchMatches(q, id.kind === "valio" ? undefined : getMandate(id.hotelId));
     logSearch({ source: "product_search", query: q, interpreted: { count: ms.length, top: ms.slice(0, 10).map((m) => ({ product: `${m.product.id} ${m.product.name}`, tier: m.tier, role: m.role })) } });
     res.json({ products: ms.map((m) => m.product), relevance: ms.map((m) => ({ productId: m.product.id, tier: m.tier, role: m.role })), source: "local catalogue (data/products_slim.jsonl)" });
   });
