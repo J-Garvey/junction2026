@@ -18,10 +18,13 @@ For development, `pnpm dev` runs the API with `tsx watch` and the Vite app on po
 |---|---|
 | `pnpm test` | 59 tests: the live console with a scripted model, rule units, the three PRD test cases end to end (the wedding twice from a fresh reset), and signature checks |
 | `pnpm seed` | Fresh database: one hotel, four people, the mandate, the event, clock at scene 1 |
+| `pnpm seed:demo` | Populated hotel workspace: seven bookings, a signed order, pending finance/stock decisions, a returned review, an allergen block and draft menus. See [demo seed data](demo-seed-data.md) |
 | `pnpm agent:demo` | An outside agent that uses only `/openapi.json` and its token: search, quote, order, retry, and the refusals |
 | `pnpm fixtures:record` | Saves real mock responses for the seed pool to `data/fixtures/aimo/base.json`. `-- --add-missing` records only products not yet saved and merges them in |
 
 ### Settings
+
+For a populated walkthrough, use **Demo settings → Load hotel workspace**. It replaces the demo database with fictional hotel activity at 11 Nov, 10:00 Helsinki, while keeping the wedding ready to start. **Reset demo** retains the original scene-1 wedding-only reset. See [the preset contents and recording instructions](demo-seed-data.md).
 
 The server reads the environment, then the untracked `.env.local`, then the tracked `.env`. Keep new keys in `.env.local` (owner-only). The same secrets are in the GitHub repository's Actions secrets (`AIMO_API_KEY`, `AIMO_PORTAL_PASSWORD`, `OPENAI_API_KEY`, `CONTEXT_DEV_API_KEY`, `PREVIEW_PASSWORD`), with `OPENAI_MODEL` and `OPENAI_REASONING_EFFORT` as Actions variables.
 

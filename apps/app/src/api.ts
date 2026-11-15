@@ -52,6 +52,7 @@ export const put = <T>(p: string, b?: unknown) => call<T>("PUT", p, b ?? {});
 
 export type SceneKey = "1" | "2" | "3" | "4";
 export interface StatusResp {
+  seedProfile?: { id: "story" | "hotel"; version: number; label: string } | null;
   clock: { mode: string; time: string | null; scene: string | null; now: string; scenes: Record<SceneKey, { label: string; time: string }> };
   dataMode: { mode: "live" | "fixture"; overlay: string | null } | string;
   model: { provider: string; model: string; configured: boolean };
@@ -371,5 +372,5 @@ export const api = {
   saveRules: (edit: RuleEdit) => put<RulesResp>("/api/rules", edit),
   resetRules: () => post<RulesResp>("/api/rules/reset"),
   clock: (scene: SceneKey | "live") => post<unknown>("/api/clock", { scene }),
-  reset: () => post<{ ok: boolean }>("/api/reset"),
+  reset: (profile: "story" | "hotel" = "story") => post<{ ok: boolean }>("/api/reset", { profile }),
 };

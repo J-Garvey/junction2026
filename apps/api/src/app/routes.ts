@@ -26,6 +26,7 @@ import { isCalendarDate, newId } from "../util.js";
 import { MenuBody, menuRequest, saveMenu, scaleMenu } from "../agent/menu.js";
 import { listRemembered } from "../agent/memory.js";
 import { seedReset, OUTLETS, OUTSIDE_AGENT_TOKEN, VALIO_VIEWER_TOKEN } from "../seed.js";
+import { seedHotelWorkspace } from "../seed-workspace.js";
 import { gw, GatewayError } from "../agent/gatewayClient.js";
 import { dataMode, lookup, UpstreamError } from "../aimo/lookup.js";
 import { inspectDelivery } from "./productInspection.js";
@@ -60,6 +61,7 @@ export function appRouter(): Router {
     res.json({
       clock: { ...clockState(), now: now().toISOString(), scenes: SCENES },
       dataMode: dataMode(),
+      seedProfile: kvGet("seedProfile"),
       model: { provider: "openai", model: modelName(), configured: modelConfigured() },
       catalogue: catalogSize(),
       testMode: config.testMode,
@@ -76,9 +78,11 @@ export function appRouter(): Router {
     res.json({ person: p, token });
   });
 
-  r.post("/reset", (_req, res) => {
+  r.post("/reset", async (req, res) => {
     if (!config.testMode) return res.status(403).json({ error: "Test mode only" });
-    seedReset();
+    const { profile } = z.object({ profile: z.enum(["story", "hotel"]).default("story") }).parse(req.body ?? {});
+    if (profile === "hotel") await seedHotelWorkspace();
+    else seedReset();
     res.json({ ok: true });
   });
 
