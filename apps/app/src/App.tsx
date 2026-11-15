@@ -261,7 +261,6 @@ function TopBar({ status, me, onSwitch }: { status: StatusResp | null; me: Perso
         </Link>
         <OrderSwitcher currentId={basketId ? decodeURIComponent(basketId) : undefined} />
       </div>
-      <NavLink to="/whatsapp" className="btn sm ghost hide-m"><Icon n="chat" s={16} /> WhatsApp demo</NavLink>
       {status && !status.chain.ok && <span className="stamp block">Audit chain broken</span>}
       <div className="hide-m account-slot"><AccountMenu me={me} onSwitch={onSwitch} /></div>
     </div>
