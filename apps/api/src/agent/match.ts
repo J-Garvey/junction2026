@@ -77,14 +77,14 @@ export function matchesSelectedProducts(needs: Need[], lines: PlanLine[]): boole
   });
 }
 
-type Scored = { p: Product; l: LookupLine; content: ReturnType<typeof packContent>; pricePerBase: number | null; judgement: ModelJudgement | null; notes: FiredRule[]; pinned: boolean };
+type Scored = { p: Product; l: LookupLine; content: ReturnType<typeof packContent>; pricePerBase: number | null; costToCover: Candidate["costToCover"]; pieces: boolean; judgement: ModelJudgement | null; notes: FiredRule[]; pinned: boolean };
 
 /** RANK: explicit recipe choice, then price and reliability; stock is disclosed separately. */
 const relBand = (r: number | null) => (r === null ? 1 : r >= FIXED.reliabilityAmber ? 0 : 2);
 const STEPS: [string, (s: Scored) => number | string][] = [
   ["known price", (s) => (s.l.price === null ? 1 : 0)],
   ["recipe-approved product", (s) => (s.pinned ? 0 : 1)],
-  ["price per kg or L after rounding", (s) => (s.pricePerBase === null ? Number.MAX_SAFE_INTEGER : Math.round(s.pricePerBase * 100))],
+  ["price per kg or L after rounding", (s) => Math.round((s.pieces ? s.costToCover?.totalExVat ?? Number.MAX_SAFE_INTEGER : s.pricePerBase ?? Number.MAX_SAFE_INTEGER) * 100)],
   ["delivery reliability", (s) => relBand(s.p.reliability) * 10 - (s.p.reliability ?? 0)],
   ["product id (tie-break)", (s) => s.p.id],
 ];
@@ -98,7 +98,7 @@ function compare(a: Scored, b: Scored): number {
 }
 function decidingStep(a: Scored, b: Scored | undefined): string {
   if (!b) return "only candidate";
-  for (const [name, f] of STEPS) if (f(a) !== f(b)) return name;
+  for (const [name, f] of STEPS) if (f(a) !== f(b)) return a.pieces && name.startsWith("price per") ? "cost to cover the piece need after whole-pack rounding" : name;
   return "product id (tie-break)";
 }
 
@@ -107,7 +107,7 @@ function decidingStep(a: Scored, b: Scored | undefined): string {
  * and need.rules. `urgent` decides whether a past cut-off matters now; it is
  * always caught (CUT-01), whatever the mock's date says.
  */
-export async function rankNeed(need: Need, list: Product[], pool: Pool, opts: { lockedOk?: boolean; deliveryDays?: number[]; holidays?: string[] } = {}): Promise<void> {
+export async function rankNeed(need: Need, list: Product[], pool: Pool, opts: { lockedOk?: boolean; deliveryDays?: number[]; holidays?: string[]; combinedPieceNeed?: number } = {}): Promise<void> {
   const at = now();
   const m = mandate();
   need.excluded = [];
@@ -146,8 +146,10 @@ export async function rankNeed(need: Need, list: Product[], pool: Pool, opts: { 
       continue;
     }
     const content = packContent(p, l, need.amount.unit);
-    const pricePerBase = content && l.price ? l.price.value / content.value : null;
-    const scored: Scored = { p, l, content, pricePerBase, judgement: null, notes: [...diet.filter((r) => r.outcome !== "block"), ...supply.filter((r) => r.ruleId === "PRC-01")], pinned };
+    const pieces = need.amount.unit === "pcs";
+    const pricePerBase = content && l.price && (!pieces || content.verified) ? l.price.value / content.value : null;
+    const costToCover = pieces ? pieceCostToCover(p.name, opts.combinedPieceNeed ?? need.amount.value, content, l.price?.value ?? null, m.preAnswers) : undefined;
+    const scored: Scored = { p, l, content, pricePerBase, pieces, costToCover, judgement: null, notes: [...diet.filter((r) => r.outcome !== "block"), ...supply.filter((r) => r.ruleId === "PRC-01")], pinned };
     if (cut) {
       cutOnly.push(scored);
       need.excluded.push({ productId: p.id, name: p.name, reason: cut.message, ruleId: cut.ruleId });
@@ -232,6 +234,7 @@ function asCandidate(s: Scored, i: number): Candidate {
     label: i === 0 ? "best" : i === 1 ? "better" : i === 2 ? "good" : "more",
     unitPrice: s.l.price?.value ?? null,
     pricePerBase: s.pricePerBase === null ? null : round2(s.pricePerBase),
+    ...(s.pieces ? { costToCover: s.costToCover } : {}),
     baseUnit: s.content?.unit ?? null,
     stock: s.l.stock,
     reliability: s.p.reliability,
@@ -250,9 +253,10 @@ function asCandidate(s: Scored, i: number): Candidate {
 export type PackMath = { quantity: number; overshoot: { amount: number; pct: number; eur: number } | null; rules: FiredRule[] };
 
 /** PACK-ROUND + OVERSHOOT-CHECK (D25): round the total once, up, ask only above both limits. */
-export function packRound(productName: string, needValue: number, needUnit: BaseUnit, c: Candidate, pre: PreAnswers): PackMath {
+export function packRound(productName: string, needValue: number, needUnit: BaseUnit, c: Pick<Candidate, "packContent" | "unitPrice" | "salesUnit">, pre: PreAnswers): PackMath {
   const rules: FiredRule[] = [];
   if (!c.packContent) return { quantity: 0, overshoot: null, rules: [fire("QTY-03", { product: productName, content: "unknown" })] };
+  if (needUnit === "pcs" && (!c.packContent.verified || c.packContent.value <= 0)) return { quantity: 0, overshoot: null, rules: [fire("QTY-03", { product: productName, content: "piece conversion not confirmed" })] };
   if (c.packContent.unit !== needUnit)
     return { quantity: 0, overshoot: null, rules: [fire("QTY-05", { need: productName, from: needUnit, to: c.packContent.unit, product: productName })] };
   const exact = needValue / c.packContent.value;
@@ -266,6 +270,13 @@ export function packRound(productName: string, needValue: number, needUnit: Base
     rules.push(fire("QTY-01", { product: productName, packs: quantity, unit: c.salesUnit ?? "units", overshoot: `${round2(over)} ${needUnit}`, pct: `${Math.round(pct)}%`, eurOver: eur(overEur) }));
   else rules.push(fire("QTY-06", { need: `${round2(needValue)} ${needUnit}`, packs: quantity, product: productName, overshoot: `${round2(over)} ${needUnit}` }));
   return { quantity, overshoot, rules };
+}
+
+/** Use the same checked conversion and rounding as the order, never a weight-derived piece count. */
+export function pieceCostToCover(name: string, need: number, content: Candidate["packContent"], unitPrice: number | null, pre: PreAnswers): Candidate["costToCover"] {
+  if (unitPrice === null || !content?.verified || content.unit !== "pcs" || content.value <= 0) return null;
+  const { quantity } = packRound(name, need, "pcs", { packContent: content, unitPrice, salesUnit: null }, pre);
+  return { need, quantity, totalExVat: round2(quantity * unitPrice) };
 }
 
 /** LINE-VERDICT (Q04.5): months ahead stock is ignored; amber for caveats; red when nothing passes. */

@@ -255,6 +255,12 @@ describe("Test case 1: the wedding through four scenes (docs/demo-plan.md)", () 
     expect(cake.options[0].id).toBe("replace_0");
     expect(a.missingAllergen.facts.productIds).toContain("460541");
     expect(a.missingAllergenAnswer.error).toBeUndefined();
+    expect(cake.facts.replacements.slice(0, 2).map((r: any) => [r.productId, r.costToCover])).toEqual([
+      ["473522", { need: 194, quantity: 5, totalExVat: 310.6 }],
+      ["466509", { need: 194, quantity: 13, totalExVat: 316.42 }],
+    ]);
+    expect(cake.options[0].label).toContain("5 KI");
+    expect(cake.options[0].label).toContain("ex VAT to cover 194 pcs");
     expect(a.changeQs).toHaveLength(1);
     expect(a.changeQs[0].ruleIds).toContain("CHG-02");
     expect(a.changeOk.ok).toBe(true);

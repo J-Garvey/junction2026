@@ -19,6 +19,8 @@ import { makeQuestion, saveQuestion, allQuestions } from "./questions.js";
 import { newPlan, quoteAndDecide, viability, savePlan, getPlan, runPipeline, mandate, type StoredPlan, emptyOverrides } from "./plan.js";
 import { recallSubstitute } from "./memory.js";
 import { specCompare } from "./sidebyside.js";
+import { pieceCostToCover } from "./match.js";
+import { toBase } from "./parse.js";
 import type { Person } from "../identity.js";
 import { allergenQuestionText, constraintsForLine, eventAllergenScope, lineAllergenScope, missingAllergenProducts } from "./allergenData.js";
 
@@ -324,7 +326,7 @@ export async function answerChange(q: Question, p: Person, token: string) {
         const replacements = ing && group ? await findReplacements(e, id, ing, group, e.serviceDate) : [];
         const next = makeQuestion({ planId: q.planId, eventId: q.eventId, forRole: "chef", outletId: q.outletId, quoteId: null, fingerprint: null, deadline: q.deadline, ruleIds: ["ALG-03"], title: `Choose another product: ${line.productName}`, body: "The change is held. Choose a replacement or give the affected guests another dish.",
           type: "substitute", facts: { kind: "missing_allergen_replacement", productId: id, groupId: group?.id, replacements, dishes: e.dishes.filter((d) => d.ingredients.some((i) => i.productId === id)).map((d) => d.id) },
-          options: [...replacements.map((r, i) => ({ id: `replace_${i}`, label: `Replace for everyone: ${shortName(r.name)}`, primary: i === 0 })), { id: "other_dish", label: "Give affected guests another dish", primary: false }] });
+          options: [...replacements.map((r, i) => ({ id: `replace_${i}`, label: replacementLabel(r), primary: i === 0 })), { id: "other_dish", label: "Give affected guests another dish", primary: false }] });
         saveQuestion(next);
       }
       return;
@@ -446,7 +448,7 @@ async function allergyRecheck(e: StoredEvent, group: DietGroup): Promise<Warning
         facts: { kind: "allergy", warningId: w.id, orderId: o.id, productId: l.productId, outletId: l.outletId, groupId: group.id, dishes: dishes.map((d) => d.id), dishNames: dishes.map((d) => d.name), ingredientId: ing?.id ?? null, replacements, sideBySide: replacements[0] ? specCompare(l.productId, replacements[0].productId) : [] },
         ruleIds: ["ALG-10", fails[0].ruleId], deadline: l.closingTime ? parseAimoTime(l.closingTime)!.toISOString() : null,
         options: [
-          ...replacements.slice(0, 2).map((r, i) => ({ id: `replace_${i}`, label: `Replace for everyone: ${shortName(r.name)}`, primary: i === 0 })),
+          ...replacements.slice(0, 2).map((r, i) => ({ id: `replace_${i}`, label: replacementLabel(r), primary: i === 0 })),
           { id: "other_dish", label: `Give ${group.count === 1 ? "this guest" : "these guests"} another dish`, primary: replacements.length === 0 },
           { id: "remove", label: "Remove the line", primary: false },
         ],
@@ -458,16 +460,29 @@ async function allergyRecheck(e: StoredEvent, group: DietGroup): Promise<Warning
   return created;
 }
 
+function replacementLabel(r: { name: string; salesUnit: string | null; costToCover: ReturnType<typeof pieceCostToCover> }) {
+  return `Replace for everyone: ${shortName(r.name)}${r.costToCover ? ` · ${r.costToCover.quantity} ${r.salesUnit} · ${eur(r.costToCover.totalExVat)} ex VAT to cover ${r.costToCover.need} pcs (whole packs)` : ""}`;
+}
+
 /** Replacements for everyone: same category, safe for every group at the event including the new one. */
 async function findReplacements(e: StoredEvent, productId: string, ing: EventSpec["dishes"][number]["ingredients"][number], group: DietGroup, deliveryDate: string) {
   const orig = getProduct(productId)!;
   const avoid = [...new Set([...e.dietGroups.flatMap((g) => g.constraints.avoidAllergens ?? []), ...(group.constraints.avoidAllergens ?? [])])];
-  const unit = ing.perPortion?.unit === "pcs" ? "pcs" : null;
-  const list = searchProducts({ category: orig.category, excludeAllergens: avoid, claims: ing.claims, origin: ing.origin, limit: 50 }).filter((p) => p.id !== productId);
+  const amount = ing.total ? toBase(ing.total) : ing.perPortion ? toBase(ing.perPortion) : null;
+  const unit = amount?.unit === "pcs" ? "pcs" : null;
+  // Replacement is for everyone eating this dish, at the proposed headcount.
+  const dish = e.dishes.find((d) => d.ingredients.includes(ing));
+  const guests = e.guests - e.dietGroups.filter((g) => dish?.excludesGroups.includes(g.id)).reduce((sum, g) => sum + g.count, 0);
+  const pieceNeed = amount ? amount.value * (ing.total ? 1 : guests) : 0;
+  const type = (ing.productType ?? ing.text).toLowerCase();
+  const typeWord = type.split(/\s+/).pop() ?? type;
+  // Bound the shortlist by product type before its limit; category-only truncation
+  // omitted later cake IDs (including 473522) behind unrelated pastries.
+  const list = searchProducts({ q: unit ? typeWord : undefined, category: orig.category, excludeAllergens: avoid, claims: ing.claims, origin: ing.origin, limit: 50 }).filter((p) => p.id !== productId);
   if (!list.length) return [];
   const fresh = await gw.lookup(list.map((p) => p.id), deliveryDate);
   const at = now();
-  const out: { productId: string; name: string; pricePerUnit: number | null; stock: string; origin: string | null; reliability: number | null }[] = [];
+  const out: { productId: string; name: string; pricePerUnit: number | null; stock: string; origin: string | null; reliability: number | null; salesUnit: string | null; costToCover: ReturnType<typeof pieceCostToCover> }[] = [];
   for (const l of fresh.lines) {
     const p = getProduct(l.productId)!;
     if (!l.deliverable || !l.price) continue;
@@ -475,25 +490,25 @@ async function findReplacements(e: StoredEvent, productId: string, ing: EventSpe
     if (cut && cut.getTime() <= at.getTime()) continue;
     if (dietRules(p, { claims: ing.claims ?? [], avoidAllergens: avoid, labels: [], origin: ing.origin }, group.label).some((r) => r.outcome === "block")) continue;
     const content = packContent(p, l, unit ?? undefined);
-    if (unit && !content) continue;
-    out.push({ productId: p.id, name: p.name, pricePerUnit: content ? round2(l.price.value / content.value) : null, stock: l.stock.kind === "unknown" ? "not confirmed" : `${l.stock.kind === "known" ? l.stock.amount : 0}`, origin: p.origin, reliability: p.reliability });
+    // This one-click event action has no sales-quantity input: only offer checked counts.
+    if (unit && (!content?.verified || content.value <= 0)) continue;
+    const costToCover = unit ? pieceCostToCover(p.name, pieceNeed, content, l.price.value, mandate().preAnswers) : undefined;
+    out.push({ productId: p.id, name: p.name, pricePerUnit: content ? round2(l.price.value / content.value) : null, costToCover, salesUnit: l.salesUnit, stock: l.stock.kind === "unknown" ? "not confirmed" : `${l.stock.kind === "known" ? l.stock.amount : 0}`, origin: p.origin, reliability: p.reliability });
   }
   // Same type of product: the model's type check drops clear mismatches (a pastry for a cake);
   // a name that carries the type word ranks first. The person still chooses.
-  const type = (ing.productType ?? ing.text).toLowerCase();
-  const typeWord = type.split(/\s+/).pop() ?? type;
   const judged = await typeCheck(type, out.map((r) => getProduct(r.productId)!));
   for (let k = out.length - 1; k >= 0; k--) if (judged.get(out[k].productId)?.verdict === "no") out.splice(k, 1);
   const named = (id: string) => (`${getProduct(id)?.name ?? ""} ${getProduct(id)?.nameFi ?? ""}`.toLowerCase().includes(typeWord) ? 0 : 1);
   // Safety first: a product that declares itself free from every avoided allergen beats one that
-  // merely doesn't list it. Then compare price per unit, reliability band and id.
+  // merely doesn't list it. D36 compares whole-pack totals for a piece need.
   const declared = (id: string) => {
     const ff: string[] = getRaw(id)?.free_from ?? [];
     return avoid.every((a) => ff.includes(a)) ? 0 : 1;
   };
   const band = (r: number | null) => (r === null ? 1 : r >= 0.95 ? 0 : 2);
   return out
-    .sort((a, b) => declared(a.productId) - declared(b.productId) || named(a.productId) - named(b.productId) || (a.pricePerUnit ?? 1e9) - (b.pricePerUnit ?? 1e9) || band(a.reliability) - band(b.reliability) || a.productId.localeCompare(b.productId))
+    .sort((a, b) => declared(a.productId) - declared(b.productId) || named(a.productId) - named(b.productId) || (unit ? (a.costToCover?.totalExVat ?? 1e9) - (b.costToCover?.totalExVat ?? 1e9) : (a.pricePerUnit ?? 1e9) - (b.pricePerUnit ?? 1e9)) || band(a.reliability) - band(b.reliability) || a.productId.localeCompare(b.productId))
     .slice(0, 3)
     .map((r) => ({ ...r, declaredFree: declared(r.productId) === 0 }));
 }
@@ -625,7 +640,7 @@ export async function amendOrAsk(e: StoredEvent, orderId: string, changes: { pro
   }
 }
 
-type SubCandidate = { productId: string; name: string; quantity: number; stock: string; listed: boolean; pricePerBase: number | null; unknown: boolean };
+type SubCandidate = { productId: string; name: string; quantity: number; stock: string; listed: boolean; pricePerBase: number | null; totalExVat: number | null; unknown: boolean };
 
 /** SUBSTITUTE-FIND (Q07.4): listed substitutes first, every candidate passing the need's rules and TYPE-CHECK, on fresh stock. */
 async function findSubstitutes(line: Order["lines"][number], need: Need | undefined, deliveryDate: string, needAmount: { value: number; unit: string }): Promise<SubCandidate[]> {
@@ -650,11 +665,11 @@ async function findSubstitutes(line: Order["lines"][number], need: Need | undefi
   for (const { p, l } of pass) {
     if (judged.get(p.id)?.verdict === "no") continue;
     const content = packContent(p, l, needAmount.unit as any);
-    if (!content || content.unit !== needAmount.unit) continue;
+    if (!content || content.unit !== needAmount.unit || (needAmount.unit === "pcs" && !content.verified)) continue;
     const quantity = Math.ceil(needAmount.value / content.value - 1e-9);
     const unknown = l.stock.kind === "unknown";
     if (l.stock.kind === "known" && l.stock.amount < quantity) continue;
-    out.push({ productId: p.id, name: p.name, quantity, stock: unknown ? "unknown stock" : `${l.stock.kind === "known" ? l.stock.amount : 0} in stock`, listed: listed.includes(p.id), pricePerBase: l.price ? round2(l.price.value / content.value) : null, unknown });
+    out.push({ productId: p.id, name: p.name, quantity, stock: unknown ? "unknown stock" : `${l.stock.kind === "known" ? l.stock.amount : 0} in stock`, listed: listed.includes(p.id), pricePerBase: l.price ? round2(l.price.value / content.value) : null, totalExVat: needAmount.unit === "pcs" ? pieceCostToCover(p.name, needAmount.value, content, l.price?.value ?? null, mandate().preAnswers)?.totalExVat ?? null : null, unknown });
   }
   // Names that share more words with the type asked for ("whipping cream") rank first. The model's
   // type check already dropped clear mismatches; this keeps the order sensible when it can't be reached.
@@ -668,7 +683,8 @@ async function findSubstitutes(line: Order["lines"][number], need: Need | undefi
     const r = getProduct(id)?.reliability ?? null;
     return r === null ? 1 : r >= 0.95 ? 0 : 2;
   };
-  return out.sort((a, b) => Number(b.listed) - Number(a.listed) || overlap(a.productId) - overlap(b.productId) || (a.pricePerBase ?? 1e9) - (b.pricePerBase ?? 1e9) || band(a.productId) - band(b.productId) || a.productId.localeCompare(b.productId)).slice(0, 3);
+  const price = (c: SubCandidate) => (needAmount.unit === "pcs" ? c.totalExVat : c.pricePerBase) ?? 1e9;
+  return out.sort((a, b) => Number(b.listed) - Number(a.listed) || overlap(a.productId) - overlap(b.productId) || price(a) - price(b) || band(a.productId) - band(b.productId) || a.productId.localeCompare(b.productId)).slice(0, 3);
 }
 
 /** SHORTFALL-RESOLVE (Q07.3): remembered substitute first, then up to three candidates for the chef. */
@@ -709,13 +725,13 @@ async function resolveShortfall(e: StoredEvent, o: Order, line: Order["lines"][n
     body: `${keep} of ${line.quantity} in stock · ${gap.value} ${gap.unit} to fill`,
     facts: {
       kind: "final_substitute", orderId: o.id, original: line.productId, originalQty: line.quantity, keep, outletId: line.outletId, dishId, dishName: need?.dishName ?? null,
-      candidates: options.map((c) => ({ productId: c.productId, name: c.name, quantity: c.quantity, stock: c.stock, pricePerBase: c.pricePerBase })),
+      candidates: options.map((c) => ({ productId: c.productId, name: c.name, quantity: c.quantity, stock: c.stock, pricePerBase: c.pricePerBase, totalExVat: c.totalExVat })),
       sideBySide: specCompare(line.productId, options[0].productId, { originalPrice: line.unitPrice !== null ? round2(line.unitPrice / perPack) : null, subPrice: options[0].pricePerBase }),
       stock,
     },
     ruleIds: ["FIN-02", "SUB-01"],
     options: [
-      ...options.map((c, i) => ({ id: `use_${i}`, label: `${c.quantity} × ${shortName(c.name)} (${c.pricePerBase !== null ? `€${c.pricePerBase.toFixed(2)}/${unit}` : "no unit price"})`, primary: i === 0 })),
+      ...options.map((c, i) => ({ id: `use_${i}`, label: `${c.quantity} × ${shortName(c.name)} (${unit === "pcs" ? `${c.totalExVat === null ? "cost unknown" : eur(c.totalExVat)} ex VAT to cover ${gap.value} pcs (whole packs)` : c.pricePerBase !== null ? `€${c.pricePerBase.toFixed(2)}/${unit}` : "no unit price"})`, primary: i === 0 })),
       { id: "none", label: "None of these", primary: false },
     ],
     deadline: cut?.toISOString() ?? null,
