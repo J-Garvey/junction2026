@@ -156,6 +156,18 @@ describe("person outlet authorization", () => {
     expect((await call(`/api/events/${e.id}/menu`, mikko, { version: e.version, guests: e.guests, dietsConfirmed: true, dietGroups: [], dishes }, "PUT")).status).toBe(403);
     expect(getEvent(e.id)!.dishes).toEqual([]);
   });
+  it("matches basket authorization without letting an unstaged preview take away outlet access", async () => {
+    const e = getEvent("evt-wedding")!; e.dishes = []; saveEvent(e);
+    const p = plan(); p.eventId = e.id; p.reviewing = true;
+    p.lines = [{ outletId: "banquet", removed: false }] as any; savePlan(p);
+    expect((await call(`/api/events/${e.id}`, mikko)).status).toBe(200);
+    p.reviewing = false; savePlan(p);
+    // Basket detail also includes visible, unstaged request records: those
+    // remain private even though they do not authorize an event mutation.
+    expect((await call(`/api/baskets/${e.id}`, mikko)).status).toBe(403);
+    p.basketedAt = "2026-11-14T10:00:00Z"; savePlan(p);
+    expect((await call(`/api/events/${e.id}`, mikko)).status).toBe(403);
+  });
 });
 
 describe("stock decision attribution", () => {

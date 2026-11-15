@@ -53,7 +53,7 @@ const T = (req: Request) => (req as Authed).token;
 const inPlanScope = (req: Request, plan: { outletId: string }) => allowsOutlets(P(req), HOTEL_ID, [plan.outletId]);
 const inEventScope = (req: Request, event: StoredEvent) => allowsOutlets(P(req), HOTEL_ID, [
   ...event.dishes.map((dish) => dish.outletId),
-  ...listPlans().filter((plan) => plan.eventId === event.id && plan.status !== "rejected" && plan.tooLateChoice !== "removed")
+  ...listPlans().filter((plan) => plan.eventId === event.id && plan.basketedAt && !plan.orderIds.length)
     .flatMap((plan) => plan.lines.filter((line) => !line.removed).map((line) => line.outletId)),
   ...listOrders(HOTEL_ID, event.id).filter((order) => order.state !== "rejected")
     .flatMap((order) => order.lines.filter((line) => !line.removed).map((line) => line.outletId)),
@@ -438,7 +438,8 @@ export function appRouter(): Router {
     const id = String(req.params.id);
     const event = getEvent(id);
     if (!event) return res.status(404).json({ error: "No such order" });
-    if (!inEventScope(req, event)) return res.status(403).json({ error: "This order is outside your hotel or outlet scope" });
+    if (!inEventScope(req, event) || basketPlans(id).some((plan) => !inPlanScope(req, plan)))
+      return res.status(403).json({ error: "This order is outside your hotel or outlet scope" });
     const { orders } = await gw.orders(id);
     const review = basketReview(id, orders);
     res.json({ ...eventView(id), requests: basketPlans(id).map(planRow), orders, review, ...basketSummary(getEvent(id)!, orders) });
