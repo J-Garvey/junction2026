@@ -8,6 +8,7 @@ import { CoverageLine, Status, planStatusKind, PLAN_STATUS_TEXT } from "../ui/St
 import { Icon } from "../ui/icons";
 import { DiffView } from "../ui/PlanView";
 import { day, plural, when } from "../format";
+import { useMessagePreparation } from "../useMessagePreparation";
 
 const SUGG = ["1,000 L lactose-free milk by Monday"];
 
@@ -72,6 +73,7 @@ export function Composer() {
   const [busy, setBusy] = useState(false);
   const [resp, setResp] = useState<MessageResp | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  useMessagePreparation(busy ? "" : text);
 
   async function send(t = text) {
     if (!t.trim()) return;
@@ -105,6 +107,7 @@ export function Composer() {
           <textarea
             rows={1}
             value={text}
+            maxLength={2000}
             placeholder="What do you need?"
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {

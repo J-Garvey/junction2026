@@ -15,6 +15,7 @@ import { stockText } from "../ui/Popover";
 import { tooLateText } from "../ui/TooLate";
 import { addDays, claimLabel, day, eur, helsinkiDate, plural, qty } from "../format";
 import "./baskets.css";
+import { useMessagePreparation } from "../useMessagePreparation";
 
 const UNITS: Unit[] = ["l", "dl", "ml", "kg", "g", "pcs"];
 
@@ -334,6 +335,7 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
   const [busy, setBusy] = useState<"search" | "check" | "replace" | "remove" | "approve" | "quantity" | "add" | null>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
   const [note, setNote] = useState<{ cls: string; body: React.ReactNode } | null>(null);
+  useMessagePreparation(busy || request ? "" : text);
 
   async function search() {
     const value = text.trim();
@@ -488,6 +490,7 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
           <textarea
             rows={1}
             value={text}
+            maxLength={2000}
             placeholder="Add to this order, e.g. 40 l lactose-free milk"
             onChange={(event) => setText(event.target.value)}
             onKeyDown={(event) => {
