@@ -160,7 +160,7 @@ describe("saved request review controls", () => {
     await screen.findByText("Added to the order.");
     expect(screen.queryByText("Unknown")).toBeNull();
     expect(document.querySelector(".basket-context time")?.getAttribute("datetime")).toBe(basket.orderBy.at);
-    expect(screen.getByText("Awaiting final order")).toBeTruthy();
+    expect(screen.getByText("Ready to order")).toBeTruthy();
     expect(screen.getByText("Selected milk")).toBeTruthy();
     expect(api.basket).toHaveBeenCalledOnce();
   });
@@ -409,7 +409,7 @@ describe("saved request review controls", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Approve milk" }));
     await waitFor(() => expect((screen.getByRole("button", { name: "Add to order" }) as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(screen.getByRole("button", { name: "Add to order" }));
-    await screen.findByText("Awaiting final order");
+    await screen.findByText("Ready to order");
     expect(screen.getByText("Added to the order. Submit the final order for finance review.")).toBeTruthy();
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.queryByRole("button", { name: /^10 l milk/ })).toBeNull();
