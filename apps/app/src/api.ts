@@ -272,6 +272,7 @@ export interface RulesResp {
   rules: RuleDef[];
   mandate: Mandate;
   params: Record<string, ParamDef>;
+  defaultParams: Record<string, ParamValue>;
   policy: { params: Record<string, ParamValue>; version: number; updatedBy: string | null; updatedAt: string | null };
   canEdit: boolean;
   changes?: string[];
