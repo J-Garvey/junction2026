@@ -14,10 +14,10 @@ CONTAINS (ALG-01), MAY_CONTAIN (ALG-02), explicit UNDECLARED (ALG-04 / PR #166),
 2. Show the returned ALG-03 concern to the chef. With the chef's own session credential, call `POST /gateway/v1/allergen-acknowledgements`:
 
    ```json
-   { "quoteId": "q_...", "fingerprint": "...", "productIds": ["460541"] }
+   { "quoteId": "q_...", "fingerprint": "...", "productIds": ["460541"], "outletId": "banquet" }
    ```
 
-3. Attach the returned signed `token` in `allergenAcknowledgements` to `POST /gateway/v1/orders` or the order's `/amendments` endpoint. Finance approval and `continueWithUnconfirmedStock` are independent inputs.
+3. Attach the returned signed `token` in `allergenAcknowledgements` to `POST /gateway/v1/orders` or the order's `/amendments` endpoint. Finance approval and `continueWithUnconfirmedStock` are independent inputs. Outlet questions always supply `outletId`, so continuing for a product at the bar never accepts the same product in the kitchen. The optional field can be omitted only when reviewing every matching outlet within the chef's scope.
 
 For an amendment, `quoteOnly: true` returns current amendment terms without changing the order. The chef reviews those terms before acknowledging them. The token is signed as `aimo-allergen-ack+jwt`, bound to the hotel, event and quote fingerprint, and expires with the reviewed quote. The fingerprint covers the site, lines, outlets, quantities, prices, total, delivery terms, dietary constraints, opaque guest scope and catalogue-declaration digest. Commit rechecks supplier terms, current catalogue conflicts, signature, expiry and the chef's current role/outlet scope. Changed terms require a new chef decision.
 

@@ -109,7 +109,7 @@ export async function submitBasketForReview(eventId: string, person: Person): Pr
       const productIds = [...new Set(missing.filter((l) => l.outletId === outletId).map((l) => l.productId))];
       const question = makeQuestion({ planId: `basket:${eventId}`, eventId, type: "missing_allergen_data", forRole: "chef", outletId,
         quoteId: quote.id, fingerprint: quote.fingerprint, deadline: quote.expiresAt, title: "Continue with allergen data not confirmed?",
-        body: allergenQuestionText({ ...plans[0], lines: plans.flatMap((p) => p.lines), needs: plans.flatMap((p) => p.needs) }, productIds),
+        body: allergenQuestionText({ ...plans[0], lines: plans.flatMap((p) => p.lines), needs: plans.flatMap((p) => p.needs) }, productIds, outletId),
         facts: { kind: "basket_allergens", productIds, snapshot: before }, ruleIds: ["ALG-03"],
         options: [{ id: "continue", label: "Continue with missing allergen data", primary: true }, { id: "others", label: "Review products instead", primary: false }],
       });
@@ -206,6 +206,6 @@ export async function answerBasketAllergens(question: Question, person: Person, 
   if (snapshot(question.eventId!, orders) !== question.facts.snapshot)
     throw new BasketReviewError(409, "The order changed. Submit it again so the chef can review the current missing data terms.");
   if (question.answer !== "continue") return;
-  const a = await gw.acknowledgeAllergens(token, question.quoteId!, question.fingerprint!, question.facts.productIds as string[]);
+  const a = await gw.acknowledgeAllergens(token, question.quoteId!, question.fingerprint!, question.facts.productIds as string[], question.outletId ?? undefined);
   kvSet(`basket-allergens:${question.eventId}`, [...(kvGet<AllergenAcknowledgement[]>(`basket-allergens:${question.eventId}`) ?? []), a]);
 }

@@ -1,7 +1,7 @@
 /** D35/B23, saved Junction evidence only; no live supplier or model calls. */
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Server } from "node:http";
-import type { Constraints, QuoteCreateBody } from "@aimo/contracts";
+import type { Constraints, Plan, QuoteCreateBody } from "@aimo/contracts";
 
 process.env.AIMO_DB = ":memory:";
 process.env.AIMO_MODE = "fixture";
@@ -19,6 +19,7 @@ const { auditView, verifyChain } = await import("../src/audit.js");
 const { getDb } = await import("../src/db.js");
 const { loadFixture } = await import("../src/aimo/lookup.js");
 const { isConfirmedOrder } = await import("../src/agent/basketSummary.js");
+const { allergenQuestionText, missingAllergenProducts } = await import("../src/agent/allergenData.js");
 const potato = getProduct("460541")!;
 const original = structuredClone(potato);
 const allergy: Constraints = { claims: [], avoidAllergens: ["AN"], labels: [] };
@@ -49,6 +50,33 @@ beforeEach(() => { seedReset(); setClock({ scene: "2" }); });
 afterEach(() => Object.assign(potato, structuredClone(original)));
 
 describe("gateway chef continuation", () => {
+  it("keeps consent specific to the reviewed outlet when the same SKU serves kitchen and bar", async () => {
+    const body = terms();
+    body.lines.push({ ...body.lines[0], outletId: "bar", quantity: 1 });
+    const q = await createQuote(identity(), body);
+    // Synthetic hotel context: different guest groups eat at each outlet.
+    const questionPlan = { lines: q.lines.map((l) => ({ ...l, needIds: [l.outletId] })), needs: [
+      { id: "bar", groupId: "bar-guests", guests: 2, constraints: allergy },
+      { id: "banquet", groupId: "kitchen-guests", guests: 5, constraints: { ...allergy, avoidAllergens: ["AP"] } },
+    ] } as unknown as Plan;
+    expect(allergenQuestionText(questionPlan, [potato.id], "bar")).toContain("2 guests must avoid tree nuts");
+    expect(allergenQuestionText(questionPlan, [potato.id], "bar")).not.toContain("peanuts");
+    const barChef = { ...chef(), person: getPerson("p-mikko")! };
+    const request = { quoteId: q.id, fingerprint: q.fingerprint, productIds: [potato.id] };
+    expect(() => acknowledgeAllergenData(barChef, request)).toThrow(/scope/);
+    expect(() => acknowledgeAllergenData(barChef, { ...request, outletId: "banquet" })).toThrow(/scope/);
+    const bar = acknowledgeAllergenData(barChef, { ...request, outletId: "bar" });
+    expect(missingAllergenProducts(q, [bar]).map((l) => l.outletId)).toEqual(["banquet"]);
+    await expect(placeOrder(identity(), q.id, "bar-consent-only", undefined, undefined, { ...stock, allergenAcknowledgements: [bar.token] })).rejects.toMatchObject({ body: { error: "allergen_data_unconfirmed" } });
+    // Even the head chef, who can act in both outlets, answers only the displayed outlet.
+    const headChefBar = acknowledgeAllergenData(chef(), { ...request, outletId: "bar" });
+    await expect(placeOrder(identity(), q.id, "head-chef-bar-only", undefined, undefined, { ...stock, allergenAcknowledgements: [headChefBar.token] })).rejects.toMatchObject({ body: { error: "allergen_data_unconfirmed" } });
+    const banquet = acknowledgeAllergenData(chef(), { ...request, outletId: "banquet" });
+    const result = await placeOrder(identity(), q.id, "two-outlet-consent", undefined, undefined, { ...stock, allergenAcknowledgements: [bar.token, banquet.token] });
+    expect(result.order.lines.find((l) => l.outletId === "bar")?.allergenDataAcknowledgement?.by).toBe("Mikko");
+    expect(result.order.lines.find((l) => l.outletId === "banquet")?.allergenDataAcknowledgement?.by).toBe("Aino");
+  });
+
   it("retains missing-data concern separately from stock acceptance and replays one order", async () => {
     const q = await createQuote(identity(), terms());
     expect(q.outcome).toBe("ask_chef");

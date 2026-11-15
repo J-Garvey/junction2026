@@ -253,7 +253,7 @@ function askChangeAllergens(e: StoredEvent, plan: StoredPlan, facts: Record<stri
   const productIds = [...new Set(missing.filter((l) => l.outletId === outletId).map((l) => l.productId))];
   const question = makeQuestion({ planId: plan.id, eventId: e.id, type: "missing_allergen_data", forRole: "chef", outletId,
     quoteId: quote.id, fingerprint: quote.fingerprint, deadline: quote.expiresAt,
-    title: "Continue with allergen data not confirmed?", body: allergenQuestionText(plan, productIds),
+    title: "Continue with allergen data not confirmed?", body: allergenQuestionText(plan, productIds, outletId),
     facts: { ...facts, kind: "change_allergens", productIds, eventScope: eventAllergenScope(e), allergenAcknowledgements: plan.overrides.allergenAcknowledgements ?? [] }, ruleIds: ["ALG-03"],
     options: [{ id: "continue", label: "Continue with missing allergen data", primary: true }, { id: "others", label: "Pick another product", primary: false }],
   });
@@ -329,7 +329,7 @@ export async function answerChange(q: Question, p: Person, token: string) {
       }
       return;
     }
-    const acknowledgement = await gw.acknowledgeAllergens(token, q.quoteId!, q.fingerprint!, f.productIds);
+    const acknowledgement = await gw.acknowledgeAllergens(token, q.quoteId!, q.fingerprint!, f.productIds, q.outletId ?? undefined);
     const plan = getPlan(q.planId)!;
     plan.overrides.allergenAcknowledgements = [...(plan.overrides.allergenAcknowledgements ?? []), acknowledgement];
     savePlan(plan);

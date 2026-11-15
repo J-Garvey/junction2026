@@ -58,8 +58,8 @@ export function buildAllergenQuestions(plan: Plan & { event?: import("@aimo/cont
     const productIds = [...new Set(missing.filter((l) => l.outletId === outletId).map((l) => l.productId))];
     const q = makeQuestion({ planId: plan.id, eventId: plan.eventId, quoteId: quote.id, fingerprint: quote.fingerprint,
       deadline: quote.expiresAt, type: "missing_allergen_data", forRole: "chef", outletId,
-      title: "Continue with allergen data not confirmed?", body: allergenQuestionText(plan, productIds),
-      facts: { kind: "allergen_data", productIds, ...(plan.event ? { eventScope: eventAllergenScope(plan.event) } : {}), lines: plan.lines.filter((l) => productIds.includes(l.productId ?? "")).map(lineFacts) },
+      title: "Continue with allergen data not confirmed?", body: allergenQuestionText(plan, productIds, outletId),
+      facts: { kind: "allergen_data", productIds, ...(plan.event ? { eventScope: eventAllergenScope(plan.event) } : {}), lines: plan.lines.filter((l) => l.outletId === outletId && productIds.includes(l.productId ?? "")).map(lineFacts) },
       ruleIds: ["ALG-03"], options: [{ id: "continue", label: "Continue with missing allergen data", primary: true }, { id: "others", label: "Pick another product", primary: false }],
     });
     saveQuestion(q);

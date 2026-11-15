@@ -340,10 +340,12 @@ export const AllergenAcknowledgementBody = z.object({
   quoteId: z.string(),
   fingerprint: z.string(),
   productIds: z.array(z.string()).min(1),
+  outletId: z.string().min(1).optional().describe("Acknowledge only this outlet's matching lines. Omit only to review all matching outlets within the chef's scope."),
 });
 export type AllergenAcknowledgementBody = z.infer<typeof AllergenAcknowledgementBody>;
 export const AllergenAcknowledgement = z.object({
   token: z.string(), fingerprint: z.string(), productIds: z.array(z.string()),
+  outletId: z.string().optional(),
   personId: z.string(), by: z.string(), at: z.string(), expiresAt: z.string(),
 });
 export type AllergenAcknowledgement = z.infer<typeof AllergenAcknowledgement>;

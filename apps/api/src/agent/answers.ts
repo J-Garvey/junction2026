@@ -67,7 +67,7 @@ async function applyAnswer(q: Question, p: Person, token: string) {
   let replan = false;
   if (f.kind === "allergen_data") {
     if (q.answer === "continue") {
-      const acknowledgement = await gw.acknowledgeAllergens(token, q.quoteId!, q.fingerprint!, f.productIds);
+      const acknowledgement = await gw.acknowledgeAllergens(token, q.quoteId!, q.fingerprint!, f.productIds, q.outletId ?? undefined);
       ov.allergenAcknowledgements = [...(ov.allergenAcknowledgements ?? []), acknowledgement];
       applyAllergenAcknowledgements(plan, await gw.getQuote(q.quoteId!));
     } else {

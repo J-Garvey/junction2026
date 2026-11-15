@@ -268,7 +268,8 @@ export function acknowledgeAllergenData(id: Identity, body: AllergenAcknowledgem
   if (id.kind !== "person" || id.person.role !== "chef")
     throw new GatewayRefusal(403, { error: "forbidden", message: "Only the chef can continue with allergen data not confirmed" });
   const q = getQuote(body.quoteId);
-  if (q.hotelId !== id.hotelId || q.lines.some((l) => body.productIds.includes(l.productId) && !id.person.hotelScope && !id.person.outlets.includes(l.outletId)))
+  const reviewedLines = q.lines.filter((l) => body.productIds.includes(l.productId) && (!body.outletId || l.outletId === body.outletId));
+  if (q.hotelId !== id.hotelId || reviewedLines.some((l) => !id.person.hotelScope && !id.person.outlets.includes(l.outletId)))
     throw new GatewayRefusal(403, { error: "forbidden", message: "These terms are outside the chef's hotel or outlet scope" });
   if (q.fingerprint !== body.fingerprint || new Date(q.expiresAt) <= now())
     throw new GatewayRefusal(409, { error: "quote_stale", message: "Review the current terms before continuing with missing allergen data" });
@@ -278,9 +279,9 @@ export function acknowledgeAllergenData(id: Identity, body: AllergenAcknowledgem
   })];
   if (hard.length) throw new GatewayRefusal(409, { error: "hard_rule", message: "Blocked dietary or supplier terms cannot be acknowledged", rules: hard });
   const productIds = [...new Set(body.productIds)].sort();
-  if (productIds.some((p) => !missingAllergenLines(q).some((l) => l.productId === p)))
+  if (productIds.some((p) => !missingAllergenLines(q).some((l) => l.productId === p && (!body.outletId || l.outletId === body.outletId))))
     throw new GatewayRefusal(422, { error: "invalid", message: "Acknowledge only products with missing allergen declarations on this quote" });
-  const result = { fingerprint: q.fingerprint, productIds, personId: id.person.id, by: id.person.name, at: nowIso(), expiresAt: q.expiresAt };
+  const result = { fingerprint: q.fingerprint, productIds, ...(body.outletId ? { outletId: body.outletId } : {}), personId: id.person.id, by: id.person.name, at: nowIso(), expiresAt: q.expiresAt };
   const token = signJwt("aimo-allergen-ack+jwt", { ...result, eventId: q.eventId }, { sub: q.hotelId, expiresAt: q.expiresAt });
   audit({ actor: actorOf(id), action: "line_verdict_set", summary: `${id.person.name} continued: allergen data not confirmed for ${q.lines.filter((l) => productIds.includes(l.productId)).map((l) => l.productName).join(", ")}. Safety is not confirmed.`, eventId: q.eventId, quoteId: q.id, ruleIds: ["ALG-03"], details: { kind: "allergen_data_acknowledgement", ...result }, visibility: "hotel", usesFixture: q.usesFixtures });
   return { ...result, token };
@@ -294,7 +295,7 @@ function allergenDecisions(q: Quote, tokens: string[] = []): Map<string, NonNull
     const person = c && typeof c.personId === "string" ? getPerson(c.personId) : null;
     if (!c || c.sub !== q.hotelId || c.eventId !== q.eventId || c.fingerprint !== q.fingerprint || !(c.exp > now().getTime() / 1000) || !(c.nbf <= now().getTime() / 1000) ||
       !person || person.hotelId !== q.hotelId || person.role !== "chef" || !Array.isArray(c.productIds)) continue;
-    for (const l of missingAllergenLines(q)) if (c.productIds.includes(l.productId) && (person.hotelScope || person.outlets.includes(l.outletId)))
+    for (const l of missingAllergenLines(q)) if (c.productIds.includes(l.productId) && (!c.outletId || c.outletId === l.outletId) && (person.hotelScope || person.outlets.includes(l.outletId)))
       decisions.set(`${l.productId}|${l.outletId}`, { fingerprint: c.fingerprint, personId: person.id, by: person.name, at: c.at });
   }
   return decisions;
