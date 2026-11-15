@@ -58,6 +58,8 @@ const inEventScope = (req: Request, event: StoredEvent) => allowsOutlets(P(req),
   ...listOrders(HOTEL_ID, event.id).filter((order) => order.state !== "rejected")
     .flatMap((order) => order.lines.filter((line) => !line.removed).map((line) => line.outletId)),
 ]);
+const inBasketScope = (req: Request, event: StoredEvent) => inEventScope(req, event)
+  && basketPlans(event.id).every((plan) => inPlanScope(req, plan));
 
 function sessionCookie(res: Response, token: string) {
   res.setHeader("Set-Cookie", `aimo_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax`);
@@ -171,6 +173,7 @@ export function appRouter(): Router {
     const p = P(req);
     const plan = newPlan("single", { personId: p.id, name: p.name }, request.outletId, { request, title: title ?? (request.lines.map((l) => `${l.quantity ? `${l.quantity.amount} ${l.quantity.unit} ` : ""}${l.constraints.claims.includes("FREE_FROM_LACTOSE") ? "lactose-free " : ""}${l.query}`).join(", ") || request.originalText.slice(0, 60)) });
     plan.eventId = eventId;
+    plan.event = eventId ? getEvent(eventId) : null;
     plan.siteId = request.siteId ?? plan.siteId;
     plan.reviewing = reviewing;
     if (itemReview) plan.itemReviews = [];
@@ -248,6 +251,8 @@ export function appRouter(): Router {
     const { continueWithWarnings } = z.object({ continueWithWarnings: z.boolean().default(false) }).parse(req.body ?? {});
     const issueRules = [...plan.inputRules, ...plan.lines.flatMap((line) => line.rules)].filter((rule) => rule.outcome !== "order");
     const hardIssues = issueRules.filter((rule) => rule.outcome === "block" || !rule.overridable);
+    if (plan.lines.some((line) => line.rules.some((rule) => rule.ruleId === "ALG-03") && !line.allergenDataAcknowledgement))
+      return res.status(409).json({ error: "The chef must explicitly continue with missing allergen data before adding this request" });
     if (plan.tooLate || plan.error || hardIssues.length) return res.status(409).json({ error: "Resolve the stock, delivery or product issues before adding this request" });
     if (issueRules.length && !continueWithWarnings && !plan.itemReviews) return res.status(409).json({ error: "Confirm that you want to add this request with its warnings" });
     const p = P(req);
@@ -262,10 +267,11 @@ export function appRouter(): Router {
     plan.proposal = false;
     plan.status = "waiting";
     plan.summary = "In the order · awaiting final order";
+    if (plan.lines.some((l) => l.rules.some((r) => r.ruleId === "ALG-03"))) plan.summary += " · allergen data not confirmed";
     audit({ actor: personActor(p), action: "request_received", summary: `${p.name} added ${plan.title} to the order`, eventId: plan.eventId, details: { kind: "confirmation", planId: plan.id, lines: plan.lines.map((l) => l.productId) }, visibility: "hotel" });
     savePlan(plan);
     invalidateBasketReview(plan.eventId);
-    res.json({ plan, questions: allQuestions().filter((q) => q.planId === plan.id) });
+    res.json({ plan, questions: allQuestions().filter((q) => q.planId === plan.id), basket: await basketView(plan.eventId, req) });
   });
 
   r.post("/plans/:id/items/:needId/approve", (req, res) => {
@@ -392,6 +398,18 @@ export function appRouter(): Router {
       || !!event.finalCheck?.lines.some((line) => line.result !== "covered");
     return basketStatus(event.serviceDate, orders, plans, allQuestions().filter((q) => q.eventId === event.id), now(), needsAttention);
   };
+  // Return the same saved basket projection on reads and successful submissions so
+  // the builder can update its items and deadline without a second browser request.
+  const basketView = async (id: string, req?: Request) => {
+    const event = getEvent(id);
+    if (!event) throw new BasketReviewError(404, "No such order");
+    // Mutation responses add a full read projection only when this person may
+    // read it. Their existing authority to contribute their own items is intact.
+    if (req && !inBasketScope(req, event)) return undefined;
+    const { orders } = await gw.orders(id);
+    const review = basketReview(id, orders);
+    return { ...eventView(id), requests: basketPlans(id).map(planRow), orders, review, ...basketSummary(getEvent(id)!, orders) };
+  };
   r.get("/baskets", async (req, res) => {
     const { orders } = await gw.orders();
     const p = P(req);
@@ -438,13 +456,17 @@ export function appRouter(): Router {
     const id = String(req.params.id);
     const event = getEvent(id);
     if (!event) return res.status(404).json({ error: "No such order" });
-    if (!inEventScope(req, event) || basketPlans(id).some((plan) => !inPlanScope(req, plan)))
+    if (!inBasketScope(req, event))
       return res.status(403).json({ error: "This order is outside your hotel or outlet scope" });
-    const { orders } = await gw.orders(id);
-    const review = basketReview(id, orders);
-    res.json({ ...eventView(id), requests: basketPlans(id).map(planRow), orders, review, ...basketSummary(getEvent(id)!, orders) });
+    res.json(await basketView(id));
   });
-  r.post("/baskets/:id/submit-review", async (req, res) => res.json({ review: await submitBasketForReview(String(req.params.id), P(req)) }));
+  r.post("/baskets/:id/submit-review", async (req, res) => {
+    const id = String(req.params.id);
+    const event = getEvent(id);
+    if (!event) return res.status(404).json({ error: "No such order" });
+    const review = await submitBasketForReview(id, P(req));
+    res.json({ review, basket: await basketView(id, req) });
+  });
 
   // All event detail and mutation routes share the basket's all-outlets policy.
   r.use("/events/:id", (req, res, next) => {

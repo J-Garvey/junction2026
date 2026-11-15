@@ -63,7 +63,8 @@ function DecisionCard({ q: initial, compact, onAnswered }: QuestionCardProps) {
     try {
       const r = await api.answer(q.id, optionId);
       setQ(r.question);
-      onAnswered?.(r.question);
+      if (r.error) setErr(r.error);
+      onAnswered?.(r.question, r.error);
       refresh();
     } catch (e) {
       if (e instanceof ApiError && e.status === 409 && e.body?.question) {
@@ -103,7 +104,7 @@ function DecisionCard({ q: initial, compact, onAnswered }: QuestionCardProps) {
         )}
       </header>
 
-      <p className="qbody clamp">
+      <p className={q.type === "missing_allergen_data" ? "qbody" : "qbody clamp"}>
         {q.body}
       </p>
 
@@ -188,7 +189,7 @@ function DecisionCard({ q: initial, compact, onAnswered }: QuestionCardProps) {
         />
       )}
 
-      {err && <div className="callout red small">{err}</div>}
+      {err && <div className="callout red small" role="alert">{err}</div>}
 
       {answered ? (
         <div className="qanswered small">

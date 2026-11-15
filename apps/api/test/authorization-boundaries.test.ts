@@ -34,6 +34,7 @@ const agent = "agent_demo_hotel_aurora";
 
 beforeAll(async () => {
   server = createApp().listen(0, "127.0.0.1");
+  server.keepAliveTimeout = 60_000;
   await new Promise((resolve) => server.once("listening", resolve));
   base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
   config.gatewayUrl = `${base}/gateway/v1`;
@@ -167,6 +168,30 @@ describe("person outlet authorization", () => {
     expect((await call(`/api/baskets/${e.id}`, mikko)).status).toBe(403);
     p.basketedAt = "2026-11-14T10:00:00Z"; savePlan(p);
     expect((await call(`/api/events/${e.id}`, mikko)).status).toBe(403);
+  });
+
+  it("keeps private draft records out of successful contribution and submission responses", async () => {
+    const e = getEvent("evt-wedding")!; e.dishes = []; saveEvent(e);
+    const other = plan(); other.eventId = e.id;
+    other.lines = [{ outletId: "banquet", removed: false }] as any; savePlan(other);
+    const parsed = await call("/api/messages", mikko, { text: "5 l lactose-free milk 469363 by Monday" });
+    const created = await call("/api/requests", mikko, {
+      eventId: e.id, reviewing: true,
+      request: { ...parsed.body.request, outletId: "bar", neededBy: "2026-11-16" },
+    });
+    expect(created.status, JSON.stringify(created.body)).toBe(200);
+    const own = created.body.plan;
+    const staged = await call(`/api/plans/${own.id}/basket`, mikko, { continueWithWarnings: true });
+    expect(staged.status, JSON.stringify(staged.body)).toBe(200);
+    expect(getPlan(own.id)!.basketedAt).toBeTruthy();
+    expect(Boolean(staged.body.basket)).toBe(false);
+    const submitted = await call(`/api/baskets/${e.id}/submit-review`, mikko, {});
+    expect(submitted.status, JSON.stringify(submitted.body)).toBe(200);
+    expect(submitted.body.review.eventId).toBe(e.id);
+    expect(Boolean(submitted.body.basket)).toBe(false);
+    expect(JSON.stringify(submitted.body)).not.toContain(other.id);
+    expect((await call(`/api/baskets/${e.id}`, mikko)).status).toBe(403);
+    expect(getPlan(other.id)!.basketedAt).toBeFalsy();
   });
 });
 

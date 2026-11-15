@@ -1,5 +1,5 @@
 /** Q10.2: one set of status labels, always words, never colour alone. */
-import type { StatusLabel } from "@aimo/contracts";
+import { hasUnconfirmedAllergenData, type StatusLabel } from "@aimo/contracts";
 import { ROLE_LABEL } from "../format";
 import type { CoverageLevel } from "../api";
 
@@ -42,6 +42,10 @@ export function UnknownStockMark({ reason }: { reason?: "terminal_sentinel" | "s
       ?
     </span>
   );
+}
+
+export function AllergenDataMark({ line }: { line: Parameters<typeof hasUnconfirmedAllergenData>[0] }) {
+  return hasUnconfirmedAllergenData(line) ? <span className="stamp ask" title="A chef may continue with missing declarations. This does not confirm allergen safety.">Allergen data not confirmed</span> : null;
 }
 
 export const Fixture = ({ show = true, name }: { show?: boolean; name?: string | null }) =>

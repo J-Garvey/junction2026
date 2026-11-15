@@ -146,6 +146,25 @@ describe("saved request review controls", () => {
     expect(api.product).not.toHaveBeenCalled();
   });
 
+  it("updates the deadline and items from an exact-match submission without waiting for another read", async () => {
+    const exact = fixture();
+    exact.plan.itemReviews![0].requiresApproval = false;
+    const basket = {
+      event: { id: "event", name: "Conference dinner", serviceDate: "2026-11-20", guests: 0 },
+      questions: [], orders: [], review: null, confirmed: false,
+      requests: [{ ...exact.plan, createdBy: "Aino", basketedAt: "2026-11-14T10:00:00Z" }],
+      orderBy: { state: "known", at: "2026-11-19T15:00:00Z", reason: null, usesFixtures: true, excludedItems: 0, unconfirmedStockItems: 0 },
+    } as unknown as BasketResp;
+    vi.spyOn(api, "basketPlan").mockResolvedValue({ ...exact, basket });
+    await searchOrder(exact);
+    await screen.findByText("Added to the order.");
+    expect(screen.queryByText("Unknown")).toBeNull();
+    expect(document.querySelector(".basket-context time")?.getAttribute("datetime")).toBe(basket.orderBy.at);
+    expect(screen.getByText("Ready to order")).toBeTruthy();
+    expect(screen.getByText("Selected milk")).toBeTruthy();
+    expect(api.basket).toHaveBeenCalledOnce();
+  });
+
   it("opens review for an exception without staging it", async () => {
     vi.spyOn(api, "basketPlan");
     await searchOrder(fixture());
@@ -294,6 +313,40 @@ describe("saved request review controls", () => {
     expect(screen.getByText("0 of 1 items ready")).toBeTruthy();
   });
 
+  it("requires a fresh approval for an exact replacement before adding it to the order", async () => {
+    const knownCandidate: Candidate = { ...candidate, stock: { kind: "known", amount: 100 } };
+    const changed = fixture();
+    changed.plan.lines[0] = { ...changed.plan.lines[0], productId: candidate.productId, productName: candidate.name, unitPrice: 12, lineTotal: 12 };
+    changed.plan.totalExVat = 12;
+    changed.plan.itemReviews![0] = { ...changed.plan.itemReviews![0], fingerprint: "exact-replacement-fp", requiresApproval: true };
+    changed.plan.needs[0].candidates = [knownCandidate];
+    vi.spyOn(api, "choose").mockResolvedValue(changed);
+    const approved = structuredClone(changed);
+    approved.plan.itemReviews![0].approvedAt = "2026-11-14T10:00:00Z";
+    approved.plan.itemReviews![0].approvedBy = "Aino";
+    vi.spyOn(api, "approveItem").mockResolvedValue(approved);
+    vi.spyOn(api, "basketPlan").mockResolvedValue(approved);
+    const initial = fixture(true);
+    initial.plan.needs[0].candidates = [knownCandidate];
+    const { onAdded } = show(initial);
+    expect((screen.getByRole("button", { name: "Add to order" }) as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "View details" }));
+    fireEvent.click(screen.getByRole("button", { name: "Suggest replacements" }));
+    fireEvent.click(screen.getByRole("button", { name: "Use replacement" }));
+    await screen.findByRole("button", { name: "Approve milk" });
+    expect(screen.queryByTitle("Approved by Aino")).toBeNull();
+    const add = screen.getByRole("button", { name: "Add to order" }) as HTMLButtonElement;
+    expect(add.disabled).toBe(true);
+    fireEvent.click(add);
+    expect(api.basketPlan).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Approve milk" }));
+    await waitFor(() => expect(add.disabled).toBe(false));
+    expect(api.approveItem).toHaveBeenCalledExactlyOnceWith("plan", "need", "exact-replacement-fp");
+    fireEvent.click(add);
+    await waitFor(() => expect(onAdded).toHaveBeenCalledOnce());
+    expect(api.basketPlan).toHaveBeenCalledExactlyOnceWith("plan");
+  });
+
   it("shows changed supplier terms after an add conflict and allows review and retry", async () => {
     const changed = fixture();
     changed.plan.lines[0].unitPrice = 25;
@@ -370,26 +423,32 @@ describe("saved request review controls", () => {
 
   it("opens from the pending row and moves the item into the order with a persistent success message", async () => {
     const initial = fixture();
-    let staged = false;
-    vi.spyOn(api, "basket").mockImplementation(async () => ({
+    const basket = {
       event: { id: "event", name: "Conference dinner", serviceDate: "2026-11-20", guests: 0 },
       questions: [], orders: [], review: null, confirmed: false,
-      requests: [{ ...initial.plan, createdBy: "Jonas", basketedAt: staged ? "2026-11-14T10:00:00Z" : null }],
+      requests: [{ ...initial.plan, createdBy: "Jonas", basketedAt: null }],
       orderBy: { state: "unknown", at: null, reason: "Recheck supplier terms.", usesFixtures: true },
-    } as unknown as BasketResp));
+    } as unknown as BasketResp;
+    vi.spyOn(api, "basket").mockResolvedValue(basket);
     vi.spyOn(api, "plan").mockResolvedValue(initial);
     vi.spyOn(api, "approveItem").mockResolvedValue(fixture(true));
-    vi.spyOn(api, "basketPlan").mockImplementation(async () => { staged = true; return fixture(true); });
+    vi.spyOn(api, "basketPlan").mockResolvedValue({ ...fixture(true), basket: {
+      ...basket,
+      requests: [{ ...basket.requests[0], basketedAt: "2026-11-14T10:00:00Z" }],
+      orderBy: { state: "known", at: "2026-11-19T15:00:00Z", reason: null, usesFixtures: true, excludedItems: 0, unconfirmedStockItems: 0 },
+    } });
     const context: AppCtx = { me: chef, people: [chef], outlets: [], status: null, now: "2026-11-14T10:00:00Z", tick: 0, refresh: vi.fn(), switchPerson: vi.fn() };
     render(<MemoryRouter initialEntries={["/baskets/event"]}><Ctx.Provider value={context}><Routes><Route path="/baskets/:id" element={<BasketPage />} /></Routes></Ctx.Provider></MemoryRouter>);
     fireEvent.click(await screen.findByRole("button", { name: /^10 l milk/ }));
     fireEvent.click(await screen.findByRole("button", { name: "Approve milk" }));
     await waitFor(() => expect((screen.getByRole("button", { name: "Add to order" }) as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(screen.getByRole("button", { name: "Add to order" }));
-    await screen.findByText("Awaiting final order");
+    await screen.findByText("Ready to order");
     expect(screen.getByText("Added to the order. Submit the final order for finance review.")).toBeTruthy();
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.queryByRole("button", { name: /^10 l milk/ })).toBeNull();
+    expect(screen.queryByText("Unknown")).toBeNull();
+    expect(document.querySelector(".basket-context time")?.getAttribute("datetime")).toBe("2026-11-19T15:00:00Z");
     expect((screen.getByRole("button", { name: "Submit order for review" }) as HTMLButtonElement).disabled).toBe(false);
   });
 });

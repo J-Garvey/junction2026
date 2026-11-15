@@ -3,7 +3,7 @@ import type { Candidate, ItemReview, Need, PlanLine, SingleLine } from "@aimo/co
 import { useApp } from "../ctx";
 import { claimLabel, day, eur, parseTime, qty, when } from "../format";
 import { stockText } from "./Popover";
-import { UnknownStockMark } from "./Status";
+import { AllergenDataMark, UnknownStockMark } from "./Status";
 import { Icon } from "./icons";
 import { ProductDetailsPanel, allergenLabel } from "./ProductDetails";
 import { SelectionFunnel } from "./SelectionFunnel";
@@ -55,6 +55,7 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
         <tr key={product?.id ?? line.id} className="add-review-row">
           <td className="add-review-row-product">
             <b>{product?.productName ?? line.query}{product?.stock?.kind === "unknown" && <UnknownStockMark reason={product.stock.reason} />}</b>
+            {product && <AllergenDataMark line={product} />}
             <CarbonEstimate line={product ?? { quantity: 0 }} />
             {index === 0 && <div className="add-review-request small muted">
               <span>Requested</span>

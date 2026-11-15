@@ -69,6 +69,35 @@ describe("per-item order review", () => {
     expect(staged.plan.orderIds).toHaveLength(0);
   });
 
+  it("requires approval when a replacement exactly matches a previously blocked item", async () => {
+    const fixture = loadFixture("base")!;
+    const originalValidity = fixture.price["469363"].catalogPrice.validTo;
+    const originalStock = fixture.availability["464306"].scheduleLines[0].availableAmount;
+    // Synthetic fixture: an expired original price and confirmed replacement stock.
+    fixture.price["469363"].catalogPrice.validTo = "2026-11-14T00:00:00+0200";
+    fixture.availability["464306"].scheduleLines[0].availableAmount = 100;
+    try {
+      const { plan } = await draft("5 l lactose-free milk", ["469363"]);
+      expect(plan.lines[0].productId).toBe("469363");
+      expect(plan.itemReviews[0].canApprove).toBe(false);
+      const changed = await call("POST", `/plans/${plan.id}/choose`, { needId: plan.needs[0].id, productId: "464306" });
+      expect(changed.status).toBe(200);
+      expect(changed.plan.lines[0]).toMatchObject({ productId: "464306", status: "covered", packContent: { verified: true } });
+      expect(changed.plan.lines[0].rules.every((rule: any) => rule.outcome === "order")).toBe(true);
+      expect(changed.plan.itemReviews[0]).toMatchObject({ canApprove: true, requiresApproval: true, approvedAt: null });
+      expect((await call("POST", `/plans/${plan.id}/basket`)).status).toBe(409);
+      const rechecked = await call("POST", `/plans/${plan.id}/review-items`);
+      expect(rechecked.plan.itemReviews[0]).toMatchObject({ requiresApproval: true, approvedAt: null });
+      const approved = await approve(rechecked.plan, 0);
+      expect(approved.status).toBe(200);
+      expect(approved.plan.itemReviews[0].approvedBy).toBe("Aino");
+      expect((await call("POST", `/plans/${plan.id}/basket`)).status).toBe(200);
+    } finally {
+      fixture.price["469363"].catalogPrice.validTo = originalValidity;
+      fixture.availability["464306"].scheduleLines[0].availableAmount = originalStock;
+    }
+  });
+
   it("resumes a visible saved proposal, stages it after review, and places it once through finance", async () => {
     const { basket, plan } = await draft("5 l lactose-free milk", ["464306"], "2026-11-20", true);
     expect((await call("GET", `/plans/${plan.id}`)).plan.itemReviews).toBeUndefined();
