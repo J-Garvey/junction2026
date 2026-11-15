@@ -162,8 +162,12 @@ describe("saved request review controls", () => {
     vi.spyOn(api, "choose").mockResolvedValue(changed);
     const { onChanged } = show(fixture(true));
     fireEvent.click(screen.getByRole("button", { name: "Suggest replacements" }));
+    // D34: a replacement with unconfirmed stock is listed, identified by the small marker.
+    expect(screen.getAllByRole("img", { name: "Stock not confirmed" }).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: "Use replacement" }));
     await screen.findByRole("button", { name: "Approve milk" });
+    expect(screen.getAllByRole("img", { name: "Stock not confirmed" }).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/can't confirm stock/)).toBeNull();
     expect(api.choose).toHaveBeenCalledWith("plan", "need", "464306");
     expect((screen.getByRole("button", { name: "Add to order" }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getAllByText(/Unknown: ships from the supplier/).length).toBeGreaterThan(0);

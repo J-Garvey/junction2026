@@ -4,7 +4,7 @@ import type { Need, Plan, PlanLine, StatusLabel, WarningRecord } from "@aimo/con
 import { countdown, eur, qty, when, fi, plural, parseTime } from "../format";
 import { useApp, outletName } from "../ctx";
 import type { DiffLine } from "../api";
-import { Status, Fixture } from "./Status";
+import { Status, Fixture, UnknownStockMark } from "./Status";
 import { Pop, LineSource, CandidateSource, stockText } from "./Popover";
 import { Icon } from "./icons";
 
@@ -196,6 +196,7 @@ export function Candidates({ need }: { need: Need }) {
                 <Pop label={<span className="trunc">{c.name}</span>} className="namepop">
                   <CandidateSource c={c} />
                 </Pop>
+                {c.stock.kind === "unknown" && <UnknownStockMark reason={c.stock.reason} />}
                 {c.source === "fixture" && <Fixture />}
               </td>
               <td className="num">
@@ -203,7 +204,7 @@ export function Candidates({ need }: { need: Need }) {
 
               </td>
               <td className="num">{eur(c.pricePerBase)}</td>
-              <td className="hide-m small">{c.stock.kind === "unknown" ? <Status k="unknown_stock" /> : stockText(c.stock, c.salesUnit)}</td>
+              <td className="hide-m small">{c.stock.kind === "unknown" ? <span className="muted">Not confirmed</span> : stockText(c.stock, c.salesUnit)}</td>
 
             </tr>
           ))}
