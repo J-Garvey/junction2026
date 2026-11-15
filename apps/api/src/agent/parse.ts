@@ -57,9 +57,11 @@ const CLAIM_WORDS: [RegExp, string][] = [
 const UNIT_MAP: Record<string, Unit> = { l: "l", litre: "l", litres: "l", liter: "l", liters: "l", ltr: "l", kg: "kg", kilo: "kg", kilos: "kg", g: "g", gram: "g", grams: "g", ml: "ml", dl: "dl", pcs: "pcs", pieces: "pcs", piece: "pcs", pc: "pcs" };
 
 const NUMBER = "[+-]?(?:\\d+(?:[.,]\\d+)?|[.,]\\d+)";
-const UNIT_AMOUNT = new RegExp(`(?<![\\d.,])(${NUMBER})\\s*(litres?|liters?|ltr|l|kg|kilos?|grams?|g|ml|dl|pcs|pieces?|pc)\\b`);
+const UNIT_AMOUNT = new RegExp(`(?<![\\d.,])(${NUMBER})\\s*(?:(?:additional|more)\\s+)?(litres?|liters?|ltr|l|kg|kilos?|grams?|g|ml|dl|pcs|pieces?|pc)\\b`);
 /** A number on its own, with an optional "x" either side; not a 6-digit product code or a day of the month. */
-const BARE_COUNT = /(?:\bx\s*)?(?<![\d.,/-])([+-]?(?:\d{1,5}(?:[.,]\d+)?|[.,]\d+))(?![\d.,/-])(?!\s*(?:\.|st|nd|rd|th)?\s*(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec))(?:\s*x\b)?/;
+const BARE_COUNT = /(?:\bx\s*)?(?<![\d.,/-])([+-]?(?:\d{1,5}(?:[.,]\d+)?|[.,]\d+))(?![\d.,/%-])(?!\s*%)(?!\s*(?:\.|st|nd|rd|th)?\s*(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec))(?:\s*x\b)?/;
+// The request contract cannot enforce fat percentages; preserve them and ask before matching.
+const UNSUPPORTED_SPEC = /\d+(?:[.,]\d+)?\s*%/;
 
 /** Consume complete groups only, without joining separate lines or decimal commas. */
 const normalizeNumbers = (text: string) => text.replace(/\b\d{1,3}(?:[, \u00a0]\d{3})+(?!\d)/g, (s) => s.replace(/[, \u00a0]/g, ""));
@@ -140,10 +142,11 @@ export function rulesParse(text: string): Omit<SingleRequest, "siteId" | "outlet
       clean = clean.slice(globalPrefix[0].length);
     }
   }
-  const globalText = clean.match(/(?:[,;]\s*|\s+)(?:all(?:\s+(?:items|products))?|everything)(?:\s+(?:must|should))?(?:\s+be)?\s+(.+)$/);
+  const globalText = clean.match(/(?:[,;]\s*|\s+)(?:all(?:\s+(?:items|products))?|both(?:\s+(?:items|products))?|everything)(?:\s+(?:must|should))?(?:\s+be)?\s+(.+)$/);
   if (globalText) {
     const parsed = restrictions(globalText[1]);
-    if (!parsed.rest.trim() && (parsed.claims.length || parsed.avoidAllergens.length || parsed.origin)) {
+    const scopeClear = !/\bboth\b/.test(globalText[0]) || clean.slice(0, globalText.index).split(LIST_SEPARATOR).length === 2;
+    if (scopeClear && !parsed.rest.trim() && (parsed.claims.length || parsed.avoidAllergens.length || parsed.origin)) {
       global = {
         ...parsed,
         claims: [...new Set([...global.claims, ...parsed.claims])],
@@ -169,11 +172,12 @@ export function rulesParse(text: string): Omit<SingleRequest, "siteId" | "outlet
       : { amount: count ? Number(count[1].replace(",", ".")) : 1, unit: "pcs" };
     const local = restrictions(s);
     const conflictingOrigin = local.conflictingOrigin || global.conflictingOrigin || Boolean(local.origin && global.origin && local.origin !== global.origin);
-    const quantity = parsedQuantity.amount >= 0 && Number.isFinite(parsedQuantity.amount) && !conflictingOrigin ? parsedQuantity : null;
+    const quantity = parsedQuantity.amount >= 0 && Number.isFinite(parsedQuantity.amount) && !conflictingOrigin && !UNSUPPORTED_SPEC.test(s) ? parsedQuantity : null;
     const claims = [...new Set([...global.claims, ...local.claims])];
     const pid = s.match(/\b(4\d{5})\b/);
     const leftover = local.rest
       .replace(q ? UNIT_AMOUNT : BARE_COUNT, "")
+      .replace(pid ? new RegExp(`\\b${pid[1]}\\b`) : /$^/, "")
       .replace(/\bof\b|\bi need\b|\bwe need\b|\bplease\b|\border\b|^\s*add\b/g, "")
       .replace(/\s+/g, " ")
       .trim();
@@ -296,7 +300,7 @@ export async function parseRequest(text: string): Promise<{ request: Omit<Single
         category: pw?.category ?? null,
         productId: l.productId && /^\d{6}$/.test(l.productId) ? l.productId : null,
         // A count without a unit is pieces; an unclear or invalid amount needs clarification.
-        quantity: typeof l.amount === "number" ? (l.amount >= 0 ? { amount: l.amount, unit: l.unit ?? "pcs" } : null) : null,
+        quantity: typeof l.amount === "number" && l.amount >= 0 && !UNSUPPORTED_SPEC.test(`${l.text} ${l.productWord}`) ? { amount: l.amount, unit: l.unit ?? "pcs" } : null,
         constraints: { claims: l.claims, avoidAllergens: l.avoidAllergens, labels: [], ...(l.origin ? { origin: l.origin } : {}) },
       };
     });

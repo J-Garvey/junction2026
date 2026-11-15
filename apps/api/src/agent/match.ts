@@ -4,7 +4,7 @@
  * work out whole packs. Deterministic apart from the stored model judgements.
  */
 import type { Candidate, FiredRule, LookupLine, Need, PlanLine, Product, StatusLabel, Verdict, BaseUnit, ModelJudgement } from "@aimo/contracts";
-import { getProduct, searchMatches, searchProducts } from "../catalog.js";
+import { getProduct, searchMatches } from "../catalog.js";
 import { fire, FIXED, RULE_INDEX } from "../rules/catalogue.js";
 import { cutoffRule, dietRules, earliestDelivery, packContent, priceValidityRule, reliabilityRules, supplyRules, blocks } from "../rules/checks.js";
 import { typeCheck } from "./judge.js";
@@ -24,8 +24,13 @@ export function shortlist(need: Need): Product[] {
   if (need.pinnedProductId) {
     const pinned = getProduct(need.pinnedProductId);
     const out: Product[] = pinned ? [pinned] : [];
-    // Alternatives in the same category, for when the recipe's product fails this group's rules.
-    if (pinned) for (const p of searchProducts({ category: pinned.category, claims: claims.filter((c) => c !== "FREE_FROM_MILK"), limit: FIXED.searchLimit })) if (p.id !== pinned.id) out.push(p);
+    // A category can mix distinct products (plain, coffee and sour milk). Alternatives
+    // must retain the named identity; an ID alone does not establish a substitute spec.
+    const query = need.query.replace(/\b\d{6}\b/g, "").trim();
+    if (pinned && query) {
+      const matches = searchMatches({ q: query, category: pinned.category, claims: claims.filter((c) => c !== "FREE_FROM_MILK"), limit: FIXED.searchLimit });
+      for (const m of matches) if (m.tier < 3 && m.product.id !== pinned.id) out.push(m.product);
+    }
     return out.slice(0, FIXED.searchLimit);
   }
   const base = { category: need.category ?? undefined, claims: claims.filter((c) => c !== "FREE_FROM_MILK"), limit: FIXED.searchLimit };
@@ -86,7 +91,7 @@ export async function rankNeed(need: Need, list: Product[], pool: Pool, opts: { 
   let lastFilter = "the catalogue search";
   // Type check only where claims can't separate types.
   let judgements = new Map<string, ModelJudgement>();
-  const typeTarget = need.productType && !need.pinnedProductId && MIXED_TYPE_CATEGORIES.some((c) => (need.category ?? "").startsWith(c)) ? need.productType : null;
+  const typeTarget = need.productType && MIXED_TYPE_CATEGORIES.some((c) => (need.category ?? "").startsWith(c)) ? need.productType : null;
   for (const p of list) {
     const l = pool.get(p.id);
     if (!l) continue;
