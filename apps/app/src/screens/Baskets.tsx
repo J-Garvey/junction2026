@@ -172,31 +172,29 @@ export function BasketPage() {
 
       <AddToBasket eventId={ev.id} deliveryDate={ev.serviceDate} onAdded={reload} />
 
-      <section>
-        <div className="sechead">
-          <h2>Decisions before processing</h2>
-          {waitingQs.length > 0 && <span className="countb">{waitingQs.length}</span>}
-        </div>
-        {waitingQs.length ? (
-          <div className="qlist">
-            {waitingQs.map((q) => (
-              <QuestionCard key={q.id} q={q} compact onAnswered={reload} />
-            ))}
+      {(waitingQs.length > 0 || others.length > 0 || pending.length > 0) && (
+        <section>
+          <div className="sechead">
+            <h2>Decisions before processing</h2>
+            {waitingQs.length > 0 && <span className="countb">{waitingQs.length}</span>}
           </div>
-        ) : (
-          <div className="empty">
-            <Icon n="check" s={18} /> Nothing waiting for you.
-          </div>
-        )}
-        <OthersWaiting others={others} />
-        {pending.length > 0 && (
-          <div className="card" style={{ marginTop: 12 }}>
-            {pending.map((r) => (
-              <RequestRow key={r.id} r={r} question={questions.find((q) => q.planId === r.id && (q.state === "open" || q.state === "waiting"))} />
-            ))}
-          </div>
-        )}
-      </section>
+          {waitingQs.length > 0 && (
+            <div className="qlist">
+              {waitingQs.map((q) => (
+                <QuestionCard key={q.id} q={q} compact onAnswered={reload} />
+              ))}
+            </div>
+          )}
+          <OthersWaiting others={others} />
+          {pending.length > 0 && (
+            <div className="card" style={{ marginTop: 12 }}>
+              {pending.map((r) => (
+                <RequestRow key={r.id} r={r} question={questions.find((q) => q.planId === r.id && (q.state === "open" || q.state === "waiting"))} />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       <section>
         <div className="sechead">
