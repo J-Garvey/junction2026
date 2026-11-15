@@ -43,6 +43,8 @@ const { getDb } = await import("../src/db.js");
 const { WhatsAppWebBridge } = await import("../src/whatsapp/web.js");
 const { whatsappWebRouter } = await import("../src/whatsapp/web-routes.js");
 const { handleWhatsAppMessage } = await import("../src/whatsapp/service.js");
+const { whatsappRouter } = await import("../src/whatsapp/routes.js");
+const { saveFixture } = await import("../src/aimo/lookup.js");
 const sha = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
 let sequence = 0;
 let base = "";
@@ -54,6 +56,7 @@ function spyReceive(target: InstanceType<typeof WhatsAppWebBridge>) { return vi.
 let received: ReturnType<typeof spyReceive>;
 let calls = 0;
 let blocked = 0;
+let simArrivals: string[] = [];
 let hold: { text: string; entered: () => void; release: Promise<void> } | null = null;
 const owner = () => getPerson("p-aino")!;
 const log = (kind: string, details: unknown) => appendFileSync(resolve(artifacts, "observations.jsonl"), JSON.stringify({
@@ -62,6 +65,7 @@ const log = (kind: string, details: unknown) => appendFileSync(resolve(artifacts
 }, (_key, value) => typeof value === "number" && !Number.isFinite(value) ? { nonFiniteNumber: String(value) } : value) + "\n");
 function state() {
   return {
+    clock: getDb().prepare("SELECT value FROM kv WHERE key = 'clock'").get()?.value,
     whatsapp: getDb().prepare("SELECT key, value FROM kv WHERE key LIKE 'whatsapp%' ORDER BY key").all()
       .map((r) => ({ key: String(r.key), value: JSON.parse(r.value as string) })),
     tables: Object.fromEntries(["events", "plans", "questions", "orders", "approvals", "quotes"].map((table) => [table,
@@ -109,7 +113,7 @@ function makeBridge() {
 }
 beforeEach(async () => {
   seedReset(); setClock({ time: new Date(NOW).toISOString() });
-  calls = 0; hold = null;
+  calls = 0; hold = null; simArrivals = [];
   tokens = Object.fromEntries(["p-aino", "p-mikko", "p-sanna"].map((personId) => [personId, issueToken({ kind: "person", personId })]));
   makeBridge();
   const app = express();
@@ -117,6 +121,12 @@ beforeEach(async () => {
   // The existing Web router receives an injected fake bridge before the shared
   // production host. Only browser events inject messages; there is no HTTP hook.
   app.use("/api/whatsapp/web", (req, res, next) => whatsappWebRouter(bridge)(req, res, next));
+  // Same production simulator router/coordinator, with the existing observation
+  // wrapper shared by A3's deterministic queue tests. No new HTTP interface.
+  app.use("/api/whatsapp", (req, _res, next) => {
+    if (req.path === "/messages") { simArrivals.push(req.body?.id); log("sim-router-arrival", { id: req.body?.id }); }
+    next();
+  }, whatsappRouter(handler));
   app.use(createApp());
   server = app.listen(Number(process.env.E2_PORT ?? 8892), "127.0.0.1");
   await new Promise<void>((r, reject) => { server.once("listening", r); server.once("error", reject); });
@@ -208,6 +218,234 @@ async function restart() {
 const pending = (s = state()) => s.whatsapp.filter((r) => r.key.startsWith("whatsapp-web:conversation:"))
   .map((r) => r.value.conversation.pending);
 const latch = () => { let release!: () => void; return { promise: new Promise<void>((r) => { release = r; }), release: () => release() }; };
+
+// A3 independently authored acceptance tests. Policy sources: E2-01..05,
+// E2-08/10/11/12, E1 smoke and docs/human-approval-rules.md. Assertions inspect
+// SQLite rows; natural-language replies alone never establish an order result.
+const stagedPlans = (eventId: string) => state().tables.plans.filter((p) => p.eventId === eventId && p.basketedAt && !p.reviewing && !p.orderIds.length);
+const simConversation = async () => (await ok("/whatsapp/session")).conversation;
+const A3_LONG = "cancel" + "🧀".repeat(3997) + "x"; // exactly 8,001 UTF-16 units
+type AuditChannel = "simulator" | "web";
+async function auditSetup(channel: AuditChannel) {
+  const id = await basket("A3 independent conference");
+  if (channel === "web") { await ready(); await event(id); }
+  else { await connectSim(); await sim(id); }
+  return id;
+}
+async function auditSend(channel: AuditChannel, text: string, id = `A3-${sequence++}`) {
+  return channel === "web" ? event(text, { id: { _serialized: id } }) : sim(text, id);
+}
+async function auditPending(channel: AuditChannel) {
+  return channel === "web" ? pending().filter(Boolean) : [(await simConversation()).pending].filter(Boolean);
+}
+async function gatewayAudit(path: string, body: unknown, person = "agent", idem?: string) {
+  const r = await fetch(`${base}/gateway/v1${path}`, { method: "POST", headers: {
+    "content-type": "application/json", authorization: `Bearer ${person === "agent" ? "agent_demo_hotel_aurora" : tokens[person] ?? person}`,
+    ...(idem ? { "Idempotency-Key": idem } : {}),
+  }, body: JSON.stringify(body) });
+  const output = { status: r.status, body: await r.json() as any };
+  log("A3-gateway", { path, body, person, idem, output });
+  return output;
+}
+const auditQuote = (productId: string, quantity = 1, requires?: unknown) => gatewayAudit("/quotes", {
+  siteId: "site-aurora", deliveryDate: "2026-11-16",
+  lines: [{ productId, quantity, outletId: "banquet", ...(requires ? { requires } : {}) }],
+});
+
+describe("A3 independent persisted-state authorization audit", () => {
+  it.each(["simulator", "web"] as const)("A3-01 %s counts Unicode as UTF-16 and preserves new proposals on rejected-ID replay/conflict", async (channel) => {
+    const id = await auditSetup(channel);
+    const accepted = "help" + "\u2003".repeat(7996);
+    expect(accepted.length).toBe(8000); expect(A3_LONG.length).toBe(8001);
+    const atLimit = await auditSend(channel, accepted);
+    if (channel === "simulator") expect((atLimit as any).status).toBe(200);
+    else expect((atLimit as any).outbound[0][1]).not.toContain("Message too long");
+    await auditSend(channel, "add 10 kg salmon 469672");
+    expect(await auditPending(channel)).toHaveLength(1);
+    const before = state().tables;
+    await auditSend(channel, A3_LONG, "A3-rejected-id");
+    expect(await auditPending(channel)).toHaveLength(0);
+    expect(state().tables).toEqual(before);
+    await auditSend(channel, "confirm change"); expect(stagedPlans(id)).toHaveLength(0);
+    await auditSend(channel, "add 12 kg salmon 469672");
+    const fresh = await auditPending(channel); expect(fresh).toHaveLength(1);
+    const tables = state().tables;
+    await auditSend(channel, A3_LONG, "A3-rejected-id");
+    expect(await auditPending(channel)).toEqual(fresh);
+    const conflict = await auditSend(channel, "cancel", "A3-rejected-id");
+    if (channel === "simulator") expect((conflict as any).status).toBe(409);
+    expect(await auditPending(channel)).toEqual(fresh); expect(state().tables).toEqual(tables);
+    await auditSend(channel, "confirm change");
+    const staged = stagedPlans(id); expect(staged).toHaveLength(1);
+    expect(staged[0].lines).toEqual([expect.objectContaining({ productId: "469672", quantity: 12 })]);
+    expect(state().tables.orders).toHaveLength(0); expect(state().tables.approvals).toHaveLength(0);
+    expect(JSON.stringify(state().whatsapp)).not.toContain(A3_LONG);
+  });
+
+  it("A3-02 malformed envelopes, unknown identity/group and another person cannot clear the simulator proposal", async () => {
+    const id = await auditSetup("simulator"); await sim("add 10 kg salmon 469672");
+    const before = await simConversation(); const tables = state().tables;
+    for (const body of [
+      { id: "bad", text: A3_LONG, groupId: SIM, extra: true },
+      { id: "i".repeat(129), text: A3_LONG, groupId: SIM },
+      { id: null, text: A3_LONG, groupId: SIM }, { id: "bad", text: 42, groupId: SIM },
+      { id: "bad", text: A3_LONG, groupId: {} }, { id: "bad", text: " ", groupId: SIM },
+    ]) expect((await http("/whatsapp/messages", body)).status).toBe(400);
+    expect((await sim(A3_LONG, "A3-no-identity", "unknown-person")).status).toBe(401);
+    for (const group of [null, "unknown-group", "demo-conference-kitchen"]) await sim(A3_LONG, "A3-wrong-group", "p-aino", group);
+    await connectSim("p-mikko"); expect((await sim(A3_LONG, "A3-other-person", "p-mikko")).status).toBe(400);
+    expect(await simConversation()).toEqual(before); expect(state().tables).toEqual(tables);
+    await sim("confirm change"); expect(stagedPlans(id)).toHaveLength(1);
+  });
+
+  it("A3-03 malformed browser fields and other sender/group never clear sender A's proposal", async () => {
+    const id = await auditSetup("web"); await event("add 10 kg salmon 469672");
+    const before = pending().filter(Boolean); const tables = state().tables;
+    for (const overrides of [
+      { body: 42 }, { body: null }, { id: { _serialized: 7 } }, { id: null },
+      { author: {} }, { author: " " }, { from: {} }, { timestamp: "1794650400" },
+    ] as unknown as Partial<WebInboundMessage>[]) await event(A3_LONG, overrides);
+    await event(A3_LONG, { from: OTHER }); await event(A3_LONG, { from: "unknown@g.us" });
+    await event(A3_LONG, { author: "unknown-person@lid" });
+    expect(pending().filter(Boolean)).toEqual(before); expect(state().tables).toEqual(tables);
+    await event("confirm change", { author: "unknown-person@lid" }); expect(stagedPlans(id)).toHaveLength(0);
+    await event("confirm change"); expect(stagedPlans(id)).toHaveLength(1);
+  });
+
+  it.each(["simulator", "web"] as const)("A3-04 %s serializes concurrent pending/reject/confirm and deduplicates rejection", async (channel) => {
+    const id = await auditSetup(channel); const entered = latch(), released = latch();
+    hold = { text: "add 10 kg salmon 469672", entered: entered.release, release: released.promise };
+    const proposal = auditSend(channel, "add 10 kg salmon 469672"); await entered.promise;
+    let rejecting!: Promise<unknown>, duplicate!: Promise<unknown>, confirming!: Promise<unknown>;
+    try {
+      // For simulator HTTP, wait until both rejections entered the real router's
+      // serialization queue; for Web, receive synchronously appends to its queue.
+      rejecting = auditSend(channel, A3_LONG, "A3-queued-reject");
+      duplicate = auditSend(channel, A3_LONG, "A3-queued-reject");
+      if (channel === "simulator") await vi.waitFor(() => expect(simArrivals.filter((id) => id === "A3-queued-reject")).toHaveLength(2));
+      confirming = auditSend(channel, "confirm change", "A3-queued-confirm");
+    } finally { released.release(); }
+    await Promise.all([proposal, rejecting, duplicate, confirming]);
+    expect(await auditPending(channel)).toHaveLength(0); expect(stagedPlans(id)).toHaveLength(0);
+    expect(state().tables.orders).toHaveLength(0); expect(state().tables.approvals).toHaveLength(0);
+    const deliveries = state().whatsapp.filter((r) => r.key.startsWith("whatsapp:person:"));
+    if (channel === "simulator") expect(deliveries[0].value.deliveries.filter((d: any) => d.id === "A3-queued-reject")).toHaveLength(1);
+  });
+
+  it.each(["simulator", "web"] as const)("A3-05 %s disconnect/reconnect and reset require fresh confirmation", async (channel) => {
+    const id = await auditSetup(channel); await auditSend(channel, "add 10 kg salmon 469672");
+    await auditSend(channel, A3_LONG, "A3-old-reject");
+    await auditSend(channel, "add 12 kg salmon 469672");
+    if (channel === "simulator") { await ok("/whatsapp/disconnect", {}); await connectSim(); }
+    else { await ok("/whatsapp/web/disconnect", {}); await ready(); }
+    await auditSend(channel, "confirm change"); expect(stagedPlans(id)).toHaveLength(0);
+    await auditSend(channel, id); await auditSend(channel, "add 14 kg salmon 469672");
+    const fresh = await auditPending(channel); expect(fresh).toHaveLength(1);
+    await auditSend(channel, A3_LONG, "A3-old-reject"); expect(await auditPending(channel)).toEqual(fresh);
+    await auditSend(channel, "confirm change"); expect(stagedPlans(id)[0].lines[0].quantity).toBe(14);
+    await ok("/reset", {});
+    expect(state().tables.plans).toHaveLength(0); expect(state().tables.orders).toHaveLength(0);
+    expect(state().whatsapp).toHaveLength(0);
+    expect((await http("/whatsapp/messages", { id: "after-reset", text: "confirm change", groupId: SIM })).status).toBe(401);
+    if (channel === "web") {
+      const count = calls; await event("confirm change"); expect(calls).toBe(count);
+      await bridge.close(); makeBridge(); expect(await bridge.restore()).toBe(false);
+    }
+  });
+
+  it("A3-06 uncertain rejected Web reply stays deduplicated across fresh proposals and restart", async () => {
+    const id = await auditSetup("web"); await event("add 10 kg salmon 469672");
+    browser.failNext = true;
+    await event(A3_LONG, { id: { _serialized: "A3-uncertain-rejection" } });
+    expect(pending().every((p) => p === null)).toBe(true); expect(stagedPlans(id)).toHaveLength(0);
+    const sent = browser.sendText.mock.calls.length;
+    await event("add 12 kg salmon 469672"); const fresh = pending().filter(Boolean);
+    await event(A3_LONG, { id: { _serialized: "A3-uncertain-rejection" } });
+    expect(browser.sendText.mock.calls.length).toBe(sent + 1); expect(pending().filter(Boolean)).toEqual(fresh);
+    await event("confirm change"); expect(stagedPlans(id)[0].lines[0].quantity).toBe(12);
+    await restart(); await event(A3_LONG, { id: { _serialized: "A3-uncertain-rejection" } });
+    expect(browser.sendText).not.toHaveBeenCalled(); expect(state().tables.orders).toHaveLength(0);
+  });
+
+  it("A3-07 milk allergy is distinct from lactose freedom; 1000 L unknown stock cannot be confirmed", async () => {
+    const blocked = await auditQuote("469363", 1, { claims: ["FREE_FROM_LACTOSE"], avoidAllergens: ["AM"], labels: [] });
+    expect(blocked.status).toBe(201); expect(blocked.body.outcome).toBe("block");
+    const ap = await gatewayAudit("/approvals", { quoteId: blocked.body.id, fingerprint: blocked.body.fingerprint, grants: [] }, "p-sanna");
+    expect(ap.status).toBe(409);
+    expect((await gatewayAudit("/orders", { quoteId: blocked.body.id }, "agent", "A3-diet")).status).toBe(409);
+    const unknown = await auditQuote("464306", 1000, { claims: ["FREE_FROM_LACTOSE"], avoidAllergens: [], labels: [] });
+    expect(unknown.body.lines[0].stock.kind).toBe("unknown"); expect(unknown.body.unconfirmedStock).toContain("464306");
+    expect((await gatewayAudit("/orders", { quoteId: unknown.body.id }, "agent", "A3-stock")).body.error).toBe("stock_unconfirmed");
+    expect(state().tables.orders).toHaveLength(0); expect(state().tables.approvals).toHaveLength(0);
+  });
+
+  it("A3-08 persisted approval binds quantity/total; wrong role and fingerprint cannot approve; commit expires and retries once", async () => {
+    const q = await auditQuote("469672", 100); expect(q.body.mandateCheck.approvalsNeeded).toContain("spend_cap");
+    const approvalBody = { quoteId: q.body.id, fingerprint: q.body.fingerprint, grants: ["spend_cap"] };
+    expect((await gatewayAudit("/orders", { quoteId: q.body.id }, "agent", "A3-cap")).status).toBe(409);
+    expect((await gatewayAudit("/approvals", approvalBody, "agent")).status).toBe(403);
+    expect((await gatewayAudit("/approvals", approvalBody, "p-aino")).status).toBe(403);
+    expect((await gatewayAudit("/approvals", { ...approvalBody, fingerprint: "wrong" }, "p-sanna")).status).toBe(409);
+    const a = await gatewayAudit("/approvals", approvalBody, "p-sanna"); expect(a.status).toBe(201);
+    const changed = await auditQuote("469672", 101);
+    expect(changed.body.fingerprint).not.toBe(q.body.fingerprint);
+    expect((await gatewayAudit("/orders", { quoteId: changed.body.id, approvalId: a.body.id }, "agent", "A3-wrong-approval")).body.error).toBe("mandate_violation");
+    expect(state().tables.orders).toHaveLength(0); expect(state().tables.approvals).toHaveLength(1);
+    expect(state().tables.approvals[0]).toMatchObject({ quoteId: q.body.id, fingerprint: q.body.fingerprint });
+    const first = await gatewayAudit("/orders", { quoteId: q.body.id, approvalId: a.body.id }, "agent", "A3-approved");
+    const retry = await gatewayAudit("/orders", { quoteId: q.body.id, approvalId: a.body.id }, "agent", "A3-approved");
+    expect(first.status).toBe(201); expect(retry.status).toBe(200); expect(retry.body.id).toBe(first.body.id);
+    expect(state().tables.orders).toHaveLength(1); expect(state().tables.orders[0].lines[0].quantity).toBe(100);
+    expect((await gatewayAudit("/orders", { quoteId: changed.body.id }, "agent", "A3-approved")).body.error).toBe("idempotency_conflict");
+    const fresh = await auditQuote("469672", 1); setClock({ time: fresh.body.expiresAt });
+    expect((await gatewayAudit("/orders", { quoteId: fresh.body.id }, "agent", "A3-expired")).body.error).toBe("quote_stale");
+    expect(state().tables.orders).toHaveLength(1);
+  });
+
+  it.each(["price", "stock_short", "date", "cutoff"] as const)("A3-09 commit rechecks changed supplier %s in an explicit external overlay", async (field) => {
+    const q = await auditQuote("469672", 1); expect(q.status).toBe(201);
+    const originalDir = config.fixturesDir;
+    const name = `A3-${field}-${sequence++}`;
+    config.fixturesDir = resolve(runtime, "explicit-fixture-overlays");
+    try {
+      const availability: Record<string, any> = {}, price: Record<string, any> = {};
+      if (field === "price") price["469672"] = { catalogPrice: { value: 30.84 } };
+      if (field === "stock_short") availability["469672"] = { scheduleLines: [{ salesBlock: false, availableAmount: 0, availableDate: "2026-11-16", salesUnit: "KG" }] };
+      if (field === "date") availability["469672"] = { scheduleLines: [{ salesBlock: false, availableAmount: 311, availableDate: "2026-11-17", salesUnit: "KG" }] };
+      if (field === "cutoff") availability["469672"] = { closingTime: "2026-11-14T09:59:00Z" };
+      saveFixture({ name: `overlay-${name}`, recordedAt: new Date(NOW).toISOString(), timeNow: new Date(NOW).toISOString(), availability, price });
+      log("A3-explicit-overlay", { name, availability, price, baselineQuoteId: q.body.id });
+      await ok("/data-mode", { mode: "fixture", overlay: name });
+      const commit = await gatewayAudit("/orders", { quoteId: q.body.id }, "agent", `A3-changed-${field}`);
+      expect(commit.status).toBe(409); expect(commit.body.error).toBe(field === "cutoff" ? "cutoff_passed" : "quote_stale");
+      expect(state().tables.orders).toHaveLength(0);
+    } finally { config.fixturesDir = originalDir; }
+  });
+
+  // Explicit expected failures preserve independent evidence of an EXISTING
+  // gateway defect, outside PR127. A green it.fails is not a safety pass. See
+  // A3-F01 in A3-audit.md; remove .fails when the separate production fix lands.
+  it.fails.each(["stock_unknown", "sales_block"] as const)("A3-10 KNOWN A3-F01 commit must refuse newly unsafe supplier %s", async (field) => {
+    const q = await auditQuote("469672", 1); expect(q.body.lines[0].stock.kind).toBe("known");
+    const originalDir = config.fixturesDir, name = `A3-${field}-${sequence++}`;
+    config.fixturesDir = resolve(runtime, "explicit-fixture-overlays");
+    try {
+      const patch = field === "sales_block" ? { salesBlock: true } : {
+        scheduleLines: [{ salesBlock: false, availableAmount: 9999999999, availableDate: "2026-11-16", salesUnit: "KG" }],
+      };
+      saveFixture({ name: `overlay-${name}`, recordedAt: new Date(NOW).toISOString(), timeNow: new Date(NOW).toISOString(), availability: { "469672": patch }, price: {} });
+      await ok("/data-mode", { mode: "fixture", overlay: name });
+      const fresh = await gatewayAudit("/lookup", { productIds: ["469672"], requestedDate: "2026-11-16" });
+      const freshQuote = await auditQuote("469672", 1);
+      if (field === "sales_block") expect(freshQuote.body.outcome).toBe("block");
+      else expect(freshQuote.body.unconfirmedStock).toContain("469672");
+      const commit = await gatewayAudit("/orders", { quoteId: q.body.id }, "agent", `A3-unsafe-${field}`);
+      log("A3-F01-reproduction", { field, patch, initialQuote: q.body, fresh, freshQuote: freshQuote.body, commit, persisted: state().tables });
+      expect(commit.status).toBe(409);
+      expect(state().tables.orders).toHaveLength(0);
+    } finally { config.fixturesDir = originalDir; }
+  });
+});
 
 describe("E2 WhatsApp production channel baseline", () => {
   it("E2-01 authenticates synthetic chat and filters source IDs without exposing history", async () => {
