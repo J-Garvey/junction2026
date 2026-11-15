@@ -307,6 +307,8 @@ describe("order baskets", () => {
 
   it("submits one finance review, then only finance can approve and place one order", async () => {
     const { id, planId } = await readyBasket();
+    const before = (await call("GET", "/baskets")).baskets.find((b: any) => b.id === id);
+    expect(before).toMatchObject({ confirmed: false, approvalLevels: [], orderBy: { state: "known", at: "2026-11-15T15:00:00.000Z", usesFixtures: true } });
     const [submitted, retry] = await Promise.all([
       call("POST", `/baskets/${id}/submit-review`),
       call("POST", `/baskets/${id}/submit-review`),
@@ -315,6 +317,7 @@ describe("order baskets", () => {
     expect(submitted.review).toMatchObject({ type: "order_review", forRole: "approver", state: "open", eventId: id, facts: { kind: "approval", planIds: [planId] } });
     expect(retry.review.id).toBe(submitted.review.id);
     expect((await call("GET", `/baskets/${id}`)).review.id).toBe(submitted.review.id);
+    expect((await call("GET", "/baskets")).baskets.find((b: any) => b.id === id)).toMatchObject({ confirmed: false, approvalLevels: [{ role: "approver", count: 1 }] });
     expect((await call("GET", `/orders?eventId=${id}`)).orders).toHaveLength(0);
     expect((await call("POST", `/questions/${submitted.review.id}/answer`, { optionId: "approve" })).status).toBe(409);
 
@@ -329,7 +332,8 @@ describe("order baskets", () => {
     expect((await call("GET", `/plans/${planId}`)).plan.orderIds).toEqual([orders[0].id]);
     expect((await call("POST", `/questions/${submitted.review.id}/answer`, { optionId: "approve" })).status).toBe(409);
     expect((await call("GET", `/orders?eventId=${id}`)).orders).toHaveLength(1);
-    expect((await call("GET", "/baskets")).baskets.find((b: any) => b.id === id)).toMatchObject({ lines: 1, totalExVat: orders[0].totalExVat });
+    expect((await call("GET", "/baskets")).baskets.find((b: any) => b.id === id)).toMatchObject({ lines: 1, totalExVat: orders[0].totalExVat, confirmed: true, approvalLevels: [] });
+    expect(await call("GET", `/baskets/${id}`)).toMatchObject({ confirmed: true, orderBy: before.orderBy });
   });
 
   it("replaces the finance request when items change and combines repeated products", async () => {
@@ -366,9 +370,11 @@ describe("order baskets", () => {
     expect((await call("POST", `/baskets/${empty}/submit-review`)).status).toBe(409);
     const submitted = await call("POST", `/baskets/${id}/submit-review`);
     await call("POST", "/clock", { time: "2026-11-15T18:00:00Z" });
+    expect((await call("GET", "/baskets")).baskets.find((b: any) => b.id === id)).toMatchObject({ confirmed: false, approvalLevels: [], orderBy: { state: "expired" } });
     await signIn("p-sanna");
     const approved = await call("POST", `/questions/${submitted.review.id}/answer`, { optionId: "approve" });
-    expect(approved.error).toMatch(/expired|cut-off/i);
+    expect(approved.status).toBe(409);
+    expect(approved.error ?? approved.reason).toMatch(/expired|cut-off/i);
     expect((await call("GET", `/orders?eventId=${id}`)).orders).toHaveLength(0);
     expect((await call("POST", `/baskets/${id}/submit-review`)).status).toBe(409);
   });
@@ -384,5 +390,25 @@ describe("order baskets", () => {
     const orders = (await call("GET", `/orders?eventId=${id}`)).orders;
     expect(orders).toHaveLength(1);
     expect(orders[0].lines[0]).toMatchObject({ stock: { kind: "unknown" }, riskAccepted: { by: "Aino" } });
+    expect((await call("GET", "/baskets")).baskets.find((b: any) => b.id === id)).toMatchObject({ confirmed: false, approvalLevels: [], orderBy: { state: "unknown", at: null } });
+  });
+
+  it("reads list and detail deadlines from saved terms without new supplier lookups", async () => {
+    const { id } = await readyBasket();
+    const nativeFetch = globalThis.fetch;
+    const lookups: string[] = [];
+    const spy = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      if (/\/(lookup|availability|price)(?:\?|$)/.test(String(input))) lookups.push(String(input));
+      return nativeFetch(input, init);
+    });
+    try {
+      const card = (await call("GET", "/baskets")).baskets.find((b: any) => b.id === id);
+      const detail = await call("GET", `/baskets/${id}`);
+      expect(card.orderBy).toEqual(detail.orderBy);
+      expect(card.orderBy.state).toBe("known");
+      expect(lookups).toEqual([]);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
