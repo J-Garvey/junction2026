@@ -1,22 +1,21 @@
 /** Order baskets: one tile per event (name + delivery date); inside, what is ordered, what waits, and a box to add more. */
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
-import type { Order, Plan, Question, SingleRequest, Unit } from "@aimo/contracts";
-import { api, ApiError, type BasketPlan, type MessageResp, type PlanResp } from "../api";
+import type { Order, Question } from "@aimo/contracts";
+import { api, type BasketPlan, type MessageResp, type PlanResp } from "../api";
 import { splitMine, useApp, useLoad, waitingForText } from "../ctx";
 import { OthersWaiting, QuestionCard } from "../ui/QuestionCard";
 import { Status, planStatusKind, PLAN_STATUS_TEXT } from "../ui/Status";
 import { Icon } from "../ui/icons";
 import { OrderItemDialog } from "../ui/OrderItemDialog";
-import { ProductReviewItem } from "../ui/ProductReviewItem";
+import { RequestReviewDialog } from "../ui/RequestReviewDialog";
 import { BasketCard } from "../ui/BasketCard";
 import { OrderBy } from "../ui/OrderBy";
 import { stockText } from "../ui/Popover";
 import { tooLateText } from "../ui/TooLate";
-import { addDays, claimLabel, day, eur, helsinkiDate, plural, qty } from "../format";
+import { addDays, day, eur, helsinkiDate, plural, qty } from "../format";
 import "./baskets.css";
 
-const UNITS: Unit[] = ["l", "dl", "ml", "kg", "g", "pcs"];
 
 export function BasketsHome() {
   const { me } = useApp();
@@ -102,6 +101,7 @@ export function BasketPage() {
   const { data, error, reload } = useLoad(() => api.basket(id!), [id]);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [requestNote, setRequestNote] = useState<string | null>(null);
 
   async function submitForReview() {
     setSubmitting(true);
@@ -148,6 +148,7 @@ export function BasketPage() {
       <div className="basket-context small muted">Delivery {day(ev.serviceDate)}<OrderBy deadline={data.orderBy} detail /></div>
 
       {submitError && <div className="callout red" role="alert">{submitError}</div>}
+      {requestNote && <div className="callout green small" role="status">{requestNote}</div>}
       {me.role === "chef" && review && <div className="callout green small" role="status">Submitted to finance. This order is ready for approval.</div>}
 
       <AddToBasket eventId={ev.id} deliveryDate={ev.serviceDate} onAdded={reload} />
@@ -169,7 +170,7 @@ export function BasketPage() {
           {pending.length > 0 && (
             <div className="card" style={{ marginTop: 12 }}>
               {pending.map((r) => (
-                <RequestRow key={r.id} r={r} question={questions.find((q) => q.planId === r.id && (q.state === "open" || q.state === "waiting"))} />
+                <RequestRow key={r.id} r={r} onChanged={reload} onAdded={() => { setRequestNote("Added to the order. Submit the final order for finance review."); reload(); }} question={questions.find((q) => q.planId === r.id && (q.state === "open" || q.state === "waiting"))} />
               ))}
             </div>
           )}
@@ -188,76 +189,29 @@ export function BasketPage() {
   );
 }
 
-function RequestRow({ r, question }: { r: BasketPlan; question?: Question }) {
+function RequestRow({ r, question, onChanged, onAdded }: { r: BasketPlan; question?: Question; onChanged: () => void; onAdded: () => void }) {
   const { me, people } = useApp();
   const waitingLabel = question ? waitingForText(question, me, people) : undefined;
-  const [plan, setPlan] = useState<Plan | null>(null);
   const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  return <>
+    <button type="button" className="li evrow item-dialog-trigger" onClick={() => setOpen(true)}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="trunc" style={{ color: "var(--ink)", fontWeight: 600 }}>{r.title}</div>
+        <div className="small muted">{r.tooLate ? tooLateText(r.tooLate) : r.summary}</div>
+      </div>
+      {r.tooLate ? <span className="stamp ask">Too late</span> : <Status k={planStatusKind(r.status)} title={waitingLabel ?? PLAN_STATUS_TEXT[r.status]} label={r.status === "waiting" ? waitingLabel : undefined} />}
+    </button>
+    {open && <SavedRequestDetails id={r.id} title={r.title} onClose={() => setOpen(false)} onChanged={onChanged} onAdded={() => { setOpen(false); onAdded(); }} />}
+  </>;
+}
 
-  async function showDetails() {
-    setOpen(true);
-    if (plan || loading) return;
-    setLoading(true);
-    setError(null);
-    try {
-      setPlan((await api.plan(r.id)).plan);
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <>
-      <button type="button" className="li evrow item-dialog-trigger" onClick={showDetails}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="trunc" style={{ color: "var(--ink)", fontWeight: 600 }}>
-            {r.title}
-          </div>
-          <div className="small muted">{r.tooLate ? tooLateText(r.tooLate) : r.summary}</div>
-        </div>
-        {/* Too late is something to review, not a hard block: no "Blocked" stamp. */}
-        {r.tooLate ? <span className="stamp ask">Too late</span> : <Status k={planStatusKind(r.status)} title={waitingLabel ?? PLAN_STATUS_TEXT[r.status]} label={r.status === "waiting" ? waitingLabel : undefined} />}
-      </button>
-      {open && (
-        <OrderItemDialog
-          eyebrow="Awaiting approval"
-          title={r.title}
-          description={plan?.summary ?? r.summary}
-          fields={[
-            { label: "Status", value: PLAN_STATUS_TEXT[r.status] ?? r.status },
-            { label: "Total ex VAT", value: eur(plan ? plan.totalExVat : r.totalExVat) },
-            { label: "Delivery", value: plan?.deliveryDate ? day(plan.deliveryDate) : "Not confirmed" },
-            ...(plan ? [{ label: "Requested by", value: plan.createdBy.name }] : []),
-          ]}
-          onClose={() => setOpen(false)}
-        >
-          {loading && <div className="muted">Loading item details…</div>}
-          {error && <div className="callout red">{error}</div>}
-          {plan && plan.lines.length > 0 && (
-            <div className="item-dialog-section">
-              <h3>Items in this request</h3>
-              <div className="item-dialog-lines">
-                {plan.lines.map((line) => (
-                  <div key={line.id} className="item-dialog-line">
-                    <span>
-                      <b>{line.productName}</b>
-                      <small>Product {line.productId ?? "not selected"}</small>
-                    </span>
-                    <span>{qty(line.quantity)} {line.salesUnit ?? ""}</span>
-                    <b>{eur(line.lineTotal)}</b>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </OrderItemDialog>
-      )}
-    </>
-  );
+function SavedRequestDetails({ id, title, onClose, onChanged, onAdded }: { id: string; title: string; onClose: () => void; onChanged: () => void; onAdded: () => void }) {
+  const { data, error, loading, reload } = useLoad(() => api.plan(id), [id]);
+  if (!data?.plan.request || !data.plan.eventId) return <OrderItemDialog eyebrow="Request details" title={title} onClose={onClose}>
+    {loading && <div className="muted" role="status">Loading item details...</div>}
+    {error && <div className="callout red" role="alert">{error}<button type="button" className="btn sm" onClick={reload}>Try again</button></div>}
+  </OrderItemDialog>;
+  return <RequestReviewDialog initialReview={data} deliveryDate={data.plan.neededBy ?? ""} onClose={onClose} onChanged={onChanged} onAdded={onAdded} />;
 }
 
 function StagedLines({ plans, submitted }: { plans: BasketPlan[]; submitted: boolean }) {
@@ -324,255 +278,49 @@ function OrderedLines({ orders, showEmpty = true }: { orders: Order[]; showEmpty
   );
 }
 
-/** Search, interpret and check an item in one modal before staging it in the order. */
+/** Search and check a new request, then use the shared saved-request review. */
 function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deliveryDate: string; onAdded: () => void }) {
-  const { refresh } = useApp();
   const [text, setText] = useState("");
-  const [request, setRequest] = useState<SingleRequest | null>(null);
   const [review, setReview] = useState<PlanResp | null>(null);
-  const [editTarget, setEditTarget] = useState<{ lineId: string; field: "quantity" | "description"; amount: string; unit: Unit; description: string } | null>(null);
-  const [busy, setBusy] = useState<"search" | "check" | "replace" | "remove" | "approve" | "quantity" | "add" | null>(null);
-  const [dialogError, setDialogError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ cls: string; body: React.ReactNode } | null>(null);
-
   async function search() {
-    const value = text.trim();
-    if (!value || busy) return;
-    setBusy("search");
+    if (!text.trim() || busy) return;
+    setBusy(true);
     setNote(null);
     try {
-      const parsed: MessageResp = await api.message(value);
+      const parsed: MessageResp = await api.message(text.trim());
       if (parsed.route === "event_change") {
         setNote({ cls: "blue", body: <>Guest changes are made on the <Link to={`/events/${eventId}`}>event page</Link>.</> });
-        return;
-      }
-      if (parsed.route === "neither") {
+      } else if (parsed.route === "neither") {
         setNote({ cls: "blue", body: parsed.message });
-        return;
+      } else {
+        setReview(await api.request({ ...parsed.request, neededBy: deliveryDate }, eventId, true, true));
       }
-      const next = { ...parsed.request, neededBy: deliveryDate };
-      setRequest(next);
-      setReview(null);
-      setEditTarget(null);
-      setDialogError(null);
-      setBusy("check");
-      setReview(await api.request(next, eventId, true, true));
     } catch (e) {
-      setDialogError((e as Error).message);
-      if (!request) setNote({ cls: "red", body: (e as Error).message });
+      setNote({ cls: "red", body: (e as Error).message });
     } finally {
-      setBusy(null);
+      setBusy(false);
     }
   }
-
-  function edit(line: SingleRequest["lines"][number], field: "quantity" | "description") {
-    setDialogError(null);
-    setEditTarget({ lineId: line.id, field, amount: String(line.quantity?.amount ?? ""), unit: line.quantity?.unit ?? "pcs", description: line.query });
-  }
-  const editReady = !!editTarget?.description.trim() && Number.isFinite(Number(editTarget.amount)) && Number(editTarget.amount) > 0;
-
-  async function recheck(next: SingleRequest) {
-    const result = review ? await api.requote(review.plan.id, next) : await api.request(next, eventId, true, true);
-    setRequest(next);
-    setReview(result);
-    setEditTarget(null);
-  }
-
-  async function checkChanges() {
-    if (!request || !editTarget || !editReady || busy) return;
-    setBusy("check");
-    setDialogError(null);
-    try {
-      const original = request.lines.find((line) => line.id === editTarget.lineId)!;
-      let updated = { ...original, quantity: { amount: Number(editTarget.amount), unit: editTarget.unit } };
-      if (editTarget.description.trim() !== original.query) {
-        const parsed = await api.message(`${editTarget.amount} ${editTarget.unit} ${editTarget.description.trim()}`);
-        if (parsed.route === "event_change" || parsed.route === "neither" || parsed.request.lines.length !== 1) {
-          throw new Error("Describe one product for this row, then check it again.");
-        }
-        const line = parsed.request.lines[0];
-        updated = { ...line, id: original.id, quantity: updated.quantity, constraints: {
-          claims: [...new Set([...original.constraints.claims, ...line.constraints.claims])],
-          avoidAllergens: [...new Set([...original.constraints.avoidAllergens, ...line.constraints.avoidAllergens])],
-          labels: [...new Set([...original.constraints.labels, ...line.constraints.labels])],
-        } };
-      }
-      await recheck({ ...request, lines: request.lines.map((line) => line.id === original.id ? updated : line) });
-    } catch (e) {
-      setDialogError((e as Error).message);
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function discard(lineId: string) {
-    if (!request || busy) return;
-    const lines = request.lines.filter((line) => line.id !== lineId);
-    if (!lines.length) {
-      setRequest(null);
-      setReview(null);
-      setEditTarget(null);
-      setText("");
-      setNote({ cls: "blue", body: "Item discarded. No products were added to the order." });
-      return;
-    }
-    setBusy("remove");
-    setDialogError(null);
-    try {
-      await recheck({ ...request, lines });
-    } catch (e) {
-      setDialogError((e as Error).message);
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function choose(needId: string, productId: string) {
-    if (!review) return;
-    setBusy("replace");
-    setDialogError(null);
-    try {
-      setReview(await api.choose(review.plan.id, needId, productId));
-    } catch (e) {
-      setDialogError((e as Error).message);
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function add() {
-    if (!review) return;
-    setBusy("add");
-    setDialogError(null);
-    try {
-      await api.basketPlan(review.plan.id);
-      setRequest(null);
-      setReview(null);
-      setText("");
-      setNote({ cls: "green", body: <><b>Added to the order.</b> It will go to finance when the final order is submitted.</> });
-      onAdded();
-      refresh();
-    } catch (e) {
-      if (e instanceof ApiError && e.body?.plan) setReview({ plan: e.body.plan, questions: [] });
-      setDialogError((e as Error).message);
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function resolveItem(needId: string, salesQuantity?: { productId: string; quantity: number }) {
-    const item = review?.plan.itemReviews?.find((item) => item.needId === needId);
-    if (!review || !item || busy) return;
-    setBusy(salesQuantity ? "quantity" : "approve");
-    setDialogError(null);
-    try {
-      setReview(salesQuantity
-        ? await api.itemSalesQuantity(review.plan.id, needId, item.fingerprint, salesQuantity.productId, salesQuantity.quantity)
-        : await api.approveItem(review.plan.id, needId, item.fingerprint));
-    } catch (e) {
-      if (e instanceof ApiError && e.body?.plan) setReview({ plan: e.body.plan, questions: [] });
-      setDialogError((e as Error).message);
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  const plan = review?.plan ?? null;
-  const approvedCount = plan?.itemReviews?.filter((item) => item.approvedAt && item.canApprove).length ?? 0;
-  const canAdd = !!plan?.proposal && !!request?.lines.length && approvedCount === request.lines.length && !plan.error && !plan.tooLate;
-
   return (
     <section className="composer-wrap">
       <form className="composer" onSubmit={(event) => { event.preventDefault(); search(); }}>
         <div className="txt">
-          <textarea
-            rows={1}
-            value={text}
-            placeholder="Add to this order, e.g. 40 l lactose-free milk"
-            onChange={(event) => setText(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                search();
-              }
-            }}
-            aria-label="Add to this order"
-          />
-          <button type="submit" className={`send ${text.trim() ? "go" : ""}`} disabled={!!busy} aria-label="Search">
-            {busy === "search" ? "…" : <Icon n="plus" s={18} w={2.2} />}
-          </button>
+          <textarea rows={1} value={text} placeholder="Add to this order, e.g. 40 l lactose-free milk" onChange={(event) => setText(event.target.value)} onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); search(); }
+          }} aria-label="Add to this order" />
+          <button type="submit" className={`send ${text.trim() ? "go" : ""}`} disabled={busy} aria-label="Search">{busy ? "..." : <Icon n="plus" s={18} w={2.2} />}</button>
         </div>
       </form>
-      {note && <div className={`callout ${note.cls} small`}>{note.body}</div>}
-
-      {request && (
-        <OrderItemDialog
-          eyebrow="Add to order"
-          title={request.lines.length === 1 ? "Review the item" : "Review the order"}
-          description="Check what was understood and whether it can arrive with this order."
-          onClose={() => { if (!busy) { setRequest(null); setReview(null); } }}
-        >
-          <div className="add-review-date"><Icon n="cal" s={18} /><span><small>Delivery date</small><b>{day(deliveryDate)}</b></span></div>
-
-          <div className="item-dialog-section add-review-section">
-            <h3>Products</h3>
-            <div className="add-review-items">
-              {request.lines.map((line) => (
-                <ProductReviewItem
-                  key={line.id}
-                  line={line}
-                  need={plan?.needs.find((need) => need.id === line.id)}
-                  lines={plan?.lines.filter((product) => product.needIds.includes(line.id) && !product.removed) ?? []}
-                  deliveryDate={deliveryDate}
-                  checked={!!plan}
-                  disabled={!!busy || !!editTarget}
-                  review={plan?.itemReviews?.find((item) => item.needId === line.id)}
-                  onApprove={() => resolveItem(line.id)}
-                  onSalesQuantity={(productId, quantity) => resolveItem(line.id, { productId, quantity })}
-                  onEdit={(field) => edit(line, field)}
-                  onDiscard={() => discard(line.id)}
-                  onChoose={(productId) => choose(line.id, productId)}
-                >
-                  {editTarget?.lineId === line.id && (
-                    <form className="add-review-editor" onSubmit={(event) => { event.preventDefault(); checkChanges(); }}>
-                      <div className="add-review-edit-fields">
-                        <label className="field"><span className="small muted">Quantity</span><input autoFocus={editTarget.field === "quantity"} aria-label={`Quantity for ${line.query}`} type="number" min="0" step="any" disabled={!!busy} value={editTarget.amount} onChange={(event) => setEditTarget({ ...editTarget, amount: event.target.value })} /></label>
-                        <label className="field"><span className="small muted">Unit</span><select aria-label={`Unit for ${line.query}`} disabled={!!busy} value={editTarget.unit} onChange={(event) => setEditTarget({ ...editTarget, unit: event.target.value as Unit })}>{UNITS.map((unit) => <option key={unit}>{unit}</option>)}</select></label>
-                        <label className="field"><span className="small muted">Description</span><input autoFocus={editTarget.field === "description"} aria-label={`Description for ${line.query}`} disabled={!!busy} value={editTarget.description} onChange={(event) => setEditTarget({ ...editTarget, description: event.target.value })} /></label>
-                      </div>
-                      {line.constraints.claims.length > 0 && <div className="small muted">Requirements: {line.constraints.claims.map(claimLabel).join(", ")}</div>}
-                      <div className="row">
-                        <button type="submit" className="btn sm primary" disabled={!!busy || !editReady}>{busy === "check" ? "Checking…" : "Check item"}</button>
-                        <button type="button" className="btn sm ghost" disabled={!!busy} onClick={() => { setEditTarget(null); setDialogError(null); }}>Cancel edit</button>
-                      </div>
-                    </form>
-                  )}
-                </ProductReviewItem>
-              ))}
-            </div>
-          </div>
-
-          {busy === "check" && !plan && <div className="add-review-loading">Checking products, stock and delivery…</div>}
-          {dialogError && <div className="callout red" role="alert">{dialogError}</div>}
-
-          {plan && !editTarget && (
-            <>
-              <div className={`callout ${canAdd ? "green" : "yellow"} add-review-result`} role="status">
-                <b>{canAdd ? "All items resolved" : `${approvedCount} of ${request.lines.length} items approved`}</b>
-                <span>{canAdd ? "Ready to add to the order. Any unconfirmed stock remains labelled; finance reviews the final order." : "Approve each item, or refine or discard anything that cannot be approved, to continue."}</span>
-                {plan.error && <span>{plan.error}</span>}
-                {plan.inputRules.length > 0 && <ul>{plan.inputRules.filter((rule) => rule.outcome !== "order").map((rule) => <li key={rule.ruleId}>{rule.message}</li>)}</ul>}
-              </div>
-
-              <div className="add-review-actions">
-                <button type="button" className="btn primary" disabled={!!busy || !canAdd} onClick={add}>{busy === "add" ? "Adding…" : "Add to order"}</button>
-                <button type="button" className="btn ghost" disabled={!!busy} onClick={() => { setRequest(null); setReview(null); }}>Cancel</button>
-                <span className="add-review-total"><small>Total ex VAT</small><b>{eur(plan.totalExVat)}</b></span>
-              </div>
-            </>
-          )}
-        </OrderItemDialog>
-      )}
+      {busy && <div className="small muted" role="status">Checking products, stock and delivery...</div>}
+      {note && <div className={`callout ${note.cls} small`} role="status">{note.body}</div>}
+      {review && <RequestReviewDialog initialReview={review} deliveryDate={deliveryDate} onClose={() => setReview(null)} onChanged={onAdded} onAdded={() => {
+        setReview(null);
+        setText("");
+        setNote({ cls: "green", body: <><b>Added to the order.</b> Submit the final order for finance review.</> });
+        onAdded();
+      }} />}
     </section>
   );
 }
