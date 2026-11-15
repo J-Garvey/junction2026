@@ -86,7 +86,7 @@ describe("gateway chef continuation", () => {
     await expect(placeOrder(identity(), q.id, "no-stock", undefined, undefined, { allergenAcknowledgements: [a.token] })).rejects.toMatchObject({ body: { error: "stock_unconfirmed" } });
     const body = { ...stock, allergenAcknowledgements: [a.token] };
     const result = await placeOrder(identity(), q.id, "d35-order", undefined, undefined, body);
-    expect(result.order.lines[0]).toMatchObject({ productId: "460541", stock: { kind: "unknown" }, riskAccepted: { by: "Aino" }, allergenDataAcknowledgement: { personId: "p-aino", fingerprint: q.fingerprint } });
+    expect(result.order.lines[0]).toMatchObject({ productId: "460541", stock: { kind: "unknown" }, riskAccepted: { by: expect.stringContaining("on behalf of Aino (unverified)") }, allergenDataAcknowledgement: { personId: "p-aino", fingerprint: q.fingerprint } });
     expect(result.order.lines[0].rules.some((r) => r.ruleId === "ALG-03")).toBe(true);
     expect(isConfirmedOrder(result.order)).toBe(false);
     expect((await placeOrder(identity(), q.id, "d35-order", undefined, undefined, body))).toMatchObject({ replay: true, order: { id: result.order.id } });

@@ -172,7 +172,8 @@ describe("person outlet authorization", () => {
 
   it("keeps private draft records out of successful contribution and submission responses", async () => {
     const e = getEvent("evt-wedding")!; e.dishes = []; saveEvent(e);
-    const other = plan(); other.eventId = e.id;
+    const other = plan(); other.eventId = e.id; other.status = "rejected"; other.tooLate = null;
+    // Rejected history stays private but does not block the active order's review.
     other.lines = [{ outletId: "banquet", removed: false }] as any; savePlan(other);
     const parsed = await call("/api/messages", mikko, { text: "5 l lactose-free milk 469363 by Monday" });
     const created = await call("/api/requests", mikko, {
