@@ -85,7 +85,7 @@
   },
   {
    "category": "10401",
-   "label": "Cooking, whipping · chilled",
+   "label": "Cream, cooking · chilled",
    "size": 53,
    "storage": "chilled",
    "en": [
@@ -205,7 +205,7 @@
   },
   {
    "category": "10404",
-   "label": "Condensed · ambient",
+   "label": "Condensed, milk · ambient",
    "size": 7,
    "storage": "ambient",
    "en": [
@@ -232,7 +232,7 @@
   },
   {
    "category": "10405",
-   "label": "Ambient (10405)",
+   "label": "Powder · ambient",
    "size": 14,
    "storage": "ambient",
    "en": [],
@@ -245,7 +245,7 @@
   },
   {
    "category": "10406",
-   "label": "Cooking, coconut · chilled",
+   "label": "Cooking, cream · chilled",
    "size": 30,
    "storage": "chilled",
    "en": [
@@ -302,7 +302,7 @@
   },
   {
    "category": "10411",
-   "label": "Curdled · chilled",
+   "label": "Milk, curdled · chilled",
    "size": 23,
    "storage": "chilled",
    "en": [
@@ -401,7 +401,7 @@
   },
   {
    "category": "10418",
-   "label": "Fraiche · chilled",
+   "label": "Fraiche, cooking · chilled",
    "size": 4,
    "storage": "chilled",
    "en": [
@@ -428,7 +428,7 @@
   },
   {
    "category": "10419",
-   "label": "Sour, smetana · chilled",
+   "label": "Cream, sour · chilled",
    "size": 29,
    "storage": "chilled",
    "en": [
@@ -617,7 +617,7 @@
   },
   {
    "category": "10432",
-   "label": "Ice · chilled",
+   "label": "Vanilla, ice · chilled",
    "size": 16,
    "storage": "chilled",
    "en": [],
@@ -676,7 +676,7 @@
   },
   {
    "category": "10501",
-   "label": "Chilled (10501)",
+   "label": "Butter · chilled",
    "size": 3,
    "storage": "chilled",
    "en": [],
@@ -765,7 +765,7 @@
   },
   {
    "category": "10517",
-   "label": "Rapeseed · chilled",
+   "label": "Liquid, oil · chilled",
    "size": 7,
    "storage": "chilled",
    "en": [
@@ -1154,7 +1154,7 @@
   },
   {
    "category": "10602",
-   "label": "Slice, processed · chilled",
+   "label": "Slice, cheese · chilled",
    "size": 89,
    "storage": "chilled",
    "en": [
@@ -1199,7 +1199,7 @@
   },
   {
    "category": "10603",
-   "label": "Cottage, mozzarella · chilled",
+   "label": "Cheese, cottage · chilled",
    "size": 77,
    "storage": "chilled",
    "en": [
@@ -1256,7 +1256,7 @@
   },
   {
    "category": "10630",
-   "label": "Goat, log · chilled",
+   "label": "Cheese, goat · chilled",
    "size": 10,
    "storage": "chilled",
    "en": [
@@ -1301,7 +1301,7 @@
   },
   {
    "category": "10631",
-   "label": "Mould, brie · chilled",
+   "label": "Cheese, mould · chilled",
    "size": 24,
    "storage": "chilled",
    "en": [
@@ -1358,7 +1358,7 @@
   },
   {
    "category": "10632",
-   "label": "Aura, mould · chilled",
+   "label": "Cheese, aura · chilled",
    "size": 25,
    "storage": "chilled",
    "en": [
@@ -1404,7 +1404,7 @@
   },
   {
    "category": "10635",
-   "label": "Tuorejuusto · chilled",
+   "label": "Cheese, cream · chilled",
    "size": 54,
    "storage": "chilled",
    "en": [],
@@ -1424,7 +1424,7 @@
   },
   {
    "category": "10636",
-   "label": "Feta, cube · chilled",
+   "label": "Cheese, feta · chilled",
    "size": 47,
    "storage": "chilled",
    "en": [
@@ -1550,7 +1550,7 @@
   },
   {
    "category": "10639",
-   "label": "Halloumi, pdo · chilled",
+   "label": "Halloumi, cheese · chilled",
    "size": 16,
    "storage": "chilled",
    "en": [
@@ -1589,7 +1589,7 @@
   },
   {
    "category": "10640",
-   "label": "Squeaky, lactosefree · chilled",
+   "label": "Cheese, squeaky · chilled",
    "size": 26,
    "storage": "chilled",
    "en": [
@@ -1703,7 +1703,7 @@
   },
   {
    "category": "10900",
-   "label": "Rye · ambient",
+   "label": "Bread, rye · ambient",
    "size": 47,
    "storage": "ambient",
    "en": [
@@ -1805,7 +1805,7 @@
   },
   {
    "category": "10902",
-   "label": "Dog, sämpylä · ambient",
+   "label": "Roll, bun · ambient",
    "size": 16,
    "storage": "ambient",
    "en": [
@@ -1850,7 +1850,7 @@
   },
   {
    "category": "10903",
-   "label": "Hampurilaissämpylä · ambient",
+   "label": "Bun, hampurilaissämpylä · ambient",
    "size": 9,
    "storage": "ambient",
    "en": [],
@@ -2241,7 +2241,7 @@
   },
   {
    "category": "17207",
-   "label": "Liver, delicacy · chilled",
+   "label": "Liver, sausage · chilled",
    "size": 16,
    "storage": "chilled",
    "en": [
@@ -2286,7 +2286,7 @@
   },
   {
    "category": "17208",
-   "label": "Maalaishyytelö, lihahyytelö · chilled",
+   "label": "Jelly, maalaishyytelö · chilled",
    "size": 5,
    "storage": "chilled",
    "en": [],
@@ -2481,7 +2481,7 @@
   },
   {
    "category": "17303",
-   "label": "Panini, sandwich · chilled",
+   "label": "Chicken, panini · chilled",
    "size": 68,
    "storage": "chilled",
    "en": [
@@ -2890,7 +2890,7 @@
   },
   {
    "category": "17406",
-   "label": "Chili, capsicum",
+   "label": "Chili, pepper",
    "size": 27,
    "storage": null,
    "en": [
@@ -2968,7 +2968,7 @@
   },
   {
    "category": "17408",
-   "label": "Haricot",
+   "label": "Bean, haricot",
    "size": 9,
    "storage": null,
    "en": [
@@ -2995,7 +2995,7 @@
   },
   {
    "category": "17411",
-   "label": "Rsa, grapefruit",
+   "label": "Orange, rsa",
    "size": 16,
    "storage": null,
    "en": [
@@ -3034,7 +3034,7 @@
   },
   {
    "category": "17412",
-   "label": "Gala, granny",
+   "label": "Apple, pear",
    "size": 16,
    "storage": null,
    "en": [
@@ -3200,7 +3200,7 @@
   },
   {
    "category": "17421",
-   "label": "Washed, early · chilled",
+   "label": "Potato, washed · chilled",
    "size": 20,
    "storage": "chilled",
    "en": [
@@ -3257,7 +3257,7 @@
   },
   {
    "category": "17422",
-   "label": "Peeled, mash · chilled",
+   "label": "Peeled, potato · chilled",
    "size": 10,
    "storage": "chilled",
    "en": [
@@ -3365,7 +3365,7 @@
   },
   {
    "category": "17424",
-   "label": "Chilled (17424)",
+   "label": "Potato · chilled",
    "size": 11,
    "storage": "chilled",
    "en": [],
@@ -4050,7 +4050,7 @@
   },
   {
    "category": "17473",
-   "label": "Chilled (17473)",
+   "label": "Mushroom · chilled",
    "size": 2,
    "storage": "chilled",
    "en": [],
@@ -4139,7 +4139,7 @@
   },
   {
    "category": "18702",
-   "label": "Trout, buffet · chilled",
+   "label": "Fillet, trout · chilled",
    "size": 16,
    "storage": "chilled",
    "en": [
@@ -4336,7 +4336,7 @@
   },
   {
    "category": "18706",
-   "label": "Chilled (18706)",
+   "label": "Fillet, trout · chilled",
    "size": 3,
    "storage": "chilled",
    "en": [],
@@ -4349,7 +4349,7 @@
   },
   {
    "category": "18707",
-   "label": "Chilled (18707)",
+   "label": "Trout · chilled",
    "size": 3,
    "storage": "chilled",
    "en": [],
@@ -4362,7 +4362,7 @@
   },
   {
    "category": "18708",
-   "label": "Cold, trout · chilled",
+   "label": "Fillet, cold · chilled",
    "size": 18,
    "storage": "chilled",
    "en": [
@@ -4550,7 +4550,7 @@
   },
   {
    "category": "18740",
-   "label": "Chilled (18740)",
+   "label": "Lamb · chilled",
    "size": 3,
    "storage": "chilled",
    "en": [],
@@ -4685,7 +4685,7 @@
   },
   {
    "category": "18760",
-   "label": "Minced · chilled",
+   "label": "Beef, meat · chilled",
    "size": 18,
    "storage": "chilled",
    "en": [
@@ -4724,7 +4724,7 @@
   },
   {
    "category": "18761",
-   "label": "Burger, karelian · chilled",
+   "label": "Beef, burger · chilled",
    "size": 19,
    "storage": "chilled",
    "en": [
@@ -5386,7 +5386,7 @@
   },
   {
    "category": "21100",
-   "label": "Sokerikorppu · ambient",
+   "label": "Sugar, sokerikorppu · ambient",
    "size": 4,
    "storage": "ambient",
    "en": [],
@@ -5673,7 +5673,7 @@
   },
   {
    "category": "21200",
-   "label": "Crisp, linkosuo · ambient",
+   "label": "Rye, crisp · ambient",
    "size": 10,
    "storage": "ambient",
    "en": [
@@ -6508,7 +6508,7 @@
   },
   {
    "category": "21394",
-   "label": "Mashed, mielihyvä · ambient",
+   "label": "Potato, mashed · ambient",
    "size": 8,
    "storage": "ambient",
    "en": [
@@ -6796,7 +6796,7 @@
   },
   {
    "category": "21405",
-   "label": "Ambient (21405)",
+   "label": "Beer · ambient",
    "size": 4,
    "storage": "ambient",
    "en": [],
@@ -6932,7 +6932,7 @@
   },
   {
    "category": "21453",
-   "label": "Peanut, spread · ambient",
+   "label": "Butter, peanut · ambient",
    "size": 15,
    "storage": "ambient",
    "en": [
@@ -7407,7 +7407,7 @@
   },
   {
    "category": "21580",
-   "label": "Pineapple · ambient",
+   "label": "Juice, pineapple · ambient",
    "size": 42,
    "storage": "ambient",
    "en": [
@@ -7554,7 +7554,7 @@
   },
   {
    "category": "21592",
-   "label": "Sauerkraut · ambient",
+   "label": "Cabbage, salad · ambient",
    "size": 9,
    "storage": "ambient",
    "en": [
@@ -7823,7 +7823,7 @@
   },
   {
    "category": "21900",
-   "label": "Tomaattikeitto, soup · ambient",
+   "label": "Soup, tomaattikeitto · ambient",
    "size": 11,
    "storage": "ambient",
    "en": [],
@@ -7849,7 +7849,7 @@
   },
   {
    "category": "21901",
-   "label": "Keittopohja · ambient",
+   "label": "Soup, keittopohja · ambient",
    "size": 13,
    "storage": "ambient",
    "en": [],
@@ -7945,7 +7945,7 @@
   },
   {
    "category": "21904",
-   "label": "Creamy",
+   "label": "Sauce, creamy",
    "size": 57,
    "storage": null,
    "en": [
@@ -7965,7 +7965,7 @@
   },
   {
    "category": "21905",
-   "label": "Base, tetra · ambient",
+   "label": "Sauce, base · ambient",
    "size": 51,
    "storage": "ambient",
    "en": [
@@ -8067,7 +8067,7 @@
   },
   {
    "category": "21912",
-   "label": "Ketchup, less · ambient",
+   "label": "Ketchup, tomato · ambient",
    "size": 33,
    "storage": "ambient",
    "en": [
@@ -8244,7 +8244,7 @@
   },
   {
    "category": "21919",
-   "label": "Balsamic, harissa · ambient",
+   "label": "Sauce, balsamic · ambient",
    "size": 20,
    "storage": "ambient",
    "en": [
@@ -8301,7 +8301,7 @@
   },
   {
    "category": "21920",
-   "label": "Bolognese · ambient",
+   "label": "Sauce, bolognese · ambient",
    "size": 43,
    "storage": "ambient",
    "en": [
@@ -8321,7 +8321,7 @@
   },
   {
    "category": "21921",
-   "label": "Soy · ambient",
+   "label": "Sauce, soy · ambient",
    "size": 41,
    "storage": "ambient",
    "en": [
@@ -8483,7 +8483,7 @@
   },
   {
    "category": "21982",
-   "label": "Kondensoitu · ambient",
+   "label": "Milk, kondensoitu · ambient",
    "size": 4,
    "storage": "ambient",
    "en": [],
@@ -8743,7 +8743,7 @@
   },
   {
    "category": "21994",
-   "label": "Salsa, chunky · ambient",
+   "label": "Sauce, salsa · ambient",
    "size": 56,
    "storage": "ambient",
    "en": [
@@ -9202,7 +9202,7 @@
   },
   {
    "category": "22411",
-   "label": "Espresso · ambient",
+   "label": "Coffee, espresso · ambient",
    "size": 4,
    "storage": "ambient",
    "en": [
@@ -9229,7 +9229,7 @@
   },
   {
    "category": "22412",
-   "label": "Instant, espresso · ambient",
+   "label": "Coffee, instant · ambient",
    "size": 23,
    "storage": "ambient",
    "en": [
@@ -9292,7 +9292,7 @@
   },
   {
    "category": "22413",
-   "label": "Latte, macchiato · ambient",
+   "label": "Coffee, drink · ambient",
    "size": 27,
    "storage": "ambient",
    "en": [
@@ -9493,7 +9493,7 @@
   },
   {
    "category": "22532",
-   "label": "Tea, peach · ambient",
+   "label": "Tea, ice · ambient",
    "size": 21,
    "storage": "ambient",
    "en": [
@@ -9544,7 +9544,7 @@
   },
   {
    "category": "22540",
-   "label": "Cocoa, cacao · ambient",
+   "label": "Chocolate, cocoa · ambient",
    "size": 27,
    "storage": "ambient",
    "en": [
@@ -10313,7 +10313,7 @@
   },
   {
    "category": "22704",
-   "label": "Kombucha, ginger · ambient",
+   "label": "Kombucha, drink · ambient",
    "size": 15,
    "storage": "ambient",
    "en": [
@@ -10460,7 +10460,7 @@
   },
   {
    "category": "22707",
-   "label": "Concentrate, bib · ambient",
+   "label": "Concentrate, drink · ambient",
    "size": 11,
    "storage": "ambient",
    "en": [
@@ -10905,7 +10905,7 @@
   },
   {
    "category": "41711",
-   "label": "Duck · frozen",
+   "label": "Duck, breast · frozen",
    "size": 9,
    "storage": "frozen",
    "en": [
@@ -10938,7 +10938,7 @@
   },
   {
    "category": "41712",
-   "label": "Breaded, kiev · frozen",
+   "label": "Chicken, breaded · frozen",
    "size": 46,
    "storage": "frozen",
    "en": [
@@ -11151,7 +11151,7 @@
   },
   {
    "category": "41722",
-   "label": "Roe, whitefish · frozen",
+   "label": "Roe, trout · frozen",
    "size": 8,
    "storage": "frozen",
    "en": [
@@ -11475,7 +11475,7 @@
   },
   {
    "category": "41752",
-   "label": "Frozen (41752)",
+   "label": "Salmon · frozen",
    "size": 8,
    "storage": "frozen",
    "en": [],
@@ -11968,7 +11968,7 @@
   },
   {
    "category": "41770",
-   "label": "Jääpalat, jäämurska · frozen",
+   "label": "Ice, jääpalat · frozen",
    "size": 17,
    "storage": "frozen",
    "en": [],
@@ -11994,7 +11994,7 @@
   },
   {
    "category": "41771",
-   "label": "Mozzarella, goat · frozen",
+   "label": "Mozzarella, cheese · frozen",
    "size": 25,
    "storage": "frozen",
    "en": [
@@ -12354,7 +12354,7 @@
   },
   {
    "category": "52201",
-   "label": "Tablet · ambient",
+   "label": "Tablet, chocolate · ambient",
    "size": 58,
    "storage": "ambient",
    "en": [
@@ -12381,7 +12381,7 @@
   },
   {
    "category": "52202",
-   "label": "Praline, filled · ambient",
+   "label": "Chocolate, praline · ambient",
    "size": 40,
    "storage": "ambient",
    "en": [
@@ -13699,7 +13699,7 @@
   },
   {
    "category": "63200",
-   "label": "Household · ambient",
+   "label": "Household, paper · ambient",
    "size": 6,
    "storage": "ambient",
    "en": [
@@ -13726,7 +13726,7 @@
   },
   {
    "category": "63210",
-   "label": "Toilet, paper · ambient",
+   "label": "Toilet, roll · ambient",
    "size": 37,
    "storage": "ambient",
    "en": [
@@ -13924,7 +13924,7 @@
   },
   {
    "category": "63233",
-   "label": "Dispenser · ambient",
+   "label": "Napkin, dispenser · ambient",
    "size": 40,
    "storage": "ambient",
    "en": [
@@ -13951,7 +13951,7 @@
   },
   {
    "category": "63234",
-   "label": "Annostelija, pöytäannostelija · ambient",
+   "label": "Napkin, dispenser · ambient",
    "size": 16,
    "storage": "ambient",
    "en": [],
@@ -14121,7 +14121,7 @@
   },
   {
    "category": "63241",
-   "label": "Dispenser, toilet · ambient",
+   "label": "Dispenser, roll · ambient",
    "size": 38,
    "storage": "ambient",
    "en": [
@@ -14172,7 +14172,7 @@
   },
   {
    "category": "63242",
-   "label": "Facial · ambient",
+   "label": "Facial, tissue · ambient",
    "size": 8,
    "storage": "ambient",
    "en": [
@@ -14217,7 +14217,7 @@
   },
   {
    "category": "63271",
-   "label": "Filter, coffeefilter · ambient",
+   "label": "Filter, coffee · ambient",
    "size": 31,
    "storage": "ambient",
    "en": [

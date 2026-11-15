@@ -24,6 +24,8 @@ const PLACES = new Set(`finland finnish netherland netherlands holland dutch mex
 const STORAGE: Record<string, Storage> = { freeze: "frozen", cool: "chilled", warm: "ambient" };
 /** A tag names products from at least this many brands, so a product line ("Bravo Chef") is not a kind. */
 export const TAG_SOURCES = 2;
+/** A word in this share of a range's product names leads its label, however common it is elsewhere. */
+export const LABEL_SHARE = 0.3;
 
 const lc = (s: string) => s.toLowerCase().normalize("NFC");
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -155,7 +157,14 @@ export function buildCategoryTags(all: Product[]): Built {
     const fi = fiAll.filter((t) => !fiAll.some((o) => o.word.length > t.word.length && o.word.endsWith(t.word) && o.n >= 0.8 * t.n)).slice(0, 12);
     const temp = [...(temps.get(cat) ?? new Map<string, number>())].sort((a, b) => b[1] - a[1])[0];
     const storage = temp && temp[1] >= 0.6 * n ? (STORAGE[temp[0]] ?? null) : null;
-    cats.set(cat, { category: cat, size: n, label: (en.length ? en : fi).slice(0, 3).map((t) => t.word).join(", "), storage, en, fi, examples: examples.get(cat) ?? [] });
+    // A label leads with what most of the range's products are called, even a word common across
+    // the catalogue ("cheese" in frozen cheeses), then the range's own distinctive tags.
+    const common = [...(df.en.get(cat) ?? new Map<string, number>())]
+      .filter(([w, k]) => k >= TAG_MIN && k / n >= LABEL_SHARE && !PLACES.has(w) && sources.en.get(`${cat}|${w}`)!.size >= TAG_SOURCES)
+      .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))
+      .map(([w]) => w);
+    const label = [...new Set([...common, ...(en.length ? en : fi).map((t) => t.word)])].slice(0, 3).join(", ");
+    cats.set(cat, { category: cat, size: n, label, storage, en, fi, examples: examples.get(cat) ?? [] });
     for (const t of en) enIndex.set(t.word, [...(enIndex.get(t.word) ?? []), { ...t, category: cat }]);
   }
   built = { cats, enIndex, vocab, fiVocab, enCount, words };
