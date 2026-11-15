@@ -29,7 +29,7 @@ const singular = (w: string) =>
   w.length > 4 && w.endsWith("ies") ? w.slice(0, -3) + "y" : w.length > 4 && /(oes|ches|shes)$/.test(w) ? w.slice(0, -2) : w.length > 3 && w.endsWith("s") && !w.endsWith("ss") ? w.slice(0, -1) : w;
 const plurals = (w: string) => [w, w + "s", w + "es", ...(w.endsWith("y") ? [w.slice(0, -1) + "ies"] : [])];
 
-type Entry = { en: string[]; fi: string[]; isa?: string[]; notPrev?: string[]; notNext?: string[]; notPrefix?: string[]; flavour?: boolean; adhoc?: boolean };
+type Entry = { en: string[]; fi: string[]; isa?: string[]; notPrev?: string[]; notNext?: string[]; notPrefix?: string[]; flavour?: boolean; qualifier?: boolean; adhoc?: boolean };
 
 /**
  * Terms a chef types, with the Finnish stems the catalogue uses. `isa` names the parent
@@ -37,6 +37,8 @@ type Entry = { en: string[]; fi: string[]; isa?: string[]; notPrev?: string[]; n
  * `notPrev` / `notNext` / `notPrefix`: a word before or after, or a compound prefix, that makes
  * it another thing (ice cream and crème fraîche are not cream, valkosipuli is garlic, not onion).
  * `flavour`: often a flavour, so any product noun before it wins ("ice cream Strawberry").
+ * `qualifier`: describes a product and never names one, with the words names use for it
+ * ("sparkling" water is "carbonated", "Vichy" or "hiilihapotettu").
  */
 const LEXICON: Record<string, Entry> = {
   milk: { en: ["milk", "milk drink", "milkdrink"], fi: ["maito", "maitojuoma"], notPrev: ["coconut", "oat", "soy", "soya", "almond", "rice", "condensed", "condensated", "chocolate", "fermented", "curdled", "layered", "sour", "evaporated"], notPrefix: ["kookos", "kaura", "soija", "manteli", "riisi", "kondensoitu", "suklaa", "kaakao", "butter", "coconut"] },
@@ -74,7 +76,8 @@ const LEXICON: Record<string, Entry> = {
   "almond milk": { en: ["almond milk", "almond drink"], fi: ["mantelijuoma"] },
   "coconut milk": { en: ["coconut milk"], fi: ["kookosmaito"] },
   "rice milk": { en: ["rice milk", "rice drink"], fi: ["riisijuoma"] },
-  egg: { en: ["egg"], fi: ["kananmuna", "muna"], notPrev: ["easter", "chocolate"], notPrefix: ["pääsiäis", "suklaa"] },
+  // Egg white, yolk and albumen powder are egg products, not eggs.
+  egg: { en: ["egg"], fi: ["kananmuna", "muna"], notPrev: ["easter", "chocolate"], notNext: ["white", "whites", "yolk", "yolks", "albumen"], notPrefix: ["pääsiäis", "suklaa", "keltuais", "valkuais"] },
   salmon: { en: ["salmon"], fi: ["lohi", "lohe"], notPrefix: ["kirjo"] },
   fish: { en: ["fish"], fi: ["kala"] },
   chicken: { en: ["chicken", "broiler"], fi: ["broileri", "kananpoika", "kananpojan", "kana"], notPrefix: ["pork"] },
@@ -91,8 +94,10 @@ const LEXICON: Record<string, Entry> = {
   sausage: { en: ["sausage"], fi: ["makkara"] },
   potato: { en: ["potato"], fi: ["peruna"], notPrev: ["sweet", "croquette", "mashed", "french"], notPrefix: ["bataatti", "ranskan", "kroketti", "muusi"] },
   carrot: { en: ["carrot"], fi: ["porkkana"] },
-  onion: { en: ["onion"], fi: ["sipuli"], notPrefix: ["valko", "ruoho"] },
+  // Spring onions, chives and leeks are other vegetables; garlic has its own entry.
+  onion: { en: ["onion"], fi: ["sipuli"], notPrev: ["spring"], notPrefix: ["valko", "ruoho", "kevät", "purjo", "spring"] },
   garlic: { en: ["garlic"], fi: ["valkosipuli"] },
+  leek: { en: ["leek"], fi: ["purjo", "purjosipuli"] },
   tomato: { en: ["tomato"], fi: ["tomaatti"] },
   mushroom: { en: ["mushroom", "champignon"], fi: ["herkkusieni", "sieni"] },
   apple: { en: ["apple"], fi: ["omena"], notPrefix: ["pine"], flavour: true },
@@ -115,7 +120,8 @@ const LEXICON: Record<string, Entry> = {
   caramel: { en: ["caramel", "toffee"], fi: ["kinuski", "karamelli", "toffee"], flavour: true },
   cinnamon: { en: ["cinnamon"], fi: ["kaneli"], flavour: true },
   rice: { en: ["rice"], fi: ["riisi"] },
-  flour: { en: ["flour"], fi: ["jauho"] },
+  // Breadcrumbs ("korppujauho", "pankojauho") share the flour range but aren't flour.
+  flour: { en: ["flour"], fi: ["jauho"], notPrefix: ["korppu", "panko"] },
   sugar: { en: ["sugar"], fi: ["sokeri"] },
   salt: { en: ["salt"], fi: ["suola"] },
   oil: { en: ["oil"], fi: ["öljy"] },
@@ -129,6 +135,8 @@ const LEXICON: Record<string, Entry> = {
   cheesecake: { en: ["cheesecake", "cheese cake"], fi: ["juustokakku"] },
   // Pancakes, rice cakes, fish cakes and crab cakes are other products; a cake tin is equipment.
   cake: { en: ["cake", "gateau", "gâteau", "torte"], fi: ["kakku", "kakut", "kaku", "torttu"], notPrev: ["rice", "corn", "fish", "crab", "potato", "oat", "pan", "rye", "salmon"], notPrefix: ["pan", "rice", "corn", "fish", "crab", "oat", "pannu", "riisi", "maissi", "kala", "rapu", "kaura", "ruis", "peruna", "lohi"] },
+  sparkling: { en: ["sparkling", "carbonated", "fizzy", "vichy"], fi: ["hiilihapollinen", "hiilihapotettu", "vichy"], qualifier: true },
+  still: { en: ["still", "noncarbonated"], fi: ["hiilihapoton"], qualifier: true },
 };
 
 /** A noun after the term means the term only describes it: "cheese sauce", "milk chocolate". */
@@ -154,13 +162,13 @@ const FI_MOD_TAILS = `kakku kakut keksi keksit kastike kastikkeet leipä leivät
   suklaa juoma jauhe mauste maku makuinen makuiset höylä sirotin panini pallot tyyny kolmiot rengas vohveli pulla pullat majoneesi
   mehu snacks twist croissant calzone focaccia lautasliina liina servietti kynttilä pastilli purukumi tikkari jogurtti viili rahka smoothie suodatin suodatinpussi kuppi muki lasi kone keitin vuoka pussi`.split(/\s+/);
 /** Forms of the same product: "juustoviipale" is cheese, "lohifilee" is salmon. */
-const FI_FORMS = `viipaleet viipale viipaloitu kuutiot kuutio raaste raastettu palat pala murska nappi kiekko siivut siivu fileet filee file
+const FI_FORMS = `viipaleet viipale viipaloitu mätikuutio kuutiot kuutio raaste raastettu palat pala murska nappi kiekko siivut siivu fileet filee file
   fileepala selkä kylki puolikas tanko kimpale kappale levy`.split(/\s+/);
 /** Finnish endings that keep the word the head (plural, loanword "muffinssi"); genitive -n means it describes the next word. */
 const FI_HEAD_ENDINGS = ["", "t", "et", "i", "it", "si", "ssi", "ssit"];
 const FI_MENTION_ENDINGS = ["a", "ä", "ja", "jä", "ineen", "lla", "llä", "ssa", "ssä"];
 /** A word before the term that makes it a filling or flavour: "mac and cheese", "soup with goat cheese". */
-const PREV_MOD = new Set(["with", "and", "&", "n", "in", "filled", "stuffed", "flavoured", "flavored", "taste", "ja", "täytetty"]);
+const PREV_MOD = new Set(["with", "and", "&", "n", "in", "from", "filled", "stuffed", "flavoured", "flavored", "taste", "ja", "täytetty"]);
 /** Query words that say the form, not the product: "salmon fillet" is about salmon. */
 export const QUERY_FORMS = new Set(`fillet fillets slices slice sliced cubes cube diced grated shredded block blocks portion portions whole fresh frozen
   natural organic plain`.split(/\s+/));
@@ -280,9 +288,13 @@ export function isLiteralProductQuery(q: string): boolean {
   return terms.length > 0 && terms.every((t) => !t.key.startsWith("~") || QUERY_FORMS.has(t.key.slice(1)) || EN_MOD.has(t.key.slice(1)));
 }
 
+/** English compounds that end in a dish or a made product: "pizzasauce", "tomatosoup". */
+const EN_MOD_TAILS = "sauce soup salad pizza cake chips crisps snack snacks drink juice paste puree purée ketchup powder dressing".split(" ");
+
 function isModWord(w: string, t: Term, fi: boolean): boolean {
   if (t.family.has(w) || t.famFi.some((f) => w === f || w.startsWith(f))) return false;
   if (EN_MOD.has(w) || EN_MOD.has(singular(w))) return true;
+  if (!fi && EN_MOD_TAILS.some((x) => w.length >= x.length + 3 && w.endsWith(x))) return true;
   return fi && FI_MOD_TAILS.some((x) => (x.length >= 5 ? w.includes(x) : w.endsWith(x)));
 }
 
@@ -300,13 +312,29 @@ function roleAfter(toks: Tok[], i: number, t: Term, fi: boolean): Role {
     const n = toks[j];
     if (n.seg !== tok.seg || (n.num && !t.flavour)) break;
     if (isModWord(n.w, t, fi)) return "modifier";
+    // A word the lexicon doesn't know, before a product noun it knows, describes it: "honey glazed chicken".
+    if (t.adhoc && !fi && isLexNoun(n.w, t)) return "modifier";
   }
   return "head";
 }
 
+/** A product noun the lexicon knows, outside the term's own family and not a flavour: "chicken", "cheese". */
+function isLexNoun(w: string, t: Term): boolean {
+  if (t.family.has(w)) return false;
+  const k = byVariant.get(w) ?? byVariant.get(singular(w));
+  return Boolean(k && !LEXICON[k].flavour && !LEXICON[k].qualifier);
+}
+
 function roleBefore(toks: Tok[], i: number, t: Term, fi = false): Role | null {
-  // A word the lexicon doesn't know, after a product noun, is its filling: "Gyoza Dumplings Tofu & Vegetable".
-  if (t.adhoc && !fi) for (let j = i - 1; j >= 0 && toks[j].seg === toks[i].seg; j--) if (!toks[j].num && isModWord(toks[j].w, t, false)) return "modifier";
+  // A word the lexicon doesn't know, after a product noun, is its filling or flavour:
+  // "Gyoza Dumplings Tofu & Vegetable", "Chicken fillet strips honey". A singular noun right
+  // before it is a compound instead, and the word stays the product: "coffee beans", "chicken breast".
+  if (t.adhoc && !fi)
+    for (let j = i - 1; j >= 0 && toks[j].seg === toks[i].seg; j--) {
+      const w = toks[j].w;
+      if (toks[j].num || (j === i - 1 && singular(w) === w && !toks[j].joined)) continue;
+      if (isModWord(w, t, false) || isLexNoun(w, t)) return "modifier";
+    }
   // A product noun, then the size, then the term: "yoghurt 4x125 g strawberry" is a flavour.
   let sized = t.flavour;
   for (let j = i - 1; j >= 0 && toks[j].seg === toks[i].seg; j--) {
@@ -366,6 +394,9 @@ function occurrences(toks: Tok[], t: Term, fi: boolean): Role[] {
           const prefix = w.slice(0, w.lastIndexOf(v));
           // Without a lexicon entry we can't tell "cupcake" from "pancake" or "smokehouse".
           role = t.adhoc ? "mention" : t.notPrefix.some((x) => prefix.endsWith(x)) ? "modifier" : (roleBefore(toks, i, t, fi) ?? roleAfter(toks, i, t, fi));
+          // A compound is weak evidence (it can be a brand, "PORTOMATO"), so a made product anywhere
+          // later in the name, even past the size, wins: "PORTOMATO 3KG PIZZASAUCE".
+          if (role === "head" && toks.some((x, j) => j > i && x.seg === toks[i].seg && !x.num && isModWord(x.w, t, fi))) role = "modifier";
           break;
         }
         if (w.includes(v)) {
@@ -452,8 +483,10 @@ export function homeCategories(t: Term, all: Iterable<Product>): Map<string, Hom
   if (food >= 0) for (const cat of [...heads.keys()]) if (isNonFood(cat)) heads.delete(cat);
   const most = Math.max(0, ...heads.values());
   // A word the lexicon doesn't know is often a narrow product ("peas", "avocado") spread over
-  // fresh, frozen and canned ranges, so a tenth of a range is enough.
-  const share = t.adhoc ? HOME_SHARE_ADHOC : HOME_SHARE;
+  // fresh, frozen and canned ranges, so a tenth of a range is enough. A product-type word
+  // ("burger", "sauce") is not narrow: it names a dozen ranges, so it keeps the usual bar.
+  const narrow = t.adhoc && !EN_MOD.has(t.key.slice(1));
+  const share = narrow ? HOME_SHARE_ADHOC : HOME_SHARE;
   for (const [cat, h] of heads) {
     const n = size.get(cat)!;
     stats.set(cat, { heads: h, size: n, share: h / n });
@@ -461,7 +494,7 @@ export function homeCategories(t: Term, all: Iterable<Product>): Map<string, Hom
     // range (feta among the salad cheeses, 8 of 47).
     // An unknown word is also at home in a wide range where most products naming it are it:
     // two frozen peas among 150 frozen vegetables, against one pea-and-carrot mix.
-    const mostlyIt = t.adhoc && h >= 3 && h / named.get(cat)! >= ADHOC_HEAD_RATIO;
+    const mostlyIt = narrow && h >= 3 && h / named.get(cat)! >= ADHOC_HEAD_RATIO;
     if (h >= 2 && (h / n >= share || mostlyIt || (h === most && h / n >= MOST_SHARE))) out.set(cat, { heads: h, size: n, share: h / n });
   }
   homeCache.set(t.key, out);
@@ -613,8 +646,11 @@ export function rank(q: string, candidates: Product[], all: Iterable<Product>, h
     const role = mentions(p, head) ? (termRole(p, head) ?? "mention") : null;
     const h = homeOverride ? { share: 1 } : home!.get(p.category);
     let tier: Match["tier"] | null = null;
+    // In a range that is mostly the term, an unnamed product counts too, unless its name says it is
+    // another product the lexicon knows: garlic and leek sit in the onion range.
+    const strong = !homeOverride && h && h.share >= HOME_STRONG && (role !== null || !namesOther(p, head));
     if ((h || (role === "head" && sibling(p.category))) && role === "head") tier = 0;
-    else if (h && (role === "mention" || (!homeOverride && h.share >= HOME_STRONG))) tier = 1;
+    else if (h && (role === "mention" || strong)) tier = 1;
     else if (role === "head") tier = 2;
     else if (role !== null) tier = 3;
     if (tier !== null && tier < 3 && foodTerm.get(head.key) && isNonFood(p.category)) tier = 3;
@@ -634,10 +670,24 @@ export function rank(q: string, candidates: Product[], all: Iterable<Product>, h
   return out;
 }
 
+const otherCache = new Map<string, boolean>();
+/** The product is the head of another lexicon entry, outside the term's own family ("GARLIC LOOSE" for onion). */
+function namesOther(p: Product, t: Term): boolean {
+  const key = `${p.id}|${t.key}`;
+  const hit = otherCache.get(key);
+  if (hit !== undefined) return hit;
+  const own = LEXICON[t.key];
+  const out = Object.entries(LEXICON).some(([k, e]) =>
+    k !== t.key && !e.flavour && !e.qualifier && !e.isa?.includes(t.key) && !own?.isa?.includes(k) && termRole(p, entryTerm(k, e)) === "head");
+  otherCache.set(key, out);
+  return out;
+}
+
 /** The head term: the last word that isn't a form ("salmon fillet" is about salmon). */
 export function headIndex(terms: Term[]): number {
   let hi = terms.length - 1;
-  while (hi > 0 && (QUERY_FORMS.has(terms[hi].key.replace(/^~/, "")) || QUERY_FILLER.has(terms[hi].key.replace(/^~/, "")))) hi--;
+  const skip = (t: Term) => QUERY_FORMS.has(t.key.replace(/^~/, "")) || QUERY_FILLER.has(t.key.replace(/^~/, "")) || Boolean(LEXICON[t.key]?.qualifier);
+  while (hi > 0 && skip(terms[hi])) hi--;
   return hi;
 }
 

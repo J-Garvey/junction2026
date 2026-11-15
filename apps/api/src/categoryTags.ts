@@ -208,9 +208,10 @@ export function enToFi(word: string, all: Product[]): string[] {
   for (const [s, k] of cands) {
     // A stem holding the English word is the loanword itself ("smokehouse" for "house").
     if (s.includes(w) || out.some((o) => s.includes(o) || o.includes(s))) continue;
-    // Most Finnish names with the stem are this product in English too.
+    // Most Finnish names with the stem are this product in English too. Names given only in
+    // Finnish can't say, so they don't count against it ("Hunajainen SAM Kesäkukka Hunaja").
     let total = 0;
-    for (const x of words) if (x.fi.some((f) => f.includes(s))) total++;
+    for (const x of words) if (!x.copy && x.fi.some((f) => f.includes(s))) total++;
     if (k / total < 0.5) continue;
     out.push(s);
     if (out.length >= 2) break;
