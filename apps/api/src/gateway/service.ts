@@ -123,6 +123,7 @@ function buildQuote({ hotelId, body, lookups, amendsOrderId, fixedPrices }: Buil
       stock: l.stock,
       availableDate: l.availableDate,
       closingTime: l.closingTime,
+      availabilityEvidence: l.availabilityEvidence,
       priceValidTo: l.price?.validTo ?? null,
       logisticModel: l.logisticModel,
       source: l.source,

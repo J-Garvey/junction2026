@@ -320,6 +320,7 @@ function makeLine(c: Candidate, needs: Need[], needValue: number, quantity: numb
     stock: c.stock,
     availableDate: c.availableDate,
     closingTime: c.closingTime,
+    availabilityEvidence: c.availabilityEvidence,
     reliability: c.reliability,
     source: c.source,
     verdict: "green",
@@ -522,6 +523,7 @@ export async function quoteAndDecide(plan: StoredPlan, personToken?: string): Pr
     if (!l) continue;
     l.unitPrice = ql.unitPrice;
     l.lineTotal = ql.lineTotal;
+    l.availabilityEvidence = ql.availabilityEvidence;
     for (const r of ql.rules) if (!l.rules.some((x) => x.ruleId === r.ruleId)) l.rules.push(r);
     Object.assign(l, verdictOf(l, plan.urgent));
   }
