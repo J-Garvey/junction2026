@@ -129,14 +129,15 @@ export function resolveDate(text: string, from: Date = now()): { date: string | 
       return { date: isoDate(new Date(d.toLocaleString("en-US", { timeZone: "Europe/Helsinki" }))), text: DAYS[i][0].toUpperCase() + DAYS[i].slice(1) };
     }
   }
-  const dm = t.match(/\b(\d{1,2})\s*(?:\.|st|nd|rd|th)?\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b/);
+  const dm = t.match(/\b(\d{1,2})\s*(?:\.|st|nd|rd|th)?\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b(?:\s+(20\d\d)\b)?/);
   if (dm) {
     const month = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"].indexOf(dm[2]);
-    const y = from.getUTCFullYear();
+    const y = dm[3] ? Number(dm[3]) : from.getUTCFullYear();
     const candidate = `${y}-${String(month + 1).padStart(2, "0")}-${dm[1].padStart(2, "0")}`;
     if (!isCalendarDate(candidate)) return { date: null, text: dm[0] };
     let d = new Date(Date.UTC(y, month, Number(dm[1])));
-    if (d.getTime() < from.getTime() - 86_400_000) d = new Date(Date.UTC(y + 1, month, Number(dm[1])));
+    if (!dm[3] && d.getTime() < from.getTime() - 86_400_000) d = new Date(Date.UTC(y + 1, month, Number(dm[1])));
+    if (d.getUTCMonth() !== month || d.getUTCDate() !== Number(dm[1])) return { date: null, text: dm[0] };
     return { date: isoDate(d), text: dm[0] };
   }
   return { date: null, text: null };
