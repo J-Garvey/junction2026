@@ -195,7 +195,7 @@ export function tokenize(name: string, brand: string | null): Tok[] {
   return out;
 }
 
-type Term = { key: string; en: string[][]; fi: string[]; family: Set<string>; famFi: string[]; notPrev: Set<string>; notNext: Set<string>; notPrefix: string[]; flavour: boolean; adhoc: boolean };
+type Term = { key: string; en: string[][]; fi: string[]; probes: string[]; family: Set<string>; famFi: string[]; notPrev: Set<string>; notNext: Set<string>; notPrefix: string[]; flavour: boolean; adhoc: boolean };
 
 const termCache = new Map<string, Term>();
 function entryTerm(key: string, e: Entry): Term {
@@ -217,7 +217,11 @@ function entryTerm(key: string, e: Entry): Term {
   addFam(e);
   for (const p of e.isa ?? []) if (LEXICON[p]) addFam(LEXICON[p]);
   for (const c of Object.values(LEXICON)) if (c.isa?.includes(key)) addFam(c);
-  const t: Term = { key, en, fi, family, famFi, notPrev: new Set(e.notPrev ?? []), notNext: new Set(e.notNext ?? []), notPrefix: e.notPrefix ?? [], flavour: Boolean(e.flavour), adhoc: Boolean(e.adhoc) };
+  // Every possible occurrence contains a first phrase word, a single-word
+  // inflection, or a Finnish stem. This only rules out impossible matches;
+  // role/identity/diet checks still decide what the product actually is.
+  const probes = [...new Set([...en.flatMap((seq) => seq.length > 1 ? [seq[0]] : plurals(seq[0])), ...fi])];
+  const t: Term = { key, en, fi, probes, family, famFi, notPrev: new Set(e.notPrev ?? []), notNext: new Set(e.notNext ?? []), notPrefix: e.notPrefix ?? [], flavour: Boolean(e.flavour), adhoc: Boolean(e.adhoc) };
   termCache.set(key, t);
   return t;
 }
@@ -438,7 +442,17 @@ const best = (rs: Role[]): Role | null => (rs.includes("head") ? "head" : rs.inc
 
 /** How the term relates to the product, from both names. */
 const tokCache = new Map<string, { en: Tok[]; fi: Tok[] | null }>();
+const searchTextCache = new WeakMap<Product, string>();
+function couldMention(p: Product, t: Term): boolean {
+  let text = searchTextCache.get(p);
+  if (text === undefined) {
+    text = lc(`${p.name} ${p.nameFi ?? ""} ${p.brand ?? ""}`);
+    searchTextCache.set(p, text);
+  }
+  return t.probes.some((probe) => text.includes(probe));
+}
 export function termRole(p: Product, t: Term): Role | null {
+  if (!couldMention(p, t)) return null;
   let tk = tokCache.get(p.id);
   if (!tk) {
     tk = { en: tokenize(p.name, p.brand), fi: p.nameFi ? tokenize(p.nameFi, p.brand) : null };
@@ -553,6 +567,7 @@ const wordsCache = new Map<string, { en: string[]; fi: string[] }>();
 function mentions(p: Product, t: Term): boolean {
   if (t.key === "~vegan" && p.claims.includes("VEGAN")) return true;
   if ((t.key === "~vegetarian" || t.key === "~veggie") && p.claims.some((c) => c === "VEGAN" || c === "VEGETARIAN")) return true;
+  if (!couldMention(p, t)) return false;
   let h = wordsCache.get(p.id);
   if (!h) {
     const words = (s: string) => lc(s).split(/[^\p{L}\p{N}]+/u).filter(Boolean);

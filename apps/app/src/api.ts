@@ -341,6 +341,7 @@ export const api = {
   session: (personId: string) => post<{ person: Person }>("/api/session", { personId }),
   me: () => get<{ person: Person }>("/api/me"),
   home: () => get<HomeResp>("/api/home"),
+  warnings: () => get<Pick<HomeResp, "warnings">>("/api/warnings"),
   message: (text: string) => post<MessageResp>("/api/messages", { text }),
   prepareMessage: (text: string, signal: AbortSignal) => call<{ ok: boolean }>("POST", "/api/messages/prepare", { text }, signal),
   request: (request: SingleRequest, eventId?: string, reviewing = false, itemReview = false) => post<PlanResp>("/api/requests", { request, eventId, reviewing, itemReview }),
