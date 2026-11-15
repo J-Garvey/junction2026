@@ -8,6 +8,7 @@
     "dev": "pnpm -r --parallel --filter ./apps/* dev",
     "build": "pnpm -r build",
     "start": "pnpm --filter @aimo/api start",
+    "start:demo": "pnpm --filter @aimo/api start:demo",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
     "seed": "pnpm --filter @aimo/api seed",

@@ -20,6 +20,7 @@ import { Products, SupplierProduct } from "./screens/Products";
 import { WhatsApp, WhatsAppSimulator } from "./screens/WhatsApp";
 import { WhatsAppWebConnection } from "./screens/WhatsAppWebConnection";
 import "./shell-navigation.css";
+import { useMenu } from "./ui/useMenu";
 
 
 export function App() {
@@ -28,6 +29,7 @@ export function App() {
   const [outlets, setOutlets] = useState<Outlet[]>([]);
   const [status, setStatus] = useState<StatusResp | null>(null);
   const [needPick, setNeedPick] = useState(false);
+  const [sessionVersion, setSessionVersion] = useState(0);
   const [tick, setTick] = useState(0);
   const [warnings, setWarnings] = useState<WarningRecord[]>([]);
   const [bootErr, setBootErr] = useState<string | null>(null);
@@ -37,6 +39,7 @@ export function App() {
   useEffect(() => {
     authHooks.onUnauthorized = () => {
       setMe(null);
+      setWarnings([]);
       setNeedPick(true);
     };
     api
@@ -60,21 +63,27 @@ export function App() {
 
   useEffect(() => {
     if (!me) return;
+    let live = true;
     const load = () =>
       api
         .home()
         .then((h) => {
-          setWarnings(h.warnings);
+          if (live) setWarnings(h.warnings);
         })
         .catch(() => {});
     load();
     const t = setInterval(load, 15000);
-    return () => clearInterval(t);
+    return () => {
+      live = false;
+      clearInterval(t);
+    };
   }, [me, tick]);
 
   async function pick(id: string) {
     const r = await api.session(id);
+    setWarnings([]);
     setMe(r.person);
+    setSessionVersion((v) => v + 1);
     setNeedPick(false);
     refresh();
   }
@@ -105,11 +114,14 @@ export function App() {
       </div>
     );
   if ((!ctx || needPick) && status && !status.testMode) return <div className="picker"><Lockup /><p>Sign in with your personal hotel credential. Demo persona switching is disabled.</p></div>;
-  if (!ctx || needPick) return <PersonPicker people={people} current={me} status={status} onChange={refresh} onPick={pick} onCancel={me ? () => setNeedPick(false) : undefined} />;
+  const picker = <PersonPicker people={people} current={me} status={status} onChange={refresh} onPick={pick} onCancel={me ? () => setNeedPick(false) : undefined} />;
+  if (!ctx) return picker;
 
   return (
-    <Ctx.Provider value={ctx}>
-      <div className="shell">
+    <Ctx.Provider key={sessionVersion} value={ctx}>
+      {needPick && picker}
+      {/* Cancel preserves drafts; a successful session change remounts this entire tree. */}
+      <div className="shell" hidden={needPick} style={needPick ? { display: "none" } : undefined}>
         <a className="skip-to-content" href="#main-content">Skip to content</a>
         <div className="main">
           <TopBar status={status} me={ctx.me} onSwitch={() => setNeedPick(true)} />
@@ -140,46 +152,30 @@ export function App() {
   );
 }
 
-function OrderSwitcher({ currentId }: { currentId?: string }) {
+export function OrderSwitcher({ currentId }: { currentId?: string }) {
   const { data } = useLoad(() => api.baskets(), []);
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const menu = useMenu();
   const orders = [...(data?.baskets ?? [])].sort((a, b) => a.deliveryDate.localeCompare(b.deliveryDate));
   const current = orders.find((order) => order.id === currentId);
 
-  useEffect(() => {
-    if (!open) return;
-    const closeOutside = (event: MouseEvent) => {
-      if (!ref.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", closeOutside);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("mousedown", closeOutside);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [open]);
-
   return (
-    <div className="order-switcher" ref={ref}>
-      <button type="button" className="profile order-switcher-trigger" onClick={() => setOpen((value) => !value)} aria-haspopup="menu" aria-expanded={open}>
+    <div className="order-switcher" {...menu.rootProps}>
+      <button type="button" className="profile order-switcher-trigger" {...menu.triggerProps}>
         <b>{current?.name ?? (currentId ? "Loading…" : "My orders")}</b>
         <Icon n="down" s={14} />
       </button>
-      {open && (
-        <div className="order-switcher-menu" role="menu" aria-label="Switch order">
+      {menu.open && (
+        <div className="order-switcher-menu" {...menu.menuProps} aria-label="Switch order">
           <div className="order-switcher-list">
             {orders.map((order) => (
               <Link
                 key={order.id}
                 to={`/baskets/${order.id}`}
                 role="menuitem"
+                tabIndex={-1}
                 className={order.id === currentId ? "selected" : ""}
                 aria-current={order.id === currentId ? "page" : undefined}
-                onClick={() => setOpen(false)}
+                onClick={menu.close}
               >
                 <span className="order-switcher-order">
                   <b>{order.name}</b>
@@ -189,7 +185,7 @@ function OrderSwitcher({ currentId }: { currentId?: string }) {
               </Link>
             ))}
           </div>
-          <Link to="/" role="menuitem" className="order-switcher-all" onClick={() => setOpen(false)}>
+          <Link to="/" role="menuitem" tabIndex={-1} className="order-switcher-all" onClick={menu.close}>
             <span>View all orders</span>
             <Icon n="chev" s={14} />
           </Link>
@@ -230,29 +226,12 @@ function TopBar({ status, me, onSwitch }: { status: StatusResp | null; me: Perso
   );
 }
 
-function AccountMenu({ me, onSwitch }: { me: Person; onSwitch: () => void }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const closeOutside = (event: MouseEvent) => {
-      if (!ref.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", closeOutside);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("mousedown", closeOutside);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [open]);
+export function AccountMenu({ me, onSwitch }: { me: Person; onSwitch: () => void }) {
+  const menu = useMenu();
 
   return (
-    <div className="account-menu" ref={ref}>
-      <button type="button" className="profile" onClick={() => setOpen((value) => !value)} aria-label={`Signed in as ${me.name}`} aria-haspopup="menu" aria-expanded={open} title={`Signed in as ${me.name}`}>
+    <div className="account-menu" {...menu.rootProps}>
+      <button type="button" className="profile" {...menu.triggerProps} aria-label={`Signed in as ${me.name}`} title={`Signed in as ${me.name}`}>
         <span className="avatar">{initials(me.name)}</span>
         <span className="account-details">
           <b>{me.name}</b>
@@ -260,8 +239,8 @@ function AccountMenu({ me, onSwitch }: { me: Person; onSwitch: () => void }) {
         </span>
         <span className="account-chevron"><Icon n="down" s={14} /></span>
       </button>
-      {open && (
-        <div className="account-panel" role="menu">
+      {menu.open && (
+        <div className="account-panel" {...menu.menuProps}>
           <div className="account-current">
             <span className="avatar">{initials(me.name)}</span>
             <span>
@@ -270,10 +249,13 @@ function AccountMenu({ me, onSwitch }: { me: Person; onSwitch: () => void }) {
               <span className="small muted">{me.title}</span>
             </span>
           </div>
-          <NavLink to="/products" role="menuitem" onClick={() => setOpen(false)}><Icon n="list" s={17} /> Products</NavLink>
-          <NavLink to="/audit" role="menuitem" onClick={() => setOpen(false)}><Icon n="list" s={17} /> Audit log</NavLink>
-          <NavLink to="/rules" role="menuitem" onClick={() => setOpen(false)}><Icon n="shield" s={17} /> Rules</NavLink>
-          <button type="button" className="account-action" role="menuitem" onClick={() => { setOpen(false); onSwitch(); }}><Icon n="users" s={17} /> Switch user</button>
+          <NavLink to="/audit" role="menuitem" tabIndex={-1} onClick={menu.close}><Icon n="list" s={17} /> Audit log</NavLink>
+          <NavLink to="/rules" role="menuitem" tabIndex={-1} onClick={menu.close}><Icon n="shield" s={17} /> Rules</NavLink>
+          <NavLink to="/products" role="menuitem" tabIndex={-1} onClick={menu.close}><Icon n="list" s={17} /> Products</NavLink>
+          <NavLink to="/inbox" role="menuitem" tabIndex={-1} onClick={menu.close}><Icon n="q" s={17} /> Waiting</NavLink>
+          <NavLink to="/requests" role="menuitem" tabIndex={-1} onClick={menu.close}><Icon n="chat" s={17} /> Requests</NavLink>
+          <NavLink to="/events" role="menuitem" tabIndex={-1} onClick={menu.close}><Icon n="cal" s={17} /> Events</NavLink>
+          <button type="button" className="account-action" role="menuitem" tabIndex={-1} onClick={() => { menu.close(); onSwitch(); }}><Icon n="users" s={17} /> Switch user</button>
         </div>
       )}
     </div>
@@ -309,7 +291,7 @@ function PersonPicker({
     <div className="picker">
       <Lockup s={30} />
       <h1>Demo persona</h1>
-      <p className="muted">Local test mode: viewing as a simulated hotel person.</p>
+      <p className="muted">Demo mode: viewing as a simulated hotel person.</p>
       <div className="pickgrid">
         {people.map((p) => (
           <button key={p.id} type="button" className={`pickcard ${current?.id === p.id ? "on" : ""}`} onClick={() => onPick(p.id)}>

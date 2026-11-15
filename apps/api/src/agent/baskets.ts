@@ -7,13 +7,75 @@ import type { Person } from "../identity.js";
 import { eur, parseAimoTime, round2, sha256, stableStringify } from "../util.js";
 import { getEvent, personActor } from "./events.js";
 import { gw, GatewayError } from "./gatewayClient.js";
-import { HOTEL_ID, listPlans, savePlan } from "./plan.js";
+import { emptyOverrides, getPlan, HOTEL_ID, listPlans, savePlan, type StoredPlan } from "./plan.js";
 import { matchesSelectedProducts } from "./match.js";
-import { allQuestions, makeQuestion, saveQuestion } from "./questions.js";
+import { allQuestions, expireOpenQuestions, makeQuestion, saveQuestion } from "./questions.js";
 import { allergenQuestionText, currentAllergenAcknowledgements, lineAllergenScope, missingAllergenProducts } from "./allergenData.js";
 
 export class BasketReviewError extends Error {
   constructor(public status: number, message: string) { super(message); }
+}
+
+// Keep correction and finance commit mutually exclusive across their HTTP lookups.
+const changingBaskets = new Set<string>();
+export function assertBasketIdle(eventId: string) {
+  if (changingBaskets.has(eventId)) throw new BasketReviewError(409, "This order is being changed or placed. Refresh it and try again.");
+}
+export async function changeBasket<T>(eventId: string, change: () => Promise<T>): Promise<T> {
+  assertBasketIdle(eventId);
+  changingBaskets.add(eventId);
+  try { return await change(); } finally { changingBaskets.delete(eventId); }
+}
+
+export function basketChangeToken(plan: StoredPlan) {
+  const event = plan.eventId ? getEvent(plan.eventId) : null;
+  // HTTP processing time is saved after the response basket is assembled. It
+  // does not change order terms or invalidate the correction just offered.
+  const changeState = { ...plan, processing: undefined };
+  return sha256(stableStringify({ plan: changeState, siteId: event?.siteId, deliveryDate: event?.serviceDate, version: event?.version }));
+}
+
+/** Withdraw only an uncommitted request; all product/quantity edits use item review. */
+export async function correctBasketRequest(eventId: string, planId: string, token: string, action: "edit" | "remove", person: Person) {
+  return changeBasket(eventId, async () => {
+    const check = () => {
+      const plan = getPlan(planId);
+      const event = getEvent(eventId);
+      if (!plan || !event || plan.eventId !== eventId) throw new BasketReviewError(404, "No such request in this order");
+      const outlets = [plan.outletId, plan.request?.outletId, ...plan.lines.map((l) => l.outletId), ...plan.needs.map((n) => n.outletId)];
+      if (person.hotelId !== HOTEL_ID || person.role !== "chef" || (!person.hotelScope && outlets.some((id) => id && !person.outlets.includes(id))) || plan.siteId !== event.siteId || (plan.request?.siteId && plan.request.siteId !== event.siteId))
+        throw new BasketReviewError(403, "This item is outside your hotel or outlet scope");
+      if (plan.kind !== "single" || !plan.request || plan.orderIds.length || plan.overrides.accepted || plan.status === "ordered" || plan.status === "rejected" || (action === "edit" && !plan.basketedAt))
+        throw new BasketReviewError(409, "Only uncommitted requests can be changed. Placed supplier orders cannot be edited or removed here.");
+      if (basketChangeToken(plan) !== token) throw new BasketReviewError(409, "This request changed. Refresh the order before editing or removing it.");
+      return plan;
+    };
+    check();
+    const { orders } = await gw.orders(eventId);
+    return tx(() => {
+      const plan = check();
+      // Also protect a committed receipt if its plan link was not saved after commit.
+      const quoteIds = [plan.quoteId, ...allQuestions().filter((q) => q.type === "order_review" && (q.facts.planIds as string[] | undefined)?.includes(plan.id)).map((q) => q.quoteId)];
+      if (orders.some((o) => quoteIds.includes(o.quoteId))) throw new BasketReviewError(409, "This request has a placed supplier order and cannot be changed here.");
+      invalidateBasketReview(eventId);
+      expireOpenQuestions(plan.id, "replaced");
+      plan.basketedAt = null;
+      plan.reviewing = false; // Keep the withdrawn request visible under decisions.
+      plan.proposal = false;
+      plan.quoteId = null;
+      plan.fingerprint = null;
+      plan.approvalId = null;
+      plan.approvalsNeeded = [];
+      plan.itemReviews = undefined;
+      plan.overrides = { ...emptyOverrides(), chosen: plan.overrides.chosen, salesQuantities: plan.overrides.salesQuantities };
+      plan.status = action === "remove" ? "rejected" : "waiting";
+      plan.summary = action === "remove" ? `Removed from the order by ${person.name}` : "Review changes before adding to the order again";
+      if (action === "remove") plan.removedFromBasketAt = now().toISOString();
+      savePlan(plan);
+      audit({ actor: personActor(person), action: "request_received", summary: `${person.name} ${action === "remove" ? "removed" : "withdrew for editing"} ${plan.title}`, eventId, details: { kind: "confirmation", planId, action }, visibility: "hotel", usesFixture: plan.usesFixtures });
+      return plan;
+    });
+  });
 }
 
 const stagedPlans = (eventId: string) => listPlans().filter((p) => p.eventId === eventId && p.basketedAt && !p.orderIds.length);
@@ -176,6 +238,10 @@ export async function submitBasketForReview(eventId: string, person: Person, tok
 
 /** Finance signs the exact quote, then the gateway rechecks its terms at commit. */
 export async function answerBasketReview(question: Question, person: Person, token: string) {
+  return changeBasket(question.eventId!, () => commitBasketReview(question, person, token));
+}
+
+async function commitBasketReview(question: Question, person: Person, token: string) {
   if (person.hotelId !== HOTEL_ID) throw new BasketReviewError(403, "This order belongs to another hotel");
   if (question.answer === "reject") return;
   const { orders } = await gw.orders(question.eventId!);

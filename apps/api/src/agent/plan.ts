@@ -21,6 +21,7 @@ import { recallSubstitute } from "./memory.js";
 import { basketSnapshot } from "../whatsapp/snapshot.js";
 import { forEachConcurrent } from "./concurrency.js";
 import { quantityScope, refreshItemReviews } from "./itemReview.js";
+import { ingredientAllocations, participatingGroups } from "./menuAllocations.js";
 import { applyAllergenAcknowledgements, constraintsForLine, lineAllergenScope } from "./allergenData.js";
 import { HOTEL_ID, mandate } from "./mandate.js";
 
@@ -44,6 +45,7 @@ export type Overrides = {
 };
 export type StoredPlan = Plan & {
   overrides: Overrides; event?: EventSpec | null; questionsAnswered: number;
+  removedFromBasketAt?: string;
   stockPolicy?: string;
   /** A channel checkout combines staged requests under one mandate evaluation. */
   basketCheckout?: { snapshot: string; sourcePlanIds: string[] };
@@ -122,22 +124,18 @@ export function needsFromSingle(r: SingleRequest, event?: EventSpec | null): Nee
 }
 
 /** Each diet group's lines are matched separately (Q03.3); regular guests never move to the diet product silently. */
-export function needsFromEvent(e: EventSpec, m: Mandate, removed: string[]): Need[] {
+export function needsFromEvent(e: EventSpec, m: Mandate, removed: string[], problems: FiredRule[]): Need[] {
   const out: Need[] = [];
-  const dietTotal = e.dietGroups.reduce((s, g) => s + g.count, 0);
-  const regular = Math.max(0, e.guests - dietTotal);
   for (const dish of e.dishes) {
-    const groups = [
-      { id: "regular", label: "No restrictions", count: regular, constraints: { claims: [], avoidAllergens: [], labels: [] } as Constraints },
-      ...e.dietGroups.filter((g) => !dish.excludesGroups.includes(g.id)).map((g) => ({ id: g.id, label: g.label, count: g.count, constraints: g.constraints })),
-    ];
+    const groups = participatingGroups(e, dish);
     for (const ing of dish.ingredients) {
-      for (const g of groups) {
+      // Older saved removals used the regular-group id for the event total.
+      if (ing.total && (removed.includes(`${dish.id}:${ing.id}:event-total`) || removed.includes(`${dish.id}:${ing.id}:regular`))) continue;
+      const allocation = ingredientAllocations(ing, dish, groups);
+      problems.push(...allocation.problems);
+      for (const { group: g, productId: pinnedId } of allocation.allocations) {
         const id = `${dish.id}:${ing.id}:${g.id}`;
-        if (removed.includes(id) || g.count <= 0) continue;
-        // A fixed total belongs to the whole event, so it is one need, carried by the unrestricted group.
-        if (ing.total && g.id !== "regular") continue;
-        const pinnedId = ing.variants?.[g.id] ?? ing.productId ?? null;
+        if (removed.includes(id)) continue;
         const pinned = pinnedId ? getProduct(pinnedId) : null;
         const frozen = Boolean(ing.frozen ?? pinned?.temperature === 7);
         const nb = neededBy(e.serviceDate, frozen, m);
@@ -162,7 +160,7 @@ export function needsFromEvent(e: EventSpec, m: Mandate, removed: string[]): Nee
             groupId: g.id,
             groupLabel: `${g.label} guests`,
             guests: ing.total ? null : g.count,
-            perPortion: ing.perPortion ?? null,
+            perPortion: ing.total ? null : ing.perPortion ?? null,
             outletId: dish.outletId,
             amount,
             constraints,
@@ -172,7 +170,7 @@ export function needsFromEvent(e: EventSpec, m: Mandate, removed: string[]): Nee
             pinnedProductId: pinnedId,
             neededBy: nb.date,
             frozen,
-            rules: [...nb.rules, ...(ing.perPortion ? quantitySanity(ing.text, ing.perPortion, g.count) : [])],
+            rules: [...nb.rules, ...(ing.perPortion && !ing.total ? quantitySanity(ing.text, ing.perPortion, g.count) : [])],
           }),
         );
       }
@@ -353,9 +351,9 @@ export async function runPipeline(plan: StoredPlan): Promise<StoredPlan> {
     needs = needsFromSingle(plan.request!, plan.event);
   } else {
     const e = plan.event!;
-    needs = needsFromEvent(e, m, ov.removedNeeds);
-    const dietTotal = e.dietGroups.reduce((s, g) => s + g.count, 0);
     plan.inputRules = [];
+    needs = needsFromEvent(e, m, ov.removedNeeds, plan.inputRules);
+    const dietTotal = e.dietGroups.reduce((s, g) => s + g.count, 0);
     if (dietTotal > e.guests) plan.inputRules.push(fire("DIET-03", { dietTotal, guests: e.guests }));
     if (!e.guests) plan.inputRules.push(fire("REQ-06", { event: e.name }));
     if (!e.dietsConfirmed) plan.inputRules.push(fire("REQ-05", { event: e.name }));
@@ -463,7 +461,7 @@ export async function quoteAndDecide(plan: StoredPlan, personToken?: string): Pr
     }
   }
   await runPipeline(plan);
-  if (plan.inputRules.some((r) => r.outcome === "block" || r.ruleId === "REQ-05" || r.ruleId === "REQ-06")) {
+  if (plan.inputRules.length) {
     plan.status = "needs_input";
     plan.summary = plan.inputRules.map((r) => r.message).join(" ");
     savePlan(plan);

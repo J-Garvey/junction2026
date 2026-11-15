@@ -111,7 +111,7 @@ describe("explicit UNDECLARED allergy exclusions (Q02.3, R07-01)", () => {
     expect(blockedBy(explicitOnly).map((r) => r.ruleId)).toEqual(["ALG-04"]);
     expect(failsAllergens(explicitOnly, ["AN"])).toBe("undeclared AN");
     const missing = declared({ hasAllergenData: false, allergenUndeclared: undefined });
-    expect(blockedBy(missing).map((r) => r.ruleId)).toEqual(["ALG-03"]);
+    expect(blockedBy(missing)).toMatchObject([{ ruleId: "ALG-03", outcome: "ask_chef", overridable: true }]);
     expect(failsAllergens(missing, ["AN"])).toBe("no allergen declaration");
   });
 

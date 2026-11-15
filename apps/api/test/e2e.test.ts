@@ -75,7 +75,7 @@ async function milkCase(choice: "continue" | "confirmed") {
   return { plan: r.plan, stockQ, approverTry, a, after, approval, second, orders };
 }
 
-async function eventCase() {
+async function eventCase(withTreeNutAllergy = true) {
   const { anna, mikko, sara, jonas } = await fresh();
   const aino = anna;
   const sanna = sara;
@@ -98,11 +98,11 @@ async function eventCase() {
   out.late = await jonas.call("POST", `/questions/${out.sannaQs[0].id}/answer`, { optionId: "reject" });
   out.staleEdit = await aino.call("POST", "/events/evt-wedding/change", { guests: 200, version: 0 });
   await aino.call("POST", "/clock", { scene: "3" });
-  out.change = await aino.call("POST", "/events/evt-wedding/change", { guests: 194, group: { id: "onni", label: "Tree nuts (Onni)", count: 1, constraints: { claims: [], avoidAllergens: ["AN"], labels: [] }, standing: false }, version: await v() });
+  out.change = await aino.call("POST", "/events/evt-wedding/change", { guests: 194, ...(withTreeNutAllergy ? { group: { id: "onni", label: "Tree nuts (Onni)", count: 1, constraints: { claims: [], avoidAllergens: ["AN"], labels: [] }, standing: false } } : {}), version: await v() });
   out.allergyQs = (await aino.call("GET", "/home")).questions.filter((q: any) => q.type === "allergy_conflict");
   for (const q of out.allergyQs) await aino.call("POST", `/questions/${q.id}/answer`, { optionId: q.options[0].id });
   out.missingAllergen = (await aino.call("GET", "/home")).questions.find((q: any) => q.type === "missing_allergen_data");
-  out.missingAllergenAnswer = await aino.call("POST", `/questions/${out.missingAllergen.id}/answer`, { optionId: "continue" });
+  if (out.missingAllergen) out.missingAllergenAnswer = await aino.call("POST", `/questions/${out.missingAllergen.id}/answer`, { optionId: "continue" });
   out.changeQs = (await sanna.call("GET", "/home")).questions.filter((q: any) => q.type === "change_outside_tolerance");
   out.changeOk = await sanna.call("POST", `/questions/${out.changeQs[0].id}/answer`, { optionId: "approve" });
   // A finance decision cannot extend the builder's earlier unknown-stock
@@ -222,7 +222,7 @@ describe("Test case 1: the wedding through four scenes (docs/demo-plan.md)", () 
     expect(a.viability.lines).toHaveLength(7);
     expect(a.viability.lines.find((l: any) => l.productId === "469672").verdict).toBe("green");
     expect(a.viability.lines.find((l: any) => l.productId === "467767").status).toBe("unknown_stock");
-    const milk = a.viability.lines.find((l: any) => l.needIds.includes("coffee:milk:regular"));
+    const milk = a.viability.lines.find((l: any) => l.needIds.includes("coffee:milk:event-total"));
     expect(milk.productId).toBe("464306"); // Price wins; unknown stock remains visible.
   });
   it("scene 2: the plan's quantities and €2,003.37; Aino continues with 4 lines, then one card for Sanna", () => {
@@ -248,7 +248,7 @@ describe("Test case 1: the wedding through four scenes (docs/demo-plan.md)", () 
     expect(a.late.status).toBe(409);
     expect(a.staleEdit.status).toBe(409);
   });
-  it("scene 3: the allergy is checked first; almond counts as a tree nut; one card for Sanna", () => {
+  it("scene 3: allergy checks replace the cake and undeclared-allergen toast before finance", () => {
     expect(a.change.held).toBe(true);
     expect(a.change.event.processing).toMatchObject({ stage: "Event change", milestone: "blocked", segments: 1 });
     const cake = a.allergyQs.find((q: any) => q.facts.productId === "467767");
@@ -265,11 +265,17 @@ describe("Test case 1: the wedding through four scenes (docs/demo-plan.md)", () 
     expect(a.changeQs).toHaveLength(1);
     expect(a.changeQs[0].ruleIds).toContain("CHG-02");
     expect(a.changeOk.ok).toBe(true);
+    const toast = a.allergyQs.find((q: any) => q.facts.productId === "477125");
+    expect(toast.ruleIds).toContain("ALG-04");
+    expect(toast.options[0].id).toBe("replace_0");
+    // D35 changes the dietary scope before the amendment, so stock consent is
+    // renewed before applying it, including its confirmed-stock toast replacement.
     expect(a.changeStock).toHaveLength(1);
     expect(a.changeStock[0]).toMatchObject({ forRole: "chef", quoteId: expect.any(String), fingerprint: expect.any(String) });
     expect(a.financeStockTry.status).toBe(409);
     expect(a.changeStockAnswer.error).toBeUndefined();
-    if (a.reviewedChangeOk) expect(a.reviewedChangeOk.error).toBeUndefined(); // A lower total can stay inside the existing spend authority.
+    expect(a.orders[0].lines.find((l: any) => l.productId === "477090")).toMatchObject({ quantity: 6, stock: { kind: "known", amount: 81 }, removed: false });
+    expect(a.orders.flatMap((order: any) => order.lines).filter((line: any) => line.productId === "477125" && !line.removed)).toEqual([]);
   });
   it("scene 4: changed dietary scope needs fresh chef consent; the final check keeps 37 L and fills 10 L", () => {
     expect(a.g188.applied).toBe(false);
@@ -285,7 +291,18 @@ describe("Test case 1: the wedding through four scenes (docs/demo-plan.md)", () 
     expect(qty("464727")).toBe(37);
     expect(qty("464194")).toBe(10);
     expect(qty("469672")).toBe(32);
+    expect(o.lines.filter((l: any) => !l.removed && l.stock.kind === "unknown").map((l: any) => l.productId).sort()).toEqual(["460541", "464194", "464306", "473522"]);
     expect(a.view.coverage).toMatchObject({ level: "at_risk", text: "Ready · 4 stock not confirmed · 1 allergen data not confirmed" });
+  });
+  it("requires a fresh chef stock decision when an unconfirmed toast quantity actually increases", async () => {
+    const changed = await eventCase(false);
+    expect(changed.changeStock).toHaveLength(1);
+    expect(changed.changeStock[0]).toMatchObject({ forRole: "chef", quoteId: expect.any(String), fingerprint: expect.any(String) });
+    expect(changed.beforeStockDecision[0].lines.find((l: any) => l.productId === "477125" && !l.removed).quantity).toBe(5);
+    expect(changed.financeStockTry.status).toBe(409);
+    expect(changed.changeStockAnswer.error).toBeUndefined();
+    expect(changed.reviewedChangeOk.error).toBeUndefined();
+    expect(changed.orders[0].lines.find((l: any) => l.productId === "477125" && !l.removed).quantity).toBe(6);
   });
   it("Valio Aimo sees the sale and the flags, never the allergy or the guests", () => {
     const shared = a.valio.entries;

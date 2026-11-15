@@ -12,12 +12,13 @@ import { audit, auditView, verifyChain, decisionCount, SYSTEM } from "../audit.j
 import { kvGet, kvSet } from "../db.js";
 import { FIXED, rulesView } from "../rules/catalogue.js";
 import { PARAMS, policyParams, storedPolicy } from "../rules/policy.js";
-import { editRules, resetRules, RuleEditError } from "../rules/editor.js";
+import { defaultRuleParams, editRules, resetRules, RuleEditError } from "../rules/editor.js";
 import { getProduct, getProductDetails, catalogSize, searchProducts } from "../catalog.js";
 import { interpretMessage } from "../agent/message.js";
 import { logSearch } from "../searchlog.js";
 import { matchesCurrentShortlists, shortlist } from "../agent/match.js";
 import { allItemsResolved, quantityScope, refreshItemReviews } from "../agent/itemReview.js";
+import { toBase } from "../agent/parse.js";
 import { newPlan, quoteAndDecide, getPlan, listPlans, mandate, savePlan, emptyOverrides, HOTEL_ID, needsFromSingle } from "../agent/plan.js";
 import { questionsFor, allQuestions, getQuestion, canAnswer } from "../agent/questions.js";
 import { answer } from "../agent/answers.js";
@@ -34,7 +35,7 @@ import { hotelFor } from "../ownership.js";
 import { readFilter } from "../gateway/routes.js";
 import { config } from "../config.js";
 import { modelConfigured, modelName } from "../agent/openai.js";
-import { basketReview, submitBasketForReview, invalidateBasketReview, BasketReviewError } from "../agent/baskets.js";
+import { basketReview, submitBasketForReview, invalidateBasketReview, BasketReviewError, basketChangeToken, correctBasketRequest, changeBasket, assertBasketIdle } from "../agent/baskets.js";
 import { approvalLevels, basketStatus, pendingQuestions } from "../agent/basketSummary.js";
 import { measureProcessing, processingClock } from "./processing.js";
 import { allowsOutlets } from "../authorization.js";
@@ -55,11 +56,18 @@ const T = (req: Request) => (req as Authed).token;
 const inPlanScope = (req: Request, plan: { outletId: string }) => allowsOutlets(P(req), HOTEL_ID, [plan.outletId]);
 const inEventScope = (req: Request, event: StoredEvent) => allowsOutlets(P(req), HOTEL_ID, [
   ...event.dishes.map((dish) => dish.outletId),
-  ...listPlans().filter((plan) => plan.eventId === event.id && plan.basketedAt && !plan.orderIds.length)
+  ...listPlans().filter((plan) => plan.eventId === event.id && plan.basketedAt && !plan.removedFromBasketAt && !plan.orderIds.length)
     .flatMap((plan) => plan.lines.filter((line) => !line.removed).map((line) => line.outletId)),
   ...listOrders(HOTEL_ID, event.id).filter((order) => order.state !== "rejected")
     .flatMap((order) => order.lines.filter((line) => !line.removed).map((line) => line.outletId)),
 ]);
+
+// An in-flight item recheck must not save an older copy over a removal or commit.
+const changingPlan = (handler: (req: Request, res: Response) => unknown) => async (req: Request, res: Response) => {
+  const plan = getPlan(String(req.params.id));
+  if (plan?.removedFromBasketAt) return res.status(409).json({ error: "This request was removed from the order" });
+  return plan?.eventId ? changeBasket(plan.eventId, async () => handler(req, res)) : handler(req, res);
+};
 
 function sessionCookie(res: Response, token: string) {
   res.setHeader("Set-Cookie", `aimo_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax`);
@@ -218,7 +226,7 @@ export function appRouter(): Router {
 
   // Resume a saved proposal in the same per-item review as the add-to-order dialog.
   // Keep it visible in its basket; opening details alone never changes the request.
-  r.post("/plans/:id/review-items", async (req, res) => {
+  r.post("/plans/:id/review-items", changingPlan(async (req, res) => {
     const plan = getPlan(String(req.params.id));
     if (!plan) return res.status(404).json({ error: "No such plan" });
     if (!inPlanScope(req, plan)) return res.status(403).json({ error: "This item is outside your hotel or outlet scope" });
@@ -227,22 +235,31 @@ export function appRouter(): Router {
     plan.itemReviews ??= [];
     await quoteAndDecide(plan, T(req));
     res.json({ plan, questions: allQuestions().filter((q) => q.planId === plan.id) });
-  });
+  }));
 
   // Re-check an edited, not-yet-accepted request without leaving abandoned plans in the basket.
-  r.post("/plans/:id/requote", async (req, res) => {
+  r.post("/plans/:id/requote", changingPlan(async (req, res) => {
     const plan = getPlan(String(req.params.id));
     if (!plan) return res.status(404).json({ error: "No such plan" });
     if (!inPlanScope(req, plan)) return res.status(403).json({ error: "This item is outside your hotel or outlet scope" });
     if (plan.kind !== "single" || plan.orderIds.length || plan.overrides.accepted || plan.basketedAt) return res.status(409).json({ error: "This request can no longer be changed" });
     const request = SingleRequest.parse(req.body.request);
     const p = P(req);
-    // Editing or discarding one row retains explicit choices for unchanged rows.
+    if (request.outletId !== plan.outletId || (request.siteId ?? plan.siteId) !== plan.siteId)
+      return res.status(403).json({ error: "A correction must stay within the original delivery site and outlet" });
+    // A product choice belongs to a stable need, so compatible quantity edits keep it.
+    // Text, product, diet or unit-dimension changes require a fresh choice.
     // Rechecking retains item approvals only if their complete terms still match.
     const previous = plan.request;
     const sameScope = previous?.siteId === request.siteId && previous?.outletId === request.outletId && previous?.neededBy === request.neededBy;
     const unchanged = new Set(sameScope ? request.lines.filter((line) => previous?.lines.some((old) => old.id === line.id && JSON.stringify(old) === JSON.stringify(line))).map((line) => line.id) : []);
-    const chosen = plan.overrides.chosen?.filter((choice) => [...unchanged].some((id) => choice.startsWith(`${id}:`)));
+    const sameNeeds = new Set(sameScope ? request.lines.filter((line) => {
+      const old = previous?.lines.find((old) => old.id === line.id);
+      return old?.quantity && line.quantity
+        && toBase(old.quantity).unit === toBase(line.quantity).unit
+        && JSON.stringify({ ...old, quantity: line.quantity }) === JSON.stringify(line);
+    }).map((line) => line.id) : []);
+    const chosen = plan.overrides.chosen?.filter((choice) => [...sameNeeds].some((id) => choice.startsWith(`${id}:`)));
     const salesQuantities = plan.overrides.salesQuantities?.filter((quantity) => unchanged.has(quantity.needId));
     plan.request = request;
     plan.siteId = request.siteId ?? plan.siteId;
@@ -253,11 +270,11 @@ export function appRouter(): Router {
     savePlan(plan);
     await quoteAndDecide(plan, T(req));
     res.json({ plan: getPlan(plan.id), questions: allQuestions().filter((q) => q.planId === plan.id) });
-  });
+  }));
 
   // Adding to an order only stages the checked lines. Supplier submission happens later,
   // when the hotel sends its final order for approval and processing.
-  r.post("/plans/:id/basket", async (req, res) => {
+  r.post("/plans/:id/basket", changingPlan(async (req, res) => {
     const plan = getPlan(String(req.params.id));
     if (!plan) return res.status(404).json({ error: "No such plan" });
     if (!inPlanScope(req, plan)) return res.status(403).json({ error: "This item is outside your hotel or outlet scope" });
@@ -299,9 +316,9 @@ export function appRouter(): Router {
     savePlan(plan);
     invalidateBasketReview(plan.eventId);
     res.json({ plan, questions: allQuestions().filter((q) => q.planId === plan.id), basket: await basketView(plan.eventId, req) });
-  });
+  }));
 
-  r.post("/plans/:id/items/:needId/approve", (req, res) => {
+  r.post("/plans/:id/items/:needId/approve", changingPlan((req, res) => {
     const plan = getPlan(String(req.params.id));
     if (!plan) return res.status(404).json({ error: "No such plan" });
     const p = P(req);
@@ -322,10 +339,10 @@ export function appRouter(): Router {
       savePlan(plan);
     }
     res.json({ plan, questions: [] });
-  });
+  }));
 
   // A piece/weight conversion cannot be invented: the buyer enters whole sales units.
-  r.post("/plans/:id/items/:needId/quantity", async (req, res) => {
+  r.post("/plans/:id/items/:needId/quantity", changingPlan(async (req, res) => {
     const plan = getPlan(String(req.params.id));
     if (!plan) return res.status(404).json({ error: "No such plan" });
     const p = P(req);
@@ -347,12 +364,13 @@ export function appRouter(): Router {
     audit({ actor: personActor(p), action: "request_received", summary: `${p.name} specified ${quantity} ${line.salesUnit} of ${line.productName}`, eventId: plan.eventId, details: { kind: "confirmation", planId: plan.id, needId: need.id, productId, quantity, salesUnit: line.salesUnit }, visibility: "hotel" });
     await quoteAndDecide(plan, T(req));
     res.json({ plan, questions: [] });
-  });
+  }));
 
   // The person approves adding the proposed products to the quote, or picks an alternative first.
-  r.post("/plans/:id/accept", async (req, res) => {
+  r.post("/plans/:id/accept", changingPlan(async (req, res) => {
     const plan = getPlan(String(req.params.id));
     if (!plan) return res.status(404).json({ error: "No such plan" });
+    if (!inPlanScope(req, plan)) return res.status(403).json({ error: "This item is outside your hotel or outlet scope" });
     if (plan.itemReviews) return res.status(409).json({ error: "Approve the individual items and add them to the order before final finance review" });
     if (!plan.proposal) return res.status(409).json({ error: "Nothing waiting to be added" });
     const p = P(req);
@@ -361,8 +379,8 @@ export function appRouter(): Router {
     savePlan(plan);
     await quoteAndDecide(plan, T(req));
     res.json({ plan: getPlan(plan.id), questions: allQuestions().filter((q) => q.planId === plan.id) });
-  });
-  r.post("/plans/:id/choose", async (req, res) => {
+  }));
+  r.post("/plans/:id/choose", changingPlan(async (req, res) => {
     const plan = getPlan(String(req.params.id));
     if (!plan) return res.status(404).json({ error: "No such plan" });
     if (!inPlanScope(req, plan)) return res.status(403).json({ error: "This item is outside your hotel or outlet scope" });
@@ -377,10 +395,10 @@ export function appRouter(): Router {
     savePlan(plan);
     await quoteAndDecide(plan, T(req));
     res.json({ plan: getPlan(plan.id), questions: allQuestions().filter((q) => q.planId === plan.id) });
-  });
+  }));
 
   // DLV-06: a too-late request is either dropped from the quote or kept, unordered, for someone to review.
-  r.post("/plans/:id/too-late", (req, res) => {
+  r.post("/plans/:id/too-late", changingPlan((req, res) => {
     const plan = getPlan(String(req.params.id));
     if (!plan) return res.status(404).json({ error: "No such plan" });
     if (!inPlanScope(req, plan)) return res.status(403).json({ error: "This item is outside your hotel or outlet scope" });
@@ -394,7 +412,7 @@ export function appRouter(): Router {
     });
     savePlan(plan);
     res.json({ plan, questions: allQuestions().filter((q) => q.planId === plan.id) });
-  });
+  }));
 
   r.get("/questions/:id", (req, res) => {
     const q = getQuestion(String(req.params.id));
@@ -403,6 +421,8 @@ export function appRouter(): Router {
   });
   r.post("/questions/:id/answer", async (req, res) => {
     const { optionId, note } = AnswerBody.parse(req.body);
+    const question = getQuestion(String(req.params.id));
+    if (question?.type === "order_review" && question.eventId) assertBasketIdle(question.eventId);
     const out = await answer(String(req.params.id), P(req), optionId, T(req), note);
     if (!out.ok) return res.status(409).json(out);
     const q = out.question;
@@ -410,12 +430,13 @@ export function appRouter(): Router {
   });
 
   // Order baskets: one per event, named by the event and its delivery date. Requests attach to one.
-  const basketPlans = (eventId: string) => listPlans().filter((pl) => pl.kind === "single" && pl.eventId === eventId && !pl.reviewing && pl.tooLateChoice !== "removed");
+  const basketPlans = (eventId: string) => listPlans().filter((pl) => pl.kind === "single" && pl.eventId === eventId && !pl.reviewing && !pl.removedFromBasketAt && pl.tooLateChoice !== "removed");
   const inBasketScope = (req: Request, event: StoredEvent) => inEventScope(req, event)
     && basketPlans(event.id).every((plan) => inPlanScope(req, plan));
   const planRow = (pl: ReturnType<typeof listPlans>[number]) => ({
     id: pl.id, title: pl.title, status: pl.status, summary: pl.summary, createdAt: pl.createdAt, createdBy: pl.createdBy.name, totalExVat: pl.totalExVat, orderIds: pl.orderIds,
     tooLate: pl.tooLate ?? null, tooLateChoice: pl.tooLateChoice ?? null, basketedAt: pl.basketedAt ?? null,
+    changeToken: basketChangeToken(pl), outletId: pl.outletId,
     lines: pl.lines.filter((line) => !line.removed),
   });
   const basketSummary = (event: StoredEvent, orders: Awaited<ReturnType<typeof gw.orders>>["orders"]) => {
@@ -436,6 +457,9 @@ export function appRouter(): Router {
     // read it. Their existing authority to contribute their own items is intact.
     if (req && !inBasketScope(req, event)) return undefined;
     const { orders } = await gw.orders(id);
+    const currentEvent = getEvent(id);
+    if (!currentEvent) throw new BasketReviewError(404, "No such order");
+    if (req && !inBasketScope(req, currentEvent)) return undefined;
     const review = basketReview(id, orders);
     return { ...eventView(id), requests: basketPlans(id).map(planRow), orders, review, ...basketSummary(getEvent(id)!, orders) };
   };
@@ -487,7 +511,9 @@ export function appRouter(): Router {
     if (!event) return res.status(404).json({ error: "No such order" });
     if (!inBasketScope(req, event))
       return res.status(403).json({ error: "This order is outside your hotel or outlet scope" });
-    res.json(await basketView(id));
+    const basket = await basketView(id, req);
+    if (!basket) return res.status(403).json({ error: "This order is outside your hotel or outlet scope" });
+    res.json(basket);
   });
   r.post("/baskets/:id/submit-review", async (req, res) => {
     const id = String(req.params.id);
@@ -495,6 +521,11 @@ export function appRouter(): Router {
     if (!event) return res.status(404).json({ error: "No such order" });
     const review = await submitBasketForReview(id, P(req), T(req));
     res.json({ review, basket: await basketView(id, req) });
+  });
+  r.post("/baskets/:id/requests/:planId/correct", async (req, res) => {
+    const { changeToken, action } = z.object({ changeToken: z.string().min(1), action: z.enum(["edit", "remove"]) }).parse(req.body);
+    const plan = await correctBasketRequest(String(req.params.id), String(req.params.planId), changeToken, action, P(req));
+    res.json({ plan, questions: allQuestions().filter((q) => q.planId === plan.id) });
   });
 
   // All event detail and mutation routes share the basket's all-outlets policy.
@@ -566,7 +597,7 @@ export function appRouter(): Router {
     const viewer = req.query.viewer === "valio" ? "valio" : "hotel";
     const eventId = readFilter(req.query.eventId);
     const orderId = readFilter(req.query.orderId);
-    res.json({ viewer, chain: verifyChain(), entries: auditView(viewer, { hotelId: P(req).hotelId, eventId, orderId }), decisions: eventId ? decisionCount(eventId, P(req).hotelId) : null });
+    res.json({ viewer, chain: verifyChain(), entries: auditView(viewer, { hotelId: P(req).hotelId, eventId, orderId }), decisions: viewer === "hotel" && eventId ? decisionCount(eventId, P(req).hotelId) : null });
   });
 
   const rulesPayload = (req: Request) => {
@@ -576,6 +607,7 @@ export function appRouter(): Router {
       mandate: mandate(),
       fixed: FIXED,
       params: PARAMS,
+      defaultParams: defaultRuleParams(),
       policy: { params: policyParams(), version: p.version, updatedBy: p.updatedBy, updatedAt: p.updatedAt },
       canEdit: P(req).role === "approver",
       remembered: listRemembered(),

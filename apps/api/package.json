@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
+    "start:demo": "node --import ./src/scripts/demo-mode.mjs --import tsx src/server.ts",
     "seed": "tsx src/scripts/seed.ts",
     "fixtures:record": "tsx src/scripts/record-fixtures.ts",
     "agent:demo": "tsx src/scripts/outside-agent.ts",
