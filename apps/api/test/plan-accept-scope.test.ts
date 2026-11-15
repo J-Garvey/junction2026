@@ -8,9 +8,10 @@ process.env.OPENAI_API_KEY = "";
 process.env.CONTEXT_DEV_API_KEY = "";
 process.env.PREVIEW_PASSWORD = "";
 const { createApp } = await import("../src/server.js");
-const { config } = await import("../src/config.js");
 const { getDb } = await import("../src/db.js");
-const { getPerson } = await import("../src/identity.js");
+const { getPerson, resolveToken } = await import("../src/identity.js");
+const { HOTEL_AGENT_TOKEN } = await import("../src/seed.js");
+const { createQuote, placeOrder, listOrders } = await import("../src/gateway/service.js");
 const { rulesParse } = await import("../src/agent/parse.js");
 const { mandate } = await import("../src/agent/plan.js");
 const { gw } = await import("../src/agent/gatewayClient.js");
@@ -43,7 +44,6 @@ beforeAll(async () => {
   server = createApp().listen(0, "127.0.0.1");
   await new Promise((resolve) => server.once("listening", resolve));
   base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
-  config.gatewayUrl = `${base}/gateway/v1`;
 });
 afterAll(() => server.close());
 beforeEach(async () => {
@@ -52,8 +52,14 @@ beforeEach(async () => {
   await call("POST", "/clock", { time: "2026-11-14T10:00:00Z" });
   const fixture = await lookup(["462150", "469672"], "2026-11-16", { mode: "fixture", overlay: null });
   // Bound the shortlist to saved salmon terms; other products are explicitly unavailable.
-  // Quotes and order commit still run through the real gateway and fixture checks.
+  // Exercise real gateway storage and commit checks in process, without a second
+  // loopback connection. Only the shortlist's unavailable products are mocked.
   vi.spyOn(gw, "lookup").mockImplementation(async (ids) => ({ ...fixture, lines: ids.map((id) => fixture.lines.find((line) => line.productId === id) ?? normalise(id, {}, {}, "fixture", "unavailable scope-test fixture", "2026-11-14T10:00:00Z")) }));
+  const agent = resolveToken(HOTEL_AGENT_TOKEN)!;
+  vi.spyOn(gw, "quote").mockImplementation((body) => createQuote(agent, body));
+  vi.spyOn(gw, "order").mockImplementation(async (quoteId, idemKey, approvalId, continueWith, decidedBy) =>
+    (await placeOrder(agent, quoteId, idemKey, approvalId, undefined, { continueWith, decidedBy })).order);
+  vi.spyOn(gw, "orders").mockImplementation(async (eventId) => ({ orders: listOrders(mandate().hotelId, eventId) }));
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -63,8 +69,8 @@ describe("standalone proposal acceptance scope", () => {
     await signIn("p-mikko");
     expect((await call("GET", `/plans/${plan.id}`)).status).toBe(200);
     const before = storedState();
-    const quote = vi.spyOn(gw, "quote");
-    const order = vi.spyOn(gw, "order");
+    const quote = vi.mocked(gw.quote).mockClear();
+    const order = vi.mocked(gw.order).mockClear();
     const approve = vi.spyOn(gw, "approve");
     vi.mocked(gw.lookup).mockClear();
     for (const [path, body] of [
