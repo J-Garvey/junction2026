@@ -58,8 +58,6 @@ const inEventScope = (req: Request, event: StoredEvent) => allowsOutlets(P(req),
   ...listOrders(HOTEL_ID, event.id).filter((order) => order.state !== "rejected")
     .flatMap((order) => order.lines.filter((line) => !line.removed).map((line) => line.outletId)),
 ]);
-const inBasketScope = (req: Request, event: StoredEvent) => inEventScope(req, event)
-  && basketPlans(event.id).every((plan) => inPlanScope(req, plan));
 
 function sessionCookie(res: Response, token: string) {
   res.setHeader("Set-Cookie", `aimo_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax`);
@@ -384,6 +382,8 @@ export function appRouter(): Router {
 
   // Order baskets: one per event, named by the event and its delivery date. Requests attach to one.
   const basketPlans = (eventId: string) => listPlans().filter((pl) => pl.kind === "single" && pl.eventId === eventId && !pl.reviewing && pl.tooLateChoice !== "removed");
+  const inBasketScope = (req: Request, event: StoredEvent) => inEventScope(req, event)
+    && basketPlans(event.id).every((plan) => inPlanScope(req, plan));
   const planRow = (pl: ReturnType<typeof listPlans>[number]) => ({
     id: pl.id, title: pl.title, status: pl.status, summary: pl.summary, createdAt: pl.createdAt, createdBy: pl.createdBy.name, totalExVat: pl.totalExVat, orderIds: pl.orderIds,
     tooLate: pl.tooLate ?? null, tooLateChoice: pl.tooLateChoice ?? null, basketedAt: pl.basketedAt ?? null,
