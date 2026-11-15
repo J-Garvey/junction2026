@@ -95,11 +95,26 @@ describe("campaign regressions: hard constraint retention", () => {
     expect(lines.every((line) => line.constraints.claims.includes("FREE_FROM_GLUTEN") && line.constraints.avoidAllergens.includes("AN"))).toBe(true);
   });
 
+  it.each([
+    "2 kg potatoes 460541; 10 kg potatoes 460541; 40 kg potatoes 460541, all products must be Finnish by 2026-11-16",
+    "2 kg potatoes 460541; 10 kg potatoes 460541; 40 kg potatoes 460541, Finnish products only by 2026-11-16",
+  ])("retains the global origin suffix before its delivery date (AUD-MAIN-011): %s", (text) => {
+    const request = rulesParse(text);
+    expect(request.neededBy).toBe("2026-11-16");
+    expect(request.lines).toHaveLength(3);
+    expect(request.lines.every((line) => line.constraints.origin === "fi")).toBe(true);
+  });
+
   it.each(["without milk or nuts", "without milk and nuts"])("retains every composite exclusion: %s (AUD-MAIN-003 replay)", (exclusions) => {
     const { lines } = rulesParse(`2 kg Finnish vegan cheese ${exclusions}`);
     expect(lines).toHaveLength(1);
     expect(lines[0]).toMatchObject({ query: "cheese", constraints: { claims: ["VEGAN"], origin: "fi" } });
     expect(lines[0].constraints.avoidAllergens).toEqual(expect.arrayContaining(["AM", "AN", "AP"]));
+  });
+
+  it.each(["gluten-free", "nut-free", "Finnish"])("clarifies a restriction-only segment rather than dropping it: %s", (restriction) => {
+    const { lines } = rulesParse(`10 l milk, ${restriction}`);
+    expect(lines.some((line) => line.quantity === null)).toBe(true);
   });
 
   it("keeps a local gluten restriction on its own item", () => {
@@ -124,5 +139,12 @@ describe("campaign regressions: hard constraint retention", () => {
     expect(result.note).toBeTruthy();
     expect(result.request.parsedBy).toBe("rules");
     expect(result.request.lines[0].constraints.origin).toBe("fi");
+  });
+
+  it("rejects an unrecognized allergen code from the model", async () => {
+    model.mockResolvedValue({ neededByText: null, lines: [{ text: "10 l milk without nuts", productWord: "milk", productType: "plain drinking milk", productId: null, amount: 10, unit: "l", claims: [], avoidAllergens: ["ZZ"], origin: null }] });
+    const result = await parseRequest("10 l milk without nuts");
+    expect(result.note).toBeTruthy();
+    expect(result.request.lines[0].constraints.avoidAllergens).toEqual(expect.arrayContaining(["AN", "AP"]));
   });
 });
