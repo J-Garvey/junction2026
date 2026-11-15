@@ -5,7 +5,7 @@ import { Link, NavLink, Route, Routes, useLocation, useNavigate } from "react-ro
 import type { WarningRecord } from "@aimo/contracts";
 import { api, authHooks, type Outlet, type Person, type StatusResp, type SceneKey } from "./api";
 import { Ctx, type AppCtx, useLoad } from "./ctx";
-import { Icon, Lockup, Mark, type IconName } from "./ui/icons";
+import { Icon, Lockup, Mark } from "./ui/icons";
 import { AllergyBanner } from "./ui/Banner";
 import { day, initials, when } from "./format";
 import { Home } from "./screens/Home";
@@ -110,7 +110,6 @@ export function App() {
         <a className="skip-to-content" href="#main-content">Skip to content</a>
         <div className="main">
           <TopBar status={status} me={ctx.me} onSwitch={() => setNeedPick(true)} />
-          <PrimaryNavigation me={ctx.me} />
           <AllergyBanner warnings={warnings} />
           <main className="content" id="main-content" tabIndex={-1}>
             <Routes>
@@ -133,29 +132,6 @@ export function App() {
         </div>
       </div>
     </Ctx.Provider>
-  );
-}
-
-function PrimaryNavigation({ me }: { me: Person }) {
-  const { pathname } = useLocation();
-  const links: [string, IconName, string][] = me.role === "approver"
-    ? [["/", "check", "Approvals & spend"], ["/events", "cal", "Events"], ["/orders", "box", "Order receipts"]]
-    : [["/", "box", "Orders"], ["/inbox", "q", "Waiting"], ["/events", "cal", "Events"], ["/requests", "chat", "Requests"], ["/orders", "list", "Receipts"]];
-
-  return (
-    <nav className="primary-navigation" aria-label="Primary navigation">
-      {links.map(([to, icon, label]) => {
-        const current = to === "/"
-          ? pathname === "/" || pathname.startsWith("/baskets/") || (me.role === "approver" && pathname === "/inbox")
-          : pathname === to || pathname.startsWith(`${to}/`);
-        return (
-          <Link key={to} to={to} className={`app-nav-link${current ? " current" : ""}`} aria-current={current ? "page" : undefined}>
-            <Icon n={icon} s={16} />
-            <span>{label}</span>
-          </Link>
-        );
-      })}
-    </nav>
   );
 }
 
