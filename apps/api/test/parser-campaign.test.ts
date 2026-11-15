@@ -17,6 +17,16 @@ describe("campaign regressions: quantities and list retention", () => {
     expect(rulesParse("-5 kg milk").lines[0].quantity).toBeNull();
   });
 
+  it.each(["2% milk", "10 l 2% milk"])("clarifies an unsupported fat specification rather than reading it as a count: %s (AUD-MAIN-006)", (text) => {
+    const line = rulesParse(text).lines[0];
+    expect(line.query).toContain("2%");
+    expect(line.quantity).toBeNull();
+  });
+
+  it("retains additional-kilo grammar (WA-SELF-002)", () => {
+    expect(rulesParse("1 additional kilo of salmon").lines[0]).toMatchObject({ query: "salmon", quantity: { amount: 1, unit: "kg" } });
+  });
+
   it("retains all 60 newline-separated items and their individual amounts", () => {
     const text = Array.from({ length: 60 }, (_, i) => `${i + 1} kg ${i % 2 ? "butter" : "salmon"}`).join("\n");
     const { lines } = rulesParse(text);
@@ -82,6 +92,13 @@ describe("campaign regressions: hard constraint retention", () => {
   it("keeps a local gluten restriction on its own item", () => {
     const { lines } = rulesParse("2 kg gluten-free bread and 3 kg butter");
     expect(lines.map((line) => line.constraints.claims)).toEqual([["FREE_FROM_GLUTEN"], []]);
+  });
+
+  it("applies an explicit both-vegan suffix to the two items (WA-SELF-003)", () => {
+    const { lines } = rulesParse("10 l milk and 12 bread both vegan");
+    expect(lines).toHaveLength(2);
+    expect(lines.every((line) => line.constraints.claims.includes("VEGAN"))).toBe(true);
+    expect(lines.map((line) => line.query)).toEqual(["milk", "bread"]);
   });
 
   it("keeps Finnish lactose-free requirements as a hard claim", () => {
