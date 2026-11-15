@@ -5,7 +5,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import type { DietGroup, Unit } from "@aimo/contracts";
-import { api, ApiError, type EventDish, type EventIngredient, type MenuScale, type PlanResp, type StoredEvent } from "../api";
+import { api, ApiError, type BasketResp, type EventDish, type EventIngredient, type MenuScale, type PlanResp, type StoredEvent } from "../api";
 import { qty, plural } from "../format";
 import { Icon } from "./icons";
 import { RequestReviewDialog } from "./RequestReviewDialog";
@@ -42,7 +42,7 @@ function scaled(amount: number, unit: Unit, guests: number) {
   return `${qty(v)} ${unit}`;
 }
 
-export function MenuEditor({ event, menuInOrder, onSaved, onAdded }: { event: StoredEvent; menuInOrder: boolean; onSaved: () => void; onAdded: () => void }) {
+export function MenuEditor({ event, menuInOrder, onSaved, onAdded }: { event: StoredEvent; menuInOrder: boolean; onSaved: () => void; onAdded: (basket?: BasketResp) => void }) {
   const [draft, setDraft] = useState<Draft>(() => draftOf(event));
   const [version, setVersion] = useState(event.version);
   const [dirty, setDirty] = useState(false);
@@ -256,10 +256,10 @@ export function MenuEditor({ event, menuInOrder, onSaved, onAdded }: { event: St
           deliveryDate={event.serviceDate}
           onClose={() => setReview(null)}
           onChanged={onAdded}
-          onAdded={() => {
+          onAdded={(basket) => {
             setReview(null);
             setNote({ cls: "green", text: "Menu order added. Submit the final order for finance review." });
-            onAdded();
+            onAdded(basket);
           }}
         />
       )}

@@ -105,6 +105,10 @@ describe("order baskets", () => {
     expect((await call("GET", `/orders?eventId=${id}`)).orders).toHaveLength(0);
 
     const view = await call("GET", `/baskets/${id}`);
+    expect(staged.basket).toEqual(expect.objectContaining({
+      requests: view.requests, orders: view.orders, review: view.review, orderBy: view.orderBy, confirmed: view.confirmed,
+    }));
+    expect(staged.basket.orderBy).toMatchObject({ state: "known", at: "2026-11-15T15:00:00.000Z" });
     expect(view.requests.map((p: any) => p.id)).toEqual([r.plan.id]);
     expect(view.requests[0]).toMatchObject({ basketedAt: expect.any(String), lines: expect.any(Array) });
     expect((await call("GET", "/baskets")).baskets.find((basket: any) => basket.id === id).lines).toBeGreaterThan(0);
@@ -318,6 +322,10 @@ describe("order baskets", () => {
     expect(submitted.status).toBe(200);
     expect(submitted.review).toMatchObject({ type: "order_review", forRole: "approver", state: "open", eventId: id, facts: { kind: "approval", planIds: [planId] } });
     expect(retry.review.id).toBe(submitted.review.id);
+    expect(submitted.basket).toMatchObject({
+      event: { id }, review: { id: submitted.review.id },
+      requests: [{ id: planId, basketedAt: expect.any(String) }], orderBy: before.orderBy,
+    });
     expect((await call("GET", `/baskets/${id}`)).review.id).toBe(submitted.review.id);
     expect((await call("GET", "/baskets")).baskets.find((b: any) => b.id === id)).toMatchObject({ confirmed: false, approvalLevels: [{ role: "approver", count: 1 }] });
     expect((await call("GET", `/orders?eventId=${id}`)).orders).toHaveLength(0);

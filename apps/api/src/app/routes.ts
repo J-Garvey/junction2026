@@ -283,7 +283,7 @@ export function appRouter(): Router {
     audit({ actor: personActor(p), action: "request_received", summary: `${p.name} added ${plan.title} to the order`, eventId: plan.eventId, details: { kind: "confirmation", planId: plan.id, lines: plan.lines.map((l) => l.productId) }, visibility: "hotel" });
     savePlan(plan);
     invalidateBasketReview(plan.eventId);
-    res.json({ plan, questions: allQuestions().filter((q) => q.planId === plan.id) });
+    res.json({ plan, questions: allQuestions().filter((q) => q.planId === plan.id), basket: await basketView(plan.eventId) });
   });
 
   r.post("/plans/:id/items/:needId/approve", (req, res) => {
@@ -409,6 +409,14 @@ export function appRouter(): Router {
       || !!event.finalCheck?.lines.some((line) => line.result !== "covered");
     return basketStatus(event.serviceDate, orders, plans, allQuestions().filter((q) => q.eventId === event.id), now(), needsAttention);
   };
+  // Return the same saved basket projection on reads and successful submissions so
+  // the builder can update its items and deadline without a second browser request.
+  const basketView = async (id: string) => {
+    if (!getEvent(id)) throw new BasketReviewError(404, "No such order");
+    const { orders } = await gw.orders(id);
+    const review = basketReview(id, orders);
+    return { ...eventView(id), requests: basketPlans(id).map(planRow), orders, review, ...basketSummary(getEvent(id)!, orders) };
+  };
   r.get("/baskets", async (req, res) => {
     const { orders } = await gw.orders();
     const p = P(req);
@@ -452,13 +460,13 @@ export function appRouter(): Router {
     res.json({ basket: { id: e.id, name: e.name, deliveryDate: e.serviceDate } });
   });
   r.get("/baskets/:id", async (req, res) => {
-    const id = String(req.params.id);
-    if (!getEvent(id)) return res.status(404).json({ error: "No such order" });
-    const { orders } = await gw.orders(id);
-    const review = basketReview(id, orders);
-    res.json({ ...eventView(id), requests: basketPlans(id).map(planRow), orders, review, ...basketSummary(getEvent(id)!, orders) });
+    res.json(await basketView(String(req.params.id)));
   });
-  r.post("/baskets/:id/submit-review", async (req, res) => res.json({ review: await submitBasketForReview(String(req.params.id), P(req), T(req)) }));
+  r.post("/baskets/:id/submit-review", async (req, res) => {
+    const id = String(req.params.id);
+    const review = await submitBasketForReview(id, P(req), T(req));
+    res.json({ review, basket: await basketView(id) });
+  });
 
   r.get("/events", (req, res) => res.json({ events: ownEvents(req).map((e) => ({ ...e, coverage: coverageSummary(e.id) })) }));
   r.get("/events/:id", (req, res) => res.json(eventView(String(req.params.id))));
