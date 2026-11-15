@@ -1728,5 +1728,91 @@
     "expected": {
       "mustNotOrder": true
     }
+  },
+  {
+    "caseId": "AUD-global-suffix",
+    "family": "global-constraint-suffix",
+    "channel": "main",
+    "input": "10 l milk and 5 kg salmon, everything gluten-free and nut-free",
+    "plan": true,
+    "expected": {
+      "lineCount": 2,
+      "lines": [
+        {
+          "product": "milk",
+          "amount": 10,
+          "unit": "l"
+        },
+        {
+          "product": "salmon",
+          "amount": 5,
+          "unit": "kg"
+        }
+      ],
+      "globalClaims": [
+        "FREE_FROM_GLUTEN"
+      ],
+      "globalAvoidAllergens": [
+        "AN",
+        "AP"
+      ]
+    }
+  },
+  {
+    "caseId": "AUD-composite-allergy",
+    "family": "composite-allergen",
+    "channel": "main",
+    "input": "2 kg Finnish vegan cheese without milk or nuts",
+    "plan": true,
+    "expected": {
+      "lines": [
+        {
+          "product": "cheese",
+          "amount": 2,
+          "unit": "kg",
+          "claims": [
+            "VEGAN"
+          ],
+          "avoidAllergens": [
+            "AM",
+            "AN",
+            "AP"
+          ],
+          "origin": "fi"
+        }
+      ]
+    }
+  },
+  {
+    "caseId": "AUD-global-origin",
+    "family": "global-origin",
+    "channel": "main",
+    "input": "2 kg potatoes 460541; 10 kg potatoes 460541; 40 kg potatoes 460541, all products must be Finnish by 2026-11-16",
+    "plan": true,
+    "expected": {
+      "lineCount": 3,
+      "lines": [
+        {
+          "product": "potatoes",
+          "productId": "460541",
+          "amount": 2,
+          "unit": "kg"
+        },
+        {
+          "product": "potatoes",
+          "productId": "460541",
+          "amount": 10,
+          "unit": "kg"
+        },
+        {
+          "product": "potatoes",
+          "productId": "460541",
+          "amount": 40,
+          "unit": "kg"
+        }
+      ],
+      "globalOrigin": "fi",
+      "neededBy": "2026-11-16"
+    }
   }
 ]
