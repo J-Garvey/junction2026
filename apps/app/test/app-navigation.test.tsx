@@ -17,9 +17,9 @@ const status: StatusResp = {
   clock: { now: "2026-11-14T10:00:00Z", mode: "fixed", time: null, scene: null, scenes: {} as StatusResp["clock"]["scenes"] },
   dataMode: "fixture", model: { provider: "openai", model: "fixture", configured: false }, chain: { ok: true, brokenAt: null, entries: 0 },
 };
-const destinations = [
-  ["Waiting", "/inbox"], ["Requests", "/requests"], ["Events", "/events"], ["Order receipts", "/orders"],
-];
+const destinations = (person: Person): [string, string][] => person.role === "approver"
+  ? [["Events", "/events"], ["Order receipts", "/orders"]]
+  : [["Waiting", "/inbox"], ["Events", "/events"], ["Requests", "/requests"], ["Receipts", "/orders"]];
 const mount = (person = people[1], path = "/") => {
   vi.mocked(api.me).mockResolvedValue({ person });
   return render(<MemoryRouter initialEntries={[path]}><App /></MemoryRouter>);
@@ -38,12 +38,12 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); authHooks.onUnauthorized = () => {}; });
 
 describe("main navigation", () => {
-  it.each(people)("makes every core destination directly discoverable for $name", async (person) => {
+  it.each(people)("makes role-appropriate core destinations directly discoverable for $name", async (person) => {
     const user = userEvent.setup();
     mount(person);
-    const nav = within(await screen.findByRole("navigation", { name: "Main navigation" }));
-    const homeName = person.role === "approver" ? "Approvals & spend" : "My orders";
-    expect(nav.getAllByRole("link")).toHaveLength(5);
+    const nav = within(await screen.findByRole("navigation", { name: "Primary navigation" }));
+    const homeName = person.role === "approver" ? "Approvals & spend" : "Orders";
+    expect(nav.getAllByRole("link")).toHaveLength(1 + destinations(person).length);
     expect(nav.getByRole("link", { name: homeName }).getAttribute("href")).toBe("/");
     expect(nav.getByRole("link", { name: homeName }).getAttribute("aria-current")).toBe("page");
     if (person.role === "approver") {
@@ -53,13 +53,13 @@ describe("main navigation", () => {
       await screen.findByRole("button", { name: "New order" });
     }
 
-    for (const [name, href] of destinations) {
+    for (const [name, href] of destinations(person)) {
       const link = nav.getByRole("link", { name });
       expect(link.getAttribute("href")).toBe(href);
       await user.click(link);
       expect(link.getAttribute("aria-current")).toBe("page");
       expect(nav.getAllByRole("link").filter((item) => item.hasAttribute("aria-current"))).toEqual([link]);
-      await screen.findByRole("heading", { name: name === "Waiting" ? person.role === "approver" ? "Approvals & spend" : "Waiting for you" : name === "Order receipts" ? "Orders" : name });
+      await screen.findByRole("heading", { name: name === "Waiting" ? "Waiting for you" : href === "/orders" ? "Orders" : name });
     }
     await user.click(nav.getByRole("link", { name: homeName }));
     expect(nav.getByRole("link", { name: homeName }).getAttribute("aria-current")).toBe("page");
@@ -69,30 +69,30 @@ describe("main navigation", () => {
 
   it("keeps Requests marked current when opening a new request directly", async () => {
     mount(people[1], "/requests/new");
-    const nav = within(await screen.findByRole("navigation", { name: "Main navigation" }));
+    const nav = within(await screen.findByRole("navigation", { name: "Primary navigation" }));
     expect(nav.getByRole("link", { name: "Requests" }).getAttribute("aria-current")).toBe("page");
-    expect(nav.getByRole("link", { name: "My orders" }).hasAttribute("aria-current")).toBe(false);
+    expect(nav.getByRole("link", { name: "Orders" }).hasAttribute("aria-current")).toBe(false);
   });
 
   it("identifies the order section and keeps a named way home on an order detail", async () => {
     vi.spyOn(api, "basket").mockRejectedValue(new Error("Saved order is no longer available"));
     mount(people[1], "/baskets/wedding");
-    const nav = within(await screen.findByRole("navigation", { name: "Main navigation" }));
-    expect(nav.getByRole("link", { name: "My orders" }).getAttribute("aria-current")).toBe("location");
-    expect(nav.getByRole("link", { name: "My orders" }).getAttribute("href")).toBe("/");
-    expect(screen.getByRole("link", { name: "Go to homepage" }).getAttribute("href")).toBe("/");
+    const nav = within(await screen.findByRole("navigation", { name: "Primary navigation" }));
+    expect(nav.getByRole("link", { name: "Orders" }).getAttribute("aria-current")).toBe("page");
+    expect(nav.getByRole("link", { name: "Orders" }).getAttribute("href")).toBe("/");
+    expect(screen.getByRole("link", { name: "Aimo Copilot home" }).getAttribute("href")).toBe("/");
   });
 
   it("lets keyboard users reach the visible destinations without opening a menu", async () => {
     const user = userEvent.setup();
     mount();
-    const nav = within(await screen.findByRole("navigation", { name: "Main navigation" }));
-    nav.getByRole("link", { name: "My orders" }).focus();
-    for (const [name] of destinations) {
+    const nav = within(await screen.findByRole("navigation", { name: "Primary navigation" }));
+    nav.getByRole("link", { name: "Orders" }).focus();
+    for (const [name] of destinations(people[1])) {
       await user.tab();
       expect(document.activeElement).toBe(nav.getByRole("link", { name }));
     }
     await user.keyboard("{Enter}");
-    expect(nav.getByRole("link", { name: "Order receipts" }).getAttribute("aria-current")).toBe("page");
+    expect(nav.getByRole("link", { name: "Receipts" }).getAttribute("aria-current")).toBe("page");
   });
 });
