@@ -35,6 +35,7 @@ export function App() {
   const [outlets, setOutlets] = useState<Outlet[]>([]);
   const [status, setStatus] = useState<StatusResp | null>(null);
   const [needPick, setNeedPick] = useState(false);
+  const [sessionVersion, setSessionVersion] = useState(0);
   const [tick, setTick] = useState(0);
   const [warnings, setWarnings] = useState<WarningRecord[]>([]);
   const [bootErr, setBootErr] = useState<string | null>(null);
@@ -44,6 +45,7 @@ export function App() {
   useEffect(() => {
     authHooks.onUnauthorized = () => {
       setMe(null);
+      setWarnings([]);
       setNeedPick(true);
     };
     api
@@ -67,21 +69,27 @@ export function App() {
 
   useEffect(() => {
     if (!me) return;
+    let live = true;
     const load = () =>
       api
         .home()
         .then((h) => {
-          setWarnings(h.warnings);
+          if (live) setWarnings(h.warnings);
         })
         .catch(() => {});
     load();
     const t = setInterval(load, 15000);
-    return () => clearInterval(t);
+    return () => {
+      live = false;
+      clearInterval(t);
+    };
   }, [me, tick]);
 
   async function pick(id: string) {
     const r = await api.session(id);
+    setWarnings([]);
     setMe(r.person);
+    setSessionVersion((v) => v + 1);
     setNeedPick(false);
     refresh();
   }
@@ -110,13 +118,17 @@ export function App() {
         <div className="callout red">{bootErr}</div>
       </div>
     );
-  if (!ctx || needPick) return <PersonPicker people={people} current={me} status={status} onChange={refresh} onPick={pick} onCancel={me ? () => setNeedPick(false) : undefined} />;
+  const picker = <PersonPicker people={people} current={me} status={status} onChange={refresh} onPick={pick} onCancel={me ? () => setNeedPick(false) : undefined} />;
+  if (!ctx) return picker;
 
   return (
-    <Ctx.Provider value={ctx}>
-      <div className="shell">
+    <Ctx.Provider key={sessionVersion} value={ctx}>
+      {needPick && picker}
+      {/* Cancel preserves drafts; a successful session change remounts this entire tree. */}
+      <div className="shell" hidden={needPick} style={needPick ? { display: "none" } : undefined}>
         <div className="main">
           <TopBar status={status} me={ctx.me} onSwitch={() => setNeedPick(true)} />
+          <WorkspaceNav me={ctx.me} />
           <AllergyBanner warnings={warnings} />
           <div className="content">
             <Routes>
@@ -139,6 +151,31 @@ export function App() {
         </div>
       </div>
     </Ctx.Provider>
+  );
+}
+
+/** Keep the main destinations visible without expanding the order/account menus. */
+function WorkspaceNav({ me }: { me: Person }) {
+  const { pathname } = useLocation();
+  const homeCurrent = pathname === "/" ? "page" : pathname.startsWith("/baskets/") ? "location" : undefined;
+  const destinations: [string, IconName, string][] = [
+    ["/inbox", "q", "Waiting"],
+    ["/requests", "chat", "Requests"],
+    ["/events", "cal", "Events"],
+    ["/orders", "box", "Order receipts"],
+  ];
+
+  return (
+    <nav className="workspace-nav" aria-label="Main navigation">
+      <Link to="/" className={homeCurrent ? "on" : ""} aria-current={homeCurrent}>
+        <Icon n="home" s={16} />{me.role === "approver" ? "Approvals & spend" : "My orders"}
+      </Link>
+      {destinations.map(([to, icon, label]) => (
+        <NavLink key={to} to={to} className={({ isActive }) => isActive ? "on" : ""}>
+          <Icon n={icon} s={16} />{label}
+        </NavLink>
+      ))}
+    </nav>
   );
 }
 
