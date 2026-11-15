@@ -4,7 +4,7 @@ import type { Need, Order, Plan, PlanLine, StatusLabel, WarningRecord } from "@a
 import { countdown, eur, qty, when, fi, plural, parseTime } from "../format";
 import { useApp, outletName } from "../ctx";
 import type { DiffLine } from "../api";
-import { Status, Fixture, UnknownStockMark } from "./Status";
+import { AllergenDataMark, Status, Fixture, UnknownStockMark } from "./Status";
 import { Pop, LineSource, CandidateSource, stockText } from "./Popover";
 import { Icon } from "./icons";
 import { BudgetCalculation, TotalCalculation, VatCalculation, matchingVatLines } from "./CalculationEvidence";
@@ -39,11 +39,12 @@ export function LineRow({ plan, line, warnings, onRemove, showPrice = true, shar
         <Pop label={<Status k={st} />}>{pop}</Pop>
       </div>
       <div className="pline-name">
+        <AllergenDataMark line={line} />
         <Pop label={<span className="trunc">{line.productName}</span>} className="namepop">
           {pop}
         </Pop>
         {(() => {
-          const r = line.rules.find((x) => x.outcome !== "order" && x.ruleId !== "STK-01");
+          const r = line.rules.find((x) => x.outcome !== "order" && x.ruleId !== "STK-01" && x.ruleId !== "ALG-03");
           return r ? (
             <div className="small muted trunc">
               {r && <span title={r.message}>{r.label ?? r.ruleId}</span>}

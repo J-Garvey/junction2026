@@ -15,6 +15,7 @@ let BASE = "";
 let server: Server;
 beforeAll(async () => {
   server = createApp().listen(0, "127.0.0.1");
+  server.keepAliveTimeout = 60_000; // Leave room for cold catalogue work on a busy local host.
   await new Promise((r) => server.once("listening", r));
   const port = (server.address() as { port: number }).port;
   BASE = `http://127.0.0.1:${port}`;
@@ -100,6 +101,8 @@ async function eventCase(withTreeNutAllergy = true) {
   out.change = await aino.call("POST", "/events/evt-wedding/change", { guests: 194, ...(withTreeNutAllergy ? { group: { id: "onni", label: "Tree nuts (Onni)", count: 1, constraints: { claims: [], avoidAllergens: ["AN"], labels: [] }, standing: false } } : {}), version: await v() });
   out.allergyQs = (await aino.call("GET", "/home")).questions.filter((q: any) => q.type === "allergy_conflict");
   for (const q of out.allergyQs) await aino.call("POST", `/questions/${q.id}/answer`, { optionId: q.options[0].id });
+  out.missingAllergen = (await aino.call("GET", "/home")).questions.find((q: any) => q.type === "missing_allergen_data");
+  if (out.missingAllergen) out.missingAllergenAnswer = await aino.call("POST", `/questions/${out.missingAllergen.id}/answer`, { optionId: "continue" });
   out.changeQs = (await sanna.call("GET", "/home")).questions.filter((q: any) => q.type === "change_outside_tolerance");
   out.changeOk = await sanna.call("POST", `/questions/${out.changeQs[0].id}/answer`, { optionId: "approve" });
   // A finance decision cannot extend the builder's earlier unknown-stock
@@ -114,10 +117,24 @@ async function eventCase(withTreeNutAllergy = true) {
   for (const q of reviewedChanges) out.reviewedChangeOk = await sanna.call("POST", `/questions/${q.id}/answer`, { optionId: "approve" });
   await aino.call("POST", "/clock", { scene: "4" });
   out.g188 = await aino.call("POST", "/events/evt-wedding/change", { guests: 188, version: await v() });
+  async function finishChangedConcerns() {
+    for (let step = 0; step < 12; step++) {
+      const qs = [...(await aino.call("GET", "/home")).questions, ...(await sanna.call("GET", "/home")).questions];
+      const q = qs.find((q: any) => q.state === "open" && ["change", "change_stock", "change_allergens"].includes(q.facts.kind));
+      if (!q) return;
+      const client = q.forRole === "chef" ? aino : sanna;
+      const result = await client.call("POST", `/questions/${q.id}/answer`, { optionId: q.forRole === "chef" ? "continue" : "approve" });
+      expect(result.error).toBeUndefined();
+    }
+    throw new Error("Changed product concerns did not settle");
+  }
+  await finishChangedConcerns();
   out.final = (await aino.call("POST", "/events/evt-wedding/final-check")).finalCheck;
   out.subQ = (await aino.call("GET", "/home")).questions.find((q: any) => q.type === "substitute");
   const pick = out.subQ.facts.candidates.findIndex((c: any) => c.productId === "464194");
   out.useSub = await aino.call("POST", `/questions/${out.subQ.id}/answer`, { optionId: `use_${Math.max(0, pick)}` });
+  await finishChangedConcerns();
+  await aino.call("POST", "/events/evt-wedding/final-check");
   out.view = await sanna.call("GET", "/events/evt-wedding");
   out.orders = (await aino.call("GET", "/orders?eventId=evt-wedding")).orders;
   out.valio = await sanna.call("GET", "/audit?viewer=valio");
@@ -236,6 +253,8 @@ describe("Test case 1: the wedding through four scenes (docs/demo-plan.md)", () 
     const cake = a.allergyQs.find((q: any) => q.facts.productId === "467767");
     expect(cake.body).toMatch(/Contains almond/);
     expect(cake.options[0].id).toBe("replace_0");
+    expect(a.missingAllergen.facts.productIds).toContain("460541");
+    expect(a.missingAllergenAnswer.error).toBeUndefined();
     expect(a.changeQs).toHaveLength(1);
     expect(a.changeQs[0].ruleIds).toContain("CHG-02");
     expect(a.changeOk.ok).toBe(true);
@@ -248,10 +267,11 @@ describe("Test case 1: the wedding through four scenes (docs/demo-plan.md)", () 
     expect(a.beforeStockDecision[0].lines.find((l: any) => l.productId === "477125").removed).toBe(true);
     expect(a.changeStock).toEqual([]);
   });
-  it("scene 4: no-shows need nobody; the final check keeps 37 L and fills 10 L; ready with 4 unconfirmed", () => {
-    expect(a.g188.applied).toBe(true);
-    expect(a.g188.event.processing).toMatchObject({ stage: "Event change", milestone: "change_applied", segments: 1 });
-    expect(a.view.event.processing).toMatchObject({ stage: "Final check", milestone: "final_checked", segments: 2 });
+  it("scene 4: changed dietary scope needs fresh chef consent; the final check keeps 37 L and fills 10 L", () => {
+    expect(a.g188.applied).toBe(false);
+    expect(a.g188.reason).toMatch(/allergen data not confirmed/);
+    expect(a.g188.event.processing).toMatchObject({ stage: "Event change", milestone: "chef_input", segments: 1 });
+    expect(a.view.event.processing).toMatchObject({ stage: "Final check", milestone: "final_checked", segments: 1 });
     expect(a.view.event.processing.totalMs).toBeGreaterThanOrEqual(0);
     expect(a.final.lines.find((l: any) => l.productId === "464727").result).toBe("short");
     expect(a.subQ.body).toMatch(/37 of 47 in stock · 10 l to fill/);
@@ -262,7 +282,7 @@ describe("Test case 1: the wedding through four scenes (docs/demo-plan.md)", () 
     expect(qty("464194")).toBe(10);
     expect(qty("469672")).toBe(32);
     expect(o.lines.filter((l: any) => !l.removed && l.stock.kind === "unknown").map((l: any) => l.productId).sort()).toEqual(["460541", "464194", "464306", "473522"]);
-    expect(a.view.coverage).toMatchObject({ level: "at_risk", text: "Ready · 4 stock not confirmed" });
+    expect(a.view.coverage).toMatchObject({ level: "at_risk", text: "Ready · 4 stock not confirmed · 1 allergen data not confirmed" });
   });
   it("requires a fresh chef stock decision when an unconfirmed toast quantity actually increases", async () => {
     const changed = await eventCase(false);

@@ -1,5 +1,5 @@
 /** Hotel-side shapes (the agent's working state). Valio Aimo never receives these. */
-import type { AvailabilityEvidence, CarbonBasis, FiredRule, ModelJudgement, StockFact, SingleRequest, Constraints, Amount, BaseUnit } from "./index.js";
+import type { AllergenAcknowledgement, AvailabilityEvidence, CarbonBasis, FiredRule, ModelJudgement, StockFact, SingleRequest, Constraints, Amount, BaseUnit } from "./index.js";
 
 export interface OrderDeadline {
   state: "known" | "expired" | "unknown" | "unavailable";
@@ -108,6 +108,7 @@ export interface PlanLine {
   shares: { needId: string; label: string; amount: number }[];
   allocation: "primary" | "partial" | "unknown_fill" | "short";
   riskAccepted: { by: string; at: string } | null;
+  allergenDataAcknowledgement?: Omit<AllergenAcknowledgement, "token" | "productIds" | "expiresAt">;
   removed: boolean;
   /** Saved mass evidence for an informational product-group estimate. Older totals without it are untrusted. */
   carbonBasis?: CarbonBasis | null;
@@ -121,7 +122,7 @@ export interface ItemReview {
   needId: string;
   fingerprint: string;
   canApprove: boolean;
-  /** False only for a verified exact match; older reviews still require a decision. */
+  /** False only for a verified exact match without a manual replacement; older reviews still require a decision. */
   requiresApproval?: boolean;
   quantityRequired: boolean;
   reason: string | null;
@@ -204,4 +205,9 @@ export interface WarningRecord {
   resolvedBy: string | null;
   resolution: string | null;
   createdAt: string;
+}
+
+/** Older snapshots may have only the rule; a continuation never clears the concern. */
+export function hasUnconfirmedAllergenData(line: { rules?: { ruleId: string }[]; allergenDataAcknowledgement?: unknown }): boolean {
+  return !!line.allergenDataAcknowledgement || !!line.rules?.some((rule) => rule.ruleId === "ALG-03");
 }

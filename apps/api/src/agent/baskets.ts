@@ -1,8 +1,8 @@
 /** Final hotel order handoff: one finance decision bound to the submitted basket. */
-import type { Constraints, Order, Question, QuoteLine } from "@aimo/contracts";
+import type { AllergenAcknowledgement, Constraints, Order, Question, QuoteLine } from "@aimo/contracts";
 import { audit } from "../audit.js";
 import { now } from "../clock.js";
-import { tx } from "../db.js";
+import { kvGet, kvSet, tx } from "../db.js";
 import type { Person } from "../identity.js";
 import { eur, parseAimoTime, round2, sha256, stableStringify } from "../util.js";
 import { getEvent, personActor } from "./events.js";
@@ -10,6 +10,7 @@ import { gw, GatewayError } from "./gatewayClient.js";
 import { emptyOverrides, getPlan, HOTEL_ID, listPlans, savePlan, type StoredPlan } from "./plan.js";
 import { matchesSelectedProducts } from "./match.js";
 import { allQuestions, expireOpenQuestions, makeQuestion, saveQuestion } from "./questions.js";
+import { allergenQuestionText, currentAllergenAcknowledgements, lineAllergenScope, missingAllergenProducts } from "./allergenData.js";
 
 export class BasketReviewError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -136,11 +137,13 @@ export async function submitBasketForReview(eventId: string, person: Person): Pr
   const dates = [...new Set(plans.map((p) => p.deliveryDate!))];
   if (dates.length > 1) throw new BasketReviewError(409, "Items must share a delivery date before submitting the order for review");
   const before = snapshot(eventId, orders);
-  const quoteLines = new Map<string, { productId: string; quantity: number; outletId: string; ref: string; requires: Constraints }>();
+  const quoteLines = new Map<string, { productId: string; quantity: number; outletId: string; ref: string; requires: Constraints; allergenScope?: string }>();
   for (const plan of plans) for (const line of plan.lines.filter((l) => !l.removed)) {
     const key = `${line.productId}:${line.outletId}`;
     const grouped = quoteLines.get(key) ?? { productId: line.productId!, quantity: 0, outletId: line.outletId, ref: key, requires: { claims: [], avoidAllergens: [], labels: [] } };
     grouped.quantity += line.quantity;
+    const scope = lineAllergenScope(plan, line);
+    if (scope) grouped.allergenScope = grouped.allergenScope && grouped.allergenScope !== scope ? sha256(stableStringify([grouped.allergenScope, scope])) : scope;
     for (const need of plan.needs.filter((n) => line.needIds.includes(n.id))) {
       for (const field of ["claims", "avoidAllergens", "labels"] as const)
         grouped.requires[field] = [...new Set([...grouped.requires[field], ...need.constraints[field]])];
@@ -157,6 +160,25 @@ export async function submitBasketForReview(eventId: string, person: Person): Pr
     lines: [...quoteLines.values()],
   }) : null;
   if (quote?.outcome === "block") throw new BasketReviewError(409, "The order has blocked items. Resolve them before submitting for review.");
+  const allergenAcknowledgements = quote ? currentAllergenAcknowledgements([
+    ...plans.flatMap((p) => p.overrides.allergenAcknowledgements ?? []),
+    ...(kvGet<AllergenAcknowledgement[]>(`basket-allergens:${eventId}`) ?? []),
+  ], quote) : [];
+  if (quote) {
+    const missing = missingAllergenProducts(quote, allergenAcknowledgements);
+    if (missing.length) {
+      const outletId = missing[0].outletId;
+      const productIds = [...new Set(missing.filter((l) => l.outletId === outletId).map((l) => l.productId))];
+      const question = makeQuestion({ planId: `basket:${eventId}`, eventId, type: "missing_allergen_data", forRole: "chef", outletId,
+        quoteId: quote.id, fingerprint: quote.fingerprint, deadline: quote.expiresAt, title: "Continue with allergen data not confirmed?",
+        body: allergenQuestionText({ ...plans[0], lines: plans.flatMap((p) => p.lines), needs: plans.flatMap((p) => p.needs) }, productIds, outletId),
+        facts: { kind: "basket_allergens", productIds, snapshot: before }, ruleIds: ["ALG-03"],
+        options: [{ id: "continue", label: "Continue with missing allergen data", primary: true }, { id: "others", label: "Review products instead", primary: false }],
+      });
+      saveQuestion(question);
+      throw new BasketReviewError(409, "The combined order changed the missing allergen data terms. Answer the chef's question, then submit for finance review again.");
+    }
+  }
   const continued = [...new Set(plans.flatMap((p) => p.overrides.stockContinued ?? []))];
   if (quote?.unconfirmedStock.some((id) => !continued.includes(id)))
     throw new BasketReviewError(409, "The order builder must choose whether to continue with unconfirmed stock before finance review");
@@ -202,6 +224,7 @@ export async function submitBasketForReview(eventId: string, person: Person): Pr
         deliveryDate: quote?.deliveryDate ?? event.serviceDate, grants: quote?.mandateCheck.approvalsNeeded ?? [],
         items: [...new Map(rules.map((r) => [r.ruleId, { text: r.message }])).values()],
         continued, decidedBy: plans.find((p) => p.overrides.stockDecidedBy)?.overrides.stockDecidedBy ?? person.name,
+        allergenAcknowledgements: allergenAcknowledgements.map((a) => a.token),
       },
       ruleIds: [...new Set(rules.map((r) => r.ruleId))], deadline: deadlines.sort()[0] ?? null,
       options: [{ id: "approve", label: "Approve order", primary: true }, { id: "reject", label: "Refuse order", primary: false }],
@@ -228,16 +251,27 @@ async function commitBasketReview(question: Question, person: Person, token: str
   if (!question.quoteId) return; // Previously placed items are reviewed without placing them twice.
   try {
     const approval = await gw.approve(token, question.quoteId, question.fingerprint!, question.facts.grants as string[]);
-    const order = await gw.order(question.quoteId, `basket-review:${question.id}`, approval.id, question.facts.continued as string[], question.facts.decidedBy as string);
+    const order = await gw.order(question.quoteId, `basket-review:${question.id}`, approval.id, question.facts.continued as string[], question.facts.decidedBy as string, question.facts.allergenAcknowledgements as string[] | undefined);
     for (const plan of stagedPlans(question.eventId!).filter((p) => (question.facts.planIds as string[]).includes(p.id))) {
       plan.orderIds = [order.id];
       plan.approvalId = approval.id;
       plan.status = "ordered";
       plan.summary = `Approved by ${person.name} · ordered`;
+      for (const line of plan.lines) line.allergenDataAcknowledgement = order.lines.find((l) => l.productId === line.productId && l.outletId === line.outletId)?.allergenDataAcknowledgement;
+      if (plan.lines.some((l) => l.allergenDataAcknowledgement)) plan.summary += " · allergen data not confirmed";
       savePlan(plan);
     }
   } catch (error) {
     if (error instanceof GatewayError) throw new BasketReviewError(error.status, `${error.body.message} Submit the order for a fresh finance review.`);
     throw error;
   }
+}
+
+export async function answerBasketAllergens(question: Question, person: Person, token: string) {
+  const { orders } = await gw.orders(question.eventId!);
+  if (snapshot(question.eventId!, orders) !== question.facts.snapshot)
+    throw new BasketReviewError(409, "The order changed. Submit it again so the chef can review the current missing data terms.");
+  if (question.answer !== "continue") return;
+  const a = await gw.acknowledgeAllergens(token, question.quoteId!, question.fingerprint!, question.facts.productIds as string[], question.outletId ?? undefined);
+  kvSet(`basket-allergens:${question.eventId}`, [...(kvGet<AllergenAcknowledgement[]>(`basket-allergens:${question.eventId}`) ?? []), a]);
 }
