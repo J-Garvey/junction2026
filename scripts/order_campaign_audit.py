@@ -555,6 +555,7 @@ def main():
         completion = dict(
             completedAt=dt.datetime.now(dt.timezone.utc).isoformat(), state="drained", oracleVersion=VERSION, oracleRevision=ORACLE_REVISION,
             sourceRows=source_counts, auditedRows=len(automatic), automaticVerdictsAllAttempts=dict(counts),
+            reviewsByMethod=dict(collections.Counter(r["method"] for r in ledger)),
             latestAttemptVerdictsByCaseChannel=dict(collections.Counter(current[key]["verdict"] for key in latest_cases.values())),
             manualReviewedAttempts=len(manual), manualVerdicts=dict(collections.Counter(r["verdict"] for r in manual)),
             channels=dict(channel_counts), modelModes=dict(modes), codeShas=dict(sha_counts),
