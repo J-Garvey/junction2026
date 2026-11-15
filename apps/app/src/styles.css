@@ -98,6 +98,7 @@ h4 { font-size: 13px; font-weight: 700; text-transform: uppercase; color: var(--
 .home-logo-button:hover { background: var(--soft); text-decoration: none; }
 .home-logo-button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .topbar .order-switcher { width: 250px; padding: 0; }
+.topbar .order-switcher-trigger b { font-size: 15px; }
 .profile { display: flex; align-items: center; gap: 8px; border: 0; background: transparent; padding: 4px 6px; border-radius: 6px; text-align: left; cursor: pointer; line-height: 1.2; }
 .profile:hover { background: var(--soft); }
 .profile b { display: block; font-size: 13px; color: var(--ink); }
