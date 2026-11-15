@@ -9,6 +9,7 @@ import { Icon } from "../ui/icons";
 import { DiffView } from "../ui/PlanView";
 import { day, plural, when } from "../format";
 import { useMessagePreparation } from "../useMessagePreparation";
+import { ProcessingTime } from "../ui/ProcessingTime";
 
 const SUGG = ["1,000 L lactose-free milk by Monday"];
 
@@ -159,7 +160,7 @@ function EventChange({ resp, onDone }: { resp: Extract<MessageResp, { route: "ev
     setErr(null);
     setConflict(null);
     try {
-      const r = await api.guests(eventId, Number(guests), version[eventId]);
+      const r = await api.guests(eventId, Number(guests), version[eventId], resp.parseAuditId);
       setOut(r);
       onDone();
     } catch (e) {
@@ -198,8 +199,9 @@ function EventChange({ resp, onDone }: { resp: Extract<MessageResp, { route: "ev
       {out ? (
         <div className="stack">
           <div className={`callout ${out.applied ? "green" : "yellow"} small`}>
-            {out.applied ? "Applied" : "Sent for approval"}
+            {out.applied ? "Applied" : out.reason ?? "Change checked"}
           </div>
+          <ProcessingTime processing={out.event?.processing} />
           {out.diff && <DiffView diff={out.diff} />}
           <Link to={`/events/${eventId}`} className="btn sm">
             Open event
