@@ -1,4 +1,4 @@
-/** Icons and the milk-carton logo from designs/mockups/src/ui.jsx. */
+/** Interface icons and the Potato emoji logo. */
 const P = {
   home: "M3 11l9-7 9 7v9a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z",
   chat: "M4 5h16v11H9l-5 4z",
@@ -32,20 +32,14 @@ export const Icon = ({ n, s = 18, c = "currentColor", w = 1.8 }: { n: IconName; 
   </svg>
 );
 
-/** The logo: a milk carton that is also a speech bubble. */
+/** Decorative beside the Potato name or an accessible link label. */
 export const Mark = ({ s = 28 }: { s?: number }) => (
-  <svg width={s} height={s * 1.15} viewBox="0 0 32 37" className="ic" aria-hidden="true">
-    <path d="M4 11L10 3h12l6 8v20H15l-6 5v-5H4z" fill="#f7a501" stroke="#23251d" strokeWidth="2.4" strokeLinejoin="round" />
-    <path d="M4 11h24M10 3l2.5 8M22 3l-2.5 8" fill="none" stroke="#23251d" strokeWidth="2" strokeLinejoin="round" />
-    <circle cx="10.5" cy="21" r="2" fill="#23251d" />
-    <circle cx="16" cy="21" r="2" fill="#23251d" />
-    <circle cx="21.5" cy="21" r="2" fill="#23251d" />
-  </svg>
+  <span className="brand-mark" style={{ width: s, height: s, fontSize: s }} aria-hidden="true">🥔</span>
 );
 
 export const Lockup = ({ s = 24 }: { s?: number }) => (
   <div className="lockup">
     <Mark s={s} />
-    <b>Aimo Copilot</b>
+    <b>Potato</b>
   </div>
 );

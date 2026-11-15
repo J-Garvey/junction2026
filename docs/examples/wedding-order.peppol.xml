@@ -8,7 +8,7 @@
   <cbc:IssueDate>2026-08-14</cbc:IssueDate>
   <cbc:IssueTime>08:00:00</cbc:IssueTime>
   <cbc:OrderTypeCode>220</cbc:OrderTypeCode>
-  <cbc:Note>Simulated order from the Aimo Agent Gateway (Junction 2026). Version 4. Party identifiers are demo values.</cbc:Note>
+  <cbc:Note>Simulated order from the Potato Agent Gateway (Junction 2026). Version 4. Party identifiers are demo values.</cbc:Note>
   <cbc:DocumentCurrencyCode>EUR</cbc:DocumentCurrencyCode>
   <cbc:CustomerReference>123</cbc:CustomerReference>
   <cac:ValidityPeriod>

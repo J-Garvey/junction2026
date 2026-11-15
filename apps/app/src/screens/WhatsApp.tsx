@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import type { WhatsAppMessage, WhatsAppSession, WhatsAppGroupConfig } from "@aimo/contracts";
 import { useApp } from "../ctx";
-import { Icon } from "../ui/icons";
+import { Icon, Mark } from "../ui/icons";
 import { whatsappApi } from "../whatsapp-api";
 import { ApiError } from "../api";
 import { WhatsAppWebConnection } from "./WhatsAppWebConnection";
@@ -149,7 +149,7 @@ function WhatsAppChat() {
   return (
     <section className="wa-page" aria-labelledby="wa-title">
       <div className="wa-heading">
-        <div><h1 id="wa-title">WhatsApp demo</h1><p>Chat with Aimo Copilot about your hotel orders.</p></div>
+        <div><h1 id="wa-title">WhatsApp demo</h1><p>Chat with Potato about your hotel orders.</p></div>
         <span className="wa-fake">FAKE WHATSAPP</span>
       </div>
       <div className="wa-warning"><Icon n="info" s={19} /><p><strong>Simulated WhatsApp.</strong> No messages leave the Junction demo. No phone number, password or QR code is needed.</p></div>
@@ -161,7 +161,7 @@ function WhatsAppChat() {
 
       {session && !session.connected && (
         <div className="wa-connect">
-          <div className="wa-avatar"><Icon n="chat" s={32} /></div>
+          <div className="wa-avatar"><Mark s={32} /></div>
           <h2>Connect a fake WhatsApp chat</h2>
           <p>Continue as <strong>{me.name}</strong> to try the simulated ordering assistant.</p>
           <form onSubmit={(event) => { event.preventDefault(); void connection("connect"); }}>
@@ -176,8 +176,8 @@ function WhatsAppChat() {
       {session?.connected && (
         <div className="wa-chat" aria-busy={sending || !!operation}>
           <header className="wa-chat-header">
-            <div className="wa-avatar"><Icon n="chat" s={24} /></div>
-            <div className="wa-contact"><h2>Aimo Copilot</h2><span>Demo connected · {session.displayName}</span></div>
+            <div className="wa-avatar"><Mark s={24} /></div>
+            <div className="wa-contact"><h2>Potato</h2><span>Demo connected · {session.displayName}</span></div>
             {session.conversation.activeOrderId && <Link className="wa-disconnect" to={`/baskets/${encodeURIComponent(session.conversation.activeOrderId)}`}>Open basket</Link>}
             <button type="button" className="wa-disconnect" disabled={sending || !!operation || loading} onClick={() => void connection("disconnect")}>{operation === "disconnect" ? "Disconnecting…" : "Disconnect"}</button>
           </header>
@@ -207,11 +207,11 @@ function WhatsAppChat() {
                 {pending.error && <div className="wa-send-error" role="alert"><p>{pending.error}</p><button type="button" disabled={loading || !!operation} onClick={() => void deliver(pending)}>Retry message</button><button type="button" disabled={loading || !!operation} onClick={() => void reload()}>Check chat</button></div>}
               </div>
             )}
-            {sending && <div className="wa-typing" role="status">Aimo Copilot is working…</div>}
+            {sending && <div className="wa-typing" role="status">Potato is working…</div>}
           </div>
           <form className="wa-composer" onSubmit={(event) => { event.preventDefault(); send(draft); }}>
-            <label className="wa-sr-only" htmlFor="wa-message">Message Aimo Copilot</label>
-            <textarea id="wa-message" ref={composer} value={draft} maxLength={8000} rows={2} placeholder="Message Aimo Copilot…" disabled={unavailable} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {
+            <label className="wa-sr-only" htmlFor="wa-message">Message Potato</label>
+            <textarea id="wa-message" ref={composer} value={draft} maxLength={8000} rows={2} placeholder="Message Potato…" disabled={unavailable} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); send(draft); }
             }} />
             <button className="wa-primary wa-send" type="submit" disabled={unavailable || !draft.trim()} aria-label="Send message"><Icon n="send" s={22} /><span>Send</span></button>
@@ -226,7 +226,7 @@ function WhatsAppChat() {
 function MessageBubble({ message, who, children }: { message: WhatsAppMessage; who: string; children?: ReactNode }) {
   const date = new Date(message.at);
   return <div className={`wa-message wa-${message.direction}`}>
-    <span className="wa-sender">{message.direction === "inbound" ? who : "Aimo Copilot"}</span>
+    <span className="wa-sender">{message.direction === "inbound" ? who : "Potato"}</span>
     <div className="wa-text"><ChatText text={message.text} /></div>
     <div className="wa-message-meta">{message.reply && <span>{message.reply.status.replaceAll("_", " ")}</span>}<time dateTime={message.at}>{Number.isNaN(date.getTime()) ? "" : date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time></div>
     {children}

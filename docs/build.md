@@ -1,4 +1,4 @@
-# Aimo Copilot: the build
+# Potato: the build
 
 This is the working prototype of the PRD in [docs/prd/](prd/README.md). It covers the core stories: lookup, a fixed-price order, the hotel's mandate and approvals, and the audit trail. The hotel event runs through all four scenes on one simulated clock.
 

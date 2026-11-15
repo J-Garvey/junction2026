@@ -9,7 +9,7 @@ import * as C from "@aimo/contracts";
 const schema = (s: z.ZodType) => z.toJSONSchema(s, { target: "draft-2020-12", unrepresentable: "any", io: "input" });
 
 const ASSUMPTIONS = `
-**Aimo Agent Gateway** sits in front of the Valio Aimo Junction mock (\`https://junction26.valioaimo.fi\`), which only looks things up.
+**Potato Agent Gateway** sits in front of the Valio Aimo Junction mock (\`https://junction26.valioaimo.fi\`), which only looks things up.
 This gateway owns quotes, approvals, orders, amendments and the audit log. Mandates and approvals are **AP2-style, not AP2-conformant**: a signed standing mandate (IntentMandate.standing) and a signed per-quote approval (CartMandate.approval). No payments: B2B foodservice is invoiced on account.
 
 Stated assumptions about the upstream mock (see GROUND_TRUTH.md):
@@ -71,7 +71,7 @@ export function buildOpenApi() {
   };
   return {
     openapi: "3.1.0",
-    info: { title: "Aimo Agent Gateway", version: "0.1.0", description: ASSUMPTIONS },
+    info: { title: "Potato Agent Gateway", version: "0.1.0", description: ASSUMPTIONS },
     servers: [{ url: "/gateway/v1" }],
     security: [{ bearer: [] }],
     paths: {

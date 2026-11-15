@@ -45,7 +45,7 @@ export function Orders() {
           <div className="rl small">
             <span className="row" style={{ gap: 6 }}>
               {o.jws && (
-                <a href="/.well-known/jwks.json" target="_blank" rel="noreferrer" className="stamp order" title="ES256 signature by Valio Aimo's gateway; verify with the public keys">
+                <a href="/.well-known/jwks.json" target="_blank" rel="noreferrer" className="stamp order" title="ES256 signature by Potato's gateway; verify with the public keys">
                   Signed
                 </a>
               )}

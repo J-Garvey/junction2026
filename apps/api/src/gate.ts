@@ -17,12 +17,13 @@ function hasCookie(req: Request) {
   return Boolean(m && same(decodeURIComponent(m[1]), cookieValue()));
 }
 
-const page = (error: string) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Aimo Copilot preview</title>
+const page = (error: string) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Potato preview</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext x='32' y='50' text-anchor='middle' font-size='52' font-family='Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif'%3E🥔%3C/text%3E%3C/svg%3E">
 <style>body{font-family:"IBM Plex Sans",system-ui,sans-serif;background:#eeefe9;color:#23251d;display:grid;place-items:center;min-height:100vh;margin:0}
 form{background:#fff;border:1px solid #bfc1b7;border-radius:6px;padding:28px;width:min(360px,90vw)}h1{font-size:20px;margin:0 0 6px}p{color:#4d4f46;font-size:14px;margin:0 0 16px}
 input{width:100%;box-sizing:border-box;height:40px;border:1px solid #bfc1b7;border-radius:6px;padding:0 10px;font:inherit;margin-bottom:12px}
 button{width:100%;height:40px;border:0;border-radius:6px;background:#f7a501;font-weight:700;font:inherit;cursor:pointer}.e{color:#cd4239}</style></head>
-<body><form method="post" action="/login"><h1>Aimo Copilot preview</h1><p>Junction 2026 prototype. Enter the preview password.</p>
+<body><form method="post" action="/login"><h1><span aria-hidden="true">🥔</span> Potato preview</h1><p>Junction 2026 prototype. Enter the preview password.</p>
 ${error ? `<p class="e">${error}</p>` : ""}<input type="password" name="password" autofocus autocomplete="current-password" aria-label="Preview password"><button type="submit">Open</button></form></body></html>`;
 
 export function gateRouter(): Router {
