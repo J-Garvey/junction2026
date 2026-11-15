@@ -43,6 +43,12 @@ const normalized = (node: HTMLElement) => node.textContent!.replace(/\s+/g, " ")
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe("saved calculation evidence", () => {
+  it("preserves small physical quantities instead of rounding them like currency", () => {
+    mount(<LineCalculation line={line({ quantity: 2, needAmount: { value: 0.0015, unit: "kg" }, packContent: { value: 0.001, unit: "kg", verified: true, source: "small-pack fixture" }, shares: [] })} />);
+    expect(normalized(document.body)).toContain("0,0015 ÷ 0,001 = 1,5; round up to 2 sales units");
+    expect(normalized(document.body)).toContain("2 × 0,001 = 0,002 kg");
+  });
+
   it("reconciles the displayed money total and opens whole-pack maths with mouse and keyboard without fetching", async () => {
     const fetch = vi.fn();
     vi.stubGlobal("fetch", fetch);
