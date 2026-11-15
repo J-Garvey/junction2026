@@ -17,7 +17,7 @@ How to continue:
 ---
 
 
-Status: **work in progress, stopped on request.** Nothing here is live on `main`. The code is on branch `feat/search-tuning` (commit `3e5347c`, based on `0d02ad9`). It is also saved as [`search-tuning-wip.patch`](search-tuning-wip.patch) in this folder.
+Status: **work in progress, stopped on request.** Nothing here is live on `main`. The code is on branch `DARRAGH-CONTINUE` (commit `3e5347c`, based on `0d02ad9`). It is also saved as [`docs/handoffs/search-tuning/search-tuning-wip.patch`](docs/handoffs/search-tuning/search-tuning-wip.patch).
 
 **The API test suite has not been run on this code.** A run was started and then stopped. Run it before merging anything.
 
