@@ -5,7 +5,7 @@
  */
 import type { EventSpec, Mandate } from "@aimo/contracts";
 import { getDb, resetDb, kvSet } from "./db.js";
-import { setClock, SCENES } from "./clock.js";
+import { setClock, SCENES, nowIso } from "./clock.js";
 import { issueFixedToken, type Person } from "./identity.js";
 import { putMandate } from "./gateway/service.js";
 import { audit, SYSTEM } from "./audit.js";
@@ -100,7 +100,7 @@ export function seedReset() {
   kvSet("dataMode", { mode: "fixture", overlay: null });
   kvSet("seedProfile", { id: "story", version: 1, label: "Wedding story (fictional fixture)" });
   setClock({ scene: "1" });
-  const e: StoredEvent = { ...SEED_EVENT, version: 1, removedNeeds: [], viabilityPlanId: null, orderPlanId: null, orderedGuests: null, lastDiff: null, finalCheck: null, changes: [] };
+  const e: StoredEvent = { ...SEED_EVENT, createdBy: PEOPLE[0].name, createdAt: nowIso(), version: 1, removedNeeds: [], viabilityPlanId: null, orderPlanId: null, orderedGuests: null, lastDiff: null, finalCheck: null, changes: [] };
   saveEvent(e);
   audit({ actor: SYSTEM, action: "seed_reset", summary: `Fresh seed: Demo Hotel (fixture), 4 people, mandate v1, event "${e.name}", clock at ${SCENES["1"].label}`, details: {}, usesFixture: true, visibility: "shared" });
 }

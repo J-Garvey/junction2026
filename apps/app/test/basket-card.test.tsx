@@ -29,7 +29,14 @@ describe("order cards", () => {
   it("labels the order deadline and fixtures in the detail", () => {
     const html = renderToStaticMarkup(<OrderBy deadline={basket.orderBy} detail />);
     expect(html).toContain("Order by");
-    expect(html).toContain("Fixture");
+    expect(html).toContain("Demo data");
+  });
+
+  it("shows the saved creator alongside the guest count", () => {
+    const html = render({ guests: 96, createdBy: "Mikko" });
+    expect(html).toContain("96 guests");
+    expect(html).toContain("Created by ");
+    expect(html).toContain("Mikko");
   });
 
   it("explains the supplier cutoff in the detail without treating it as review expiry", () => {

@@ -136,6 +136,7 @@ export function EventPage() {
               {g.label} {g.count}
             </span>
           ))}
+          {ev.createdBy && <span className="muted">Created by {ev.createdBy}</span>}
           <span className="muted" title={decisionText}>{plural(decisions.decisions, "decision")}</span>
         </div>
         <div style={{ marginTop: 8 }}>

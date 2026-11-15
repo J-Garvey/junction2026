@@ -185,6 +185,8 @@ export interface MenuBody {
   dishes: EventDish[];
 }
 export interface StoredEvent {
+  createdBy?: string | null;
+  createdAt?: string | null;
   processing?: StageProcessing;
   id: string;
   name: string;
@@ -291,6 +293,8 @@ export interface OrdersResp {
 
 /** An order basket: one event, named by the event and its delivery date. */
 export interface Basket extends BasketStatus {
+  createdBy?: string | null;
+  createdAt?: string | null;
   id: string;
   name: string;
   deliveryDate: string;

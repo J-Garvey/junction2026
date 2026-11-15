@@ -35,6 +35,7 @@ export async function seedHotelWorkspace() {
     function booking(id: string, personId: string) {
       const spec = HOTEL_BOOKINGS.find((e) => e.id === id)!;
       const e: StoredEvent = { ...structuredClone(spec), siteId: "site-aurora", version: 1, removedNeeds: [], viabilityPlanId: null, orderPlanId: null,
+        createdBy: getPerson(personId)!.name, createdAt: nowIso(),
         orderedGuests: null, lastDiff: null, finalCheck: null, changes: [{ at: nowIso(), by: getPerson(personId)!.name, what: "Booking entered (demo fixture)" }] };
       saveEvent(e);
       audit({ actor: personActor(getPerson(personId)!), action: "basket_created", summary: `${getPerson(personId)!.name} opened ${e.name} (demo fixture)`, eventId: id, details: {}, visibility: "hotel", usesFixture: true });

@@ -13,6 +13,7 @@ export function BasketCard({ basket: b, role }: { basket: Basket; role: string }
       <div className="btile-context small muted">
         <span><Icon n="cal" s={14} /> Delivery {day(b.deliveryDate)}</span>
         {b.guests > 0 && <span>{plural(b.guests, "guest")}</span>}
+        {b.createdBy && <span>Created by {b.createdBy}</span>}
       </div>
       <OrderBy deadline={b.orderBy} />
       <div className="btile-stats" aria-label="Order summary">
