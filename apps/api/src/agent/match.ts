@@ -179,7 +179,8 @@ export async function rankNeed(need: Need, list: Product[], pool: Pool, opts: { 
       const quantity = Math.max(1, Math.ceil(need.amount.value / content.value - 1e-9));
       if (!s.l.price || s.l.stock.kind !== "known" || s.l.stock.amount < quantity || priceValidityRule(s.p, s.l, date)) return [];
       return [{ ...asCandidate(s, 0), availableDate: date, quantity, deliveryEstimated: cutOnly.includes(s) }];
-    }).sort((a, b) => a.availableDate!.localeCompare(b.availableDate!) || a.productId.localeCompare(b.productId)).slice(0, 2);
+    // Every full-pack option, earliest first; the screen shows the first and can load the rest.
+    }).sort((a, b) => a.availableDate!.localeCompare(b.availableDate!) || a.productId.localeCompare(b.productId));
     dates.sort();
     for (const s of passing) need.excluded.push({ productId: s.p.id, name: s.p.name, reason: `Arrives ${s.l.availableDate}, after ${nb}`, ruleId: "DLV-03" });
     passing = [];

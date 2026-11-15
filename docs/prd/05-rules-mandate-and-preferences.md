@@ -133,7 +133,7 @@ Each function is one problem that can be built and tested alone. "Deterministic 
 | 21 | Quantity scrutiny | **Low / Medium / High**, default Medium. Drives the quantity anomaly check below | Hotel | Yes | `QUANTITY-SANITY` (chunk 01) |
 
 - **Still to settle on this list:** row 17; whether the memory of "flagged as okay" answers (row 6, Q05.6) can be viewed and cleared by the hotel; whether the stored hierarchy of clashing constraints (Q05.7) can be viewed and edited.
-- **Row 17 explained:** a search first collects candidate products from the local catalogue, then checks them against the rules and ranks them, and only the top 3 are shown. Row 17 is how many it collects before that. Higher means fewer good products are missed, but more products to check and more calls to Valio Aimo's API, which has undisclosed rate limits. 50 is a middle value.
+- **Row 17 explained:** a search first collects candidate products from the local catalogue, then checks them against the rules and ranks them. The screen shows the best 5 first and a "Show all" button loads every one that passed (changed 15 Nov at Darragh's request; it used to stop at 3). Row 17 is how many it collects before that. Higher means fewer good products are missed, but more products to check and more calls to Valio Aimo's API, which has undisclosed rate limits. 50 is a middle value.
 
 #### Quantity anomaly check (row 21): design
 

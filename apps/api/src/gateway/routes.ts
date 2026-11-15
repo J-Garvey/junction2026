@@ -6,7 +6,7 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import { z } from "zod";
 import { AmendmentBody, ApprovalBody, LookupBody, OrderCreateBody, ProductSearchQuery, QuoteCreateBody } from "@aimo/contracts";
 import { resolveToken, tokenFrom, type Identity } from "../identity.js";
-import { searchMatches, getProduct } from "../catalog.js";
+import { searchPage, getProduct } from "../catalog.js";
 import { lookup, UpstreamError } from "../aimo/lookup.js";
 import { amendOrder, createApproval, createQuote, getMandate, getOrder, getQuote, GatewayRefusal, listOrders, placeOrder } from "./service.js";
 import { auditView, verifyChain } from "../audit.js";
@@ -52,10 +52,14 @@ export function gatewayRouter(): Router {
       origin: req.query.origin,
       labels: csv(req.query.labels),
       limit: req.query.limit ? Number(req.query.limit) : 50,
+      offset: req.query.offset ? Number(req.query.offset) : undefined,
     });
-    const ms = searchMatches(q);
-    logSearch({ source: "product_search", query: q, interpreted: { count: ms.length, top: ms.slice(0, 10).map((m) => ({ product: `${m.product.id} ${m.product.name}`, tier: m.tier, role: m.role })) } });
-    res.json({ products: ms.map((m) => m.product), relevance: ms.map((m) => ({ productId: m.product.id, tier: m.tier, role: m.role })), source: "local catalogue (data/products_slim.jsonl)" });
+    const { matches: ms, total } = searchPage(q);
+    const offset = q.offset ?? 0;
+    // Every match can be loaded: page on with nextOffset until it is null.
+    const nextOffset = offset + ms.length < total ? offset + ms.length : null;
+    logSearch({ source: "product_search", query: q, interpreted: { count: ms.length, total, top: ms.slice(0, 10).map((m) => ({ product: `${m.product.id} ${m.product.name}`, tier: m.tier, role: m.role })) } });
+    res.json({ products: ms.map((m) => m.product), relevance: ms.map((m) => ({ productId: m.product.id, tier: m.tier, role: m.role })), total, offset, nextOffset, source: "local catalogue (data/products_slim.jsonl)" });
   });
   r.get("/products/:id", (req, res) => {
     const p = getProduct(String(req.params.id));

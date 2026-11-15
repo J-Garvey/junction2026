@@ -149,11 +149,11 @@ describe("product ranking and late delivery options", () => {
     await rank(n, options.reverse());
     expect(n.candidates.map((c) => c.productId)).toEqual(["1", "2", "3"]);
   });
-  it("keeps only the earliest two full-pack options and leaves the late order blocked", async () => {
+  it("keeps every full-pack option, earliest first, and leaves the late order blocked", async () => {
     const n = need();
     await rank(n, [option("1", "2026-11-23"), option("2", "2026-11-19"), option("3", "2026-11-20")]);
     expect(n.lateDeliveryOptions?.map((c) => [c.productId, c.availableDate, c.quantity, c.deliveryEstimated])).toEqual([
-      ["2", "2026-11-19", 7, false], ["3", "2026-11-20", 7, false],
+      ["2", "2026-11-19", 7, false], ["3", "2026-11-20", 7, false], ["1", "2026-11-23", 7, false],
     ]);
     expect(n.candidates).toEqual([]);
     expect(n.rules.map((r) => r.ruleId)).toContain("DLV-06");

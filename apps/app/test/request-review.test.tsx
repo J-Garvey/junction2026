@@ -225,6 +225,21 @@ describe("saved request review controls", () => {
     expect(screen.getByText("0 of 1 items ready")).toBeTruthy();
   });
 
+  it("lists every passing replacement, not just the first few", () => {
+    const many = fixture(true);
+    many.plan.needs[0].candidates = Array.from({ length: 7 }, (_, i) => ({ ...candidate, productId: `46430${i}`, name: `Replacement milk ${i + 1}`, rank: i + 2 }));
+    many.plan.needs[0].candidateCount = 7;
+    show(many);
+    fireEvent.click(screen.getByRole("button", { name: "View details" }));
+    fireEvent.click(screen.getByRole("button", { name: "Suggest replacements" }));
+    expect(screen.getAllByRole("button", { name: "Use replacement" })).toHaveLength(3);
+    fireEvent.click(screen.getByRole("button", { name: "Show all 7 replacements" }));
+    expect(screen.getAllByRole("button", { name: "Use replacement" })).toHaveLength(7);
+    expect(screen.getByText("Replacement milk 7")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Show fewer" }));
+    expect(screen.getAllByRole("button", { name: "Use replacement" })).toHaveLength(3);
+  });
+
   it("shows changed supplier terms after an add conflict and allows review and retry", async () => {
     const changed = fixture();
     changed.plan.lines[0].unitPrice = 25;

@@ -112,13 +112,14 @@ export const TOOLS = [
     parameters: {
       type: "object",
       additionalProperties: false,
-      required: ["q", "category", "claims", "excludeAllergens", "limit"],
+      required: ["q", "category", "claims", "excludeAllergens", "limit", "offset"],
       properties: {
         q: { ...nul("string"), description: "Text in the English or Finnish name" },
         category: { ...nul("string"), description: "Category code or prefix, e.g. 10400" },
         claims: { ...strArr, description: "Every claim must be present, e.g. FREE_FROM_LACTOSE, FREE_FROM_GLUTEN" },
         excludeAllergens: { ...strArr, description: "GS1 allergen codes to exclude, e.g. AN (tree nuts), AM (milk)" },
-        limit: { ...nul("integer"), description: "Max 50" },
+        limit: { ...nul("integer"), description: "Page size, max 50" },
+        offset: { ...nul("integer"), description: "The previous result's nextOffset, to load more matches; null for the first page" },
       },
     },
   },
@@ -308,10 +309,12 @@ async function runTool(name: string, args: any): Promise<ToolResult> {
     if (args.claims?.length) qs.set("claims", args.claims.join(","));
     if (args.excludeAllergens?.length) qs.set("excludeAllergens", args.excludeAllergens.join(","));
     qs.set("limit", String(Math.min(args.limit ?? 50, 50)));
+    if (args.offset) qs.set("offset", String(args.offset));
     const r = await gateway("GET", `/products?${qs}`);
     if (!r.ok) return { output: r.data, summary: `Search refused: ${r.data.message}`, tone: "err", status: r.status };
     const ps = r.data.products ?? [];
-    return { output: { products: ps.map(slimProduct) }, summary: `Searched catalogue: ${ps.length} product${ps.length === 1 ? "" : "s"}`, tone: "ok", status: r.status };
+    const total = r.data.total ?? ps.length;
+    return { output: { products: ps.map(slimProduct), total, nextOffset: r.data.nextOffset ?? null }, summary: `Searched catalogue: ${ps.length} of ${total} product${total === 1 ? "" : "s"}`, tone: "ok", status: r.status };
   }
   if (name === "check_price_and_stock") {
     const ids = (args.productIds ?? []).slice(0, 30);

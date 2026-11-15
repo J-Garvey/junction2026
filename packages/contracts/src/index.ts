@@ -41,7 +41,8 @@ export const ProductSearchQuery = z.object({
   excludeAllergens: z.array(z.string()).optional().describe("Products that contain or may contain these, or have no allergen declaration, are excluded"),
   origin: z.string().optional(),
   labels: z.array(z.string()).optional(),
-  limit: z.number().int().min(1).max(50).default(50),
+  limit: z.number().int().min(1).max(200).default(50).describe("Page size; page on with offset until nextOffset is null to load every match"),
+  offset: z.number().int().min(0).optional().describe("Skip this many matches (paging); the same query keeps the same order"),
 });
 export type ProductSearchQuery = z.infer<typeof ProductSearchQuery>;
 

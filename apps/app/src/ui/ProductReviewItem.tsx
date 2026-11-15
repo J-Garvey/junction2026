@@ -6,6 +6,7 @@ import { claimLabel, day, eur, parseTime, qty, when } from "../format";
 import { stockText } from "./Popover";
 import { Status, UnknownStockMark } from "./Status";
 import { Icon } from "./icons";
+import { useShowAll } from "./ShowAll";
 
 /** One compact table group per requested item; supporting evidence opens on demand. */
 export function ProductReviewItem({ line, need, lines, deliveryDate, checked, disabled, review, onApprove, onSalesQuantity, onEdit, onDiscard, onChoose, children }: {
@@ -37,9 +38,12 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
   const tooLate = rules.some((rule) => rule.ruleId === "DLV-06");
   // Unknown stock (STK-01) is shown by the marker on the product and decided by approving the item.
   const warnings = [...new Set(rules.filter((rule) => rule.outcome !== "order" && !["REQ-04", "DIET-04", "DLV-06", "STK-01"].includes(rule.ruleId)).map((rule) => rule.message))];
+  // Every other product that passed, usable ones first; the first few show and the rest load on request.
   const alternatives = need?.candidates.filter((candidate) => !selected.has(candidate.productId))
-    .sort((a, b) => replacementScore(a, deliveryDate) - replacementScore(b, deliveryDate) || a.rank - b.rank).slice(0, 2) ?? [];
-  const lateOptions = need?.lateDeliveryOptions?.slice(0, 2) ?? [];
+    .sort((a, b) => replacementScore(a, deliveryDate) - replacementScore(b, deliveryDate) || a.rank - b.rank) ?? [];
+  const replacementList = useShowAll(alternatives, 3, "replacements");
+  const lateList = useShowAll(need?.lateDeliveryOptions ?? [], 2, "later options");
+  const lateOptions = lateList.visible;
   const products = found.length ? found : [null];
   const decisionNote = review && !exactMatch && !review.approvedAt
     ? review.reason ?? (found.some((product) => product.stock?.kind === "unknown") ? "Approving continues with stock not confirmed." : null)
@@ -140,7 +144,7 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
               {showDetails && showReplacements && !tooLate && alternatives.length > 0 && need && (
                 <div className="add-review-replacements">
                   <h4>Suggested replacements</h4>
-                  {alternatives.map((candidate) => {
+                  {replacementList.visible.map((candidate) => {
                     const quantity = replacementQuantity(candidate, need);
                     const cutoff = parseTime(candidate.closingTime);
                     const usable = candidate.unitPrice !== null && !!candidate.availableDate && candidate.availableDate <= deliveryDate
@@ -155,6 +159,7 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
                       </div>
                     );
                   })}
+                  {replacementList.toggle}
                 </div>
               )}
 
@@ -168,6 +173,7 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
                       <span className="add-review-product-price"><small>Price ex VAT</small><b>{eur(candidate.unitPrice === null ? null : candidate.quantity * candidate.unitPrice)}</b></span>
                     </div>
                   ))}
+                  {lateList.toggle}
                 </div>
               )}
             </>
