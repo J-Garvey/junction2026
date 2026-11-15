@@ -129,7 +129,7 @@ export function buildOpenApi() {
       "/builder-consents": { post: { operationId: "consentToUnconfirmedStock",
         summary: "Authenticated chef consent for exact quote, products, scope, terms, policy and expiry. Finance and agent tokens are refused.",
         requestBody: { required: true, ...json(ref("BuilderConsentBody")) },
-        responses: { "201": { description: "Server-owned consent record; attach its id as builderConsentId to order/amendment" }, "403": { description: "Chef authentication or scope required" }, ...refusals },
+        responses: { ...refusals, "201": { description: "Server-owned consent record; attach its id as builderConsentId to order/amendment" }, "403": { description: "Chef authentication or scope required" } },
       } },
       "/approvals": {
         post: {

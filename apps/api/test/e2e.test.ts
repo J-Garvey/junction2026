@@ -255,7 +255,8 @@ describe("Test case 1: the wedding through four scenes (docs/demo-plan.md)", () 
   it("scene 4: no-shows need nobody; the final check keeps 37 L and fills 10 L; ready with 5 unconfirmed", () => {
     expect(a.g188.applied).toBe(true);
     expect(a.g188.event.processing).toMatchObject({ stage: "Event change", milestone: "change_applied", segments: 1 });
-    expect(a.view.event.processing).toMatchObject({ stage: "Final check", milestone: "final_checked", segments: 2 });
+    // Initial check, substitute selection, then authenticated chef stock consent.
+    expect(a.view.event.processing).toMatchObject({ stage: "Final check", milestone: "final_checked", segments: 3 });
     expect(a.view.event.processing.totalMs).toBeGreaterThanOrEqual(0);
     expect(a.final.lines.find((l: any) => l.productId === "464727").result).toBe("short");
     expect(a.subQ.body).toMatch(/37 of 47 in stock · 10 l to fill/);

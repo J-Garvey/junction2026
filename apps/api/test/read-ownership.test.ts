@@ -9,7 +9,7 @@ const { createApp } = await import("../src/server.js");
 const { config } = await import("../src/config.js");
 const { getDb } = await import("../src/db.js");
 const { issueToken } = await import("../src/identity.js");
-const { MANDATE, SEED_EVENT, HOTEL_AGENT_TOKEN, VALIO_VIEWER_TOKEN } = await import("../src/seed.js");
+const { MANDATE, SEED_EVENT, HOTEL_AGENT_TOKEN, OUTSIDE_AGENT_TOKEN, VALIO_VIEWER_TOKEN } = await import("../src/seed.js");
 const { putMandate } = await import("../src/gateway/service.js");
 const { setClock } = await import("../src/clock.js");
 const { audit, auditView, verifyChain, SYSTEM } = await import("../src/audit.js");
@@ -62,6 +62,13 @@ describe("hotel ownership on every trade read", () => {
   it("enforces token read grants including lists, audit and mandate", async () => {
     for (const path of [`/quotes/${first.q.id}`, `/orders/${first.o.id}`, `/orders/${first.o.id}/peppol`, "/orders", "/audit", "/mandate"])
       expect((await call(noScope, `/gateway/v1${path}`)).status).toBe(403);
+  });
+  it("lets the documented outside-agent demo read its own shared audit with an explicit grant", async () => {
+    const response = await call(OUTSIDE_AGENT_TOKEN, `/gateway/v1/audit?orderId=${first.o.id}`);
+    expect(response.status).toBe(200);
+    expect(response.body.entries.length).toBeGreaterThan(0);
+    expect(response.body.entries.every((entry: any) => entry.hotelId === MANDATE.hotelId && entry.orderId === first.o.id)).toBe(true);
+    expect((await call(OUTSIDE_AGENT_TOKEN, `/gateway/v1/audit?orderId=${second.o.id}`)).body.entries).toEqual([]);
   });
   it("narrows audit by ownership before filters, including unknown and empty filters", async () => {
     for (const token of [person, foreignPerson, other]) {

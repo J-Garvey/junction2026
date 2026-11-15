@@ -55,12 +55,12 @@ function scripted() {
   });
 }
 
-const post = async (p: string, b: unknown = {}) => {
-  const r = await fetch(`${BASE}/api/live${p}`, { method: "POST", headers: { "Content-Type": "application/json", ...hotelHeaders() }, body: JSON.stringify(b) });
+const post = async (p: string, b: unknown = {}, personId = "p-aino") => {
+  const r = await fetch(`${BASE}/api/live${p}`, { method: "POST", headers: { "Content-Type": "application/json", ...hotelHeaders(personId) }, body: JSON.stringify(b) });
   return { status: r.status, body: (await r.json()) as any };
 };
 const { issueToken } = await import("../src/identity.js");
-const hotelHeaders = () => ({ Authorization: `Bearer ${issueToken({ kind: "person", personId: "p-aino" })}` });
+const hotelHeaders = (personId = "p-aino") => ({ Authorization: `Bearer ${issueToken({ kind: "person", personId, testSession: false })}` });
 const state = async () => (await (await fetch(`${BASE}/api/live/state`, { headers: hotelHeaders() })).json()) as any;
 async function settle() {
   for (let i = 0; i < 100; i++) {
@@ -83,10 +83,10 @@ describe("Live console: real gateway, scripted model", () => {
     let s = await settle();
     chefCard = openCard(s);
     expect((await post("/say", { text: "again" })).status).toBe(409);
-    await post(`/cards/${chefCard.id}`, { optionId: "continue" });
+    expect((await post(`/cards/${chefCard.id}`, { optionId: "continue" })).status).toBe(200);
     s = await settle();
     approverCard = openCard(s);
-    await post(`/cards/${approverCard.id}`, { optionId: "approve" });
+    expect((await post(`/cards/${approverCard.id}`, { optionId: "approve" }, "p-sanna")).status).toBe(200);
     final = await settle();
   });
 
@@ -137,11 +137,11 @@ describe("live console human authentication outside demo mode", () => {
     const reply = async (id: string, optionId: string, token: string) => fetch(`${BASE}/api/live/cards/${id}`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ optionId }) });
     config.testMode = false;
     try {
-      expect((await post(`/cards/${chefCard.id}`, { optionId: "continue" })).status).toBe(409);
+      expect((await reply(chefCard.id, "continue", "")).status).toBe(401);
       expect((await reply(chefCard.id, "continue", finance)).status).toBe(409);
       expect((await reply(chefCard.id, "continue", chef)).status).toBe(200);
       const approval = openCard(await settle());
-      expect((await post(`/cards/${approval.id}`, { optionId: "approve" })).status).toBe(409);
+      expect((await reply(approval.id, "approve", "")).status).toBe(401);
       expect((await reply(approval.id, "approve", chef)).status).toBe(409);
       expect((await reply(approval.id, "approve", finance)).status).toBe(200);
       const done = await settle();

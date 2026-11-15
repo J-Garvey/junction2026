@@ -4,7 +4,6 @@
  */
 import { Router, type Request, type Response } from "express";
 import { z } from "zod";
-import { tokenFrom } from "../identity.js";
 import { config } from "../config.js";
 import { kvSet } from "../db.js";
 import { HOTEL_ID } from "../agent/plan.js";
