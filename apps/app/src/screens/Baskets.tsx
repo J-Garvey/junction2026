@@ -146,7 +146,7 @@ export function BasketPage() {
       <div className={`bhead${data.confirmed ? " confirmed" : ""}`}>
         <h1>{ev.name}</h1>
         {data.confirmed && <span className="stamp order"><Icon n="check" s={14} /> Confirmed</span>}
-        {!isApprover && <div className="order-submit">
+        {!isApprover && <div className="row small" style={{ gap: 12, marginLeft: "auto", flexWrap: "wrap" }}>
           <button
             type="button"
             className="btn primary"
@@ -154,9 +154,8 @@ export function BasketPage() {
             onClick={submitForReview}
           >
             <Icon n={review ? "check" : "send"} s={16} />
-            {submitting ? "Ordering…" : review ? "Awaiting approval" : "Order"}
+            {submitting ? "Submitting…" : review ? "Submitted for review" : "Submit order for review"}
           </button>
-          {!review && <span className="small muted">Finance approval is required before placement.</span>}
         </div>}
       </div>
       <div className="basket-context small muted">Delivery {day(ev.serviceDate)}<OrderBy deadline={data.orderBy} detail /></div>
@@ -214,7 +213,7 @@ export function BasketPage() {
           {!isApprover && pending.length > 0 && (
             <div className="card" style={{ marginTop: 12 }}>
               {pending.map((r) => (
-                <RequestRow key={r.id} r={r} onChanged={reload} onAdded={() => { setRequestNote("Added to the order. Select Order to send it for finance approval."); reload(); }} question={questions.find((q) => q.planId === r.id && (q.state === "open" || q.state === "waiting"))} />
+                <RequestRow key={r.id} r={r} onChanged={reload} onAdded={() => { setRequestNote("Added to the order. Submit the final order for finance review."); reload(); }} question={questions.find((q) => q.planId === r.id && (q.state === "open" || q.state === "waiting"))} />
               ))}
             </div>
           )}
@@ -368,7 +367,7 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
   function added() {
     setReview(null);
     setText("");
-    setNote({ cls: "green", body: <><b>Added to the order.</b> Select Order to send it for finance approval.</> });
+    setNote({ cls: "green", body: <><b>Added to the order.</b> Submit the final order for finance review.</> });
     onAdded();
   }
 
