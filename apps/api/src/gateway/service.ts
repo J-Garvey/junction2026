@@ -462,7 +462,9 @@ export async function placeOrder(id: Identity, quoteId: string, idemKey: string,
     const row = getDb().prepare("SELECT json, body_hash FROM orders WHERE idem_key = ?").get(idemKey) as { json: string; body_hash: string } | undefined;
     if (row) {
       if (row.body_hash !== bodyHash) refuse(422, { error: "idempotency_conflict", message: "This Idempotency-Key was used with a different body; the first order is untouched" });
-      return JSON.parse(row.json) as Order;
+      const previous = JSON.parse(row.json) as Order;
+      requireOutletScope(id, hotelId, previous.lines);
+      return previous;
     }
     if (getDb().prepare("SELECT id FROM orders WHERE quote_id = ?").get(q.id))
       refuse(409, { error: "quote_consumed", message: "This quote already has an order. Retry with the original Idempotency-Key to retrieve it, or request a new quote for another order." });
