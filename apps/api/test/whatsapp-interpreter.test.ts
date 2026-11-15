@@ -42,6 +42,19 @@ describe("WhatsApp order resolution", () => {
     expect(reply.question).not.toContain(dinner.id);
   });
 
+  it.each([
+    "add 10kg pasta to emma' and lauris wedding",
+    "add 10 kg pasta to Emma & Lauri's wedding",
+    "add 10 kg pasta to emma and lauri wedding",
+    "add 10 kg pasta to emma and Lauri's weding",
+    "show emma lauris wedding",
+  ])("tolerates apostrophes, possessives and small typos in order names: %s", async (text) => {
+    const emma = { id: "evt-emma", name: "Emma and Lauri's wedding", deliveryDate: "2026-11-17", version: 4 };
+    const pavit = { id: "evt-pavit", name: "Pavit's Date", deliveryDate: "2026-11-18", version: 5 };
+    expect(await interpretWhatsApp(text, context({ orders: [wedding, emma, pavit], activeOrderId: null })))
+      .toMatchObject({ orderId: emma.id });
+  });
+
   it("uses both name and date to disambiguate", async () => {
     const earlier = { ...conference, id: "evt-earlier", deliveryDate: "2026-11-16" };
     expect(await interpretWhatsApp("show order Conference Lunch on 2026-11-16", context({ orders: [earlier, conference] })))

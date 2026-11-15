@@ -9,7 +9,8 @@ import { ALLERGEN_NAMES } from "../rules/checks.js";
 type Span = { start: number; end: number; reference: string };
 type Resolution = { order: WhatsAppOrderRef | null; body: string; explicit: boolean; question: string | null; choices: WhatsAppOrderRef[] };
 
-const normal = (text: string) => text.normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+// Apostrophes join rather than split, so "Lauri's" and "Lauris" normalise alike.
+const normal = (text: string) => text.normalize("NFKC").toLowerCase().replace(/['’‘`]/g, "").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const phrase = (haystack: string, needle: string) => (` ${haystack} `).includes(` ${needle} `);
 const uniqueOrders = (orders: WhatsAppOrderRef[]) => [...new Map(orders.map((order) => [order.id, order])).values()];
@@ -24,6 +25,28 @@ const REMOVE = /\b(?:remove|delete|drop)\b/i;
 const CONFIRM = /\b(?:confirm|place|submit|checkout)\b/i;
 const SUMMARY = /\b(?:summary|summari[sz]e|show|view|status|details)\b|^what(?:'s| is| are)?\b/i;
 const DATE = /\b(?:20\d{2}-\d{2}-\d{2}|today|tomorrow|(?:mon|tue|wed|thu|fri|sat|sun)(?:day|sday|nesday|rsday|urday)?|\d{1,2}\s*(?:\.|st|nd|rd|th)?\s*(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*)\b/gi;
+
+const FILLER = new Set(["and", "n", "the", "a", "of", "s"]);
+const stem = (word: string) => word.length > 3 ? word.replace(/s$/, "") : word;
+const tokens = (text: string) => normal(text).split(" ").filter((word) => word && !FILLER.has(word)).map(stem);
+function nearWord(a: string, b: string): boolean {
+  if (a === b) return true;
+  if (Math.min(a.length, b.length) < 5 || Math.abs(a.length - b.length) > 1) return false;
+  // One insertion, deletion, substitution or adjacent swap.
+  let i = 0;
+  while (i < a.length && a[i] === b[i]) i++;
+  const rest = (x: number, y: number) => a.slice(i + x) === b.slice(i + y);
+  return rest(1, 1) || rest(1, 0) || rest(0, 1) || (a[i] === b[i + 1] && a[i + 1] === b[i] && rest(2, 2));
+}
+/** Typos, possessives and "&" vs "and": every content word must match a word of the name. */
+function nearMatches(query: string, orders: WhatsAppOrderRef[]): WhatsAppOrderRef[] {
+  const wanted = tokens(query);
+  if (!wanted.length) return [];
+  return orders.filter((order) => {
+    const name = tokens(order.name);
+    return wanted.every((word) => name.some((candidate) => nearWord(word, candidate)));
+  });
+}
 
 function referenceMatches(reference: string, context: WhatsAppInterpretContext): WhatsAppOrderRef[] {
   let query = reference.trim().replace(/^[#\s"']+|[\s"'.!?]+$/g, "");
@@ -44,7 +67,9 @@ function referenceMatches(reference: string, context: WhatsAppInterpretContext):
   if (byId.length) return byId;
   query = normal(query);
   const exact = candidates.filter((order) => normal(order.name) === query);
-  return exact.length ? exact : candidates.filter((order) => phrase(normal(order.name), query));
+  if (exact.length) return exact;
+  const phrased = candidates.filter((order) => phrase(normal(order.name), query));
+  return phrased.length ? phrased : nearMatches(query, candidates);
 }
 
 /** Extract scoped references before parsing products, including unknown references. */

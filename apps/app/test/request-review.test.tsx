@@ -55,8 +55,8 @@ describe("saved request review controls", () => {
     expect((screen.getByRole("button", { name: "Add to order" }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText(/Product 469363/).textContent).toContain("Fixture");
     await screen.findByText(/Dietary suitability is unknown/);
-    fireEvent.click(screen.getByRole("button", { name: "Review items" }));
     await screen.findByRole("button", { name: "Approve milk" });
+    expect(api.reviewItems).toHaveBeenCalledOnce();
     fireEvent.click(screen.getByRole("button", { name: "Approve milk" }));
     await waitFor(() => expect((screen.getByRole("button", { name: "Add to order" }) as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(screen.getByRole("button", { name: "Add to order" }));
