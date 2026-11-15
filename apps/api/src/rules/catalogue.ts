@@ -91,7 +91,7 @@ const LABELS: Record<string, string> = {
 };
 
 export const RULES: RuleDef[] = [
-  // Allergens: block, always
+  // Declared allergen conflicts block; missing declarations require the chef's D35 decision.
   R("ALG-01", "Allergens", "block", true, "Product contains an allergen the line must avoid", "{product} contains {allergen}, which {group} must avoid."),
   R("ALG-02", "Allergens", "block", true, "Product may contain an allergen the line must avoid", "{product} may contain {allergen}, which {group} must avoid."),
   R("ALG-03", "Allergens", "ask_chef", false, "No allergen declaration on a line with an allergy (D35)", "{product}: allergen data not confirmed for {allergen}. The chef must decide whether to continue; this does not confirm safety for {group}."),

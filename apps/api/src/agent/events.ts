@@ -4,7 +4,7 @@
  * ORDER-DIFF, CHANGE-APPLY, ALLERGY-RECHECK, FINAL-CHECK, SHORTFALL-RESOLVE,
  * SUBSTITUTE-FIND, SILENCE-RESOLVE, COVERAGE-SUMMARY. EDIT-GUARD for events.
  */
-import { hasUnconfirmedAllergenData, type EventSpec, type Order, type Question, type WarningRecord, type DietGroup, type Need, type Quote, type AmendmentBody } from "@aimo/contracts";
+import { hasUnconfirmedAllergenData, type EventSpec, type Order, type Question, type WarningRecord, type DietGroup, type Need, type Quote, type AmendmentBody, type StageProcessing } from "@aimo/contracts";
 import { getDb, getJson, allJson } from "../db.js";
 import { now, nowIso } from "../clock.js";
 import { getProduct, getRaw, searchProducts } from "../catalog.js";
@@ -23,6 +23,7 @@ import type { Person } from "../identity.js";
 import { allergenQuestionText, constraintsForLine, eventAllergenScope, lineAllergenScope, missingAllergenProducts } from "./allergenData.js";
 
 export type StoredEvent = EventSpec & {
+  processing?: StageProcessing;
   version: number;
   removedNeeds: string[];
   viabilityPlanId: string | null;

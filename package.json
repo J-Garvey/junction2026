@@ -11,6 +11,7 @@
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
     "seed": "pnpm --filter @aimo/api seed",
+    "seed:demo": "pnpm --filter @aimo/api seed --profile hotel",
     "fixtures:record": "pnpm --filter @aimo/api fixtures:record",
     "agent:demo": "pnpm --filter @aimo/api agent:demo"
   }

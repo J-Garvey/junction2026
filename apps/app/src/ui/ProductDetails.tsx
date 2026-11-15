@@ -8,6 +8,7 @@ import { stockText } from "./Popover";
 import { Status } from "./Status";
 import { CarbonEstimate } from "./CarbonEstimate";
 import "./product-details.css";
+import { LineCalculation } from "./CalculationEvidence";
 
 const NOT_SUPPLIED = "Not supplied";
 const number = (value: number) => value.toLocaleString("fi-FI", { maximumFractionDigits: 6 });
@@ -49,6 +50,7 @@ export function ProductDetailsPanel({ line }: { line: PlanLine }) {
         </dl>
         {!!line.rules.length && <ul className="product-detail-notes small">{line.rules.map((rule, index) => <li key={`${rule.ruleId}-${index}`}>{rule.message}</li>)}</ul>}
       </Group>
+      <Group title="Saved calculation"><LineCalculation line={line} /></Group>
       <div>
         <SupplierSchedules evidence={evidence} />
         {!!evidence?.schedules.length && !evidence.schedules.some((schedule) => schedule.availableDate === line.availableDate && schedule.closingTime === line.closingTime)

@@ -69,6 +69,12 @@ export interface Need {
   excluded: { productId: string; name: string; reason: string; ruleId: string }[];
   rules: FiredRule[];
   judgements: ModelJudgement[];
+  /** Display evidence from the bounded shortlist passed to ranking, after saved buyer exclusions. Older plans omit it. */
+  selectionTrace?: {
+    shortlist: { productId: string; name: string }[];
+    /** Each product leaves the funnel once; additional reasons remain in excluded. */
+    stages: { key: "lookup" | "eligibility" | "cutoff" | "type" | "delivery"; removedProductIds: string[] }[];
+  };
   substituteFor: string | null;
   /** Set when nothing arrives by the needed-by date (DLV-06): the earliest date something can. */
   earliestDelivery?: string | null;
@@ -124,6 +130,17 @@ export interface ItemReview {
   approvedAt: string | null;
 }
 
+/** Server processing from submission to a saved result; human decision time is excluded. */
+export interface StageProcessing {
+  stage: string;
+  totalMs: number;
+  /** Present only when the submitted message's saved parsing measurement is available. */
+  parsingMs?: number;
+  /** Result-producing calls, after the optional message parsing call. */
+  segments: number;
+  milestone: "review_ready" | "chef_input" | "approval_ready" | "blocked" | "ordered" | "rejected" | "failed" | "viability_checked" | "change_applied" | "change_checked" | "final_checked";
+}
+
 export interface Plan {
   id: string;
   kind: "single" | "event";
@@ -170,6 +187,7 @@ export interface Plan {
   itemReviews?: ItemReview[];
   /** Measured while running: how long each agent step took. */
   timings?: { products: number; searchMs?: number; lookupMs: number; rankMs: number; quoteMs?: number; totalMs: number } | null;
+  processing?: StageProcessing;
 }
 
 export interface WarningRecord {
