@@ -66,10 +66,10 @@ describe("manager and finance workspace", () => {
     vi.mocked(api.home).mockResolvedValue({ questions: [
       { ...question, outletId: "banquet" },
       { ...question, id: "urgent", title: "Urgent request", type: "spend_cap", outletId: "banquet", deadline: "2026-11-14T11:00:00Z" },
-      { ...question, id: "expired", title: "Expired", deadline: "2026-11-14T09:00:00Z" },
+      { ...question, id: "expired", title: "Expired", outletId: "banquet", deadline: "2026-11-14T09:00:00Z" },
       { ...question, id: "chef", title: "Chef only", forRole: "chef" },
-      { ...question, id: "waiting", title: "Still waiting", state: "waiting" },
-      { ...question, id: "replaced", title: "Replaced", state: "replaced" },
+      { ...question, id: "waiting", title: "Still waiting", outletId: "banquet", state: "waiting" },
+      { ...question, id: "replaced", title: "Replaced", outletId: "banquet", state: "replaced" },
       { ...question, id: "other-outlet", title: "Other outlet", outletId: "bar" },
       { ...question, id: "hotel", title: "Hotel-wide approval" },
     ], events: [], plans: [], warnings: [] });
@@ -116,11 +116,22 @@ describe("manager and finance workspace", () => {
   });
 
   it("keeps unknown basket prices unknown in the manager's summary", async () => {
-    vi.mocked(api.basket).mockResolvedValue({ ...detail, requests: [{ ...detail.requests[0], totalExVat: null }] });
+    vi.mocked(api.basket).mockResolvedValue({ ...detail, requests: [{ ...detail.requests[0], totalExVat: null }], review: null, questions: [] });
     mountDetail();
     const summary = await screen.findByRole("region", { name: "Financial summary" });
     expect(within(summary).getAllByText("TBC")).toHaveLength(2);
     expect(within(summary).getByText(eur(20))).toBeTruthy();
+  });
+
+  it("uses the submitted quote amount when supplier prices have changed since the draft", async () => {
+    const repriced = { ...question, facts: { ...question.facts, total: 150 } };
+    vi.mocked(api.basket).mockResolvedValue({ ...detail, review: repriced, questions: [repriced] });
+    mountDetail();
+    const summary = await screen.findByRole("region", { name: "Financial summary" });
+    expect(within(summary).getByText(eur(150))).toBeTruthy();
+    expect(within(summary).getByText(eur(130))).toBeTruthy();
+    expect(within(summary).getByText(eur(20))).toBeTruthy();
+    expect(within(summary).queryByText(eur(120))).toBeNull();
   });
 
   it("keeps the chef's Order action on the existing approval submission path", async () => {

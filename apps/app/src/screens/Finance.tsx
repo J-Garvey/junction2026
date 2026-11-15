@@ -73,11 +73,14 @@ export function FinanceHome() {
 
 export function FinanceOrderSummary({ total, placed, pending, review }: { total: number | null; placed: number; pending: number | null; review: Question | null }) {
   const issues = Array.isArray(review?.facts.items) ? review.facts.items.filter((item): item is { text: string } => !!item && typeof item.text === "string") : [];
+  // Submission gets a fresh quote; its signed-off amount can differ from the saved draft prices.
+  const approvalTotal = review ? reviewTotal(review) : total;
+  const awaitingPlacement = review ? approvalTotal === null ? null : approvalTotal - placed : pending;
   return <section className="stack" aria-label="Financial summary">
     <dl className="finance-metrics">
-      <div className="finance-metric-accent"><dt>Current order total · ex VAT</dt><dd>{eur(total)}</dd></div>
+      <div className="finance-metric-accent"><dt>{review ? "Submitted order total" : "Current order total"} · ex VAT</dt><dd>{eur(approvalTotal)}</dd></div>
       <div><dt>Already placed · ex VAT</dt><dd>{eur(placed)}</dd></div>
-      <div><dt>Awaiting placement · ex VAT</dt><dd>{eur(pending)}</dd></div>
+      <div><dt>Awaiting placement · ex VAT</dt><dd>{eur(awaitingPlacement)}</dd></div>
     </dl>
     {review ? <div className="finance-submission">
       <h2>Submitted for approval</h2><p className="small">{review.body}</p>
