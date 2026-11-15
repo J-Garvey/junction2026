@@ -59,6 +59,8 @@ Use fixture mode and the demo clock before the fixture cutoffs, for example 14 N
 
 Send `summary` to review the current basket or `cancel` to discard a pending proposal. Existing baskets can be selected by name, ID or an unambiguous delivery date. Missing order references and ambiguous product references produce a question.
 
+Send changes for one basket at a time. Commands for all baskets, replacements, alternatives and conditional changes need clarification; they never apply only part of the instruction. Use `to order <name or ID>` for an explicit target. Product wording such as `from Finland` or `in sauce` cannot silently select a basket with that name. If a message needs clarification, any earlier pending confirmation is cancelled; send the intended request again to review it.
+
 Unknown stock stays visibly unconfirmed. A generic chat confirmation cannot accept the stock risk: make that explicit decision using the existing app flow. Other unresolved chef decisions and dietary, product, price or delivery problems must also be resolved in the app. Previously recorded stock decisions remain subject to gateway checks. Passed cutoffs cannot be approved through.
 
 Draft basket additions and whole-line removals are supported. Once a basket contains a placed mock order, chat shows its receipt and directs amendments to the app. Financial approval also stays in the app under the approver's own session.

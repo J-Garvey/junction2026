@@ -89,6 +89,13 @@ describe("WhatsApp order resolution", () => {
     expect(reply.request?.lines[0].productId).toBe("469363");
     expect(await interpretWhatsApp("remove 469363", context({ orders: [wedding, numericOrder] }))).toMatchObject({ intent: "remove_items", orderId: wedding.id, lineIds: [milk.id] });
   });
+
+  it.each(["from Finland", "in sauce"])("does not turn product wording into an order reference: %s", async (suffix) => {
+    const misleading = { ...conference, name: suffix.replace(/^\S+\s+/, "") };
+    const reply = await interpretWhatsApp(`add 1 kg salmon ${suffix}`, context({ orders: [wedding, misleading] }));
+    expect(reply.orderId).not.toBe(misleading.id);
+    if (reply.intent === "add_items") expect(reply.request?.originalText).toContain(suffix);
+  });
 });
 
 describe("WhatsApp item additions", () => {
@@ -181,6 +188,23 @@ describe("WhatsApp removals", () => {
 });
 
 describe("WhatsApp confirmation safety", () => {
+  it.each([
+    "add 1 kg salmon instead of milk", "add 1 kg salmon rather than milk",
+    "add 1 kg salmon to replace milk", "add 1 kg salmon as a replacement for milk",
+    "add 1 kg salmon if milk is unavailable", "add 1 kg salmon or butter",
+  ])("does not partially execute unsupported replacements, choices or conditions: %s", async (text) => {
+    expect(await interpretWhatsApp(text, context())).toMatchObject({ intent: "clarify", request: null, lineIds: [] });
+  });
+
+  it.each([
+    "add 1 kg salmon to all orders", "add 1 kg salmon to Aurora Wedding and Conference Lunch",
+    "add 1 kg salmon to evt-wedding and evt-conference", "remove all items from all orders",
+    "add 1 kg salmon to Aurora Wedding; add 2 kg butter to Conference Lunch",
+    "confirm order evt-wedding and evt-conference",
+  ])("keeps unsupported multi-order instructions atomic: %s", async (text) => {
+    expect(await interpretWhatsApp(text, context())).toMatchObject({ intent: "clarify", orderId: null, request: null, lineIds: [] });
+  });
+
   it.each(["confirm order", "place the order", "submit order", "confirm evt-wedding"])("requires explicit order intent: %s", async (text) => {
     expect(await interpretWhatsApp(text, context())).toMatchObject({ intent: "confirm_order", orderId: wedding.id, request: null, lineIds: [] });
   });

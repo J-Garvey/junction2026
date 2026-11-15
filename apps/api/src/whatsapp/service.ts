@@ -58,7 +58,10 @@ export async function handleWhatsAppMessage(input: { person: Person; token: stri
   const { person, text } = input;
   const conversation = structuredClone(input.conversation);
   const respond = (facts: WhatsAppReplyFacts) => ({ conversation, reply: formatWhatsAppReply(facts, input.channel) });
-  const choices = listEvents().filter((e) => person.hotelId === "hotel-aurora" && mandate().sites.some((s) => s.id === e.siteId) && (person.hotelScope || (e.dishes.every((d) => person.outlets.includes(d.outletId)) && staged(e.id).every((p) => p.lines.every((l) => person.outlets.includes(l.outletId)))))).map((e) => ref(e.id));
+  const placed = person.hotelScope ? [] : (await gw.orders()).orders.filter((o) => o.state !== "rejected");
+  const choices = listEvents().filter((e) => person.hotelId === "hotel-aurora" && mandate().sites.some((s) => s.id === e.siteId) && (person.hotelScope || (e.dishes.every((d) => person.outlets.includes(d.outletId))
+    && staged(e.id).every((p) => p.lines.filter((l) => !l.removed).every((l) => person.outlets.includes(l.outletId)))
+    && placed.filter((o) => o.eventId === e.id).every((o) => o.lines.filter((l) => !l.removed).every((l) => person.outlets.includes(l.outletId)))))).map((e) => ref(e.id));
   if (!choices.some((e) => e.id === conversation.activeOrderId)) { conversation.activeOrderId = null; conversation.pending = null; }
   const initial = conversation.activeOrderId ? await contents(conversation.activeOrderId) : null;
   let interpretation = await interpretWhatsApp(text, { ...conversation, orders: choices, lines: initial?.displayed ?? [] });
@@ -74,7 +77,11 @@ export async function handleWhatsAppMessage(input: { person: Person; token: stri
     return respond({ status: "summary", headline: "Pending change cancelled", detail: "The basket is unchanged." });
   }
   if (interpretation.intent === "clarify" || !interpretation.orderId) {
-    return respond({ status: "clarification", headline: interpretation.question ?? "Which order would you like to work on?", detail: interpretation.choices.map((o) => `${o.name} (${o.id}), ${o.deliveryDate}`).join("; "), actions: interpretation.choices.slice(0, 3).map((o) => ({ label: o.name, text: o.id })) });
+    // A later "confirm change/order" must never accept an older proposal after
+    // the person's latest request needed clarification instead of a new preview.
+    const hadPending = Boolean(conversation.pending);
+    conversation.pending = null;
+    return respond({ status: "clarification", headline: interpretation.question ?? "Which order would you like to work on?", detail: [interpretation.choices.map((o) => `${o.name} (${o.id}), ${o.deliveryDate}`).join("; "), hadPending ? "The previous confirmation was cancelled. Send the request again to review it." : ""].filter(Boolean).join(" "), actions: interpretation.choices.slice(0, 3).map((o) => ({ label: o.name, text: o.id })) });
   }
   const id = interpretation.orderId;
   conversation.activeOrderId = id;
@@ -83,6 +90,15 @@ export async function handleWhatsAppMessage(input: { person: Person; token: stri
     const current = await contents(id);
     const summary = (extra: Partial<WhatsAppReplyFacts> = {}) => respond({ status: "summary", headline: "Your current order basket", order, lines: current.displayed, totalExVat: current.totalExVat, actions: [{ label: "Review final order", text: "confirm order" }], ...extra });
     const blocked = (headline: string, detail?: string) => respond({ status: "blocked", headline, detail, order });
+    // Another person may have changed the basket while this message was being
+    // interpreted or waiting for its lock. Check current scope before any reply.
+    if (!mandate().sites.some((s) => s.id === current.e.siteId) || (!person.hotelScope
+      && (current.e.dishes.some((d) => !person.outlets.includes(d.outletId))
+        || [...current.lines, ...current.orders.flatMap((o) => o.lines)].some((l) => !l.removed && !person.outlets.includes(l.outletId))))) {
+      conversation.activeOrderId = null;
+      conversation.pending = null;
+      return blocked("This order is outside your hotel or outlet scope.");
+    }
     if (interpretation.intent === "summary" || interpretation.intent === "select_order") {
       return summary({ detail: current.orders.length ? "Includes placed mock orders. Open the app to amend placed lines." : "You can add or remove items, then confirm the final basket." });
     }
@@ -181,6 +197,10 @@ export async function handleWhatsAppMessage(input: { person: Person; token: stri
       group.line.quantity += line.quantity;
       group.requires.claims = [...new Set([...group.requires.claims, ...requirements.flatMap((r) => r.claims)])];
       group.requires.avoidAllergens = [...new Set([...group.requires.avoidAllergens, ...requirements.flatMap((r) => r.avoidAllergens)])];
+      group.requires.labels = [...new Set([...group.requires.labels, ...requirements.flatMap((r) => r.labels)])];
+      const origins = [...new Set([group.requires.origin, ...requirements.map((r) => r.origin)].filter((origin): origin is string => Boolean(origin)))];
+      if (origins.length > 1) return blocked("This product has conflicting required origins. Resolve the requirements in the app.");
+      if (origins.length) group.requires.origin = origins[0];
       grouped.set(key, group);
     }
     let quote: Quote;
