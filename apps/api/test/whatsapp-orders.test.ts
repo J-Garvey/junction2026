@@ -8,6 +8,8 @@ process.env.PREVIEW_PASSWORD = "";
 const { createApp } = await import("../src/server.js");
 const { config } = await import("../src/config.js");
 const { getPlan } = await import("../src/agent/plan.js");
+const { mandate } = await import("../src/agent/plan.js");
+const { putMandate } = await import("../src/gateway/service.js");
 const { allQuestions } = await import("../src/agent/questions.js");
 let server: Server;
 let base = "";
@@ -93,8 +95,9 @@ describe("synthetic WhatsApp order flow", () => {
 
   it("evaluates spend and stock over all staged messages and creates one existing app approval", async () => {
     const id = await basket();
-    await stage(id, "40 kg salmon");
-    await stage(id, "40 kg salmon");
+    const first = await stage(id, "10 kg salmon 469672");
+    putMandate({ ...mandate(), spendCapEur: getPlan(first)!.totalExVat! * 1.5 });
+    await stage(id, "10 kg salmon 469672");
     await send(id);
     await send("confirm order");
     const response = await send("confirm order");
@@ -109,7 +112,19 @@ describe("synthetic WhatsApp order flow", () => {
     const orders = (await call(`/orders?eventId=${id}`)).orders;
     expect(orders).toHaveLength(1);
     expect(orders[0].lines).toHaveLength(1);
-    expect(orders[0].lines[0].quantity).toBe(80);
+    expect(orders[0].lines[0].quantity).toBe(20);
+  });
+
+  it("does not count the same stock again for a second staged request", async () => {
+    const id = await basket();
+    await stage(id, "40 kg salmon");
+    await stage(id, "40 kg salmon");
+    await send(id);
+    await send("confirm order");
+    const response = await send("confirm order");
+    expect(response.status, response.text).toBe("blocked");
+    expect(response.text).toContain("in stock");
+    expect((await call("/orders")).orders).toHaveLength(0);
   });
 
   it("rejects an approval if any staged request changed after review", async () => {
@@ -145,5 +160,14 @@ describe("synthetic WhatsApp order flow", () => {
     expect(result.status).toBe("blocked");
     expect(result.text).toContain("basket changed");
     expect((await call(`/baskets/${id}`)).requests).toHaveLength(1);
+  });
+
+  it("blocks a product that fails the request's stated dietary restriction", async () => {
+    const id = await basket();
+    await send(id);
+    const response = await send("add 1 kg salmon 469672 fish-free");
+    expect(response.status, response.text).toBe("blocked");
+    expect((await call("/orders")).orders).toHaveLength(0);
+    expect((await call(`/baskets/${id}`)).requests).toHaveLength(0);
   });
 });
