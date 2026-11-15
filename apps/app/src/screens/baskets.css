@@ -81,6 +81,9 @@
 .add-review-row-tools .btn { padding: 3px 5px; }
 .add-review-support > td { padding: 0 10px 12px; }
 .add-review-decision-note { margin: 0; }
+.add-review-stock-warning { display: flex; align-items: flex-start; gap: 10px; }
+.add-review-stock-warning > .ic { flex: none; margin-top: 2px; color: #7a4d00; }
+.add-review-stock-warning p { margin: 2px 0 0; }
 .add-review-edit-value { min-width: 0; padding: 0 2px; border: 0; border-radius: 3px; background: transparent; color: inherit; text-align: left; font-size: inherit; overflow-wrap: anywhere; }
 .add-review-edit-value:hover:not(:disabled), .add-review-edit-value:focus-visible { background: var(--soft); outline: 1px solid var(--hairline); }
 .add-review-edit-value:disabled { opacity: .65; }
