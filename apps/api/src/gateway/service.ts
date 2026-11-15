@@ -11,6 +11,7 @@ import { carbonBasisFor } from "../carbon.js";
 import { lookup, UpstreamError } from "../aimo/lookup.js";
 import { fire, resolveOutcome, FIXED, outcomeOf } from "../rules/catalogue.js";
 import { cutoffRule, productRules, mandateRules, priceValidityRule, stockCheck, supplyRules } from "../rules/checks.js";
+import { supplierDelivery } from "../rules/delivery.js";
 import { audit, GATEWAY, type Actor } from "../audit.js";
 import { newId, round2, sha256, stableStringify, parseAimoTime, eur, isCalendarDate } from "../util.js";
 import { signJwt, verifyJwt, jcs, checkoutHash } from "./keys.js";
@@ -107,9 +108,10 @@ function buildQuote({ hotelId, body, lookups, amendsOrderId, fixedPrices }: Buil
   for (const line of body.lines) quantities.set(line.productId, (quantities.get(line.productId) ?? 0) + line.quantity);
   const lines: QuoteLine[] = body.lines.map((li, i) => {
     const p = getProduct(li.productId);
-    const l = lookups.get(li.productId)!;
+    const delivery = supplierDelivery(lookups.get(li.productId)!, body.deliveryDate, mandate, quantities.get(li.productId)!, at);
+    const l = delivery.line;
     const name = p?.name ?? li.productId;
-    const rules: FiredRule[] = [];
+    const rules: FiredRule[] = [...delivery.rules];
     if (!p) rules.push(fire("REQ-04", { product: li.productId }));
     rules.push(...supplyRules({ name }, l));
     // An incomplete supplier response is not permission to order. These facts

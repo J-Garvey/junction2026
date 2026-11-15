@@ -5,7 +5,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { DietGroup, Unit } from "@aimo/contracts";
-import { api, ApiError, type EventDish, type EventIngredient, type MenuScale, type PlanResp, type StoredEvent } from "../api";
+import { api, ApiError, type BasketResp, type EventDish, type EventIngredient, type MenuScale, type PlanResp, type StoredEvent } from "../api";
 import { qty, plural } from "../format";
 import { Icon } from "./icons";
 import { RequestReviewDialog } from "./RequestReviewDialog";
@@ -42,7 +42,7 @@ function scaled(amount: number, unit: Unit, guests: number) {
   return `${qty(v)} ${unit}`;
 }
 
-type MenuEditorProps = { event: StoredEvent; menuInOrder: boolean; onSaved: () => void; onAdded: () => void };
+type MenuEditorProps = { event: StoredEvent; menuInOrder: boolean; onSaved: () => void; onAdded: (basket?: BasketResp) => void };
 
 export function MenuEditor(props: MenuEditorProps) {
   // An event owns its entire editing session, even when two events share a version.
@@ -282,11 +282,11 @@ function EventMenuEditor({ event, menuInOrder, onSaved, onAdded }: MenuEditorPro
           deliveryDate={event.serviceDate}
           onClose={() => setReview(null)}
           onChanged={() => { if (mounted.current) onAdded(); }}
-          onAdded={() => {
+          onAdded={(basket) => {
             if (!mounted.current) return;
             setReview(null);
             setNote({ cls: "green", text: "Menu order added. Submit the final order for finance review." });
-            onAdded();
+            onAdded(basket);
           }}
         />
       )}

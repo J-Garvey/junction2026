@@ -62,7 +62,7 @@ describe("basket review expiry with the app clock", () => {
     view.rerender(page(context(expiredAt)));
     await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
     expect(submitButton().disabled).toBe(false);
-    expect(screen.getByText("Awaiting final order")).toBeTruthy();
+    expect(screen.getByText("Ready to order")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Review expired", hidden: true })).toBeTruthy();
     expect(submit).not.toHaveBeenCalled();
     expect(review.state).toBe("open");

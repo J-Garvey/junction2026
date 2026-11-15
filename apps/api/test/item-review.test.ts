@@ -103,13 +103,14 @@ describe("per-item order review", () => {
     const fixture = loadFixture("base")!;
     const original = structuredClone(fixture.availability["469363"]);
     try {
-      // Move the original schedule and cutoff together. The adapter still projects
-      // the same quote dates, but the source terms the builder reviewed changed.
+      // Move the original schedule and cutoff together. The supplier terms
+      // the builder reviewed changed and must invalidate the approval.
       fixture.availability["469363"].scheduleLines[0].availableDate = "2026-11-17";
       fixture.availability["469363"].closingTime = "2026-11-16T17:00:00+0200";
       const result = await call("POST", `/plans/${plan.id}/basket`);
       expect(result.status).toBe(409);
-      expect(result.plan.lines[0].availableDate).toBe(approved.plan.lines[0].availableDate);
+      expect(result.plan.lines[0].availableDate).toBe("2026-11-17");
+      expect(result.plan.lines[0].availableDate).not.toBe(approved.plan.lines[0].availableDate);
       expect(result.plan.itemReviews[0].approvedAt).toBeNull();
       expect(result.plan.lines[0].availabilityEvidence).not.toEqual(approved.plan.lines[0].availabilityEvidence);
     } finally {

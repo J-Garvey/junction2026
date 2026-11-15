@@ -131,7 +131,7 @@ describe("saved request review controls", () => {
     stagedPage(chef, true, submitted);
     const request = await screen.findByRole("group", { name: "10 l milk" });
     expect(within(request).getByText("Stock not confirmed")).toBeTruthy();
-    expect(within(request).getByText(submitted ? "Awaiting finance approval" : "Awaiting final order")).toBeTruthy();
+    expect(within(request).getByText(submitted ? "Awaiting finance approval" : "Ready to order")).toBeTruthy();
     expect(within(request).queryByText("Ready")).toBeNull();
   });
 
@@ -299,6 +299,25 @@ describe("saved request review controls", () => {
     expect(api.basketPlan).toHaveBeenCalledExactlyOnceWith("plan");
     expect(api.approveItem).not.toHaveBeenCalled();
     expect(api.product).not.toHaveBeenCalled();
+  });
+
+  it("updates the deadline and items from an exact-match submission without waiting for another read", async () => {
+    const exact = fixture();
+    exact.plan.itemReviews![0].requiresApproval = false;
+    const basket = {
+      event: { id: "event", name: "Conference dinner", serviceDate: "2026-11-20", guests: 0 },
+      questions: [], orders: [], review: null, confirmed: false,
+      requests: [{ ...exact.plan, createdBy: "Aino", basketedAt: "2026-11-14T10:00:00Z" }],
+      orderBy: { state: "known", at: "2026-11-19T15:00:00Z", reason: null, usesFixtures: true, excludedItems: 0, unconfirmedStockItems: 0 },
+    } as unknown as BasketResp;
+    vi.spyOn(api, "basketPlan").mockResolvedValue({ ...exact, basket });
+    await searchOrder(exact);
+    await screen.findByText("Added to the order.");
+    expect(screen.queryByText("Unknown")).toBeNull();
+    expect(document.querySelector(".basket-context time")?.getAttribute("datetime")).toBe(basket.orderBy.at);
+    expect(screen.getByText("Ready to order")).toBeTruthy();
+    expect(screen.getByText("Selected milk")).toBeTruthy();
+    expect(api.basket).toHaveBeenCalledOnce();
   });
 
   it("opens review for an exception without staging it", async () => {
@@ -567,26 +586,32 @@ describe("saved request review controls", () => {
 
   it("opens from the pending row and moves the item into the order with a persistent success message", async () => {
     const initial = fixture();
-    let staged = false;
-    vi.spyOn(api, "basket").mockImplementation(async () => ({
+    const basket = {
       event: { id: "event", name: "Conference dinner", serviceDate: "2026-11-20", guests: 0 },
       questions: [], orders: [], review: null, confirmed: false,
-      requests: [{ ...initial.plan, createdBy: "Jonas", basketedAt: staged ? "2026-11-14T10:00:00Z" : null }],
+      requests: [{ ...initial.plan, createdBy: "Jonas", basketedAt: null }],
       orderBy: { state: "unknown", at: null, reason: "Recheck supplier terms.", usesFixtures: true },
-    } as unknown as BasketResp));
+    } as unknown as BasketResp;
+    vi.spyOn(api, "basket").mockResolvedValue(basket);
     vi.spyOn(api, "plan").mockResolvedValue(initial);
     vi.spyOn(api, "approveItem").mockResolvedValue(fixture(true));
-    vi.spyOn(api, "basketPlan").mockImplementation(async () => { staged = true; return fixture(true); });
+    vi.spyOn(api, "basketPlan").mockResolvedValue({ ...fixture(true), basket: {
+      ...basket,
+      requests: [{ ...basket.requests[0], basketedAt: "2026-11-14T10:00:00Z" }],
+      orderBy: { state: "known", at: "2026-11-19T15:00:00Z", reason: null, usesFixtures: true, excludedItems: 0, unconfirmedStockItems: 0 },
+    } });
     const context: AppCtx = { me: chef, people: [chef], outlets: [], status: null, now: "2026-11-14T10:00:00Z", tick: 0, refresh: vi.fn(), switchPerson: vi.fn() };
     render(<MemoryRouter initialEntries={["/baskets/event"]}><Ctx.Provider value={context}><Routes><Route path="/baskets/:id" element={<BasketPage />} /></Routes></Ctx.Provider></MemoryRouter>);
     fireEvent.click(await screen.findByRole("button", { name: /^10 l milk/ }));
     fireEvent.click(await screen.findByRole("button", { name: "Approve milk" }));
     await waitFor(() => expect((screen.getByRole("button", { name: "Add to order" }) as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(screen.getByRole("button", { name: "Add to order" }));
-    await screen.findByText("Awaiting final order");
+    await screen.findByText("Ready to order");
     expect(screen.getByText("Added to the order. Submit the final order for finance review.")).toBeTruthy();
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.queryByRole("button", { name: /^10 l milk/ })).toBeNull();
+    expect(screen.queryByText("Unknown")).toBeNull();
+    expect(document.querySelector(".basket-context time")?.getAttribute("datetime")).toBe("2026-11-19T15:00:00Z");
     expect((screen.getByRole("button", { name: "Submit order for review" }) as HTMLButtonElement).disabled).toBe(false);
   });
 });

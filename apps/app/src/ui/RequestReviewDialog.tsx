@@ -1,7 +1,7 @@
 /** Shared item review used for new items and saved pending requests. */
 import { useEffect, useRef, useState } from "react";
 import type { SingleRequest, Unit } from "@aimo/contracts";
-import { api, ApiError, type PlanResp } from "../api";
+import { api, ApiError, type BasketResp, type PlanResp } from "../api";
 import { useApp } from "../ctx";
 import { claimLabel, day, eur } from "../format";
 import { OrderItemDialog } from "./OrderItemDialog";
@@ -18,7 +18,7 @@ export function RequestReviewDialog({ initialReview, deliveryDate, onClose, onCh
   deliveryDate: string;
   onClose: () => void;
   onChanged: () => void;
-  onAdded: () => void;
+  onAdded: (basket?: BasketResp) => void;
 }) {
   const { me, refresh } = useApp();
   const [review, setReview] = useState(initialReview);
@@ -154,9 +154,8 @@ export function RequestReviewDialog({ initialReview, deliveryDate, onClose, onCh
     setBusy("add");
     setDialogError(null);
     try {
-      await api.basketPlan(review.plan.id);
-
-      onAdded();
+      const result = await api.basketPlan(review.plan.id);
+      onAdded(result.basket);
       refresh();
     } catch (e) {
       if (e instanceof ApiError && e.body?.plan) setReview({ plan: e.body.plan, questions: [] });

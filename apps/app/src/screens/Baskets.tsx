@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import type { Order, Question } from "@aimo/contracts";
-import { api, ApiError, type BasketPlan, type MessageResp, type PlanResp } from "../api";
+import { api, ApiError, type BasketPlan, type BasketResp, type MessageResp, type PlanResp } from "../api";
 import { splitMine, useApp, useLoad, waitingForText } from "../ctx";
 import { OthersWaiting, QuestionCard } from "../ui/QuestionCard";
 import { Status, planStatusKind, PLAN_STATUS_TEXT } from "../ui/Status";
@@ -105,7 +105,7 @@ function NewBasketTile() {
 export function BasketPage() {
   const { me, people, now, refresh } = useApp();
   const { id } = useParams();
-  const { data, error, reload } = useLoad(() => api.basket(id!), [id]);
+  const { data, error, reload, setData } = useLoad(() => api.basket(id!), [id]);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [reviewFeedback, setReviewFeedback] = useState<{ eventId: string; message: string; error: boolean } | null>(null);
@@ -124,6 +124,11 @@ export function BasketPage() {
     reload();
   }, [expiredReviewId, reload]);
 
+  function updateBasket(basket?: BasketResp) {
+    if (basket) setData(basket);
+    else reload();
+  }
+
   async function submitForReview() {
     if (pendingSubmission.current) return;
     pendingSubmission.current = true;
@@ -131,9 +136,9 @@ export function BasketPage() {
     setSubmitError(null);
     setReviewFeedback(null);
     try {
-      await api.submitBasketForReview(id!);
+      const result = await api.submitBasketForReview(id!);
+      updateBasket(result.basket);
       refresh();
-      reload();
     } catch (e) {
       setSubmitError((e as Error).message);
     } finally {
@@ -210,9 +215,9 @@ export function BasketPage() {
           </div>
         </div>
         {addMode === "product" ? (
-          <AddToBasket eventId={ev.id} deliveryDate={ev.serviceDate} onAdded={reload} />
+          <AddToBasket eventId={ev.id} deliveryDate={ev.serviceDate} onAdded={updateBasket} />
         ) : (
-          <MenuEditor event={ev} menuInOrder={staged.some((r) => r.title.startsWith("Menu ·")) || live.length > 0} onSaved={reload} onAdded={() => { refresh(); reload(); }} />
+          <MenuEditor event={ev} menuInOrder={staged.some((r) => r.title.startsWith("Menu ·")) || live.length > 0} onSaved={reload} onAdded={(basket) => { updateBasket(basket); refresh(); }} />
         )}
       </section>}
 
@@ -236,7 +241,7 @@ export function BasketPage() {
           {!isApprover && pending.length > 0 && (
             <div className="card" style={{ marginTop: 12 }}>
               {pending.map((r) => (
-                <RequestRow key={r.id} eventId={ev.id} r={r} onChanged={reload} onAdded={() => { setRequestNote("Added to the order. Submit the final order for finance review."); reload(); }} question={questions.find((q) => q.planId === r.id && (q.state === "open" || q.state === "waiting"))} />
+                <RequestRow key={r.id} eventId={ev.id} r={r} onChanged={reload} onAdded={(basket) => { updateBasket(basket); setRequestNote("Added to the order. Submit the final order for finance review."); }} question={questions.find((q) => q.planId === r.id && (q.state === "open" || q.state === "waiting"))} />
               ))}
             </div>
           )}
@@ -252,12 +257,12 @@ export function BasketPage() {
         <OrderedLines orders={live} showEmpty={!staged.length} emptyText={isApprover ? "No items in this order yet. The kitchen is preparing it." : undefined} />
       </section>
       <OrderReviewHistory questions={questions} />
-      {editingRequest && <SavedRequestDetails key={editingRequest.id} id={editingRequest.id} title={editingRequest.title} onClose={() => setEditingRequest(null)} onChanged={reload} onAdded={() => { setEditingRequest(null); setRequestNote("Added to the order. Submit the final order for finance review."); refresh(); reload(); }} />}
+      {editingRequest && <SavedRequestDetails key={editingRequest.id} id={editingRequest.id} title={editingRequest.title} onClose={() => setEditingRequest(null)} onChanged={reload} onAdded={(basket) => { setEditingRequest(null); updateBasket(basket); setRequestNote("Added to the order. Submit the final order for finance review."); refresh(); }} />}
     </div>
   );
 }
 
-function RequestRow({ eventId, r, question, onChanged, onAdded }: { eventId: string; r: BasketPlan; question?: Question; onChanged: () => void; onAdded: () => void }) {
+function RequestRow({ eventId, r, question, onChanged, onAdded }: { eventId: string; r: BasketPlan; question?: Question; onChanged: () => void; onAdded: (basket?: BasketResp) => void }) {
   const { me, people } = useApp();
   const waitingLabel = question ? waitingForText(question, me, people) : undefined;
   const [open, setOpen] = useState(false);
@@ -270,11 +275,11 @@ function RequestRow({ eventId, r, question, onChanged, onAdded }: { eventId: str
       {r.tooLate ? <span className="stamp ask">Too late</span> : <Status k={planStatusKind(r.status)} title={waitingLabel ?? PLAN_STATUS_TEXT[r.status]} label={r.status === "waiting" ? waitingLabel : undefined} />}
     </button>
     <RequestCorrectionActions eventId={eventId} plan={r} onChanged={onChanged} />
-    {open && <SavedRequestDetails id={r.id} title={r.title} onClose={() => setOpen(false)} onChanged={onChanged} onAdded={() => { setOpen(false); onAdded(); }} />}
+    {open && <SavedRequestDetails id={r.id} title={r.title} onClose={() => setOpen(false)} onChanged={onChanged} onAdded={(basket) => { setOpen(false); onAdded(basket); }} />}
   </>;
 }
 
-function SavedRequestDetails({ id, title, onClose, onChanged, onAdded }: { id: string; title: string; onClose: () => void; onChanged: () => void; onAdded: () => void }) {
+function SavedRequestDetails({ id, title, onClose, onChanged, onAdded }: { id: string; title: string; onClose: () => void; onChanged: () => void; onAdded: (basket?: BasketResp) => void }) {
   const { data, error, loading, reload } = useLoad(() => api.plan(id), [id]);
   if (!data?.plan.request || !data.plan.eventId) return <OrderItemDialog eyebrow="Request details" title={title} onClose={onClose}>
     {loading && <div className="muted" role="status">Loading item details...</div>}
@@ -293,7 +298,7 @@ function StagedLines({ eventId, plans, submitted, onChanged, onEdit }: { eventId
           <span className="staged-line-name"><span>{line.productName}</span><CarbonEstimate line={line} /></span>
           <span className="staged-line-status">
             {line.stock?.kind === "unknown" && <Status k="unknown_stock" title="Valio Aimo has not confirmed stock. Continuing does not confirm fulfillment." />}
-            <span className="stamp ask">{submitted ? "Awaiting finance approval" : "Awaiting final order"}</span>
+            <span className="stamp ask">{submitted ? "Awaiting finance approval" : "Ready to order"}</span>
           </span>
           <span className="small staged-line-price"><Pop ariaLabel={`Explain line amount for ${line.productName}`} label={eur(line.lineTotal)}><LineCalculation line={line} /></Pop></span>
         </div>)}
@@ -397,7 +402,7 @@ function OrderedLines({ orders, showEmpty = true, emptyText = "Nothing ordered y
 }
 
 /** Search and check a new request, then use the shared saved-request review. */
-function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deliveryDate: string; onAdded: () => void }) {
+function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deliveryDate: string; onAdded: (basket?: BasketResp) => void }) {
   const { refresh } = useApp();
   const [text, setText] = useState("");
   const [review, setReview] = useState<PlanResp | null>(null);
@@ -439,12 +444,12 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
   }
 
-  function added() {
+  function added(basket?: BasketResp) {
+    onAdded(basket);
     const completedText = submittedText.current;
     setReview(null);
     setText((current) => current.trim() === completedText ? "" : current);
     setNote({ cls: "green", body: <><b>Added to the order.</b> Submit the final order for finance review.</> });
-    onAdded();
   }
 
   async function search() {
@@ -467,8 +472,8 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
           && !checked.questions.some((question) => question.state === "open" || question.state === "waiting");
         if (exact) {
           try {
-            await api.basketPlan(plan.id);
-            added();
+            const result = await api.basketPlan(plan.id);
+            added(result.basket);
             refresh();
           } catch (e) {
             // A supplier change during staging returns the current terms for review.
