@@ -63,11 +63,12 @@ export function matchesSelectedProducts(needs: Need[], lines: PlanLine[]): boole
       if (need.pinnedProductId === product.id) return true;
       if (need.category && !product.category.startsWith(need.category)) return false;
       const terms = queryTerms(need.query);
-      // A name such as "monster" cannot establish an automatic product type, but
+      // A brand such as "monster" cannot establish an automatic product type, but
       // the builder has already accepted a specific matching product in this basket.
-      const nameOnly = terms.length > 0 && terms.every((term) => term.key.startsWith("~"));
+      const brandTerms = new Set(queryTerms(product.brand ?? "").map((term) => term.key));
+      const brandOnly = terms.length > 0 && terms.every((term) => term.key.startsWith("~") && brandTerms.has(term.key));
       return rank(need.query, [product], catalog, need.category ?? undefined, need.constraints.claims)
-        .some((match) => match.tier < 3 || nameOnly);
+        .some((match) => match.tier < 3 || brandOnly);
     });
   });
 }
