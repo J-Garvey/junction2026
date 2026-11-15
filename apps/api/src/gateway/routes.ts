@@ -38,6 +38,10 @@ function parse<T>(schema: z.ZodType<T>, v: unknown): T {
 
 const csv = (v: unknown) => (typeof v === "string" && v ? v.split(",").map((s) => s.trim()).filter(Boolean) : undefined);
 
+function requireHotelRecordReader(id: Identity) {
+  if (id.kind === "valio") throw new GatewayRefusal(403, { error: "forbidden", message: "Hotel quote and order records are private; use /audit for shared supplier status" });
+}
+
 export function gatewayRouter(): Router {
   const r = Router();
   r.get("/openapi.json", (_req, res) => res.json(buildOpenApi()));
@@ -86,7 +90,10 @@ export function gatewayRouter(): Router {
     }
   });
   r.post("/quotes", async (req, res) => res.status(201).json(await createQuote(req.identity!, parse(QuoteCreateBody, req.body))));
-  r.get("/quotes/:id", (req, res) => res.json(getQuote(String(req.params.id))));
+  r.get("/quotes/:id", (req, res) => {
+    requireHotelRecordReader(req.identity!);
+    res.json(getQuote(String(req.params.id)));
+  });
   r.post("/approvals", async (req, res) => res.status(201).json(await createApproval(req.identity!, parse(ApprovalBody, req.body))));
   r.post("/orders", async (req, res) => {
     const b = parse(OrderCreateBody, req.body);
@@ -98,7 +105,10 @@ export function gatewayRouter(): Router {
     if (id.kind === "valio") throw new GatewayRefusal(403, { error: "forbidden", message: "Use /audit" });
     res.json({ orders: listOrders(id.hotelId, req.query.eventId ? String(req.query.eventId) : undefined) });
   });
-  r.get("/orders/:id", (req, res) => res.json(getOrder(String(req.params.id))));
+  r.get("/orders/:id", (req, res) => {
+    requireHotelRecordReader(req.identity!);
+    res.json(getOrder(String(req.params.id)));
+  });
   // The same order as a Peppol BIS Ordering 3 document (UBL 2.1 Order).
   r.get("/orders/:id/peppol", (req, res) => {
     const o = getOrder(String(req.params.id));

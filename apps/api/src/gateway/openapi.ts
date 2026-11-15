@@ -53,6 +53,7 @@ export function buildOpenApi() {
   const json = (s: object) => ({ content: { "application/json": { schema: s } } });
   const refusals = {
     "401": { description: "No or unknown token" },
+    "403": { description: "Caller is outside the permitted hotel/outlet scope, or the record is private to the hotel", ...json(ref("Refusal")) },
     "409": { description: "Refused: mandate_violation, quote_stale, quote_consumed, cutoff_passed or hard_rule", ...json(ref("Refusal")) },
     "422": { description: "Invalid body", ...json(ref("Refusal")) },
     "503": { description: "Upstream mock unavailable; nothing was ordered", ...json(ref("Refusal")) },
@@ -116,7 +117,7 @@ export function buildOpenApi() {
           responses: { "201": { description: "Quote, with rule outcomes and the approvals the mandate needs", ...json(ref("Quote")) }, ...refusals },
         },
       },
-      "/quotes/{id}": { get: { operationId: "getQuote", parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }], responses: { "200": { description: "Quote", ...json(ref("Quote")) } } } },
+      "/quotes/{id}": { get: { operationId: "getQuote", summary: "Full hotel quote. Supplier viewers use /audit for shared status.", parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }], responses: { "200": { description: "Quote", ...json(ref("Quote")) }, ...refusals } } },
       "/approvals": {
         post: {
           operationId: "approve",
@@ -135,7 +136,7 @@ export function buildOpenApi() {
         },
         get: { operationId: "listOrders", parameters: [{ name: "eventId", in: "query", schema: { type: "string" } }], responses: { "200": { description: "Orders", ...json({ type: "object", properties: { orders: { type: "array", items: ref("Order") } } }) } } },
       },
-      "/orders/{id}": { get: { operationId: "getOrder", parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }], responses: { "200": { description: "Order", ...json(ref("Order")) } } } },
+      "/orders/{id}": { get: { operationId: "getOrder", summary: "Full hotel order. Supplier viewers use /audit for shared status.", parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }], responses: { "200": { description: "Order", ...json(ref("Order")) }, ...refusals } } },
       "/orders/{id}/peppol": {
         get: {
           operationId: "getOrderPeppol",
