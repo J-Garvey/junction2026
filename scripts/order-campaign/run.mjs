@@ -47,7 +47,12 @@ function status(extra={}){
  try{renameSync(tmp,resolve(dir,'generator-status.json'));}catch(e){if(!['EPERM','EBUSY','EACCES'].includes(e.code))throw e;}
 }
 const currentRows=[];
-function record(row){appendFileSync(resolve(dir,'requests.jsonl'),JSON.stringify(row)+'\n');currentRows.push(row);executed++;if(row.status===null||row.status>=500)errors++;if(executed%10===0)status();}
+function record(row){
+ let text=JSON.stringify(row);
+ for(const [name,value]of Object.entries(process.env))if(/(?:KEY|PASSWORD|SECRET|TOKEN)$/.test(name)&&value&&value.length>8)text=text.replaceAll(value,'[credential omitted]');
+ text=text.replace(/sk-[A-Za-z0-9_*.-]{6,}/g,'[key omitted]');
+ appendFileSync(resolve(dir,'requests.jsonl'),text+'\n');currentRows.push(row);executed++;if(row.status===null||row.status>=500)errors++;if(executed%10===0)status();
+}
 status({selected:cases.length});
 let initial=await reset();
 for(const c of cases){
