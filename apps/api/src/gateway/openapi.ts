@@ -17,6 +17,7 @@ Stated assumptions about the upstream mock (see GROUND_TRUTH.md):
 - Stock 999999 on Terminal products and ~9,999,999,999 base units on some Stock products are **unknown**, never "available". The builder explicitly chooses whether to continue (D31); finance approval cannot make this decision. A newly unknown line requires a new quote. Amendment decisions can bind to the reviewed \`stockQuoteId\` and are checked against current terms.
 - Empty \`scheduleLines\` means not deliverable, even with a price. \`error: true\` on price means no price.
 - A cut-off already past is refused (\`cutoff_passed\`) even though the mock still shows a Monday date.
+- Requested dates never move supplier dates or cutoffs. Quotes, commit and amendments independently select original supplier schedules on or before \`deliveryDate\`, constrained by the hotel's \`deliveryDays\` and \`holidays\`. No eligible schedule blocks with \`DLV-06\`; human approval cannot invent delivery evidence. Earlier availability can meet a later need, retaining its original ordering deadline. Explicit saved fixture overlays may model other schedules and are labelled as fixtures.
 - Only one schedule line is returned per product, so a split delivery is two linked orders.
 - Simulated orders do not reduce upstream stock (Q08.8).
 - Prices are \`catalogPrice.value\` per sales unit, ex VAT. Orders are only created from a quote, at its fixed prices.

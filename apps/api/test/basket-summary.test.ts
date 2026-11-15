@@ -3,7 +3,7 @@ import type { AvailabilityEvidence, Order, Plan, Question } from "@aimo/contract
 import { approvalLevels, basketStatus, isConfirmedOrder, orderDeadline, pendingQuestions, type DeadlineItem } from "../src/agent/basketSummary.js";
 
 process.env.AIMO_DB = ":memory:";
-const { normalise, projectToDate } = await import("../src/aimo/lookup.js");
+const { normalise } = await import("../src/aimo/lookup.js");
 const at = new Date("2026-11-14T10:00:00Z");
 const delivery = "2026-11-16";
 const schedule = (changes: Partial<AvailabilityEvidence["schedules"][number]> = {}): AvailabilityEvidence["schedules"][number] => ({
@@ -132,7 +132,8 @@ describe("order-by aggregation from supplier schedules", () => {
   it("does not promise an item scheduled after the card delivery date or shift its cutoff", () => {
     expect(orderDeadline([item({ deliveryDate: "2026-11-17" })], delivery, at).state).toBe("unavailable");
     const normalized = normalise("469672", { closingTime: "2026-11-15T17:00:00+0200", logisticModel: "Stock", scheduleLines: [{ availableAmount: 20, availableDate: delivery, salesUnit: "KI" }] }, undefined, "fixture", "test", at.toISOString());
-    const projected = projectToDate(normalized, "2026-11-30");
+    // Simulate an older saved snapshot that projected top-level terms.
+    const projected = { ...normalized, availableDate: "2026-11-30", closingTime: "2026-11-29T17:00:00+0200" };
     expect(projected.closingTime).toBe("2026-11-29T17:00:00+0200");
     expect(orderDeadline([{ ...item(), ...projected, deliveryDate: "2026-11-30" }], "2026-11-30", new Date("2026-11-17T10:00:00Z")))
       .toMatchObject({ state: "expired", at: "2026-11-15T15:00:00.000Z" });
