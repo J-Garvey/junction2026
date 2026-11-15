@@ -363,7 +363,7 @@ export const AmendmentBody = z.object({
 export type AmendmentBody = z.infer<typeof AmendmentBody>;
 
 export const Refusal = z.object({
-  error: z.enum(["mandate_violation", "stock_unconfirmed", "quote_stale", "cutoff_passed", "hard_rule", "idempotency_conflict", "not_found", "forbidden", "invalid", "upstream_unavailable"]),
+  error: z.enum(["mandate_violation", "stock_unconfirmed", "quote_stale", "quote_consumed", "cutoff_passed", "hard_rule", "idempotency_conflict", "not_found", "forbidden", "invalid", "upstream_unavailable"]),
   message: z.string(),
   rules: z.array(FiredRule).optional(),
   approvalsNeeded: z.array(z.string()).optional(),

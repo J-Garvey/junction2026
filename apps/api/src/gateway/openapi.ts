@@ -28,7 +28,7 @@ Stated assumptions about the upstream mock (see GROUND_TRUTH.md):
 
 **Discovery.** \`/.well-known/api-catalog\` (RFC 9727) links this spec.
 
-Refusals are HTTP 409 with a machine-readable \`error\`: \`mandate_violation\`, \`quote_stale\`, \`cutoff_passed\`, \`hard_rule\`. A retry with the same \`Idempotency-Key\` returns the same order; the same key with a different body gives 422.
+Refusals are HTTP 409 with a machine-readable \`error\`: \`mandate_violation\`, \`quote_stale\`, \`quote_consumed\`, \`cutoff_passed\`, \`hard_rule\`. Each quote can create one order. A retry with the same \`Idempotency-Key\` returns that order; the same key with a different body gives 422, and a new key for an already ordered quote gives 409 \`quote_consumed\`. Request a new quote for another order.
 `.trim();
 
 export function buildOpenApi() {
@@ -51,7 +51,7 @@ export function buildOpenApi() {
   const json = (s: object) => ({ content: { "application/json": { schema: s } } });
   const refusals = {
     "401": { description: "No or unknown token" },
-    "409": { description: "Refused: mandate_violation, quote_stale, cutoff_passed or hard_rule", ...json(ref("Refusal")) },
+    "409": { description: "Refused: mandate_violation, quote_stale, quote_consumed, cutoff_passed or hard_rule", ...json(ref("Refusal")) },
     "422": { description: "Invalid body", ...json(ref("Refusal")) },
     "503": { description: "Upstream mock unavailable; nothing was ordered", ...json(ref("Refusal")) },
   };

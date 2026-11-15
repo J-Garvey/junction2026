@@ -436,13 +436,15 @@ export async function placeOrder(id: Identity, quoteId: string, idemKey: string,
     stockPolicy: fresh.stockPolicy,
   };
   // Two requests may both finish their supplier lookup before either writes.
-  // Resolve the same-key race inside the transaction instead of surfacing SQL 500.
+  // Resolve same-key retries and consume each quote once inside the transaction.
   const raced = tx(() => {
     const row = getDb().prepare("SELECT json, body_hash FROM orders WHERE idem_key = ?").get(idemKey) as { json: string; body_hash: string } | undefined;
     if (row) {
       if (row.body_hash !== bodyHash) refuse(422, { error: "idempotency_conflict", message: "This Idempotency-Key was used with a different body; the first order is untouched" });
       return JSON.parse(row.json) as Order;
     }
+    if (getDb().prepare("SELECT id FROM orders WHERE quote_id = ?").get(q.id))
+      refuse(409, { error: "quote_consumed", message: "This quote already has an order. Retry with the original Idempotency-Key to retrieve it, or request a new quote for another order." });
     Object.assign(order, signOrder(order));
     getDb().prepare("INSERT INTO orders (id, quote_id, event_id, idem_key, body_hash, json) VALUES (?, ?, ?, ?, ?, ?)").run(order.id, q.id, q.eventId, idemKey, bodyHash, JSON.stringify(order));
     return null;
