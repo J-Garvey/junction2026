@@ -98,7 +98,8 @@ assertions were not weakened. Full typecheck, build and 51 corpus/harness/audit
 tests passed. After incorporating newer main changes, typecheck and build
 passed again; the app suite passed 68/68. The combined full suite showed the
 same four offline failures and was stopped during wind-down without a final
-API total. A separate final safety replay is recorded in the linked PR and
+API total. A separate final safety, end-to-end and plan-integrity replay passed
+**96/96 tests** on the combined code. Results are recorded in the linked PR and
 external `coordinator/final-combined-*.log` files.
 
 Open findings and coverage gaps:
