@@ -24,6 +24,7 @@ const { makeQuestion, saveQuestion, getQuestion } = await import("../src/agent/q
 const { handleWhatsAppMessage } = await import("../src/whatsapp/service.js");
 const { WhatsAppWebBridge } = await import("../src/whatsapp/web.js");
 const { placeOrder, amendOrder, createBuilderConsent } = await import("../src/gateway/service.js");
+const { gw } = await import("../src/agent/gatewayClient.js");
 let server: Server;
 let base: string;
 let mikko: string;
@@ -193,6 +194,52 @@ describe("person outlet authorization", () => {
     expect(JSON.stringify(submitted.body)).not.toContain(other.id);
     expect((await call(`/api/baskets/${e.id}`, mikko)).status).toBe(403);
     expect(getPlan(other.id)!.basketedAt).toBeFalsy();
+  });
+
+  it("omits restricted event snapshots without removing permission to contribute one's own items", async () => {
+    const parsed = await call("/api/messages", mikko, { text: "5 l lactose-free milk 469363 by Monday" });
+    const created = await call("/api/requests", mikko, { eventId: "evt-wedding", reviewing: true,
+      request: { ...parsed.body.request, outletId: "bar", neededBy: "2026-11-16" } });
+    expect(created.status, JSON.stringify(created.body)).toBe(200);
+    expect(created.body.plan.event).toBeNull();
+    const saved = getPlan(created.body.plan.id)!;
+    expect(saved.event!.dishes.length).toBeGreaterThan(0);
+    expect((await call(`/api/plans/${saved.id}`, mikko)).body.plan.event).toBeNull();
+    expect((await call(`/api/plans/${saved.id}`, aino)).body.plan.event.id).toBe("evt-wedding");
+  });
+
+  it("refuses a body eventId owned by another hotel before creating a request", async () => {
+    saveEvent({ ...getEvent("evt-wedding")!, id: "evt-foreign", hotelId: "hotel-other" } as any);
+    const parsed = await call("/api/messages", mikko, { text: "5 l lactose-free milk 469363 by Monday" });
+    const before = getDb().prepare("SELECT COUNT(*) AS n FROM plans").get();
+    expect((await call("/api/requests", mikko, { eventId: "evt-foreign", reviewing: true,
+      request: { ...parsed.body.request, outletId: "bar", neededBy: "2026-11-16" } })).status).toBe(403);
+    expect(getDb().prepare("SELECT COUNT(*) AS n FROM plans").get()).toEqual(before);
+  });
+
+  it("filters unstaged private questions and linked plans from authorized event details", async () => {
+    const e = getEvent("evt-wedding")!; e.dishes = []; saveEvent(e);
+    const other = plan(); other.eventId = e.id; other.reviewing = true; savePlan(other);
+    const question = makeQuestion({ eventId: e.id, planId: other.id, quoteId: null, fingerprint: null,
+      deadline: null, ruleIds: [], type: "missing_allergen_data", forRole: "chef", outletId: "banquet",
+      title: "Private draft allergen concern", body: "Private ingredient details", facts: {}, options: [] });
+    saveQuestion(question); e.viabilityPlanId = other.id; saveEvent(e);
+    const read = await call(`/api/events/${e.id}`, mikko);
+    expect(read.status).toBe(200);
+    expect(read.body.viability).toBeNull();
+    expect(read.body.questions).toEqual([]);
+    expect(JSON.stringify(read.body)).not.toContain("Private ingredient details");
+    expect((await call(`/api/events/${e.id}`, aino)).body.questions.map((q: any) => q.id)).toContain(question.id);
+  });
+
+  it("rechecks basket read scope after an asynchronous gateway lookup", async () => {
+    const e = getEvent("evt-wedding")!; e.dishes = []; saveEvent(e);
+    const lookup = vi.spyOn(gw, "orders").mockImplementationOnce(async () => {
+      const other = plan(); other.eventId = e.id; savePlan(other);
+      return { orders: [] };
+    });
+    try { expect((await call(`/api/baskets/${e.id}`, mikko)).status).toBe(403); }
+    finally { lookup.mockRestore(); }
   });
 });
 

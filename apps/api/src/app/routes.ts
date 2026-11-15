@@ -19,7 +19,7 @@ import { logSearch } from "../searchlog.js";
 import { matchesCurrentShortlists, shortlist } from "../agent/match.js";
 import { allItemsResolved, quantityScope, refreshItemReviews } from "../agent/itemReview.js";
 import { toBase } from "../agent/parse.js";
-import { newPlan, quoteAndDecide, getPlan, listPlans, mandate, savePlan, emptyOverrides, HOTEL_ID, needsFromSingle } from "../agent/plan.js";
+import { newPlan, quoteAndDecide, getPlan, listPlans, mandate, savePlan, emptyOverrides, HOTEL_ID, needsFromSingle, type StoredPlan } from "../agent/plan.js";
 import { questionsFor, allQuestions, getQuestion, canAnswer } from "../agent/questions.js";
 import { answer } from "../agent/answers.js";
 import { addDietGroup, changeEvent, changeGuests, coverageSummary, EditConflict, eventView, finalCheck, getEvent, listEvents, orderEvent, removeNeed, runCutoff, runViability, saveEvent, warnings, personActor, type StoredEvent } from "../agent/events.js";
@@ -53,7 +53,13 @@ function person(req: Request, res: Response, next: NextFunction) {
 
 const P = (req: Request) => (req as Authed).person;
 const T = (req: Request) => (req as Authed).token;
-const inPlanScope = (req: Request, plan: { outletId: string }) => allowsOutlets(P(req), HOTEL_ID, [plan.outletId]);
+const inPlanScope = (req: Request, plan: { outletId: string }) => {
+  const saved = "needs" in plan ? plan as StoredPlan : undefined;
+  return allowsOutlets(P(req), HOTEL_ID, [plan.outletId,
+    ...(saved?.needs.map((need) => need.outletId) ?? []),
+    ...(saved?.lines.filter((line) => !line.removed).map((line) => line.outletId) ?? []),
+  ]);
+};
 const inEventScope = (req: Request, event: StoredEvent) => allowsOutlets(P(req), HOTEL_ID, [
   ...event.dishes.map((dish) => dish.outletId),
   ...listPlans().filter((plan) => plan.eventId === event.id && plan.basketedAt && !plan.removedFromBasketAt && !plan.orderIds.length)
@@ -122,6 +128,31 @@ export function appRouter(): Router {
   });
 
   r.use(person);
+  // Project after processing has saved the original plan, so a private embedded
+  // event is omitted from HTTP responses without changing the stored workflow.
+  r.use((req, res, next) => {
+    const json = res.json.bind(res);
+    const planView = (plan: StoredPlan) => {
+      if (!inPlanScope(req, plan)) return null;
+      const event = plan.event;
+      return event && (hotelFor({ eventId: event.id }) !== P(req).hotelId || !inEventScope(req, event as StoredEvent))
+        ? { ...plan, event: null } : plan;
+    };
+    const projection = (body: any) => {
+      if (!body || typeof body !== "object") return body;
+      const result = { ...body };
+      for (const key of ["plan", "viability", "orderPlan"])
+        if (body[key]) result[key] = planView(body[key]);
+      if (Array.isArray(body.questions)) result.questions = body.questions.filter((question: ReturnType<typeof allQuestions>[number]) => {
+        const plan = getPlan(question.planId);
+        return (!plan || inPlanScope(req, plan)) && allowsOutlets(P(req), HOTEL_ID, question.outletId ? [question.outletId] : []);
+      });
+      if (body.basket) result.basket = projection(body.basket);
+      return result;
+    };
+    res.json = (body) => json(projection(body));
+    next();
+  });
   r.use(measureProcessing);
   // These app workflows are backed by the single Demo Hotel agent. Keep their
   // plans, baskets and policy out of another hotel's session. The explicit
@@ -143,7 +174,7 @@ export function appRouter(): Router {
   });
 
   const ownEvents = (req: Request) => listEvents().filter(e => hotelFor({ eventId: e.id }) === P(req).hotelId);
-  const ownPlans = (req: Request) => listPlans().filter(pl => hotelFor({ details: { planId: pl.id } }) === P(req).hotelId);
+  const ownPlans = (req: Request) => listPlans().filter(pl => hotelFor({ details: { planId: pl.id } }) === P(req).hotelId && inPlanScope(req, pl));
 
   r.get("/me", (req, res) => res.json({ person: P(req) }));
 
@@ -196,6 +227,8 @@ export function appRouter(): Router {
     const eventId = req.body.eventId == null ? null : z.string().parse(req.body.eventId);
     const reviewing = req.body.reviewing === true;
     if (eventId && !getEvent(eventId)) return res.status(404).json({ error: "No such order" });
+    if (eventId && hotelFor({ eventId }) !== P(req).hotelId)
+      return res.status(403).json({ error: "This order belongs to another hotel or has unknown ownership" });
     const plan = await startRequest(req, request, eventId, reviewing, reviewing && req.body.itemReview === true);
     res.json({ plan, questions: allQuestions().filter((q) => q.planId === plan.id) });
   });

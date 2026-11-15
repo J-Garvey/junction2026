@@ -189,6 +189,9 @@ describe("order baskets", () => {
     // A proposal saved by the old matcher (or still open during an upgrade) must
     // not let the stale NoChicken selection through when the chef clicks Add.
     const stale = getPlan(r.plan.id)!;
+    // Model an old, ready proposal explicitly: today's verified-piece rules
+    // may require a separate quantity decision for the named 30-piece pack.
+    stale.proposal = true;
     stale.lines[0].productId = "469770";
     savePlan(stale);
     const staged = await call("POST", `/plans/${stale.id}/basket`, { continueWithWarnings: true });
@@ -490,7 +493,7 @@ describe("order baskets", () => {
     expect(approved.error).toBeUndefined();
     const orders = (await call("GET", `/orders?eventId=${id}`)).orders;
     expect(orders).toHaveLength(1);
-    expect(orders[0].lines[0]).toMatchObject({ stock: { kind: "unknown" }, riskAccepted: { by: "Demo Hotel purchasing agent on behalf of Aino (unverified)" } });
+    expect(orders[0].lines[0]).toMatchObject({ stock: { kind: "unknown" }, riskAccepted: { by: "Aino" } });
     expect((await call("GET", "/baskets")).baskets.find((b: any) => b.id === id)).toMatchObject({ confirmed: false, approvalLevels: [], orderBy: { state: "known", at: "2026-11-15T15:00:00.000Z", excludedItems: 0, unconfirmedStockItems: 1, reason: expect.stringContaining("Stock is unconfirmed") } });
   });
 

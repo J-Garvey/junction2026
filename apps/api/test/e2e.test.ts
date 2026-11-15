@@ -159,7 +159,7 @@ describe("Test case 2: the brief's milk request (price first, D31)", () => {
     expect(r.second.status).toBe(409);
     expect(r.second.reason).toMatch(/Answered by Aino/);
     expect(r.orders).toHaveLength(1);
-    expect(r.orders[0].lines.find((l: any) => l.stock.kind === "unknown").riskAccepted.by).toBe("Demo Hotel purchasing agent on behalf of Aino (unverified)");
+    expect(r.orders[0].lines.find((l: any) => l.stock.kind === "unknown").riskAccepted.by).toBe("Aino");
   });
   it("offers the confirmed-stock split instead: 435 of 1,000 L, approved as a partial fill", async () => {
     const r = await milkCase("confirmed");

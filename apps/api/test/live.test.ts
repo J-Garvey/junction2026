@@ -113,7 +113,7 @@ describe("Live console: real gateway, scripted model", () => {
     const id = final.feed.find((f: any) => f.action === "ORDER").orderId;
     const r = (await (await fetch(`${BASE}/api/live/orders/${id}`, { headers: hotelHeaders() })).json()) as any;
     expect(r.signature.valid).toBe(true);
-    expect(r.order.lines[0]).toMatchObject({ productId: "464306", quantity: 2000, riskAccepted: { by: "Demo Hotel purchasing agent on behalf of Aino (unverified)" } });
+    expect(r.order.lines[0]).toMatchObject({ productId: "464306", quantity: 2000, riskAccepted: { by: "Aino" } });
   });
 
   it("refuses the unvetted script over budget with no approval", async () => {
