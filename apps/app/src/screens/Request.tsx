@@ -80,7 +80,19 @@ export function RequestNew() {
       </div>
     );
 
-  const setLine = (i: number, patch: Partial<SingleLine>) => setReq({ ...req, lines: req.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)) });
+  const setLine = (i: number, patch: Partial<SingleLine>) => setReq((current) => current && {
+    ...current,
+    lines: current.lines.map((line, j) => {
+      if (j !== i) return line;
+      const identity = (text: string) => text.trim().replace(/\s+/g, " ").toLowerCase();
+      const productChanged = patch.query !== undefined && identity(patch.query) !== identity(line.query);
+      // These hints belong to the parsed product. Let matching use the edited query;
+      // keep separately entered quantities and dietary/origin requirements intact.
+      return productChanged
+        ? { ...line, ...patch, text: patch.query!, productType: null, category: null, productId: null }
+        : { ...line, ...patch };
+    }),
+  });
 
   // REQUEST-VALIDATE's required inputs (REQ-01 to REQ-03), checked before leaving the page.
   const lineMissing = (l: SingleLine) => ({ product: !l.query.trim(), quantity: !l.quantity || !(l.quantity.amount > 0) });
