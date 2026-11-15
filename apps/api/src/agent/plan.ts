@@ -62,8 +62,10 @@ export function savePlan(p: StoredPlan) {
 export function getPlan(id: string): StoredPlan | null {
   return getJson<StoredPlan>("plans", id);
 }
-export function listPlans(): StoredPlan[] {
-  return allJson<StoredPlan>("SELECT json FROM plans ORDER BY created_at DESC");
+export function listPlans(eventId?: string): StoredPlan[] {
+  return eventId === undefined
+    ? allJson<StoredPlan>("SELECT json FROM plans ORDER BY created_at DESC")
+    : allJson<StoredPlan>("SELECT json FROM plans WHERE event_id = ? ORDER BY created_at DESC", eventId);
 }
 
 // ---------- dates (NEEDED-BY, URGENCY-CHECK) ----------

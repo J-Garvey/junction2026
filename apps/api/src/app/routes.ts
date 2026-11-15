@@ -62,7 +62,7 @@ const inPlanScope = (req: Request, plan: { outletId: string }) => {
 };
 const inEventScope = (req: Request, event: StoredEvent) => allowsOutlets(P(req), HOTEL_ID, [
   ...event.dishes.map((dish) => dish.outletId),
-  ...listPlans().filter((plan) => plan.eventId === event.id && plan.basketedAt && !plan.removedFromBasketAt && !plan.orderIds.length)
+  ...listPlans(event.id).filter((plan) => plan.basketedAt && !plan.removedFromBasketAt && !plan.orderIds.length)
     .flatMap((plan) => plan.lines.filter((line) => !line.removed).map((line) => line.outletId)),
   ...listOrders(HOTEL_ID, event.id).filter((order) => order.state !== "rejected")
     .flatMap((order) => order.lines.filter((line) => !line.removed).map((line) => line.outletId)),
@@ -463,7 +463,7 @@ export function appRouter(): Router {
   });
 
   // Order baskets: one per event, named by the event and its delivery date. Requests attach to one.
-  const basketPlans = (eventId: string) => listPlans().filter((pl) => pl.kind === "single" && pl.eventId === eventId && !pl.reviewing && !pl.removedFromBasketAt && pl.tooLateChoice !== "removed");
+  const basketPlans = (eventId: string) => listPlans(eventId).filter((pl) => pl.kind === "single" && !pl.reviewing && !pl.removedFromBasketAt && pl.tooLateChoice !== "removed");
   const inBasketScope = (req: Request, event: StoredEvent) => inEventScope(req, event)
     && basketPlans(event.id).every((plan) => inPlanScope(req, plan));
   const planRow = (pl: ReturnType<typeof listPlans>[number]) => ({
@@ -472,14 +472,14 @@ export function appRouter(): Router {
     changeToken: basketChangeToken(pl), outletId: pl.outletId,
     lines: pl.lines.filter((line) => !line.removed),
   });
-  const basketSummary = (event: StoredEvent, orders: Awaited<ReturnType<typeof gw.orders>>["orders"]) => {
-    const plans = basketPlans(event.id);
+  const basketSummary = (event: StoredEvent, orders: Awaited<ReturnType<typeof gw.orders>>["orders"], requests = basketPlans(event.id)) => {
+    const plans = [...requests];
     const eventPlanId = event.orderPlanId ?? event.viabilityPlanId;
     const eventPlan = eventPlanId ? getPlan(eventPlanId) : null;
     if (eventPlan) plans.push(eventPlan);
     const needsAttention = warnings(event.id).some((warning) => warning.state === "open")
       || !!event.finalCheck?.lines.some((line) => line.result !== "covered");
-    return basketStatus(event.serviceDate, orders, plans, allQuestions().filter((q) => q.eventId === event.id), now(), needsAttention);
+    return basketStatus(event.serviceDate, orders, plans, allQuestions(event.id), now(), needsAttention);
   };
   // Return the same saved basket projection on reads and successful submissions so
   // the builder can update its items and deadline without a second browser request.
@@ -494,18 +494,21 @@ export function appRouter(): Router {
     if (!currentEvent) throw new BasketReviewError(404, "No such order");
     if (req && !inBasketScope(req, currentEvent)) return undefined;
     const review = basketReview(id, orders);
-    return { ...eventView(id), requests: basketPlans(id).map(planRow), orders, review, ...basketSummary(getEvent(id)!, orders) };
+    const plans = basketPlans(id);
+    return { ...eventView(id), requests: plans.map(planRow), orders, review, ...basketSummary(getEvent(id)!, orders, plans) };
   };
   r.get("/baskets", async (req, res) => {
     const { orders } = await gw.orders();
     const p = P(req);
+    const events = ownEvents(req);
     // Apply the same stale finance-review cleanup as the detail page, using local snapshots only.
-    for (const event of ownEvents(req)) basketReview(event.id, orders.filter((order) => order.eventId === event.id));
+    for (const event of events) basketReview(event.id, orders.filter((order) => order.eventId === event.id));
     const open = pendingQuestions(allQuestions(), now());
     res.json({
-      baskets: ownEvents(req).map((e) => {
+      baskets: events.map((e) => {
         const mine = orders.filter((o) => o.eventId === e.id && o.state !== "rejected");
-        const staged = basketPlans(e.id).filter((pl) => pl.basketedAt && !pl.orderIds.length);
+        const plans = basketPlans(e.id);
+        const staged = plans.filter((pl) => pl.basketedAt && !pl.orderIds.length);
         const totalExVat = staged.some((pl) => pl.totalExVat === null)
           ? null
           : mine.reduce((n, o) => n + o.totalExVat, 0) + staged.reduce((n, pl) => n + pl.totalExVat!, 0);
@@ -517,12 +520,12 @@ export function appRouter(): Router {
           coverage: coverageSummary(e.id),
           lines: mine.reduce((n, o) => n + o.lines.filter((l) => !l.removed).length, 0) + staged.reduce((n, pl) => n + pl.lines.filter((l) => !l.removed).length, 0),
           totalExVat,
-          ...basketSummary(e, mine),
+          ...basketSummary(e, mine, plans),
           // Only what this person can answer; the rest is someone else's to approve.
           waiting: open.filter((q) => q.eventId === e.id && canAnswer(q, p)).length,
           waitingOthers: open.filter((q) => q.eventId === e.id && !canAnswer(q, p)).length,
           approvalLevels: approvalLevels(open.filter((q) => q.eventId === e.id)),
-          requests: basketPlans(e.id).length + (e.dishes.length ? 1 : 0),
+          requests: plans.length + (e.dishes.length ? 1 : 0),
         };
       }),
     });

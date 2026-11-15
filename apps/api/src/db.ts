@@ -19,6 +19,14 @@ const MIGRATIONS = [
    CREATE TABLE IF NOT EXISTS questions (id TEXT PRIMARY KEY, plan_id TEXT NOT NULL, state TEXT NOT NULL, json TEXT NOT NULL);
    CREATE TABLE IF NOT EXISTS remembered (key TEXT PRIMARY KEY, json TEXT NOT NULL);
    CREATE TABLE IF NOT EXISTS warnings (id TEXT PRIMARY KEY, event_id TEXT NOT NULL, state TEXT NOT NULL, json TEXT NOT NULL);`,
+  // Filter saved snapshots before decoding their (potentially large) JSON payloads.
+  `CREATE INDEX IF NOT EXISTS plans_event_created ON plans(event_id, created_at DESC);
+   CREATE INDEX IF NOT EXISTS questions_event ON questions(json_extract(json, '$.eventId'));
+   CREATE INDEX IF NOT EXISTS questions_plan_state ON questions(plan_id, state);
+   CREATE INDEX IF NOT EXISTS warnings_event ON warnings(event_id);
+   CREATE INDEX IF NOT EXISTS orders_event ON orders(event_id);
+   CREATE INDEX IF NOT EXISTS audit_event_seq ON audit(json_extract(json, '$.eventId'), seq DESC);
+   CREATE INDEX IF NOT EXISTS audit_order_seq ON audit(json_extract(json, '$.orderId'), seq DESC);`,
 ];
 
 let db: DatabaseSync | null = null;
