@@ -1,6 +1,6 @@
 /** Shell: the order-first main view, the top bar with the profile, the allergy banner,
  * and the person picker with the demo settings (test clock and reset). */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, Route, Routes, useLocation, useNavigate } from "react-router";
 import type { WarningRecord } from "@aimo/contracts";
 import { api, authHooks, type Outlet, type Person, type StatusResp, type SceneKey } from "./api";
