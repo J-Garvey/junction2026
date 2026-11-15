@@ -12,6 +12,7 @@
   --bad: #d7261e;
   --bad-soft: #fde8e7;
   --orange: #e36a0a;
+  --orange-ink: #a44700;
   font-family: var(--font);
   color: var(--navy);
   background: #fff;
@@ -114,7 +115,7 @@
 .lv-agent { font-size: 16px; line-height: 1.25; }
 .lv-amt { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .lv-act { display: inline-block; border: 2px solid var(--navy); border-radius: 7px; padding: 4px 10px; font-weight: 800; font-size: 15px; letter-spacing: 0.4px; }
-.lv-act.a-ORDER, .lv-act.a-AMEND { border-color: var(--orange); color: var(--orange); }
+.lv-act.a-ORDER, .lv-act.a-AMEND { border-color: var(--orange); color: var(--orange-ink); }
 .lv-act.a-APPROVAL { border-color: var(--ok); color: var(--ok); }
 .lv-v { display: flex; align-items: center; gap: 10px; }
 .lv-badge { display: inline-block; border-radius: 7px; padding: 8px 16px; font-size: 20px; font-weight: 900; letter-spacing: 0.4px; color: #fff; white-space: nowrap; }
