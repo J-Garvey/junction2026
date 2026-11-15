@@ -4,8 +4,9 @@ import type { Candidate, FiredRule, ModelJudgement, PlanLine, StockFact } from "
 import { eur, qty, when, day, fi } from "../format";
 import { Fixture } from "./Status";
 import { get } from "../api";
+import { LineCalculation } from "./LineCalculation";
 
-export function Pop({ label, children, className }: { label: ReactNode; children: ReactNode; className?: string }) {
+export function Pop({ label, children, className, ariaLabel }: { label: ReactNode; children: ReactNode; className?: string; ariaLabel?: string }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLSpanElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -40,7 +41,7 @@ export function Pop({ label, children, className }: { label: ReactNode; children
         }
       }}
     >
-      <button ref={triggerRef} id={triggerId} type="button" className="poptrigger" onClick={() => setOpen((o) => !o)} aria-haspopup="dialog" aria-controls={open ? dialogId : undefined} aria-expanded={open}>
+      <button ref={triggerRef} id={triggerId} type="button" className="poptrigger" aria-label={ariaLabel} onClick={() => setOpen((o) => !o)} aria-haspopup="dialog" aria-controls={open ? dialogId : undefined} aria-expanded={open}>
         {label}
       </button>
       {open && (
@@ -103,13 +104,13 @@ export function Judgements({ items }: { items: (ModelJudgement | null | undefine
 }
 
 /** Everything known about one plan line. */
-export function LineSource({ line, judgements }: { line: PlanLine; judgements?: ModelJudgement[] }) {
+export function LineSource({ line, judgements, savedOnly = false }: { line: PlanLine; judgements?: ModelJudgement[]; savedOnly?: boolean }) {
   return (
     <>
       <div className="popsec">
         <div className="pophead">{line.productName}</div>
         <div className="small muted mono">{line.productId ?? "no product"}</div>
-        {line.productId && <BrandLine productId={line.productId} />}
+        {line.productId && !savedOnly && <BrandLine productId={line.productId} />}
       </div>
       <div className="popsec">
         <div className="pophead">Pack maths</div>
@@ -189,6 +190,7 @@ export function LineSource({ line, judgements }: { line: PlanLine; judgements?: 
           )}
         </dl>
       </div>
+      <div className="popsec"><div className="pophead">Saved calculation</div><LineCalculation line={line} /></div>
       <RulesList rules={line.rules} />
       <Judgements items={judgements ?? []} />
     </>

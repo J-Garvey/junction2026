@@ -17,7 +17,7 @@ export function BasketCard({ basket: b, role }: { basket: Basket; role: string }
       <OrderBy deadline={b.orderBy} />
       <div className="btile-stats" aria-label="Order summary">
         <div><strong>{b.lines}</strong><span>Items in order</span></div>
-        <div><strong>{eur(b.totalExVat)}</strong><span>Total ex VAT</span></div>
+        <div><strong><Link className="btile-calculation" to={`/baskets/${b.id}#order-calculation`} aria-label={`View calculation for ${b.name} total: ${eur(b.totalExVat)}`}>{eur(b.totalExVat)}</Link></strong><span>Total ex VAT</span></div>
       </div>
       {levels.length > 0 && (
         <div className="btile-approvals" aria-label="Waiting for approval">

@@ -9,6 +9,7 @@ import { ProductReviewItem } from "./ProductReviewItem";
 import { QuestionCard } from "./QuestionCard";
 import { ProcessingTime } from "./ProcessingTime";
 import { Icon } from "./icons";
+import { TotalCalculation } from "./CalculationEvidence";
 
 const UNITS: Unit[] = ["l", "dl", "ml", "kg", "g", "pcs"];
 
@@ -258,7 +259,7 @@ export function RequestReviewDialog({ initialReview, deliveryDate, onClose, onCh
           <div className="add-review-actions">
             <button type="button" className="btn primary" disabled={!!busy || !canAdd} onClick={add}>{busy === "add" ? "Adding…" : "Add to order"}</button>
             <button type="button" className="btn ghost" disabled={!!busy} onClick={onClose}>Close</button>
-            <span className="add-review-total"><small>Total ex VAT</small><b>{eur(plan.totalExVat)}</b></span>
+            <span className="add-review-total"><small>Total ex VAT</small><b><TotalCalculation title="request total" total={plan.totalExVat} lines={plan.lines} /></b></span>
           </div>
         </>
       )}
