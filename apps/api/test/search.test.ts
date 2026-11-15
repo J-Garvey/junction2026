@@ -3,9 +3,10 @@
  * name mentions it. Runs on the committed catalogue (data/products_slim.jsonl).
  */
 import { describe, it, expect } from "vitest";
+import type { PlanLine } from "@aimo/contracts";
 import { getProduct, searchMatches, searchProducts } from "../src/catalog.js";
 import { rulesParse } from "../src/agent/parse.js";
-import { shortlist } from "../src/agent/match.js";
+import { matchesCurrentShortlists, matchesSelectedProducts, shortlist } from "../src/agent/match.js";
 import { needsFromSingle } from "../src/agent/plan.js";
 import { rank } from "../src/search.js";
 
@@ -195,5 +196,37 @@ describe("automatic shortlisting", () => {
     expect(ps.map((p) => p.id)).toContain("461651");
     expect(ps.map((p) => p.id)).not.toContain("469770");
     expect(shortlist({ ...need, constraints: { ...need.constraints, claims: ["VEGAN"] } }).map((p) => p.id)).toContain("469770");
+  });
+});
+
+describe("products already selected into a basket", () => {
+  const needFor = (query: string) => needsFromSingle({ ...rulesParse(`10 pcs ${query} by Monday`), siteId: "site-aurora", outletId: "banquet" })[0];
+  const lineFor = (needId: string, productId: string) => ({ needIds: [needId], productId, removed: false }) as PlanLine;
+
+  it("keeps a matching selection outside the automatic shortlist's result limit", () => {
+    const need = needFor("cheese");
+    const automatic = shortlist(need).map((p) => p.id);
+    const product = searchMatches({ q: "cheese", limit: 1000 }).find((m) => m.tier < 3 && !automatic.includes(m.product.id))!.product;
+    const lines = [lineFor(need.id, product.id)];
+    expect(matchesCurrentShortlists([need], lines)).toBe(false);
+    expect(matchesSelectedProducts([need], lines)).toBe(true);
+  });
+
+  it("still rejects conflicting identities, unmatched qualifiers and mention-only known products", () => {
+    for (const [query, productId] of [["chicken burger", "469770"], ["unlistedbrand milk", "464306"]]) {
+      const need = { ...needFor(query), pinnedProductId: null };
+      expect(matchesSelectedProducts([need], [lineFor(need.id, productId)])).toBe(false);
+    }
+    const oregano = { ...needFor("oregano"), category: "20033" };
+    const productId = searchMatches({ q: "oregano", category: "20033", limit: 50 })[0].product.id;
+    expect(matchesSelectedProducts([oregano], [lineFor(oregano.id, productId)])).toBe(false);
+  });
+
+  it("requires a real product, a valid request link and passing dietary declarations", () => {
+    const need = needFor("monster");
+    expect(matchesSelectedProducts([need], [lineFor(need.id, "999999")])).toBe(false);
+    expect(matchesSelectedProducts([need], [lineFor("missing-need", "477529")])).toBe(false);
+    const allergy = { ...need, constraints: { ...need.constraints, avoidAllergens: ["AF"] } };
+    expect(matchesSelectedProducts([allergy], [lineFor(need.id, "477529")])).toBe(false);
   });
 });
