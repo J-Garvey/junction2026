@@ -16,6 +16,8 @@ let BASE = "";
 let server: Server;
 beforeAll(async () => {
   server = createApp().listen(0, "127.0.0.1");
+  // Cold catalogue work can outlast Node's default idle connection timeout.
+  server.keepAliveTimeout = 60_000;
   await new Promise((r) => server.once("listening", r));
   BASE = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
   config.gatewayUrl = `${BASE}/gateway/v1`;
@@ -233,6 +235,7 @@ describe("order baskets", () => {
   });
 
   it("lets the chef add unconfirmed stock after explicitly accepting the warning", async () => {
+    await signIn("p-aino");
     await call("POST", "/clock", { time: "2026-11-14T10:00:00Z" });
     const id = (await call("POST", "/baskets", { name: "Stock warning", deliveryDate: "2026-11-20" })).basket.id;
     const m = await call("POST", "/messages", { text: "1000 l lactose-free milk" });

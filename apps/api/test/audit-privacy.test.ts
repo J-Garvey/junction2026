@@ -90,10 +90,10 @@ describe("Q09.2 shared audit projection", () => {
     ["final_check_run", { results: [{ productId: "469672", result: "covered_at_risk", detail: "Sanna accepted PRIVATE risk", ...privateDetails }] }, { results: [{ productId: "469672", result: "covered_at_risk" }] }],
     ["flag_sent_to_valio_aimo", { productId: "469672", closingTime: "2026-11-16T10:00:00Z", askedAt: "PRIVATE question time" }, { productId: "469672", closingTime: "2026-11-16T10:00:00Z" }],
   ] as [AuditAction, Record<string, unknown>, Record<string, unknown>][])("allowlists %s fields, including nested objects, without editing originals", (action, details, expected) => {
-    const entry = audit({ actor: person, action, summary: "Sanna: PRIVATE guest and dish", questionId: "PRIVATE-question", quoteId: "quo-trade", orderId: "ord-trade", ruleIds: ["MAN-01", "ORG-01", "PRIVATE rule"], judgements: [judgement], details: { ...privateDetails, ...details }, visibility: "shared", usesFixture: true });
+    const entry = audit({ actor: person, action, summary: "Sanna: PRIVATE guest and dish", eventId: "evt-wedding", questionId: "PRIVATE-question", ruleIds: ["MAN-01", "ORG-01", "PRIVATE rule"], judgements: [judgement], details: { ...privateDetails, ...details }, visibility: "shared", usesFixture: true });
     const before = snapshot();
     const shared = auditView("valio").find((e) => e.id === entry.id)!;
-    expect(shared).toMatchObject({ actor: { id: "role:approver", name: "Approver", role: "approver", outletId: null }, questionId: null, judgements: [], ruleIds: ["MAN-01", "ORG-01"], quoteId: "quo-trade", orderId: "ord-trade", details: expected, usesFixture: true, hash: entry.hash, prevHash: entry.prevHash });
+    expect(shared).toMatchObject({ actor: { id: "role:approver", name: "Approver", role: "approver", outletId: null }, eventId: null, questionId: null, judgements: [], ruleIds: ["MAN-01", "ORG-01"], quoteId: null, orderId: null, details: expected, usesFixture: true, hash: entry.hash, prevHash: entry.prevHash });
     expect(shared.details).toEqual(expected);
     expect(JSON.stringify(shared)).not.toMatch(/PRIVATE|Sanna|p-sanna|private-outlet/);
     shared.actor.name = "changed";

@@ -133,6 +133,7 @@ async function eventCase(withTreeNutAllergy = true) {
   out.subQ = (await aino.call("GET", "/home")).questions.find((q: any) => q.type === "substitute");
   const pick = out.subQ.facts.candidates.findIndex((c: any) => c.productId === "464194");
   out.useSub = await aino.call("POST", `/questions/${out.subQ.id}/answer`, { optionId: `use_${Math.max(0, pick)}` });
+  expect(out.useSub.error).toBeUndefined();
   await finishChangedConcerns();
   await aino.call("POST", "/events/evt-wedding/final-check");
   out.view = await sanna.call("GET", "/events/evt-wedding");

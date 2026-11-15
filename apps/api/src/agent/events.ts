@@ -353,7 +353,9 @@ export async function answerChange(q: Question, p: Person, token: string) {
     audit({ actor: personActor(p), action: "order_amended", summary: `${p.name} kept the order as is (${f.from} guests ordered, event now ${f.to})`, eventId: e.id, ruleIds: ["CHG-02"], details: {}, visibility: "hotel" });
     return;
   }
-  const body = { changes: f.changes, continueWithUnconfirmedStock: f.continueWith ?? [],
+  const builderConsentId = f.kind === "change_stock" && q.answer === "continue"
+    ? (await gw.consent(token, await gw.getQuote(f.stockQuoteId), f.continueWith)).id : f.builderConsentId;
+  const body = { builderConsentId, changes: f.changes, continueWithUnconfirmedStock: f.continueWith ?? [],
     stockQuoteId: f.stockQuoteId, decidedBy: f.kind === "change_stock" ? p.name : f.decidedBy ?? undefined,
     allergenAcknowledgements: (f.allergenAcknowledgements ?? []).map((a: { token: string }) => a.token) };
   let changedOrder: Order;
@@ -383,13 +385,14 @@ export async function answerChange(q: Question, p: Person, token: string) {
       planId: q.planId, eventId: e.id, type: "spend_cap", forRole: "approver", outletId: null,
       quoteId: err.body.newQuoteId, fingerprint: null, deadline: q.deadline,
       title: "Approve the changed order?", body: "The chef reviewed the product concerns. Finance approval is still required.",
-      facts: { ...f, kind: "change", decidedBy: body.decidedBy }, ruleIds: ["MAN-01"],
+      facts: { ...f, kind: "change", builderConsentId, decidedBy: body.decidedBy }, ruleIds: ["MAN-01"],
       options: [{ id: "approve", label: "Approve the change", primary: true }, { id: "keep", label: "Keep the current order", primary: false }],
     });
     saveQuestion(finance);
     return;
   }
   completeChange(e, q.planId, changedOrder!, changedQuote!);
+  if (f.recheckFinal) await finalCheck(e.id);
 }
 
 export async function answerMissingAllergenReplacement(q: Question, p: Person) {
@@ -618,7 +621,7 @@ export async function amendOrAsk(e: StoredEvent, orderId: string, changes: { pro
     return "applied";
   } catch (err) {
     if (err instanceof GatewayError && err.body.newQuoteId && (err.body.error === "allergen_data_unconfirmed" || err.body.error === "stock_unconfirmed")) {
-      const facts = { orderId, changes, continueWith: stock?.continueWith ?? [], decidedBy: stock?.decidedBy ?? null };
+      const facts = { recheckFinal: true, orderId, changes, continueWith: stock?.continueWith ?? [], decidedBy: stock?.decidedBy ?? null };
       if (err.body.error === "stock_unconfirmed") await askChangeStock(e, e.orderPlanId ?? "none", facts, err.body.newQuoteId);
       else {
         const plan = e.orderPlanId ? getPlan(e.orderPlanId) : null;

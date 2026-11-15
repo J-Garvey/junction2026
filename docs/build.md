@@ -9,7 +9,7 @@ You need Node 22.13 or later and pnpm.
 ```sh
 pnpm install
 pnpm --filter @aimo/app build      # the web app, served by the API
-pnpm start                         # http://127.0.0.1:8787
+AIMO_TEST_MODE=1 pnpm start        # explicit local demo personas; http://127.0.0.1:8787
 ```
 
 For development, `pnpm dev` runs the API with `tsx watch` and the Vite app on port 5173.
@@ -38,6 +38,7 @@ The server reads the environment, then the untracked `.env.local`, then the trac
 | `PORT` | `8787` | |
 | `AIMO_DB` | `apps/api/var/aimo.db` | SQLite file; `:memory:` for tests |
 | `CONTEXT_DEV_API_KEY` | unset | Supplier brand profiles from context.dev at `GET /gateway/v1/products/{id}/brand`. External web data: cached, labelled, never used by a rule |
+| `AIMO_TEST_MODE` | disabled | Set exactly `1` only for the local synthetic demo: permits clearly marked persona switching and live demo cards. `0` or unset disables impersonation and rejects old demo sessions |
 | `PREVIEW_PASSWORD` | unset | Turns on the preview gate: browsers sign in at `/login`, scripts send `X-Preview-Password`. `/healthz` stays open |
 
 ## The live console (the demo screen)
@@ -100,6 +101,17 @@ The wedding uses the recorded Monday 16 Nov delivery schedules and their origina
 ### Stage processing totals
 
 Request results, item review and event results show one saved `processing` total with the milestone actually reached: chef input, a blocked result, review, approval, an applied change or a completed check. The server measures each submitted call with `performance.now()`, from authenticated dispatch until the computed result has been saved, before response serialization. A request includes the preceding submitted message's parsing time when its `parseAuditId` resolves to that person's saved audit evidence; direct requests and older snapshots omit missing parsing measurements. Quote creation is included. A resumed decision adds only its processing call, excluding time spent reviewing chips or waiting for chef/finance decisions. An explicit request edit or event-stage action starts its own total. Reading a saved result or moving the fixture clock cannot restart it. Browser transport/rendering and speculative preparation are outside this server-processing measurement. Existing `Plan.timings` and gateway-call measurements keep their separate scopes.
+### Trade read authorization
+
+Gateway quote, order, order-list and Peppol reads check the authenticated hotel's ownership. The event/plan/basket/rules app workflows use the single Demo Hotel agent and reject foreign hotel sessions. Direct `/api/orders` and `/api/audit` reads use the person's hotel rather than the internal demo agent's credentials. Agent tokens require `quote:read`, `order:read`, `audit:read` or `mandate:read`. Existing `quote` and `order` grants include the corresponding reads; `quote` also permits mandate lookup. Empty scopes grant no object reads. Audit access is a separate grant and returns shared trade fields for the agent's hotel; private conversations remain available only to hotel people.
+
+The seeded outside-agent demo has an explicit `audit:read` grant so its final audit lookup works under the same account restrictions. The extra chef-consent call after selecting an unconfirmed substitute adds a processing segment; completing its internal final check retains the `final_checked` milestone.
+
+Valio credentials carry server-issued `hotelIds` assignments. The seeded viewer is assigned Demo Hotel. Missing or empty assignments fail closed: reissue existing Valio credentials with their explicit assignments. Quote and order detail responses for Valio are allowlisted trade projections (published as `SharedQuote` and `SharedOrder` in OpenAPI). They expose customer/site IDs, product/outlet IDs, quantities, prices, totals, dates, stock status and order/approval references. Peppol exports use the same assignment checks and include the delivery address and customer reference. Neither path exposes the mandate, dietary requirements, personal names, rule facts, internal flags or signed tokens. `/mandate` remains forbidden to Valio.
+
+Audit ownership is resolved from authoritative stored quotes/orders, event sites and people (including question/plan links). New entries record optional `hotelId` in their hashed JSON body. No SQL migration or rewrite of existing hashes is needed. Legacy rows are resolved on read; unlinked system rows are attributable only while the database contains exactly one hotel. Missing, ambiguous or conflicting ownership is excluded. Shared entries use an action allowlist and fresh field projections, including fixed summaries and generic actors. Request filters narrow authorized rows before pagination and redaction; empty/repeated filters return 422 and unknown IDs return an empty result. The app's audit envelope and decision-count fields are preserved.
+
+`chain` still reports server verification of the original stored global log. Original sequence/hash links are retained in filtered and redacted responses, which are not a contiguous independently verifiable chain. The private `/live` console requires a Demo Hotel person session; sign in through `/` first. Valio uses gateway shared reads. Live state/SSE feed rows are restricted to Demo Hotel and foreign order details are refused. Reset renews the demo browser session.
 
 
 ## Open standards
@@ -174,6 +186,23 @@ The PRD left these open. Each choice follows the chunk's recommended answer unle
 - Mandate and preference setup screens (D18; the mandate is pre-filled).
 - Pack mixing across sizes of the same product (Q03.4), CEL, Peppol, MCP and email updates.
 - Delivery-date alignment across different available dates (AP-14): the mock always answers Monday, so every line shares one date.
+
+
+### Authenticated builder decisions and non-test sessions
+
+A shared preview password only opens the preview gate; it never authenticates a hotel person.
+`AIMO_TEST_MODE` defaults off. `/api/session` can refresh only the already authenticated person's own identity outside demo mode. It refuses anonymous callers, agent tokens, demo sessions and attempts to select another person. Existing demo tokens stop resolving when demo mode is disabled. The person picker is explicitly labelled as a local demo surface. Live console cards use the authenticated caller's role outside demo mode; they cannot mint Aino or Sanna.
+
+This prototype uses operator-provisioned opaque bearer credentials rather than a new login platform. After verifying a person out of band, a trusted operator can run `pnpm --filter @aimo/api exec tsx src/scripts/issue-person-token.ts p-aino <private-output-file>` against the intended `AIMO_DB`. The output must be a new private file (on Windows use a directory with an owner-only ACL); its contents are never printed. Deliver that credential privately to the person, who sends `Authorization: Bearer <personal-token>`; calling `/api/session` for their own ID also sets the HttpOnly app cookie. Provision finance separately. Revoke by deleting the token row. Deployments should replace this manual provisioning with their identity provider. Do not enable demo mode on a preview shared with untrusted users.
+
+D31 external-agent flow:
+
+1. Agent requests `POST /gateway/v1/quotes` and shows exact unconfirmed lines, quantities and terms to the builder.
+2. Chef calls `POST /gateway/v1/builder-consents` using their **personal credential**, with `{ "quoteId": "quote-id", "fingerprint": "fingerprint", "productIds": ["464306"] }`. Finance and agent credentials receive 403. The returned opaque `id` references the authenticated server record.
+3. Agent calls `POST /gateway/v1/orders` with `quoteId`, `continueWithUnconfirmedStock`, and `builderConsentId` set to that ID, plus any separate finance `approvalId` and the usual idempotency header. `decidedBy` is deprecated and ignored; a name is never consent. Stock remains unknown on the receipt.
+4. An amendment needing a fresh decision returns `stock_unconfirmed` and `newQuoteId`. Chef consents to that amendment quote; retry the same changes with `builderConsentId`. Consent binds to the order version as well as exact site, lines, quantities, requirements, prices, delivery terms, hotel policy and expiry. Changed quantities or terms require a fresh decision. Unchanged previously accepted order lines and standing pre-answers retain their existing behavior.
+
+The app records consent when the chef answers the stock card, adds reviewed unconfirmed items, or submits their reviewed combined basket to finance. Finance cannot create builder consent. Consent records use the existing SQLite key/value store, so no schema migration is required. Old staged decisions consisting only of a name/product list require chef review again; committed receipts remain readable. The existing commit recheck still blocks stale supplier terms and hard rules.
 
 ### Piece candidate costs (D36)
 

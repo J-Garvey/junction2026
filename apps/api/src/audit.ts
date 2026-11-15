@@ -10,12 +10,17 @@ import { getDb, allJson, getJson } from "./db.js";
 import { nowIso } from "./clock.js";
 import { sha256, stableStringify, newId } from "./util.js";
 
+import { hotelFor } from "./ownership.js";
+import { sharedOrder, sharedQuote } from "./gateway/shared.js";
+import type { Order, Quote } from "@aimo/contracts";
+
 export type Actor = AuditEntry["actor"];
 export const AGENT: Actor = { kind: "agent", id: "hotel-agent", name: "Hotel agent", role: "agent", outletId: null, testSession: false };
 export const GATEWAY: Actor = { kind: "gateway", id: "gateway", name: "Aimo Agent Gateway", role: "gateway", outletId: null, testSession: false };
 export const SYSTEM: Actor = { kind: "system", id: "system", name: "System", role: null, outletId: null, testSession: false };
 
 export type AppendInput = {
+  hotelId?: string | null;
   actor: Actor;
   action: AuditAction;
   summary: string;
@@ -38,6 +43,7 @@ export function audit(input: AppendInput): AuditEntry {
     id: newId("aud"),
     simTime: nowIso(),
     realTime: new Date().toISOString(),
+    hotelId: hotelFor(input),
     actor: input.actor,
     action: input.action,
     summary: input.summary,
@@ -59,11 +65,15 @@ export function audit(input: AppendInput): AuditEntry {
   return entry;
 }
 
-export function auditView(viewer: "hotel" | "valio", f: { eventId?: string; orderId?: string; limit?: number } = {}): AuditEntry[] {
+export function auditView(viewer: "hotel" | "valio", f: { hotelIds?: string[]; hotelId?: string; eventId?: string; orderId?: string; limit?: number } = {}): AuditEntry[] {
   let rows = allJson<AuditEntry>("SELECT json FROM audit ORDER BY seq DESC");
+  rows = rows.filter((row) => {
+    const owner = hotelFor(row);
+    return owner !== null && (f.hotelIds === undefined || f.hotelIds.includes(owner)) && (f.hotelId === undefined || owner === f.hotelId);
+  });
   if (viewer === "valio") rows = rows.filter((r) => r.visibility === "shared" && Object.hasOwn(SHARED_ACTIONS, r.action));
-  if (f.eventId) rows = rows.filter((r) => r.eventId === f.eventId);
-  if (f.orderId) rows = rows.filter((r) => r.orderId === f.orderId);
+  if (f.eventId !== undefined) rows = rows.filter((r) => r.eventId === f.eventId);
+  if (f.orderId !== undefined) rows = rows.filter((r) => r.orderId === f.orderId);
   rows = rows.slice(0, f.limit ?? 500);
   return viewer === "valio" ? rows.map(redactForValio) : rows;
 }
@@ -156,7 +166,7 @@ function redactForValio(e: AuditEntry): AuditEntry {
   return {
     seq: e.seq, id: e.id, simTime: e.simTime, realTime: e.realTime,
     actor: sharedActor(e.actor), action: e.action, summary: projection.summary,
-    eventId: e.eventId, quoteId: e.quoteId, orderId: e.orderId, questionId: null,
+    hotelId: hotelFor(e), eventId: null, quoteId: e.quoteId, orderId: e.orderId, questionId: null,
     ruleIds: e.ruleIds.filter((r) => /^(?:ALG|DIET|STK|DLV|CUT|PRC|QTY|MAN|CHG|SUB|FIN|SIL|ORG)-\d{2}$/.test(r)),
     judgements: [], details: parsed.success ? parsed.data as Record<string, unknown> : {},
     // Hashes refer to the full stored entries; verifyChain checks those originals.
@@ -178,8 +188,8 @@ export function verifyChain(): { ok: boolean; brokenAt: number | null; entries: 
 }
 
 /** DECISION-COUNT (Q09.5): answered cards count one each; pre-answers count zero. */
-export function decisionCount(eventId: string) {
-  const rows = auditView("hotel", { eventId });
+export function decisionCount(eventId: string, hotelId?: string) {
+  const rows = auditView("hotel", { eventId, hotelId });
   const decisions = rows.filter((r) => r.action === "question_answered" && r.actor.kind === "person" && r.details.kind !== "confirmation");
   const confirmations = rows.filter((r) => r.action === "request_received" && r.details.kind === "confirmation");
   return {

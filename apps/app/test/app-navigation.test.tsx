@@ -14,7 +14,7 @@ const people: Person[] = [
 ];
 const status: StatusResp = {
   clock: { now: "2026-11-14T10:00:00Z", mode: "fixed", time: null, scene: null, scenes: {} as StatusResp["clock"]["scenes"] },
-  dataMode: "fixture", model: { provider: "openai", model: "fixture", configured: false }, chain: { ok: true, brokenAt: null, entries: 0 },
+  testMode: true, dataMode: "fixture", model: { provider: "openai", model: "fixture", configured: false }, chain: { ok: true, brokenAt: null, entries: 0 },
 };
 const mount = (person = people[1], path = "/") => {
   vi.mocked(api.me).mockResolvedValue({ person });

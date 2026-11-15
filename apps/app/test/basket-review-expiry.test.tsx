@@ -37,7 +37,7 @@ function context(now = submittedAt, me = chef, tick = 0): AppCtx {
       "1": { label: "Booking", time: submittedAt }, "2": { label: "Changes", time: submittedAt },
       "3": { label: "Review", time: submittedAt }, "4": { label: "Cutoff", time: expiredAt },
     } },
-    dataMode: "fixture", model: { provider: "openai", model: "test", configured: false }, chain: { ok: true, brokenAt: null, entries: 0 },
+    testMode: true, dataMode: "fixture", model: { provider: "openai", model: "test", configured: false }, chain: { ok: true, brokenAt: null, entries: 0 },
   };
   return { me, people: [chef, manager], outlets: [], status, now: status.clock.now, tick, refresh, switchPerson: vi.fn() };
 }

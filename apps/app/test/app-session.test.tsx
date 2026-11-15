@@ -63,7 +63,7 @@ beforeEach(() => {
       "1": { label: "Booking", time: "2026-08-14T10:00:00Z" }, "2": { label: "Change", time: "2026-08-14T10:00:00Z" },
       "3": { label: "Before cutoff", time: "2026-10-30T10:00:00Z" }, "4": { label: "Final check", time: "2026-11-14T10:00:00Z" },
     } },
-    dataMode: "fixture", model: { provider: "openai", model: "fixture", configured: false }, chain: { ok: true, brokenAt: null, entries: 0 },
+    testMode: true, dataMode: "fixture", model: { provider: "openai", model: "fixture", configured: false }, chain: { ok: true, brokenAt: null, entries: 0 },
   });
   vi.spyOn(api, "home").mockResolvedValue(home);
   vi.spyOn(api, "baskets").mockResolvedValue({ baskets: [] });
@@ -78,6 +78,14 @@ afterEach(() => {
 });
 
 describe("person picker session boundaries", () => {
+  it("keeps persona selection unavailable outside test mode", async () => {
+    vi.mocked(api.status).mockResolvedValue({ ...await api.status(), testMode: false });
+    vi.mocked(api.me).mockRejectedValue(new Error("Sign in required"));
+    mount();
+    expect(await screen.findByText(/Demo persona switching is disabled/)).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Who are you?" })).toBeNull();
+  });
+
   it("preserves both unsaved rule edits and nested input text when switching is cancelled", async () => {
     const { container } = mount();
     const input = await draftRules();

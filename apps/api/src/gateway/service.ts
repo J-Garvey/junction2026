@@ -4,7 +4,7 @@
  * itself, so Valio Aimo never has to trust the agent's code (D11).
  */
 import type { AllergenAcknowledgement, AllergenAcknowledgementBody, Approval, ApprovalBody, FiredRule, Mandate, Order, OrderLine, Quote, QuoteCreateBody, QuoteLine, Refusal, AmendmentBody, LookupLine } from "@aimo/contracts";
-import { getDb, getJson, allJson, tx } from "../db.js";
+import { getDb, getJson, allJson, tx, kvGet, kvSet } from "../db.js";
 import { now, nowIso } from "../clock.js";
 import { getProduct } from "../catalog.js";
 import { carbonBasisFor } from "../carbon.js";
@@ -12,6 +12,7 @@ import { lookup, UpstreamError } from "../aimo/lookup.js";
 import { fire, resolveOutcome, FIXED, outcomeOf } from "../rules/catalogue.js";
 import { cutoffRule, productRules, mandateRules, priceValidityRule, stockCheck, supplyRules } from "../rules/checks.js";
 import { supplierDelivery } from "../rules/delivery.js";
+import { storedPolicy } from "../rules/policy.js";
 import { audit, GATEWAY, type Actor } from "../audit.js";
 import { newId, round2, sha256, stableStringify, parseAimoTime, eur, isCalendarDate } from "../util.js";
 import { signJwt, verifyJwt, jcs, checkoutHash } from "./keys.js";
@@ -44,6 +45,7 @@ const quoteClaims = (q: Quote) => ({
   currency: "EUR",
   total_ex_vat: q.totalExVat,
   approvals_needed: q.mandateCheck.approvalsNeeded,
+  allergen_policy: q.allergenPolicy ?? null,
   lines: q.lines.map((l) => ({ product_id: l.productId, outlet: l.outletId, quantity: l.quantity, sales_unit: l.salesUnit, unit_price: l.unitPrice, cutoff: l.closingTime, stock: l.stock.kind, source: l.source, requires: l.requires ?? null, allergen_scope: l.allergenScope ?? null, allergen_evidence: l.allergenEvidence ?? null })),
 });
 const orderClaims = (o: Order) => ({
@@ -82,21 +84,23 @@ export function isUrgent(deliveryDate: string, at: Date): boolean {
 }
 
 /** APPROVAL-BIND: any change to site, lines, quantities, prices, total or dates gives a new fingerprint. */
-export function fingerprintOf(q: Pick<Quote, "siteId" | "deliveryDate" | "lines" | "totalExVat">): string {
+export function fingerprintOf(q: Pick<Quote, "siteId" | "deliveryDate" | "lines" | "totalExVat" | "allergenPolicy">): string {
   return sha256(
     stableStringify({
       siteId: q.siteId,
       deliveryDate: q.deliveryDate,
       total: q.totalExVat,
+      ...(q.allergenPolicy ? { allergenPolicy: q.allergenPolicy } : {}),
       lines: q.lines.map((l) => [l.productId, l.outletId, l.quantity, l.salesUnit, l.unitPrice, l.taxRate, l.availableDate, l.closingTime, l.priceValidTo,
         l.stock.kind === "unknown" ? l.stock : l.stock.kind, l.logisticModel, l.requires ?? null, l.allergenScope ?? null, l.allergenEvidence ?? null]),
     }),
   );
 }
 
-type StoredQuote = Quote & { amendsOrderId?: string; amendmentVersion?: number; stockPolicy?: string };
-type StoredOrder = Order & { stockPolicy?: string };
+type StoredQuote = Quote & { amendsOrderId?: string; amendmentVersion?: number; humanPolicy?: string; stockPolicy?: string };
+type StoredOrder = Order & { stockPolicy?: string; humanPolicy?: string };
 const stockPolicy = (m: Mandate) => sha256(stableStringify({ version: m.version, preAnswers: m.preAnswers }));
+const allergenPolicy = (m: Mandate) => sha256(stableStringify({ mandate: m, rules: storedPolicy() }));
 const supplierTime = (value: string | null | undefined) => value && isCalendarDate(value.slice(0, 10)) ? parseAimoTime(value) : null;
 type BuildOpts = { hotelId: string; body: QuoteCreateBody; lookups: Map<string, LookupLine>; amendsOrderId?: string; fixedPrices?: Map<string, number> };
 
@@ -177,7 +181,8 @@ function buildQuote({ hotelId, body, lookups, amendsOrderId, fixedPrices }: Buil
   const blocked = allRules.some((r) => r.outcome === "block");
   const cutoffs = lines.map((l) => parseAimoTime(l.closingTime)?.getTime()).filter((t): t is number => typeof t === "number" && t > at.getTime());
   const expires = Math.min(at.getTime() + FIXED.quoteMaxHours * 3_600_000, ...cutoffs);
-  const base = { siteId: body.siteId, deliveryDate: body.deliveryDate, lines, totalExVat };
+  const policy = lines.some((l) => l.requires?.avoidAllergens.length) ? allergenPolicy(mandate) : undefined;
+  const base = { siteId: body.siteId, deliveryDate: body.deliveryDate, lines, totalExVat, allergenPolicy: policy };
   return {
     id: newId("q"),
     hotelId,
@@ -191,11 +196,13 @@ function buildQuote({ hotelId, body, lookups, amendsOrderId, fixedPrices }: Buil
     totalExVat,
     totalVat,
     fingerprint: fingerprintOf(base),
+    ...(policy ? { allergenPolicy: policy } : {}),
     mandateCheck: { pass: mc.rules.length === 0, rules: mc.rules, approvalsNeeded },
     outcome: blocked ? "block" : lines.some((l) => l.rules.some((r) => r.ruleId === "ALG-03")) ? "ask_chef" : approvalsNeeded.length ? "ask_approver" : "order",
     usesFixtures: lines.some((l) => l.source === "fixture"),
     unconfirmedStock,
     stockPolicy: stockPolicy(mandate),
+    humanPolicy: consentPolicy(hotelId),
     ...(amendsOrderId ? { amendsOrderId } : {}),
   };
 }
@@ -275,6 +282,8 @@ export function acknowledgeAllergenData(id: Identity, body: AllergenAcknowledgem
     throw new GatewayRefusal(403, { error: "forbidden", message: "These terms are outside the chef's hotel or outlet scope" });
   if (q.fingerprint !== body.fingerprint || new Date(q.expiresAt) <= now())
     throw new GatewayRefusal(409, { error: "quote_stale", message: "Review the current terms before continuing with missing allergen data" });
+  if (q.allergenPolicy !== allergenPolicy(getMandate(q.hotelId)))
+    throw new GatewayRefusal(409, { error: "quote_stale", message: "The hotel policy changed. Request current terms before reviewing missing allergen data." });
   const hard = [...(q.outcome === "block" ? q.lines.flatMap((l) => l.rules).filter((r) => r.outcome === "block") : []), ...q.lines.flatMap((l) => {
     const p = getProduct(l.productId);
     return (p ? productRules(p, l.requires, "this line", getMandate(q.hotelId)) : []).filter((r) => r.outcome === "block");
@@ -377,6 +386,42 @@ export async function createApproval(id: Identity, body: ApprovalBody): Promise<
   return a;
 }
 
+// Authenticated builder decisions are separate from finance approvals. Opaque IDs are
+// references to server-owned records, never client assertions about a person's name.
+type BuilderConsent = { id: string; quoteId: string; fingerprint: string; hotelId: string;
+  policy: string; expiresAt: string; productIds: string[]; personId: string; name: string };
+const consentPolicy = (hotelId: string) => sha256(stableStringify({ mandate: getMandate(hotelId), rules: storedPolicy() }));
+function chefScope(personId: string, q: Quote) {
+  const p = getPerson(personId);
+  return p?.role === "chef" && p.hotelId === q.hotelId &&
+    (p.hotelScope || q.lines.every((l) => p.outlets.includes(l.outletId)));
+}
+export function createBuilderConsent(id: Identity, body: { quoteId: string; fingerprint: string; productIds: string[] }): BuilderConsent {
+  const q = getQuote(body.quoteId);
+  if (id.kind !== "person" || !chefScope(id.person.id, q))
+    throw new GatewayRefusal(403, { error: "forbidden", message: "Only an authenticated chef in this quote's hotel and outlet scope can consent" });
+  if (q.fingerprint !== body.fingerprint || (q as StoredQuote).humanPolicy !== consentPolicy(q.hotelId) || new Date(q.expiresAt) <= now() ||
+    (q as StoredQuote).stockPolicy !== stockPolicy(getMandate(q.hotelId)))
+    throw new GatewayRefusal(409, { error: "quote_stale", message: "Review a current quote before consenting" });
+  if (body.productIds.some((p) => !q.unconfirmedStock.includes(p)))
+    throw new GatewayRefusal(422, { error: "invalid", message: "Consent products must be unconfirmed lines on the reviewed quote" });
+  const c: BuilderConsent = { id: newId("consent"), quoteId: q.id, fingerprint: q.fingerprint,
+    hotelId: q.hotelId, policy: consentPolicy(q.hotelId), expiresAt: q.expiresAt,
+    productIds: [...new Set(body.productIds)].sort(), personId: id.person.id, name: id.person.name };
+  kvSet(`builder-consent:${c.id}`, c);
+  audit({ actor: actorOf(id), action: "question_answered", summary: `${c.name} continued with unconfirmed stock`,
+    quoteId: q.id, eventId: q.eventId, details: { consentId: c.id, fingerprint: c.fingerprint, productIds: c.productIds }, visibility: "hotel" });
+  return c;
+}
+function builderConsent(q: Quote, consentId?: string, amendment?: Order): BuilderConsent | null {
+  const c = consentId ? kvGet<BuilderConsent>(`builder-consent:${consentId}`) : null;
+  const reviewed = c ? getJson<StoredQuote>("quotes", c.quoteId) : null;
+  if (!c || !reviewed || c.hotelId !== q.hotelId || c.fingerprint !== q.fingerprint ||
+    c.policy !== consentPolicy(q.hotelId) || new Date(c.expiresAt) <= now() || !chefScope(c.personId, q)) return null;
+  if (amendment ? reviewed.amendsOrderId !== amendment.id || reviewed.amendmentVersion !== amendment.version : c.quoteId !== q.id) return null;
+  return c;
+}
+
 // ---------- orders (ORDER-PLACE, QUOTE-RECHECK, idempotency) ----------
 
 /** Compare a fresh rule evaluation, not just a subset of the old snapshot. */
@@ -400,6 +445,7 @@ function recheck(q: Quote, fresh: Quote, at: Date, amending?: Order): Record<str
       changes.push({ productId: l.productId, field: "rule", ruleId: rule.ruleId, now: rule.message });
   }
   if (stableStringify(fresh.mandateCheck) !== stableStringify(q.mandateCheck) ||
+    fresh.allergenPolicy !== q.allergenPolicy ||
     stableStringify(fresh.unconfirmedStock) !== stableStringify(q.unconfirmedStock) ||
     (q as StoredQuote).stockPolicy !== (fresh as StoredQuote).stockPolicy) changes.push({ field: "policy", now: fresh.mandateCheck });
   return changes;
@@ -418,11 +464,11 @@ function approvalCovers(q: Quote, approvalId: string | undefined): { ok: boolean
   return { ok: true };
 }
 
-export async function placeOrder(id: Identity, quoteId: string, idemKey: string, approvalId?: string, actor?: Actor, stock: { continueWith?: string[]; decidedBy?: string; allergenAcknowledgements?: string[] } = {}): Promise<{ order: Order; replay: boolean }> {
+export async function placeOrder(id: Identity, quoteId: string, idemKey: string, approvalId?: string, actor?: Actor, stock: { continueWith?: string[]; decidedBy?: string; builderConsentId?: string; allergenAcknowledgements?: string[] } = {}): Promise<{ order: Order; replay: boolean }> {
   const hotelId = requireHotel(id);
   if (!idemKey) throw new GatewayRefusal(400, { error: "invalid", message: "Idempotency-Key header is required" });
   const continued = [...new Set(stock.continueWith ?? [])].sort();
-  const bodyHash = sha256(stableStringify({ quoteId, approvalId: approvalId ?? null, hotelId, continued, ...(stock.allergenAcknowledgements?.length ? { allergenAcknowledgements: [...stock.allergenAcknowledgements].sort() } : {}) }));
+  const bodyHash = sha256(stableStringify({ quoteId, approvalId: approvalId ?? null, hotelId, continued, ...(stock.builderConsentId ? { builderConsentId: stock.builderConsentId } : {}), ...(stock.allergenAcknowledgements?.length ? { allergenAcknowledgements: [...stock.allergenAcknowledgements].sort() } : {}) }));
   const existing = getDb().prepare("SELECT json, body_hash FROM orders WHERE idem_key = ?").get(idemKey) as { json: string; body_hash: string } | undefined;
   if (existing) {
     if (existing.body_hash !== bodyHash) throw new GatewayRefusal(422, { error: "idempotency_conflict", message: "This Idempotency-Key was used with a different body; the first order is untouched" });
@@ -459,11 +505,12 @@ export async function placeOrder(id: Identity, quoteId: string, idemKey: string,
   let allergenData: ReturnType<typeof requireAllergenDecisions>;
   try { allergenData = requireAllergenDecisions(fresh, stock.allergenAcknowledgements); }
   catch (err) { if (err instanceof GatewayRefusal) refuse(err.status, { ...err.body, newQuoteId: q.id }); throw err; }
-  const missingStock = (q.unconfirmedStock ?? []).filter((p) => !continued.includes(p));
+  const consent = builderConsent(q, stock.builderConsentId);
+  const missingStock = (q.unconfirmedStock ?? []).filter((p) => !continued.includes(p) || !consent?.productIds.includes(p));
   if (missingStock.length)
     refuse(409, {
       error: "stock_unconfirmed",
-      message: `Valio Aimo can't confirm stock for ${missingStock.join(", ")}. List them in continueWithUnconfirmedStock to order anyway.`,
+      message: `Valio Aimo can't confirm stock for ${missingStock.join(", ")}. An authenticated chef must consent through /builder-consents before ordering.`,
       rules: q.lines.filter((l) => missingStock.includes(l.productId)).flatMap((l) => l.rules.filter((r) => r.ruleId === "STK-01")),
     });
   const cover = approvalCovers(q, approvalId);
@@ -482,7 +529,7 @@ export async function placeOrder(id: Identity, quoteId: string, idemKey: string,
       (l): OrderLine => ({
         ...l,
         removed: false,
-        riskAccepted: l.stock.kind === "unknown" ? { by: continued.includes(l.productId) ? stock.decidedBy ?? by.name : "pre-answer", at: at.toISOString() } : null,
+        riskAccepted: l.stock.kind === "unknown" ? { by: consent?.productIds.includes(l.productId) ? consent.name : "pre-answer", at: at.toISOString() } : null,
         ...(allergenData.get(`${l.productId}|${l.outletId}`) ? { allergenDataAcknowledgement: allergenData.get(`${l.productId}|${l.outletId}`)! } : {}),
       }),
     ),
@@ -495,6 +542,7 @@ export async function placeOrder(id: Identity, quoteId: string, idemKey: string,
     version: 1,
     flags: [],
     stockPolicy: fresh.stockPolicy,
+    humanPolicy: fresh.humanPolicy,
   };
   // Two requests may both finish their supplier lookup before either writes.
   // Resolve the same-key race inside the transaction instead of surfacing SQL 500.
@@ -603,10 +651,11 @@ export async function amendOrder(id: Identity, orderId: string, body: AmendmentB
   ]);
   const inherited = new Map(q.lines.flatMap((l) => {
     const previous = current.get(key(l.productId, l.outletId));
-    return previous?.riskAccepted && (o as StoredOrder).stockPolicy === q.stockPolicy && sameReview(previous, l)
+    return previous?.riskAccepted && (o as StoredOrder).stockPolicy === q.stockPolicy && (o as StoredOrder).humanPolicy === q.humanPolicy && sameReview(previous, l)
       ? [[key(l.productId, l.outletId), previous.riskAccepted] as const] : [];
   }));
-  const continued = new Set(body.continueWithUnconfirmedStock ?? []);
+  const consent = builderConsent(q, body.builderConsentId, o);
+  const continued = new Set((body.continueWithUnconfirmedStock ?? []).filter((p) => consent?.productIds.includes(p)));
   const missingStock = q.unconfirmedStock.filter((p) => !continued.has(p) && q.lines.some((l) => l.productId === p && !inherited.has(key(l.productId, l.outletId))));
   // A past cut-off blocks only the lines this amendment changes or adds; locked lines stay as they are.
   const touched = new Set(body.changes.filter((c) => current.get(key(c.productId, c.outletId))?.quantity !== c.quantity).map((c) => key(c.productId, c.outletId)));
@@ -632,7 +681,7 @@ export async function amendOrder(id: Identity, orderId: string, body: AmendmentB
       throw new GatewayRefusal(409, { error: "stock_unconfirmed", message: "The amendment changed since the builder reviewed its unconfirmed stock. Review the current terms again.", newQuoteId: q.id });
   }
   if (missingStock.length)
-    throw new GatewayRefusal(409, { error: "stock_unconfirmed", message: `Valio Aimo can't confirm stock for ${missingStock.join(", ")}. List them in continueWithUnconfirmedStock to change the order anyway.`, newQuoteId: q.id });
+    throw new GatewayRefusal(409, { error: "stock_unconfirmed", message: `Valio Aimo can't confirm stock for ${missingStock.join(", ")}. An authenticated chef must consent to the amendment quote through /builder-consents.`, newQuoteId: q.id });
   if (q.mandateCheck.approvalsNeeded.length) {
     const a = body.approvalId ? getJson<Approval>("approvals", body.approvalId) : null;
     const approvedQuote = a ? getJson<StoredQuote>("quotes", a.quoteId) : null;
@@ -649,12 +698,12 @@ export async function amendOrder(id: Identity, orderId: string, body: AmendmentB
     return {
       ...l,
       removed: false,
-      riskAccepted: l.stock.kind === "unknown" ? inherited.get(key(l.productId, l.outletId)) ?? { by: continued.has(l.productId) ? body.decidedBy ?? by.name : "pre-answer", at: at.toISOString() } : null,
+      riskAccepted: l.stock.kind === "unknown" ? inherited.get(key(l.productId, l.outletId)) ?? { by: continued.has(l.productId) ? consent!.name : "pre-answer", at: at.toISOString() } : null,
       ...(allergenData.get(key(l.productId, l.outletId)) ? { allergenDataAcknowledgement: allergenData.get(key(l.productId, l.outletId))! } : {}),
     };
   });
   for (const [k, l] of prevLines) if (!next.has(k) && !l.removed) newLines.push({ ...l, removed: true });
-  const updated: StoredOrder = { ...o, lines: newLines, totalExVat: q.totalExVat, totalVat: q.totalVat, state: "amended", version: o.version + 1, stockPolicy: q.stockPolicy };
+  const updated: StoredOrder = { ...o, lines: newLines, totalExVat: q.totalExVat, totalVat: q.totalVat, state: "amended", version: o.version + 1, stockPolicy: q.stockPolicy, humanPolicy: q.humanPolicy };
   Object.assign(updated, signOrder(updated));
   saveOrder(updated);
   auditAllergenConcerns(q, updated, by);
