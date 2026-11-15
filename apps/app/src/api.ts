@@ -246,6 +246,7 @@ export interface BasketPlan {
 export interface BasketResp extends EventResp {
   requests: BasketPlan[];
   orders: Order[];
+  review: Question | null;
 }
 
 // ---------- calls ----------
@@ -260,6 +261,7 @@ export const api = {
   request: (request: SingleRequest, eventId?: string, reviewing = false) => post<PlanResp>("/api/requests", { request, eventId, reviewing }),
   baskets: () => get<{ baskets: Basket[] }>("/api/baskets"),
   basket: (id: string) => get<BasketResp>(`/api/baskets/${encodeURIComponent(id)}`),
+  submitBasketForReview: (id: string) => post<{ review: Question }>(`/api/baskets/${encodeURIComponent(id)}/submit-review`),
   newBasket: (name: string, deliveryDate: string) => post<{ basket: { id: string; name: string; deliveryDate: string } }>("/api/baskets", { name, deliveryDate }),
   plan: (id: string) => get<PlanResp>(`/api/plans/${encodeURIComponent(id)}`),
   requote: (id: string, request: SingleRequest) => post<PlanResp>(`/api/plans/${encodeURIComponent(id)}/requote`, { request }),
