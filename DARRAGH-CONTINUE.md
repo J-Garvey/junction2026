@@ -96,7 +96,7 @@ Relevance lives in `apps/api/src/search.ts`:
 9. Back off and retry on a 429, with a clear message.
 10. Add an offline regression test over the query set.
 
-## 4. What was done (on `feat/search-tuning`)
+## 4. What was done (on branch `DARRAGH-CONTINUE`)
 
 ### New: `apps/api/src/categoryTags.ts`
 
@@ -221,7 +221,7 @@ The numbers above come from before the last small edit, which raised the head mi
 - **vanilla:** has no home category, so tier-2 flavoured products are shortlisted.
 - **eggs:** shortlists egg albumen powder (the whole egg-products range 10592 counts).
 
-## 6. Tools in this folder
+## 6. Tools in docs/handoffs/search-tuning/
 
 `scripts/` holds offline probes. None of them call the Valio Aimo API. They import with relative paths (`../catalog.ts`), so copy them into `apps/api/src/scripts/` and run them from `apps/api`:
 
