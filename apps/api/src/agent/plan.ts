@@ -212,7 +212,7 @@ function buildLines(needs: Need[], urgent: boolean, ov: Overrides, m: Mandate): 
     }
     if (!urgent) {
       const c = n.candidates[0];
-      const k = lineKey(c.productId, n.outletId);
+      const k = `${lineKey(c.productId, n.outletId)}|${n.amount.unit}`;
       const e = combined.get(k) ?? { c, needs: [], value: 0, unit: n.amount.unit };
       e.needs.push(n);
       e.value += n.amount.value;
