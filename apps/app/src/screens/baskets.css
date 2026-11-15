@@ -103,3 +103,12 @@
 .bmodal h2 { margin: 0; font-size: 20px; color: var(--ink); }
 .bmodal p { margin: 0; color: var(--body); }
 .bmodal-item { font-weight: 600; color: var(--ink); }
+
+/* Files attached to the order, stored in this browser only. */
+.composer .send.attach { background: transparent; color: var(--mute); }
+.composer .send.attach:hover { background: var(--soft); color: var(--ink); }
+.composer .attachments { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px 10px; }
+.composer .attachments .chip { max-width: 100%; }
+.composer .attach-name { color: var(--ink) !important; font-size: 14px !important; max-width: 220px; cursor: pointer; text-align: left; }
+.composer .attach-name:hover { text-decoration: underline; }
+.composer .txt:has(> .attach) { padding-left: 8px; gap: 8px; }
