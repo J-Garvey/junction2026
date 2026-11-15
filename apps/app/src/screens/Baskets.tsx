@@ -8,6 +8,7 @@ import { OthersWaiting, QuestionCard } from "../ui/QuestionCard";
 import { Status, planStatusKind, PLAN_STATUS_TEXT } from "../ui/Status";
 import { Icon } from "../ui/icons";
 import { OrderItemDialog } from "../ui/OrderItemDialog";
+import { ProductReviewItem } from "../ui/ProductReviewItem";
 import { stockText } from "../ui/Popover";
 import { tooLateText } from "../ui/TooLate";
 import { addDays, claimLabel, day, eur, helsinkiDate, plural, qty } from "../format";
@@ -352,8 +353,8 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
   const [text, setText] = useState("");
   const [request, setRequest] = useState<SingleRequest | null>(null);
   const [review, setReview] = useState<PlanResp | null>(null);
-  const [editTarget, setEditTarget] = useState<{ lineId: string; field: "quantity" | "description" } | null>(null);
-  const [busy, setBusy] = useState<"search" | "check" | "replace" | "add" | null>(null);
+  const [editTarget, setEditTarget] = useState<{ lineId: string; field: "quantity" | "description"; amount: string; unit: Unit; description: string } | null>(null);
+  const [busy, setBusy] = useState<"search" | "check" | "replace" | "remove" | "add" | null>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
   const [note, setNote] = useState<{ cls: string; body: React.ReactNode } | null>(null);
 
@@ -387,17 +388,61 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
     }
   }
 
-  const setLine = (i: number, patch: Partial<SingleRequest["lines"][number]>) =>
-    request && setRequest({ ...request, lines: request.lines.map((line, j) => (j === i ? { ...line, ...patch } : line)) });
-  const requestReady = !!request && request.lines.length > 0 && request.lines.every((line) => line.query.trim() && line.quantity && line.quantity.amount > 0);
+  function edit(line: SingleRequest["lines"][number], field: "quantity" | "description") {
+    setDialogError(null);
+    setEditTarget({ lineId: line.id, field, amount: String(line.quantity?.amount ?? ""), unit: line.quantity?.unit ?? "pcs", description: line.query });
+  }
+  const editReady = !!editTarget?.description.trim() && Number.isFinite(Number(editTarget.amount)) && Number(editTarget.amount) > 0;
+
+  async function recheck(next: SingleRequest) {
+    const result = review ? await api.requote(review.plan.id, next) : await api.request(next, eventId, true);
+    setRequest(next);
+    setReview(result);
+    setEditTarget(null);
+  }
 
   async function checkChanges() {
-    if (!request || !requestReady) return;
+    if (!request || !editTarget || !editReady || busy) return;
     setBusy("check");
     setDialogError(null);
     try {
-      setReview(review ? await api.requote(review.plan.id, request) : await api.request(request, eventId, true));
+      const original = request.lines.find((line) => line.id === editTarget.lineId)!;
+      let updated = { ...original, quantity: { amount: Number(editTarget.amount), unit: editTarget.unit } };
+      if (editTarget.description.trim() !== original.query) {
+        const parsed = await api.message(`${editTarget.amount} ${editTarget.unit} ${editTarget.description.trim()}`);
+        if (parsed.route === "event_change" || parsed.route === "neither" || parsed.request.lines.length !== 1) {
+          throw new Error("Describe one product for this row, then check it again.");
+        }
+        const line = parsed.request.lines[0];
+        updated = { ...line, id: original.id, quantity: updated.quantity, constraints: {
+          claims: [...new Set([...original.constraints.claims, ...line.constraints.claims])],
+          avoidAllergens: [...new Set([...original.constraints.avoidAllergens, ...line.constraints.avoidAllergens])],
+          labels: [...new Set([...original.constraints.labels, ...line.constraints.labels])],
+        } };
+      }
+      await recheck({ ...request, lines: request.lines.map((line) => line.id === original.id ? updated : line) });
+    } catch (e) {
+      setDialogError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function discard(lineId: string) {
+    if (!request || busy) return;
+    const lines = request.lines.filter((line) => line.id !== lineId);
+    if (!lines.length) {
+      setRequest(null);
+      setReview(null);
       setEditTarget(null);
+      setText("");
+      setNote({ cls: "blue", body: "Item discarded. No products were added to the order." });
+      return;
+    }
+    setBusy("remove");
+    setDialogError(null);
+    try {
+      await recheck({ ...request, lines });
     } catch (e) {
       setDialogError((e as Error).message);
     } finally {
@@ -438,14 +483,6 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
   }
 
   const plan = review?.plan ?? null;
-  const lateOptions = plan?.needs.flatMap((need) => (need.lateDeliveryOptions ?? []).map((candidate) => ({ need, candidate })))
-    .sort((a, b) => a.candidate.availableDate!.localeCompare(b.candidate.availableDate!) || a.candidate.productId.localeCompare(b.candidate.productId))
-    .slice(0, 2) ?? [];
-  const notFoundRules = plan?.needs.flatMap((need) => need.rules).filter((rule) => rule.ruleId === "REQ-04" || rule.ruleId === "DIET-04") ?? [];
-  const productNotFound = notFoundRules.some((rule) => rule.ruleId === "REQ-04");
-  const noMatch = notFoundRules.length > 0;
-  const tooLate = plan?.tooLate ?? null;
-  const foundLines = plan?.lines.filter((line) => line.productId) ?? [];
   const issues = plan ? [...new Set([
     ...(plan.error ? [plan.error] : []),
     ...plan.inputRules.filter((rule) => rule.outcome !== "order").map((rule) => rule.message),
@@ -453,12 +490,6 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
   ])] : [];
   const blockingRules = plan ? [...plan.inputRules, ...plan.lines.flatMap((line) => line.rules)]
     .filter((rule) => rule.outcome === "block" || !rule.overridable) : [];
-  const selected = new Set(plan?.lines.map((line) => line.productId).filter(Boolean));
-  const alternatives = plan?.needs.flatMap((need) => need.candidates
-    .filter((candidate) => !selected.has(candidate.productId))
-    .sort((a, b) => replacementScore(a, deliveryDate) - replacementScore(b, deliveryDate) || a.rank - b.rank)
-    .slice(0, 2)
-    .map((candidate) => ({ need, candidate }))) ?? [];
   const noIssues = !!plan?.proposal && issues.length === 0 && plan.lines.length > 0;
   const canAdd = !!plan?.proposal && plan.lines.length > 0 && !plan.error && !plan.tooLate && blockingRules.length === 0;
 
@@ -489,47 +520,45 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
       {request && (
         <OrderItemDialog
           eyebrow="Add to order"
-          title="Review the item"
+          title={request.lines.length === 1 ? "Review the item" : "Review the order"}
           description="Check what was understood and whether it can arrive with this order."
           onClose={() => { if (!busy) { setRequest(null); setReview(null); } }}
         >
           <div className="add-review-date"><Icon n="cal" s={18} /><span><small>Delivery date</small><b>{day(deliveryDate)}</b></span></div>
 
           <div className="item-dialog-section add-review-section">
-            <div className="add-review-section-head">
-              <h3>Interpreted request</h3>
+            <h3>Products</h3>
+            <div className="add-review-items">
+              {request.lines.map((line) => (
+                <ProductReviewItem
+                  key={line.id}
+                  line={line}
+                  need={plan?.needs.find((need) => need.id === line.id)}
+                  lines={plan?.lines.filter((product) => product.needIds.includes(line.id) && !product.removed) ?? []}
+                  deliveryDate={deliveryDate}
+                  checked={!!plan}
+                  disabled={!!busy || !!editTarget}
+                  onEdit={(field) => edit(line, field)}
+                  onDiscard={() => discard(line.id)}
+                  onChoose={(productId) => choose(line.id, productId)}
+                >
+                  {editTarget?.lineId === line.id && (
+                    <form className="add-review-editor" onSubmit={(event) => { event.preventDefault(); checkChanges(); }}>
+                      <div className="add-review-edit-fields">
+                        <label className="field"><span className="small muted">Quantity</span><input autoFocus={editTarget.field === "quantity"} aria-label={`Quantity for ${line.query}`} type="number" min="0" step="any" disabled={!!busy} value={editTarget.amount} onChange={(event) => setEditTarget({ ...editTarget, amount: event.target.value })} /></label>
+                        <label className="field"><span className="small muted">Unit</span><select aria-label={`Unit for ${line.query}`} disabled={!!busy} value={editTarget.unit} onChange={(event) => setEditTarget({ ...editTarget, unit: event.target.value as Unit })}>{UNITS.map((unit) => <option key={unit}>{unit}</option>)}</select></label>
+                        <label className="field"><span className="small muted">Description</span><input autoFocus={editTarget.field === "description"} aria-label={`Description for ${line.query}`} disabled={!!busy} value={editTarget.description} onChange={(event) => setEditTarget({ ...editTarget, description: event.target.value })} /></label>
+                      </div>
+                      {line.constraints.claims.length > 0 && <div className="small muted">Requirements: {line.constraints.claims.map(claimLabel).join(", ")}</div>}
+                      <div className="row">
+                        <button type="submit" className="btn sm primary" disabled={!!busy || !editReady}>{busy === "check" ? "Checking…" : "Check item"}</button>
+                        <button type="button" className="btn sm ghost" disabled={!!busy} onClick={() => { setEditTarget(null); setDialogError(null); }}>Cancel edit</button>
+                      </div>
+                    </form>
+                  )}
+                </ProductReviewItem>
+              ))}
             </div>
-            {editTarget ? (
-              <div className="add-review-editor">
-                {request.lines.map((line, i) => (
-                  <div key={line.id} className="chipline">
-                    <label className="chip">
-                      <span className="chip-k">Amount</span>
-                      <input autoFocus={editTarget.lineId === line.id && editTarget.field === "quantity"} type="number" min={0} value={line.quantity?.amount ?? ""} onChange={(event) => setLine(i, { quantity: event.target.value === "" ? null : { amount: Number(event.target.value), unit: line.quantity?.unit ?? "l" } })} style={{ width: 80 }} />
-                      <select value={line.quantity?.unit ?? "l"} onChange={(event) => setLine(i, { quantity: { amount: line.quantity?.amount ?? 0, unit: event.target.value as Unit } })}>{UNITS.map((unit) => <option key={unit}>{unit}</option>)}</select>
-                    </label>
-                    <label className="chip"><span className="chip-k">Description</span><input autoFocus={editTarget.lineId === line.id && editTarget.field === "description"} value={line.query} onChange={(event) => setLine(i, { query: event.target.value })} /></label>
-                    {line.constraints.claims.map((claim) => <span key={claim} className="chip on">{claimLabel(claim)}</span>)}
-                  </div>
-                ))}
-                <button type="button" className="btn primary" disabled={!!busy || !requestReady} onClick={checkChanges}>{busy === "check" ? "Checking…" : "Check changes"}</button>
-              </div>
-            ) : (
-              <div className="add-review-interpreted">
-                {request.lines.map((line) => (
-                  <div key={line.id}>
-                    <button type="button" className="add-review-edit-value" disabled={!!busy} onClick={() => setEditTarget({ lineId: line.id, field: "quantity" })} aria-label={`Edit quantity for ${line.query}`}>
-                      <small>Quantity</small>
-                      <b>{line.quantity ? `${qty(line.quantity.amount)} ${line.quantity.unit}` : "Amount needed"}</b>
-                    </button>
-                    <button type="button" className="add-review-edit-value" disabled={!!busy} onClick={() => setEditTarget({ lineId: line.id, field: "description" })} aria-label={`Edit description for ${line.query}`}>
-                      <small>Description</small>
-                      <span>{line.constraints.claims.map(claimLabel).concat(line.query).join(" ")}</span>
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
 
           {busy === "check" && !plan && <div className="add-review-loading">Checking products, stock and delivery…</div>}
@@ -537,78 +566,18 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
 
           {plan && !editTarget && (
             <>
-              {foundLines.length > 0 && (
-                <div className="item-dialog-section add-review-section">
-                  <h3>Products found</h3>
-                  <div className="item-dialog-lines">
-                    {foundLines.map((line) => (
-                    <div key={line.id} className="item-dialog-line add-review-product">
-                      <span><b>{line.productName}</b><small>{line.packContent ? `${qty(line.packContent.value)} ${line.packContent.unit} per ${line.salesUnit ?? "sales unit"}` : `Product ${line.productId}`}</small></span>
-                      <span>{qty(line.quantity)} {line.salesUnit ?? ""}</span>
-                      <span><Status k={line.status} /></span>
-                      <b>{eur(line.lineTotal)}</b>
-                    </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               <div className={`callout ${noIssues ? "green" : "yellow"} add-review-result`} role={!noIssues ? "alert" : undefined}>
-                <b>{noIssues ? "Ready to add" : productNotFound ? "Product not found" : noMatch ? "No matching product" : tooLate ? "Nothing available in time" : "Needs attention"}</b>
+                <b>{noIssues ? "Ready to add" : "Review the items above"}</b>
                 {noIssues ? (
                   <span>Stock and delivery timing are confirmed for {day(deliveryDate)}.</span>
-                ) : productNotFound ? (
-                  <span>That product is not in the Valio Aimo catalogue. Refine the product search and try again.</span>
-                ) : noMatch ? (
-                  <span>No product matched this search and its requirements. Refine the product or requirements and try again.</span>
-                ) : tooLate ? (
-                  <span>Nothing can arrive by {day(tooLate.neededBy)}. {tooLate.earliest ? <>The earliest available delivery is <b>{day(tooLate.earliest)}</b>.</> : "No later delivery date is known yet."}</span>
-                ) : issues.length ? (
-                  <><ul>{issues.map((message) => <li key={message}>{message}</li>)}</ul>{canAdd && <span>You can approve a replacement below, or add this item with the warning.</span>}</>
+                ) : canAdd ? (
+                  <span>You can choose replacements or add these products with their warnings.</span>
                 ) : (
-                  <span>{plan.summary}</span>
+                  <span>Refine or discard unresolved items before adding these products to the order.</span>
                 )}
-                {(noMatch || tooLate) && request.lines[0] && (
-                  <button type="button" className="btn sm" disabled={!!busy} onClick={() => setEditTarget({ lineId: request.lines[0].id, field: "description" })}>Refine search</button>
-                )}
+                {plan.error && <span>{plan.error}</span>}
+                {plan.inputRules.length > 0 && <ul>{plan.inputRules.filter((rule) => rule.outcome !== "order").map((rule) => <li key={rule.ruleId}>{rule.message}</li>)}</ul>}
               </div>
-
-              {tooLate && lateOptions.length > 0 && (
-                <div className="item-dialog-section add-review-section">
-                  <h3>Available after your delivery date</h3>
-                  <div className="replacement-list">
-                    {lateOptions.map(({ need, candidate }) => (
-                      <div key={`${need.id}:${candidate.productId}`} className="replacement-row late-delivery-row">
-                        <span>
-                          <b>{candidate.name}</b>
-                          <small>{qty(candidate.quantity)} {candidate.salesUnit ?? "sales units"} · covers {qty(need.amount.value)} {need.amount.unit}{candidate.source === "fixture" ? " · Fixture" : ""}</small>
-                          {candidate.deliveryEstimated && <small>Cutoff passed · delivery and stock need rechecking.</small>}
-                        </span>
-                        <span className="late-delivery-date"><b>{candidate.deliveryEstimated ? "Estimated delivery" : "Delivery"} {day(candidate.availableDate!)}</b><small>After requested {day(tooLate.neededBy)}</small></span>
-                        <span>{eur(candidate.unitPrice === null ? null : candidate.unitPrice * candidate.quantity)}<small>ex VAT</small></span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {!tooLate && !noIssues && alternatives.length > 0 && (
-                <div className="item-dialog-section add-review-section">
-                  <h3>Suggested replacements</h3>
-                  <div className="replacement-list">
-                    {alternatives.map(({ need, candidate }) => {
-                      const usable = !!plan.proposal && replacementScore(candidate, deliveryDate) === 0;
-                      return (
-                        <div key={`${need.id}:${candidate.productId}`} className="replacement-row">
-                          <span><b>{candidate.name}</b><small>{stockText(candidate.stock, candidate.salesUnit)} · {candidate.availableDate ? `delivery ${day(candidate.availableDate)}` : "delivery date not supplied"}</small></span>
-                          <span>{eur(candidate.unitPrice)}</span>
-                          {usable && <button type="button" className="btn sm" disabled={!!busy} onClick={() => choose(need.id, candidate.productId)}>{busy === "replace" ? "Checking…" : "Approve replacement"}</button>}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
 
               <div className="add-review-actions">
                 {canAdd && <button type="button" className="btn primary" disabled={!!busy} onClick={add}>{busy === "add" ? "Adding…" : noIssues ? "Add to order" : "Add to order anyway"}</button>}
@@ -621,9 +590,4 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
       )}
     </section>
   );
-}
-
-function replacementScore(candidate: Plan["needs"][number]["candidates"][number], deliveryDate: string) {
-  if (candidate.stock.kind === "known" && candidate.stock.amount > 0 && (!candidate.availableDate || candidate.availableDate <= deliveryDate)) return 0;
-  return candidate.stock.kind === "unknown" ? 1 : 2;
 }
