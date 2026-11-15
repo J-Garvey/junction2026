@@ -10,7 +10,7 @@ import { now } from "../clock.js";
 import { fire } from "../rules/catalogue.js";
 import { isoDate } from "../util.js";
 import { structured, ModelUnavailable } from "./openai.js";
-import { headIndex, queryTerms, QUERY_FORMS } from "../search.js";
+import { headIndex, isLiteralProductQuery, queryTerms, QUERY_FORMS } from "../search.js";
 
 /** Known product words: the type asked for and a category hint (CATEGORY-HINT, deterministic tier). */
 export const PRODUCT_WORDS: { re: RegExp; word: string; type: string | null; category: string | null }[] = [
@@ -164,8 +164,41 @@ const PARSE_SCHEMA = {
   },
 };
 
-/** REQUEST-PARSE: OpenAI first; if it fails or doesn't validate, the deterministic parser, and the app says so. */
+/**
+ * Fully consumed literal product lists need no model: quantity, supported diet claims,
+ * product vocabulary, and an optional date suffix. Anything richer stays on the model
+ * path, especially allergy instructions, alternatives, delivery times and unknown words.
+ */
+export function parseSimpleRequest(text: string): Omit<SingleRequest, "siteId" | "outletId"> | null {
+  let body = text.toLowerCase().trim().replace(/(\d)[,\s](\d{3})(?!\d)/g, "$1$2");
+  const dateSuffix = body.match(/\s+(?:by|before|on|for)\s+(mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?|today|tomorrow|20\d\d-\d\d-\d\d)$/);
+  if (dateSuffix) body = body.slice(0, dateSuffix.index);
+  body = body.replace(/^(?:(?:i|we) need\s+|please\s+|add\s+|order\s+)+/, "");
+  const parts = body.split(/\s*(?:,(?!\d)|\band\b|\+|;)\s*/i);
+  if (!parts.length) return null;
+  const amountPrefix = /^(\d+(?:[.,]\d+)?)\s*(?:(litres?|liters?|ltr|kg|kilos?|grams?|ml|dl|pcs|pieces?|pc|l|g)\b|x\b)?\s*/;
+  for (let part of parts) {
+    if (/^4\d{5}$/.test(part)) continue;
+    part = part.replace(amountPrefix, "").replace(/^of\s+/, "");
+    // Claim removal must consume whole phrases; an unrecognised restriction is never dropped.
+    part = part.replace(/\b(?:lactose[- ]free|gluten[- ]free|milk[- ]free|vegan)\b/g, "").trim();
+    if (!/^4\d{5}$/.test(part) && !isLiteralProductQuery(part)) return null;
+  }
+  // Parse the date separately so tomorrow/ISO dates don't become part of the product.
+  const request = rulesParse(body);
+  if (dateSuffix) {
+    const date = resolveDate(dateSuffix[1]);
+    request.neededBy = date.date;
+    request.neededByText = date.text;
+  }
+  request.originalText = text;
+  return request;
+}
+
+/** REQUEST-PARSE: literal product lists locally; other language through OpenAI with a visible fallback. */
 export async function parseRequest(text: string): Promise<{ request: Omit<SingleRequest, "siteId" | "outletId">; note: string | null }> {
+  const simple = parseSimpleRequest(text);
+  if (simple) return { request: simple, note: null };
   try {
     const r = await structured<{ neededByText: string | null; lines: any[] }>({
       name: "purchase_request",

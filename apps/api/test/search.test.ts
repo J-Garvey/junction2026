@@ -119,6 +119,25 @@ describe("search finds what the product is", () => {
     expect(ids).toEqual([...ids].sort());
   });
 
+  it("keeps reused catalogue matches separate by filters and limit", () => {
+    const q = { q: "milk", limit: 50 };
+    const original = searchMatches(q);
+    expect(original.length).toBeGreaterThan(5);
+    searchMatches(q).splice(0);
+    const edited = searchMatches(q);
+    edited[0].tier = 3;
+    expect(searchMatches(q)).toEqual(original);
+    expect(searchProducts({ ...q, limit: 5 })).toHaveLength(5);
+    const filtered = searchProducts({ ...q, category: "10400", claims: ["FREE_FROM_LACTOSE"] });
+    expect(filtered.length).toBeGreaterThan(0);
+    expect(filtered.every((p) => p.category === "10400" && p.claims.includes("FREE_FROM_LACTOSE"))).toBe(true);
+    const withoutMilk = searchProducts({ ...q, excludeAllergens: ["AM"] });
+    expect(withoutMilk).not.toEqual(original.map((m) => m.product));
+    expect(withoutMilk.every((p) => p.hasAllergenData && !p.contains.includes("AM") && !p.mayContain.includes("AM"))).toBe(true);
+    expect(searchProducts({ ...q, origin: "no-such-origin" })).toEqual([]);
+    expect(searchProducts({ ...q, labels: ["no-such-label"] })).toEqual([]);
+  });
+
   it("falls back to mentions only when nothing is the thing", () => {
     const ms = searchMatches({ q: "oregano shaker", limit: 50 });
     expect(ms.length).toBeGreaterThan(0);

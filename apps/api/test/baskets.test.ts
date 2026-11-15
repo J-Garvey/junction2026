@@ -1,5 +1,5 @@
 /** Order baskets: create one, add a request to it, and see the request's order and questions under it. */
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import type { Server } from "node:http";
 process.env.AIMO_DB = ":memory:";
 process.env.OPENAI_API_KEY = "";
@@ -46,6 +46,31 @@ async function readyBasket(productId = "469672", text = "10 kg salmon") {
 }
 
 describe("order baskets", () => {
+  it("routes and parses literal product searches without a model, even with a key configured", async () => {
+    await signIn("p-aino");
+    const previousKey = config.openai.apiKey;
+    const nativeFetch = globalThis.fetch;
+    const modelCalls: string[] = [];
+    config.openai.apiKey = "test-key";
+    const spy = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      if (String(input).startsWith(config.openai.baseUrl)) {
+        modelCalls.push(String(input));
+        throw new Error("A literal product search must not wait for the model");
+      }
+      return nativeFetch(input, init);
+    });
+    try {
+      for (const text of ["milk", "10 kg chicken burger", "40 l lactose-free milk"]) {
+        const parsed = await call("POST", "/messages", { text });
+        expect(parsed).toMatchObject({ status: 200, route: "new_request", request: { parsedBy: "rules" } });
+      }
+      expect(modelCalls).toEqual([]);
+    } finally {
+      spy.mockRestore();
+      config.openai.apiKey = previousKey;
+    }
+  });
+
   it("creates a basket and attaches a request to it", async () => {
     await fetch(`${BASE}/api/reset`, { method: "POST" });
     const s = await fetch(`${BASE}/api/session`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ personId: "p-aino" }) });
