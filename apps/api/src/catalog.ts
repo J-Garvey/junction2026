@@ -4,7 +4,7 @@
  */
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import type { Product, ProductSearchQuery } from "@aimo/contracts";
+import type { Product, ProductDetails, ProductSearchQuery } from "@aimo/contracts";
 import { config } from "./config.js";
 import { registerBrand } from "./util.js";
 import { relevance, type Match } from "./search.js";
@@ -14,6 +14,7 @@ type Raw = Record<string, any>;
 let products: Map<string, Product> | null = null;
 let raw: Map<string, Raw> | null = null;
 let orderedProducts: Product[] = [];
+const ingredientStatements = new Map<string, { en: string | null; fi: string | null }>();
 // Only local catalogue matches are reused. Price, stock and cut-off facts are never cached here.
 const searchCache = new Map<string, { matches: Match[]; limit: number }>();
 const SEARCH_CACHE_LIMIT = 100;
@@ -56,6 +57,7 @@ export function loadCatalog() {
     if (!line.trim()) continue;
     const r = JSON.parse(line);
     ingredients.set(String(r.id), r.en || r.fi || "");
+    ingredientStatements.set(String(r.id), { en: r.en || null, fi: r.fi || null });
   }
   products = new Map();
   raw = new Map();
@@ -73,6 +75,33 @@ export function loadCatalog() {
 export function getProduct(id: string): Product | null {
   loadCatalog();
   return products!.get(id) ?? null;
+}
+export function getProductDetails(id: string): ProductDetails | null {
+  const product = getProduct(id);
+  const p = raw!.get(id);
+  if (!product || !p) return null;
+  const ingredients = ingredientStatements.get(id);
+  return {
+    ...product,
+    catalogueDetails: {
+      gtin: p.gtin ?? null,
+      baseUnit: p.bu ?? null,
+      units: p.units ?? {},
+      salesUnitInBaseUnits: p.su_in_bu ?? null,
+      allowedLotSize: p.lot ?? null,
+      vatCategory: p.vat ?? null,
+      variableWeight: p.var_weight ?? null,
+      freeFrom: p.free_from ?? [],
+      allergenUndeclared: p.allergen_undeclared ?? [],
+      netWeightKg: p.net_kg ?? null,
+      netVolumeL: p.net_l ?? null,
+      netContentSource: p.net_src ?? null,
+      deposits: p.deposits ?? [],
+      hotelTags: p.hotel_tags ?? [],
+      ingredientsEn: ingredients?.en ?? null,
+      ingredientsFi: ingredients?.fi ?? null,
+    },
+  };
 }
 export function getRaw(id: string): Raw | null {
   loadCatalog();

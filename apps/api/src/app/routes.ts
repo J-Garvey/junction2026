@@ -13,7 +13,7 @@ import { kvGet, kvSet } from "../db.js";
 import { FIXED, rulesView } from "../rules/catalogue.js";
 import { PARAMS, policyParams, storedPolicy } from "../rules/policy.js";
 import { editRules, resetRules, RuleEditError } from "../rules/editor.js";
-import { getProduct, catalogSize } from "../catalog.js";
+import { getProduct, getProductDetails, catalogSize } from "../catalog.js";
 import { interpretMessage } from "../agent/message.js";
 import { logSearch } from "../searchlog.js";
 import { matchesCurrentShortlists, shortlist } from "../agent/match.js";
@@ -517,7 +517,7 @@ export function appRouter(): Router {
     }
   });
   r.get("/products/:id", (req, res) => {
-    const p = getProduct(String(req.params.id));
+    const p = getProductDetails(String(req.params.id));
     if (!p) return res.status(404).json({ error: "Not in catalogue" });
     res.json(p);
   });

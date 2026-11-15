@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
-import { SingleRequest, type Candidate, type Need, type Plan, type PlanLine, type Product } from "@aimo/contracts";
+import { SingleRequest, type Candidate, type Need, type Plan, type PlanLine, type ProductDetails } from "@aimo/contracts";
 import { api, ApiError, type BasketResp, type Person, type PlanResp } from "../src/api";
 import { Ctx, type AppCtx } from "../src/ctx";
 import { RequestReviewDialog } from "../src/ui/RequestReviewDialog";
@@ -53,7 +53,7 @@ async function searchOrder(result: PlanResp) {
   fireEvent.click(screen.getByRole("button", { name: "Search" }));
 }
 beforeEach(() => {
-  vi.spyOn(api, "product").mockResolvedValue({ claims: ["FREE_FROM_LACTOSE"], contains: [], mayContain: [], hasAllergenData: false } as unknown as Product);
+  vi.spyOn(api, "product").mockResolvedValue({ claims: ["FREE_FROM_LACTOSE"], contains: [], mayContain: [], hasAllergenData: false } as unknown as ProductDetails);
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
@@ -164,7 +164,7 @@ describe("saved request review controls", () => {
     expect(api.product).toHaveBeenCalledWith("469363");
   });
 
-  it("does not load dietary details for an exception without dietary requirements", () => {
+  it("loads full product details on demand even without dietary requirements", async () => {
     const exception = fixture();
     exception.plan.request!.lines[0].constraints.claims = [];
     exception.plan.lines[0].stock = { kind: "unknown", reason: "terminal_sentinel" };
@@ -172,10 +172,34 @@ describe("saved request review controls", () => {
     expect(screen.getByRole("button", { name: "Approve milk" })).toBeTruthy();
     expect(screen.queryByText("Order cutoff (Helsinki)")).toBeNull();
     expect(screen.getByText("Approving continues with stock not confirmed.")).toBeTruthy();
+    expect(api.product).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "View details" }));
     expect(screen.getByText("Order cutoff (Helsinki)")).toBeTruthy();
-    expect(api.product).not.toHaveBeenCalled();
+    await waitFor(() => expect(api.product).toHaveBeenCalledWith("469363"));
     expect(screen.queryByText(/No dietary requirements/)).toBeNull();
+  });
+
+  it("keeps all saved supplier schedules visible when catalogue loading fails and supports retry", async () => {
+    vi.mocked(api.product).mockRejectedValueOnce(new Error("Offline"));
+    const saved = fixture();
+    saved.plan.lines[0].availabilityEvidence = { salesBlock: false, schedules: [
+      { availableDate: "2026-11-19", closingTime: "2026-11-18T17:00:00+0200", salesUnit: "KI", stock: { kind: "known", amount: 2 }, salesBlock: false },
+      { availableDate: "2026-11-20", closingTime: "2026-11-19T17:00:00+0200", salesUnit: "KI", stock: { kind: "unknown", reason: "terminal_sentinel" }, salesBlock: true },
+    ] };
+    show(saved);
+    fireEvent.click(screen.getByRole("button", { name: "View details" }));
+    await screen.findByText(/Product information could not be loaded/);
+    expect(screen.getByRole("heading", { name: "Schedule 1" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Schedule 2" })).toBeTruthy();
+    expect(screen.getByText("Order cutoff (Helsinki)")).toBeTruthy();
+    expect(screen.getByText("Yes", { selector: "dd" })).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Add to order" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await screen.findByText(/Dietary suitability is unknown/);
+    expect(api.product).toHaveBeenCalledTimes(2);
+    fireEvent.click(screen.getByRole("button", { name: "Hide details" }));
+    expect(screen.queryByText("Order cutoff (Helsinki)")).toBeNull();
+    expect(screen.getByRole("button", { name: "Approve milk" })).toBeTruthy();
   });
 
   it("resumes item review, requires approval, stages once and refreshes the order", async () => {
