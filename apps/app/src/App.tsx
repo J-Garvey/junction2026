@@ -15,6 +15,7 @@ import { EventPage, Events } from "./screens/Event";
 import { Orders } from "./screens/Orders";
 import { Audit } from "./screens/Audit";
 import { Rules } from "./screens/Rules";
+import { WhatsApp } from "./screens/WhatsApp";
 
 const NAV: [string, IconName, string][] = [
   ["/", "home", "Home"],
@@ -22,6 +23,7 @@ const NAV: [string, IconName, string][] = [
   ["/events", "cal", "Events"],
   ["/requests", "chat", "Requests"],
   ["/orders", "box", "Orders"],
+  ["/whatsapp", "chat", "WhatsApp"],
 ];
 
 export function App() {
@@ -127,6 +129,7 @@ export function App() {
               <Route path="/events" element={<Events />} />
               <Route path="/events/:id" element={<EventPage />} />
               <Route path="/orders" element={<Orders />} />
+              <Route path="/whatsapp" element={<WhatsApp />} />
               <Route path="/audit" element={<Audit />} />
               <Route path="/rules" element={<Rules />} />
               <Route path="*" element={<div className="muted">Page not found.</div>} />
@@ -257,6 +260,7 @@ function TopBar({ status, me, onSwitch }: { status: StatusResp | null; me: Perso
         </Link>
         <OrderSwitcher currentId={basketId ? decodeURIComponent(basketId) : undefined} />
       </div>
+      <NavLink to="/whatsapp" className="btn sm ghost hide-m"><Icon n="chat" s={16} /> WhatsApp demo</NavLink>
       {status && !status.chain.ok && <span className="stamp block">Audit chain broken</span>}
       <div className="hide-m account-slot"><AccountMenu me={me} onSwitch={onSwitch} /></div>
     </div>
