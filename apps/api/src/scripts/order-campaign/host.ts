@@ -41,7 +41,7 @@ app.post('/campaign/fixture-remove-default-event',(_req,res)=>{
   getDb().prepare('DELETE FROM events WHERE id = ?').run('evt-wedding');
   res.json({fixture:true,removed:'evt-wedding',reason:'explicit no/one/several draft-order scenario'});
 });
-app.get('/campaign/status',(_req,res)=>res.json({sha,mode:realModel?'real-model-enabled':'model-disabled',modelConfigured:!!config.openai.apiKey,model:config.openai.model,modelTimeoutMs:config.openai.timeoutMs,supplierGuard:true,telemetryCount:telemetry.length}));
+app.get('/campaign/status',(_req,res)=>res.json({pid:process.pid,sha,mode:realModel?'real-model-enabled':'model-disabled',modelConfigured:!!config.openai.apiKey,model:config.openai.model,modelTimeoutMs:config.openai.timeoutMs,supplierGuard:true,telemetryCount:telemetry.length}));
 app.get('/campaign/telemetry',(req,res)=>res.json({events:telemetry.slice(Number(req.query.since??0)),count:telemetry.length}));
 app.use(createApp());
 const server=app.listen(8891,'127.0.0.1',()=>{

@@ -17,5 +17,5 @@ const summary={role:'generator',state:finish?'complete':'running',updatedAt:new 
 const naturalAttemptIds=new Set(attempts.map(r=>r.attemptId));
 Object.assign(summary,{modelCallsTaggedToNaturalAttempts:model.filter(m=>naturalAttemptIds.has(m.attempt)).length,modelCallsSupportOrUncorrelated:model.filter(m=>!naturalAttemptIds.has(m.attempt)).length,naturalAttemptsWithActualModelCalls:new Set(model.filter(m=>naturalAttemptIds.has(m.attempt)).map(m=>m.attempt)).size});
 const tmp=resolve(dir,'generator-summary.tmp.json');writeFileSync(tmp,JSON.stringify(summary,null,2));renameSync(tmp,resolve(dir,'generator-summary.json'));
-if(finish){writeFileSync(resolve(dir,'generator.done.json'),JSON.stringify(summary,null,2));writeFileSync(resolve(dir,'generator-status.json'),JSON.stringify(summary,null,2));}
+if(finish){for(const name of ['generator.done.json','generator-status.json']){const tmp=resolve(dir,`${name}.tmp`);writeFileSync(tmp,JSON.stringify(summary,null,2));renameSync(tmp,resolve(dir,name));}}
 console.log(JSON.stringify({...summary,unexecutedCorpusIds:summary.unexecutedCorpusIds.length,distinctMissingFixtureIds:summary.distinctMissingFixtureIds.length,artifacts:undefined}));

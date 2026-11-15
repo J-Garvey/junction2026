@@ -26,7 +26,7 @@ for(let start=first;start<last;start+=size){
    console.log(JSON.stringify({state:'refreshing-own-clean-checkout',start,main}));
    await run(resolve('scripts/order-campaign/refresh.mjs'),['refresh']);
    const corpus=readFileSync(resolve(dir,'corpus.jsonl'),'utf8').trim().split('\n').map(JSON.parse);
-   const ids=corpus.filter(c=>c.tags?.includes('published_finding_replay')||['nl-00009','nl-00012','nl-00013','nl-00022','nl-00034','nl-00035','nl-00051'].includes(c.caseId)).map(c=>c.caseId);
+   const ids=corpus.filter(c=>c.tags?.includes('published_finding_replay')||['nl-00009','nl-00010','nl-00012','nl-00013','nl-00022','nl-00034','nl-00035','nl-00051'].includes(c.caseId)).map(c=>c.caseId);
    await run(resolve('scripts/order-campaign/run.mjs'),[`--dir=${dir}`,'--phase=automatic-merged-replay',`--ids=${ids.join(',')}`,'--limit=100']);
  }
  await run(resolve('scripts/order-campaign/run.mjs'),[`--dir=${dir}`,`--phase=${args.phase||'baseline'}`,`--start=${start}`,`--limit=${Math.min(size,last-start)}`,...['main-only','whatsapp-only','parse-only'].filter(k=>args[k]).map(k=>`--${k}`)]);

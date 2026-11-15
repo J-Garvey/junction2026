@@ -74,5 +74,5 @@ replay and representative real-model coverage. It counts conversation deliveries
 once, separates planning calls/responses, and deduplicates a known transient
 Windows status-publication observation by attempt ID. `--cross-channel` replays
 selected main seeds in the synthetic chat with an explicitly selected draft.
-The final nine order-context seeds remove only the default wedding event through
+The nine order-context seeds remove only the default wedding event through
 a clearly named fixture-only host endpoint to model zero/one/several baskets.

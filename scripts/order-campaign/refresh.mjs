@@ -11,6 +11,8 @@ async function stop(){
  const path=resolve(dir,'generator-runtime/server.json');if(!existsSync(path))return;
  const state=JSON.parse(readFileSync(path,'utf8'));
  if(state.port!==8891||!state.worktree||!resolve(state.worktree).toLowerCase().startsWith(root.toLowerCase()))throw Error('Recorded process is not owned by this worktree');
+ let live;try{live=await(await fetch('http://127.0.0.1:8891/campaign/status',{signal:AbortSignal.timeout(2000)})).json();}catch{return;}
+ if(live.sha!==state.sha||live.pid&&live.pid!==state.pid)throw Error('The live listener does not match the owned process record');
  try{process.kill(state.pid)}catch(e){if(e.code!=='ESRCH')throw e;}
  for(let i=0;i<20;i++){try{await fetch('http://127.0.0.1:8891/healthz',{signal:AbortSignal.timeout(100)});await new Promise(r=>setTimeout(r,100));}catch{return;}}
  throw Error('Own server did not stop');
