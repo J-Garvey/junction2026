@@ -32,3 +32,6 @@ if(!ready)throw Error('Campaign host did not become ready');
 const row={at:new Date().toISOString(),action:command,before,after,originMain:git('rev-parse','origin/main'),...ready};
 appendFileSync(resolve(dir,'generator-refresh.jsonl'),JSON.stringify(row)+'\n');
 console.log(JSON.stringify(row));
+// Keep the host in this foreground tool job when requested. Some Windows job
+// hosts terminate detached descendants after their launching command exits.
+if(process.argv.includes('--hold')){child.ref();await new Promise(r=>child.once('exit',r));}
