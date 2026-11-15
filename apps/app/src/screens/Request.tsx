@@ -8,6 +8,7 @@ import { Composer } from "./Home";
 import { Candidates, LinesList, MoneyView, CutoffBoard, Section, shortfallText } from "../ui/PlanView";
 import { stockText } from "../ui/Popover";
 import { QuestionCard } from "../ui/QuestionCard";
+import { ProcessingTime } from "../ui/ProcessingTime";
 import { CarbonEstimate } from "../ui/CarbonEstimate";
 import { Status, planStatusKind, PLAN_STATUS_TEXT, Fixture } from "../ui/Status";
 import { claimLabel, day, eur, qty, when, helsinkiDate, addDays } from "../format";
@@ -400,6 +401,7 @@ export function RequestPlan() {
       <div className="page stack-l">
         {head}
         <TooLate plan={plan} />
+        <ProcessingTime processing={plan.processing} />
       </div>
     );
   if (plan.proposal)
@@ -407,6 +409,7 @@ export function RequestPlan() {
       <div className="page stack-l">
         {head}
         <Proposal plan={plan} onDone={setData} />
+        <ProcessingTime processing={plan.processing} />
       </div>
     );
 
@@ -414,6 +417,7 @@ export function RequestPlan() {
     <div className="page stack-l">
       {head}
       <Outcome plan={plan} waitingLabel={open[0] ? waitingForText(open[0], me, people) : undefined} />
+      <ProcessingTime processing={plan.processing} />
 
       {next ? (
         <QuestionCard key={next.id} q={next} onAnswered={() => api.plan(plan.id).then(setData)} />
