@@ -229,7 +229,7 @@ function buildLines(needs: Need[], urgent: boolean, ov: Overrides, m: Mandate): 
       continue;
     }
     // Keep an unconvertible product visible so the buyer can specify sales units.
-    if (!urgent || !n.candidates[0].packContent || n.candidates[0].packContent.unit !== n.amount.unit) {
+    if (!urgent || !n.candidates[0].packContent || n.candidates[0].packContent.unit !== n.amount.unit || (n.amount.unit === "pcs" && !n.candidates[0].packContent.verified)) {
       const c = n.candidates[0];
       const k = `${lineKey(c.productId, n.outletId)}|${n.amount.unit}`;
       const e = combined.get(k) ?? { c, needs: [], value: 0, unit: n.amount.unit };
@@ -252,7 +252,7 @@ function buildLines(needs: Need[], urgent: boolean, ov: Overrides, m: Mandate): 
     let covered = 0;
     for (const c of candidates) {
       if (remaining <= 1e-9) break;
-      if (c.stock.kind !== "known" || !c.packContent || c.packContent.unit !== n.amount.unit || c.stock.amount <= 0) continue;
+      if (c.stock.kind !== "known" || !c.packContent || c.packContent.unit !== n.amount.unit || (n.amount.unit === "pcs" && !c.packContent.verified) || c.stock.amount <= 0) continue;
       const want = Math.ceil(remaining / c.packContent.value - 1e-9);
       const take = Math.min(want, Math.max(0, Math.floor(c.stock.amount) - (allocatedStock.get(c.productId) ?? 0)));
       if (take <= 0) continue;
@@ -264,7 +264,7 @@ function buildLines(needs: Need[], urgent: boolean, ov: Overrides, m: Mandate): 
     }
     if (remaining > 1e-9) {
       shortfall = { need: n.amount.value, covered: round2(covered), unit: n.amount.unit };
-      const unknown = candidates.find((c) => c.stock.kind === "unknown" && c.packContent && c.packContent.unit === n.amount.unit);
+      const unknown = candidates.find((c) => c.stock.kind === "unknown" && c.packContent && c.packContent.unit === n.amount.unit && (n.amount.unit !== "pcs" || c.packContent.verified));
       if (unknown && !ov.keepShort && !ov.useConfirmed) {
         const packs = Math.ceil(remaining / unknown.packContent!.value - 1e-9);
         lines.push(makeLine(unknown, group, remaining, packs, n.amount.unit, "unknown_fill", m));
@@ -377,11 +377,23 @@ export async function runPipeline(plan: StoredPlan): Promise<StoredPlan> {
     if (r.fallback) plan.note = r.fallback;
   }
   const tRank = performance.now();
+  // Compare identical piece specifications on their combined need, then round once,
+  // just as buildLines does. Manual quantities and explicit alternative choices stay separate.
+  const pieceGroups = new Map<string, Need[]>();
+  for (const n of needs.filter((n) => n.amount.unit === "pcs")) {
+    const separate = ov.salesQuantities?.some((q) => q.needId === n.id) || ov.chosen?.some((id) => id.startsWith(`${n.id}:`));
+    const key = separate ? n.id : JSON.stringify([n.outletId, n.query, n.productType, n.pinnedProductId, n.constraints, n.neededBy, lists.get(n.id)!.filter((p) => !ov.excluded.includes(`${n.id}:${p.id}`)).map((p) => p.id)]);
+    pieceGroups.set(key, [...(pieceGroups.get(key) ?? []), n]);
+  }
+  const pieceAmounts = new Map([...pieceGroups.values()].flatMap((group) => {
+    const total = group.reduce((sum, n) => sum + n.amount.value, 0);
+    return group.map((n) => [n.id, total] as const);
+  }));
   // Type checks can wait on the model; independent needs need not wait on each other.
   await forEachConcurrent(needs, 4, async (n) => {
     n.rules = n.rules.filter((r) => r.ruleId === "DLV-04" || r.ruleId === "QTY-02");
     const list = lists.get(n.id)!.filter((p) => !ov.excluded.includes(`${n.id}:${p.id}`));
-    await rankNeed(n, list, pool, { lockedOk: ov.stockBlind, deliveryDays: m.deliveryDays, holidays: m.holidays });
+    await rankNeed(n, list, pool, { lockedOk: ov.stockBlind, deliveryDays: m.deliveryDays, holidays: m.holidays, combinedPieceNeed: pieceAmounts.get(n.id) });
     // A chef's confirmation removes the type question for that product.
     for (const c of n.candidates) if (ov.confirmed.includes(`${n.id}:${c.productId}`)) c.notes = c.notes.filter((r) => r.ruleId !== "TYP-01");
     // An alternative the person picked goes first, so it fills the line.

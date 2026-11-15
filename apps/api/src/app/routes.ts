@@ -329,7 +329,7 @@ export function appRouter(): Router {
     const line = plan.lines.find((line) => line.productId === productId && line.needIds.includes(need?.id ?? ""));
     if (!item || !need || !line?.salesUnit) return res.status(404).json({ error: "No such product on this item" });
     if (item.fingerprint !== fingerprint) return res.status(409).json({ error: "This item changed. Review its current terms again.", plan });
-    if (line.packContent && line.packContent.unit === need.amount.unit)
+    if (line.packContent && line.packContent.unit === need.amount.unit && (need.amount.unit !== "pcs" || line.packContent.verified))
       return res.status(409).json({ error: "Edit the requested quantity for this product instead" });
     plan.overrides.salesQuantities = [...(plan.overrides.salesQuantities ?? []).filter((q) => q.needId !== need.id), { needId: need.id, productId, quantity, scope: quantityScope(need) }];
     plan.overrides.chosen = [...(plan.overrides.chosen ?? []).filter((choice) => !choice.startsWith(`${need.id}:`)), `${need.id}:${productId}`];

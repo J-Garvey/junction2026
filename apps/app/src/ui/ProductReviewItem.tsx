@@ -1,3 +1,4 @@
+import { CandidateRanking } from "./CandidateRanking";
 import { type ReactNode, useId, useState } from "react";
 import type { Candidate, ItemReview, Need, PlanLine, SingleLine } from "@aimo/contracts";
 import { useApp } from "../ctx";
@@ -142,6 +143,7 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
                         <span className="add-review-product-quantity"><small>Quantity</small><b>{quantity === null ? "TBC" : `${qty(quantity)} ${candidate.salesUnit ?? "sales units"}`}</b></span>
                         <span className="add-review-product-price"><small>Price ex VAT</small><b>{eur(quantity === null || candidate.unitPrice === null ? null : quantity * candidate.unitPrice)}</b><small>{eur(candidate.unitPrice)} / {candidate.salesUnit ?? "sales unit"}</small></span>
                         <SupplierSchedule terms={candidate} />
+                        <small><CandidateRanking candidate={candidate} /></small>
                       </div>
                     );
                   })}
@@ -177,7 +179,7 @@ function SupplierSchedule({ terms }: { terms: Pick<PlanLine, "availabilityEviden
 
 function replacementQuantity(candidate: Candidate, need: Need) {
   const pack = candidate.packContent;
-  return pack && pack.unit === need.amount.unit && pack.value > 0 ? Math.ceil(need.amount.value / pack.value - 1e-9) : null;
+  return pack && (need.amount.unit !== "pcs" || pack.verified) && pack.unit === need.amount.unit && pack.value > 0 ? Math.ceil(need.amount.value / pack.value - 1e-9) : null;
 }
 
 /** Unknown stock is not a shortage (D34): it keeps its rank and carries the "stock not confirmed" marker. */
