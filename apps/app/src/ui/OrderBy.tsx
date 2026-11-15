@@ -53,12 +53,14 @@ export function OrderBy({ deadline, detail = false }: { deadline: OrderDeadline;
     <div className={`order-deadline small ${deadline.state}`}>
       <div className="order-deadline-label">
         Order by
-        {deadline.excludedItems > 0 && <Info label="About items with unknown delivery information"><Excluded deadline={deadline} /></Info>}
+        <Info label="About this ordering deadline">
+          <p>{CUTOFF_NOTE}</p>
+          {deadline.reason && <p>{deadline.reason}</p>}
+          {deadline.excludedItems > 0 && <Excluded deadline={deadline} />}
+        </Info>
         <Fixture show={deadline.usesFixtures} />
       </div>
-      <strong title={deadline.reason ?? "Supplier cutoff in Helsinki time; terms are rechecked when ordering."}>{when}</strong>
-      <span className="muted">{CUTOFF_NOTE}</span>
-      {deadline.reason && <span className="muted">{deadline.reason}</span>}
+      <strong>{when}</strong>
     </div>
   );
 }

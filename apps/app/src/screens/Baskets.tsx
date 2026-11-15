@@ -157,7 +157,6 @@ export function BasketPage() {
       {reviewFeedback?.eventId === ev.id && <div className={`callout ${reviewFeedback.error ? "red" : "green"} small`} role={reviewFeedback.error ? "alert" : "status"}>{reviewFeedback.message}</div>}
       {returned && <div className="callout yellow small" role="status"><strong>Changes requested</strong><p className="decision-note">{returned.answerNote ?? "Returned to the order builder for changes."}</p><span className="muted">{returned.answeredBy?.name} · {when(returned.answeredAt)}</span></div>}
       {requestNote && <div className="callout green small" role="status">{requestNote}</div>}
-      {me.role === "chef" && review && <div className="callout green small" role="status">Submitted to finance. This order is ready for approval.</div>}
 
       <AddToBasket eventId={ev.id} deliveryDate={ev.serviceDate} onAdded={reload} />
 
