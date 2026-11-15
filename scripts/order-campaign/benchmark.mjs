@@ -61,9 +61,11 @@ export async function summarize(dir) {
     return ['run-start', 'host-config', 'run-complete'].includes(r.kind) ? r : null;
   });
   const rows = await readRows(resolve(dir, 'requests.jsonl'), r => {
-    const saved = r.snapshots?.persistedAfter?.tables?.plans?.at(-1), parsed = r.response?.request ?? saved?.request;
+    const setupFailed = r.error?.message?.startsWith('support ');
+    const saved = setupFailed ? null : r.snapshots?.persistedAfter?.tables?.plans?.findLast(p => p.request?.originalText === r.input);
+    const parsed = setupFailed ? null : r.response?.request ?? saved?.request;
     return { caseId: r.caseId, attemptId: r.attemptId, channel: r.channel, itemCount: r.itemCount, status: r.status, elapsedMs: r.elapsedMs,
-      unsupported: r.unsupported, benchmark: r.benchmark, related: (r.related || []).map(c => ({ callId: c.callId, purpose: c.purpose })),
+      unsupported: r.unsupported, error: r.error, benchmark: r.benchmark, related: (r.related || []).map(c => ({ callId: c.callId, purpose: c.purpose })),
       response: { request: parsed ? { parsedBy: parsed.parsedBy, lines: { length: parsed.lines?.length } } : null,
         note: r.response?.note, status: r.response?.status, messages: [{ direction: 'outbound', reply: r.response?.messages?.findLast(m => m.direction === 'outbound')?.reply }] },
       snapshots: saved ? { persistedAfter: { tables: { plans: [{ timings: saved.timings }] } } } : null,
@@ -83,7 +85,7 @@ export async function summarize(dir) {
     const reply = row.response?.messages?.findLast(m => m.direction === 'outbound')?.reply;
     const planCall = calls.find(r => r.path === '/api/requests');
     const limit = row.status >= 400 && row.status < 500;
-    const outcome = row.unsupported ? 'unsupported' : limit ? 'http-client-rejection' : row.status === null || row.status >= 500 ? 'http-error' :
+    const outcome = row.unsupported ? 'unsupported' : row.error?.message?.startsWith('support ') ? 'support-error' : limit ? 'http-client-rejection' : row.status === null || row.status >= 500 ? 'http-error' :
       row.channel === 'main' ? parsed ? parsed.lines.length === row.itemCount ? `parsed-line-count-complete${planCall?.status >= 400 || planCall?.status === null ? '-plan-http-error' : ''}` : 'parsed-line-count-mismatch' : 'no-parsed-request' : `simulator-${reply?.status ?? row.response?.status ?? 'response'}`;
     const key = JSON.stringify([row.benchmark?.bucket, row.benchmark?.pass, row.benchmark?.shape, row.channel, outcome]);
     if (!groups.has(key)) groups.set(key, { stratum: JSON.parse(key), rows: [] });
@@ -91,7 +93,7 @@ export async function summarize(dir) {
     const timings = planCall?.response?.plan?.timings ?? savedPlan?.timings;
     groups.get(key).rows.push({ caseId: row.caseId, attempt: row.attemptId, itemCount: row.itemCount,
       parsedLineCount: parsed?.lines?.length ?? null, parsedBy: parsed?.parsedBy ?? null, fallbackNote: row.response?.note ?? null,
-      usefulMs: calls.reduce((n, c) => n + c.elapsedMs, 0), caseEnvelopeMs: row.elapsedMs,
+      usefulMs: calls.length ? calls.reduce((n, c) => n + c.elapsedMs, 0) : null, caseEnvelopeMs: row.elapsedMs,
       executionSpanMs: calls.length && requestedAt.has(calls[0].callId) ? Date.parse(calls.at(-1).at) - requestedAt.get(calls[0].callId) : null,
       headersMs: primary?.headersMs, firstByteMs: primary?.firstByteMs, primaryCompleteMs: primary?.bodyCompleteMs,
       primaryResponseBytes: primary?.responseBytes ?? null, planResponseBytes: planCall?.responseBytes ?? null,
