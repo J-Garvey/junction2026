@@ -298,6 +298,15 @@ table.t tr:last-child td { border-bottom: 0; }
 .poptrigger { border: 0; background: none; padding: 0; color: inherit; text-align: inherit; max-width: 100%; border-bottom: 1px dotted var(--ash); border-radius: 0; }
 .popover { position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; width: 380px; max-width: 90vw; max-height: 70vh; overflow: auto; background: var(--card); border: 1px solid var(--hairline); border-radius: 6px; box-shadow: 0 8px 24px rgba(35, 37, 29, 0.18); padding: 12px 14px; text-align: left; font-size: 13px; color: var(--body); white-space: normal; text-decoration: none; }
 .pline-p .popover, .pline-q .popover { left: auto; right: 0; }
+.calculation .popover { font-weight: 400; letter-spacing: normal; line-height: 1.5; }
+.receipt .calculation .popover, .totalrow .calculation .popover, .sechead .calculation .popover, .add-review-total .calculation .popover, .finance-review-action .calculation .popover, .finance-metrics > div:last-child .popover { left: auto; right: 0; }
+.btile-calculation { position: relative; z-index: 1; color: inherit; border-bottom: 1px dotted var(--ash); }
+.calculation-source { font-weight: 400; letter-spacing: normal; line-height: 1.5; overflow-wrap: anywhere; }
+.calculation-source p { margin: 8px 0; }
+.calculation-source details { margin: 8px 0; }
+.calculation-source summary { cursor: pointer; text-align: left; }
+.calculation-source ul { padding-left: 18px; }
+.finance-metrics .popwrap { display: inline-block; margin-top: 0; font: inherit; color: inherit; line-height: inherit; letter-spacing: inherit; }
 .popclose { position: absolute; top: 4px; right: 6px; border: 0; background: none; font-size: 18px; color: var(--mute); }
 .popsec + .popsec { border-top: 1px solid var(--hairline-soft); margin-top: 8px; padding-top: 8px; }
 .pophead { font-weight: 700; color: var(--ink); margin-bottom: 4px; display: flex; gap: 6px; align-items: center; padding-right: 16px; }

@@ -8,6 +8,7 @@ import { Fixture, Status } from "../ui/Status";
 import { stockText } from "../ui/Popover";
 import { day, eur, when } from "../format";
 import { OrderItemDialog } from "../ui/OrderItemDialog";
+import { LineCalculation, TotalCalculation, VatCalculation } from "../ui/CalculationEvidence";
 
 export function Orders() {
   const [sp] = useSearchParams();
@@ -73,11 +74,11 @@ export function Orders() {
           <hr />
           <div className="rl">
             <span>Ex VAT</span>
-            <b>{eur(o.totalExVat)}</b>
+            <b><TotalCalculation title={`order ${o.id} total`} total={o.totalExVat} lines={o.lines} note={`Saved receipt version ${o.version}, placed ${when(o.placedAt)}.`} /></b>
           </div>
           <div className="rl">
             <span>VAT</span>
-            <span>{eur(o.totalVat)}</span>
+            <span><VatCalculation totalVat={o.totalVat} lines={o.lines} scope={`order ${o.id}`} /></span>
           </div>
 
         </div>
@@ -99,7 +100,7 @@ export function Orders() {
             { label: "State", value: selected.line.removed ? "Removed" : selected.order.state },
           ]}
           onClose={() => setSelected(null)}
-        />
+        ><LineCalculation line={selected.line} /></OrderItemDialog>
       )}
     </div>
   );
