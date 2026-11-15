@@ -1,5 +1,6 @@
 /** Fixed development benchmark manifest + attribution over existing campaign evidence. */
-import { readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, createReadStream } from 'node:fs';
+import { createInterface } from 'node:readline';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
@@ -41,10 +42,32 @@ export function distribution(values) {
     observedP95Ms: quantile(.95), maxMs: n ? xs.at(-1) : null,
     uncertainty: n < 30 ? 'small sample: p95 not claimed' : 'descriptive repeated workload, one machine; no independent population CI' };
 }
-const readRows = path => readFileSync(path, 'utf8').replace(/^\uFEFF/, '').split(/\r?\n/).filter(Boolean).map(JSON.parse);
-export function summarize(dir) {
+async function readRows(path, project) {
+  const rows = [];
+  const input = createInterface({ input: createReadStream(path, { encoding: 'utf8' }), crlfDelay: Infinity });
+  for await (const line of input) if (line.trim()) {
+    const row = project(JSON.parse(line.replace(/^\uFEFF/, '')));
+    if (row) rows.push(row);
+  }
+  return rows;
+}
+export async function summarize(dir) {
   dir = resolve(dir);
-  const raw = readRows(resolve(dir, 'raw-observations.jsonl')), rows = readRows(resolve(dir, 'requests.jsonl'));
+  // Project each complete line immediately: large SQL snapshots/raw payloads stay
+  // in evidence on disk, never all resident in the report process at once.
+  const raw = await readRows(resolve(dir, 'raw-observations.jsonl'), r => {
+    if (r.kind === 'http-response') { const { rawText, body, response, ...rest } = r; return { ...rest, response: response?.plan ? { plan: { timings: response.plan.timings } } : null }; }
+    return ['run-start', 'host-config', 'run-complete'].includes(r.kind) ? r : null;
+  });
+  const rows = await readRows(resolve(dir, 'requests.jsonl'), r => {
+    const saved = r.snapshots?.persistedAfter?.tables?.plans?.at(-1), parsed = r.response?.request ?? saved?.request;
+    return { caseId: r.caseId, attemptId: r.attemptId, channel: r.channel, itemCount: r.itemCount, status: r.status, elapsedMs: r.elapsedMs,
+      unsupported: r.unsupported, benchmark: r.benchmark, related: (r.related || []).map(c => ({ callId: c.callId, purpose: c.purpose })),
+      response: { request: parsed ? { parsedBy: parsed.parsedBy, lines: { length: parsed.lines?.length } } : null,
+        note: r.response?.note, status: r.response?.status, messages: [{ direction: 'outbound', reply: r.response?.messages?.findLast(m => m.direction === 'outbound')?.reply }] },
+      snapshots: saved ? { persistedAfter: { tables: { plans: [{ timings: saved.timings }] } } } : null,
+      telemetry: (r.telemetry || []).map(t => ({ kind: t.kind, status: t.status, schema: t.schema, elapsedMs: t.elapsedMs, usage: t.usage })) };
+  });
   const responses = raw.filter(r => r.kind === 'http-response'), starts = raw.filter(r => r.kind === 'run-start');
   const requestPaths = new Set(['/api/messages', '/api/whatsapp/messages', '/api/requests']);
   const selectionIds = new Set(rows.flatMap(r => (r.related || []).filter(c => c.purpose === 'select-active-order').map(c => c.callId)));
@@ -82,7 +105,8 @@ export function summarize(dir) {
   const totalMs = xs => xs.reduce((n, r) => n + r.elapsedMs, 0);
   const profiles = readdirSync(dir).filter(f => /^profile-.*\.json$/.test(f)).map(f => ({ file: f, ...JSON.parse(readFileSync(resolve(dir, f), 'utf8')) }));
   const profileRequests = [...new Map(profiles.flatMap(p => p.requests.map((r, i) => [`${i}:${r.attempt}:${r.path}`, r]))).values()];
-  return { schema: 'p1-benchmark-v1', evidenceDir: dir, runStarts: starts.map(s => ({ runId: s.runId, runnerSha: s.runnerSha, runnerHash: s.runnerHash, manifest: s.manifest })),
+  return { schema: 'p1-benchmark-v1', evidenceDir: dir, analyzerHash: hash(readFileSync(new URL(import.meta.url))),
+    runStarts: starts.map(s => ({ runId: s.runId, runnerSha: s.runnerSha, runnerHash: s.runnerHash, manifest: s.manifest })),
     host: raw.find(r => r.kind === 'host-config')?.metadata, observations: rows.length, aggregate,
     accounting: { httpCalls: responses.length, usefulHttpMs: totalMs(useful), supportHttpMs: totalMs(support),
       supportByPath: Object.fromEntries([...new Set(support.map(r => r.path))].map(path => [path, { n: support.filter(r => r.path === path).length, totalMs: totalMs(support.filter(r => r.path === path)) }])),
@@ -118,7 +142,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       sha256: hash(bytes), records: rows.length, channels: ['web-api', 'syntheticWhatsApp via whatsapp'], hashes }, null, 2), { flag: 'wx' });
     console.log(JSON.stringify({ records: rows.length, executions: rows.length * 2, sha256: hash(bytes) }));
   } else {
-    const report = summarize(dir), out = resolve(dir, `benchmark-summary-${Date.now()}.json`);
+    const report = await summarize(dir), out = resolve(dir, `benchmark-summary-${Date.now()}.json`);
     writeFileSync(out, JSON.stringify(report, null, 2), { flag: 'wx' });
     console.log(JSON.stringify({ out, observations: report.observations, accounting: report.accounting }));
   }

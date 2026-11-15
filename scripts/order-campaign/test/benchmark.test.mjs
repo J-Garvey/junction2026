@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { workload, distribution } from '../benchmark.mjs';
+import { workload, distribution, summarize } from '../benchmark.mjs';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 test('fixed benchmark preserves the whole workload and all bands on both passes', () => {
   const rows = workload();
@@ -29,4 +32,29 @@ test('p95 claims require 30 valid observations', () => {
   assert.equal(distribution(Array(29).fill(1)).p95Ms, null);
   assert.equal(distribution(Array.from({ length: 30 }, (_, i) => i)).p95Ms, 28);
   assert.equal(distribution([]).observedP95Ms, null);
+});
+
+test('report excludes chat selection and separates failed planning from complete parses', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'p1-summary-'));
+  try {
+    const raw = [
+      { kind: 'http-response', attempt: 'a', callId: 'parse', path: '/api/messages', elapsedMs: 2, bodyCompleteMs: 1 },
+      { kind: 'http-response', attempt: 'a', callId: 'plan', path: '/api/requests', status: 503, elapsedMs: 3, response: { error: 'fixture miss' } },
+      { kind: 'http-response', attempt: 'b', callId: 'select', path: '/api/whatsapp/messages', status: 200, elapsedMs: 100 },
+      { kind: 'http-response', attempt: 'b', callId: 'message', path: '/api/whatsapp/messages', status: 200, elapsedMs: 7, firstByteMs: 6 },
+    ];
+    const rows = [
+      { attemptId: 'a', channel: 'main', status: 200, itemCount: 1, response: { request: { lines: [{}], parsedBy: 'rules' } }, benchmark: { bucket: '1-10', pass: 0 } },
+      { attemptId: 'b', channel: 'whatsapp', status: 200, response: { messages: [{ direction: 'outbound', reply: { status: 'proposal' } }] }, related: [{ purpose: 'select-active-order', callId: 'select' }], benchmark: { bucket: '1-10', pass: 0 } },
+    ];
+    writeFileSync(join(dir, 'raw-observations.jsonl'), raw.map(JSON.stringify).join('\n'));
+    writeFileSync(join(dir, 'requests.jsonl'), rows.map(JSON.stringify).join('\n'));
+    const report = await summarize(dir);
+    assert.equal(report.accounting.usefulHttpMs, 12);
+    assert.equal(report.accounting.supportHttpMs, 100);
+    assert.equal(report.aggregate[0].stratum[4], 'parsed-line-count-complete-plan-http-error');
+    assert.equal(report.aggregate[1].stratum[4], 'simulator-proposal');
+    assert.equal(report.aggregate[1].timings.firstByteMs.p50Ms, 6);
+    assert.ok(report.aggregate.every(g => g.timings.usefulMs.p95Ms === null));
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });
