@@ -458,7 +458,7 @@ export function RequestPlan() {
       <Section title="Options">
         <div className="stack">
           {plan.needs.map((n) => (
-            <Candidates key={n.id} need={n} />
+            <Candidates key={n.id} need={n} lines={plan.lines} />
           ))}
         </div>
       </Section>

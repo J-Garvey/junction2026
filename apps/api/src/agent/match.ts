@@ -106,6 +106,14 @@ function decidingStep(a: Scored, b: Scored | undefined): string {
 export async function rankNeed(need: Need, list: Product[], pool: Pool, opts: { lockedOk?: boolean; deliveryDays?: number[]; holidays?: string[] } = {}): Promise<void> {
   const at = now();
   need.excluded = [];
+  const trace = need.selectionTrace = { shortlist: list.map((p) => ({ productId: p.id, name: p.name })), stages: [] } as NonNullable<Need["selectionTrace"]>;
+  const remaining = new Set(list.map((p) => p.id));
+  const recordStage = (key: (typeof trace.stages)[number]["key"], ids: string[]) => {
+    const removedProductIds = [...new Set(ids)].filter((id) => remaining.delete(id));
+    trace.stages.push({ key, removedProductIds });
+  };
+  // Missing lookup evidence is an unevaluated product, not a dietary or stock rejection.
+  recordStage("lookup", list.filter((p) => !pool.has(p.id)).map((p) => p.id));
   need.earliestDelivery = null;
   need.lateDeliveryOptions = [];
   let passing: Scored[] = [];
@@ -141,6 +149,8 @@ export async function rankNeed(need: Need, list: Product[], pool: Pool, opts: { 
       if (pinned) need.rules.push(cut);
     } else passing.push(scored);
   }
+  recordStage("eligibility", need.excluded.filter((e) => e.ruleId !== "CUT-01").map((e) => e.productId));
+  recordStage("cutoff", need.excluded.filter((e) => e.ruleId === "CUT-01").map((e) => e.productId));
   if (typeTarget && (passing.length || cutOnly.length)) {
     judgements = await typeCheck(typeTarget, [...passing, ...cutOnly].map((s) => s.p));
     need.judgements.push(...judgements.values());
@@ -164,6 +174,7 @@ export async function rankNeed(need: Need, list: Product[], pool: Pool, opts: { 
       }
     }
   }
+  recordStage("type", need.excluded.map((e) => e.productId));
   // Preserve explicit recipe choices; automatic picks prefer price, with stock shown separately.
   passing.sort(compare);
   // NOT-IN-TIME (DLV-06): nothing that passes every other check arrives by the needed-by date.
@@ -188,6 +199,7 @@ export async function rankNeed(need: Need, list: Product[], pool: Pool, opts: { 
     need.rules = need.rules.filter((r) => r.ruleId !== "CUT-01");
     need.rules.push(fire("DLV-06", { need: need.label, neededBy: nb, neededByText: day(nb), earliest: need.earliestDelivery, earliestText: need.earliestDelivery ? day(need.earliestDelivery) : "not known yet" }));
   }
+  recordStage("delivery", need.excluded.map((e) => e.productId));
   need.candidateCount = passing.length;
   need.candidates = passing.map((s, i): Candidate => ({
     ...asCandidate(s, i),
