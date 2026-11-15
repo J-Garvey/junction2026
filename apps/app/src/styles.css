@@ -197,6 +197,7 @@ table.t tr:last-child td { border-bottom: 0; }
 .composer { background: var(--card); border: 1px solid var(--hairline); border-radius: 6px; position: sticky; top: 8px; z-index: 5; box-shadow: 0 1px 0 var(--hairline-soft); }
 .composer .txt { padding: 8px 8px 8px 12px; display: flex; align-items: flex-end; gap: 12px; }
 .composer textarea { flex: 1; border: 0; resize: none; font-size: 16px; padding: 8px 0; outline: none; background: transparent; min-height: 38px; }
+.composer textarea:focus-visible { outline: none; }
 .send { width: 40px; height: 40px; border-radius: 6px; background: var(--soft); display: grid; place-items: center; flex-shrink: 0; color: var(--ink); border: 0; }
 .send.go { background: var(--primary); }
 .sugg { display: flex; gap: 8px; flex-wrap: wrap; }

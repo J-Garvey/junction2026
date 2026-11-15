@@ -5,6 +5,8 @@
  * cannot drift from the code.
  */
 import { z } from "zod";
+import { CarbonBasis } from "./carbon.js";
+export { CarbonBasis, carbonEstimateKg } from "./carbon.js";
 
 // ---------- basics ----------
 
@@ -245,6 +247,7 @@ export const QuoteLine = z.object({
   closingTime: z.string().nullable(),
   availabilityEvidence: AvailabilityEvidence.optional(),
   priceValidTo: z.string().nullable(),
+  carbonBasis: CarbonBasis.nullable().optional().describe("Informational product-group carbon factor with checked kilograms per sales unit; absent in older snapshots"),
   logisticModel: z.string().nullable(),
   source: z.enum(["live", "fixture"]),
   rules: z.array(FiredRule),

@@ -1,5 +1,5 @@
 /** Hotel-side shapes (the agent's working state). Valio Aimo never receives these. */
-import type { AvailabilityEvidence, FiredRule, ModelJudgement, StockFact, SingleRequest, Constraints, Amount, BaseUnit } from "./index.js";
+import type { AvailabilityEvidence, CarbonBasis, FiredRule, ModelJudgement, StockFact, SingleRequest, Constraints, Amount, BaseUnit } from "./index.js";
 
 export interface OrderDeadline {
   state: "known" | "expired" | "unknown" | "unavailable";
@@ -34,6 +34,7 @@ export interface Candidate {
   stock: StockFact;
   reliability: number | null;
   packContent: { value: number; unit: BaseUnit; verified: boolean; source: string } | null;
+  carbonBasis?: CarbonBasis | null;
   salesUnit: string | null;
   closingTime: string | null;
   availabilityEvidence?: AvailabilityEvidence;
@@ -102,7 +103,9 @@ export interface PlanLine {
   allocation: "primary" | "partial" | "unknown_fill" | "short";
   riskAccepted: { by: string; at: string } | null;
   removed: boolean;
-  /** Product-group average kg CO2e per kg, times the kg or L ordered. An estimate, labelled as such. */
+  /** Saved mass evidence for an informational product-group estimate. Older totals without it are untrusted. */
+  carbonBasis?: CarbonBasis | null;
+  /** Legacy cached estimate. Display only with carbonBasis; older versions incorrectly used litres as kg. */
   co2Kg?: number | null;
 }
 
