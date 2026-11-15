@@ -13,7 +13,7 @@ import { kvGet, kvSet } from "../db.js";
 import { FIXED, rulesView } from "../rules/catalogue.js";
 import { PARAMS, policyParams, storedPolicy } from "../rules/policy.js";
 import { editRules, resetRules, RuleEditError } from "../rules/editor.js";
-import { getProduct, getProductDetails, catalogSize } from "../catalog.js";
+import { getProduct, getProductDetails, catalogSize, searchProducts } from "../catalog.js";
 import { interpretMessage } from "../agent/message.js";
 import { logSearch } from "../searchlog.js";
 import { matchesCurrentShortlists, shortlist } from "../agent/match.js";
@@ -22,12 +22,13 @@ import { newPlan, quoteAndDecide, getPlan, listPlans, mandate, savePlan, emptyOv
 import { questionsFor, allQuestions, getQuestion, canAnswer } from "../agent/questions.js";
 import { answer } from "../agent/answers.js";
 import { addDietGroup, changeEvent, changeGuests, coverageSummary, EditConflict, eventView, finalCheck, getEvent, listEvents, orderEvent, removeNeed, runCutoff, runViability, saveEvent, warnings, personActor, type StoredEvent } from "../agent/events.js";
-import { newId } from "../util.js";
+import { isCalendarDate, newId } from "../util.js";
 import { MenuBody, menuRequest, saveMenu, scaleMenu } from "../agent/menu.js";
 import { listRemembered } from "../agent/memory.js";
 import { seedReset, OUTLETS, OUTSIDE_AGENT_TOKEN, VALIO_VIEWER_TOKEN } from "../seed.js";
 import { gw, GatewayError } from "../agent/gatewayClient.js";
-import { dataMode } from "../aimo/lookup.js";
+import { dataMode, lookup, UpstreamError } from "../aimo/lookup.js";
+import { inspectDelivery } from "./productInspection.js";
 import { config } from "../config.js";
 import { modelConfigured, modelName } from "../agent/openai.js";
 import { basketReview, submitBasketForReview, invalidateBasketReview, BasketReviewError } from "../agent/baskets.js";
@@ -514,6 +515,31 @@ export function appRouter(): Router {
     } catch (e) {
       if (e instanceof RuleEditError) return res.status(403).json({ error: e.message });
       throw e;
+    }
+  });
+  // Catalogue inspection is account-scoped and read-only, separate from request planning.
+  const canInspectProducts = (req: Request) => P(req).hotelId === HOTEL_ID && (P(req).hotelScope || P(req).outlets.length > 0);
+  r.get("/products", (req, res) => {
+    if (!canInspectProducts(req)) return res.status(403).json({ error: "Outside your hotel scope" });
+    const { q } = z.object({ q: z.string().trim().max(200).default("") }).parse(req.query);
+    const exact = q ? getProduct(q) : null;
+    res.json({ products: exact ? [exact] : q ? searchProducts({ q, limit: 50 }) : [], sites: mandate().sites.map(({ id, name }) => ({ id, name })), source: "Local catalogue" });
+  });
+  r.get("/products/:id/supplier", async (req, res) => {
+    if (!canInspectProducts(req)) return res.status(403).json({ error: "Outside your hotel scope" });
+    const { siteId, requestedDate } = z.object({ siteId: z.string().min(1), requestedDate: z.string().refine(isCalendarDate, "Use a valid YYYY-MM-DD date") }).parse(req.query);
+    const site = mandate().sites.find((candidate) => candidate.id === siteId);
+    if (!site) return res.status(403).json({ error: "Outside your delivery site scope" });
+    const product = getProductDetails(String(req.params.id));
+    if (!product) return res.status(404).json({ error: "Not in catalogue" });
+    try {
+      const { lines, fallback } = await lookup([product.id], requestedDate);
+      const evaluatedAt = now();
+      res.setHeader("Cache-Control", "no-store");
+      res.json({ product, lookup: lines[0], site: { id: site.id, name: site.name }, requestedDate, evaluatedAt: evaluatedAt.toISOString(), fallback, delivery: inspectDelivery(product, lines[0], requestedDate, evaluatedAt) });
+    } catch (error) {
+      if (error instanceof UpstreamError) return res.status(503).json({ error: "upstream_unavailable", message: "Supplier terms could not be checked. Try again." });
+      throw error;
     }
   });
   r.get("/products/:id", (req, res) => {
