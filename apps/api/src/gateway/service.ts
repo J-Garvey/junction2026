@@ -18,6 +18,7 @@ import { newId, round2, sha256, stableStringify, parseAimoTime, eur, isCalendarD
 import { signJwt, verifyJwt, jcs, checkoutHash } from "./keys.js";
 import type { Identity } from "../identity.js";
 import { actorOf, getPerson } from "../identity.js";
+import { allowsOutlets } from "../authorization.js";
 
 export class GatewayRefusal extends Error {
   constructor(public status: number, public body: Refusal) {
@@ -248,8 +249,14 @@ function requireHotel(id: Identity): string {
   return id.hotelId;
 }
 
+function requireOutletScope(id: Identity, hotelId: string, lines: readonly { outletId: string }[]) {
+  if (id.kind === "person" && !allowsOutlets(id.person, hotelId, lines.map((line) => line.outletId)))
+    throw new GatewayRefusal(403, { error: "forbidden", message: "This order is outside your hotel or outlet scope", rules: [fire("MAN-03", { actor: id.person.name, site: "the requested outlets" })] });
+}
+
 export async function createQuote(id: Identity, body: QuoteCreateBody, actor?: Actor): Promise<Quote> {
   const hotelId = requireHotel(id);
+  requireOutletScope(id, hotelId, body.lines);
   if (!isCalendarDate(body.deliveryDate))
     throw new GatewayRefusal(400, { error: "invalid", message: "Choose a valid delivery date (YYYY-MM-DD)." });
   const mandate = getMandate(hotelId);
@@ -340,6 +347,7 @@ export async function createApproval(id: Identity, body: ApprovalBody): Promise<
     throw new GatewayRefusal(403, { error: "forbidden", message: "Only a person with the Approver role can approve" });
   const q = getQuote(body.quoteId);
   if (q.hotelId !== id.hotelId) throw new GatewayRefusal(403, { error: "forbidden", message: "Quote belongs to another hotel" });
+  requireOutletScope(id, q.hotelId, q.lines);
   if (q.fingerprint !== body.fingerprint)
     throw new GatewayRefusal(409, { error: "mandate_violation", message: "The approval doesn't match this quote version", rules: [fire("MAN-04", {})] });
   if (q.outcome === "block") {
@@ -481,10 +489,14 @@ export async function placeOrder(id: Identity, quoteId: string, idemKey: string,
   const existing = getDb().prepare("SELECT json, body_hash FROM orders WHERE idem_key = ?").get(idemKey) as { json: string; body_hash: string } | undefined;
   if (existing) {
     if (existing.body_hash !== bodyHash) throw new GatewayRefusal(422, { error: "idempotency_conflict", message: "This Idempotency-Key was used with a different body; the first order is untouched" });
-    return { order: JSON.parse(existing.json), replay: true };
+    const order = JSON.parse(existing.json) as Order;
+    // Replaying another caller's order must still respect this person's scope.
+    requireOutletScope(id, hotelId, order.lines);
+    return { order, replay: true };
   }
   const q = getQuote(quoteId);
   if (q.hotelId !== hotelId) throw new GatewayRefusal(403, { error: "forbidden", message: "Quote belongs to another hotel" });
+  requireOutletScope(id, hotelId, q.lines);
   if ((q as StoredQuote).amendsOrderId)
     throw new GatewayRefusal(409, { error: "invalid", message: "Use this amendment quote only to amend its existing order" });
   const by = actor ?? actorOf(id);
@@ -554,13 +566,17 @@ export async function placeOrder(id: Identity, quoteId: string, idemKey: string,
     humanPolicy: fresh.humanPolicy,
   };
   // Two requests may both finish their supplier lookup before either writes.
-  // Resolve the same-key race inside the transaction instead of surfacing SQL 500.
+  // Resolve same-key retries and consume each quote once inside the transaction.
   const raced = tx(() => {
     const row = getDb().prepare("SELECT json, body_hash FROM orders WHERE idem_key = ?").get(idemKey) as { json: string; body_hash: string } | undefined;
     if (row) {
       if (row.body_hash !== bodyHash) refuse(422, { error: "idempotency_conflict", message: "This Idempotency-Key was used with a different body; the first order is untouched" });
-      return JSON.parse(row.json) as Order;
+      const previous = JSON.parse(row.json) as Order;
+      requireOutletScope(id, hotelId, previous.lines);
+      return previous;
     }
+    if (getDb().prepare("SELECT id FROM orders WHERE quote_id = ?").get(q.id))
+      refuse(409, { error: "quote_consumed", message: "This quote already has an order. Retry with the original Idempotency-Key to retrieve it, or request a new quote for another order." });
     Object.assign(order, signOrder(order));
     getDb().prepare("INSERT INTO orders (id, quote_id, event_id, idem_key, body_hash, json) VALUES (?, ?, ?, ?, ?, ?)").run(order.id, q.id, q.eventId, idemKey, bodyHash, JSON.stringify(order));
     return null;
@@ -607,6 +623,7 @@ export async function amendOrder(id: Identity, orderId: string, body: AmendmentB
   const hotelId = requireHotel(id);
   const o = getOrder(orderId);
   if (o.hotelId !== hotelId) throw new GatewayRefusal(403, { error: "forbidden", message: "Order belongs to another hotel" });
+  requireOutletScope(id, hotelId, [...o.lines.filter((line) => !line.removed), ...body.changes]);
   const by = actor ?? actorOf(id);
   let at = now();
   const key = (p: string, out: string) => `${p}|${out}`;

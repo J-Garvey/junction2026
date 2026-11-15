@@ -19,7 +19,7 @@ import { logSearch } from "../searchlog.js";
 import { matchesCurrentShortlists, shortlist } from "../agent/match.js";
 import { allItemsResolved, quantityScope, refreshItemReviews } from "../agent/itemReview.js";
 import { toBase } from "../agent/parse.js";
-import { newPlan, quoteAndDecide, getPlan, listPlans, mandate, savePlan, emptyOverrides, HOTEL_ID, needsFromSingle } from "../agent/plan.js";
+import { newPlan, quoteAndDecide, getPlan, listPlans, mandate, savePlan, emptyOverrides, HOTEL_ID, needsFromSingle, type StoredPlan } from "../agent/plan.js";
 import { questionsFor, allQuestions, getQuestion, canAnswer } from "../agent/questions.js";
 import { answer } from "../agent/answers.js";
 import { addDietGroup, changeEvent, changeGuests, coverageSummary, EditConflict, eventView, eventCreation, finalCheck, getEvent, listEvents, orderEvent, removeNeed, runCutoff, runViability, saveEvent, warnings, personActor, type StoredEvent } from "../agent/events.js";
@@ -38,6 +38,8 @@ import { modelConfigured, modelName } from "../agent/openai.js";
 import { basketReview, submitBasketForReview, invalidateBasketReview, BasketReviewError, basketChangeToken, correctBasketRequest, changeBasket, assertBasketIdle } from "../agent/baskets.js";
 import { approvalLevels, basketStatus, pendingQuestions } from "../agent/basketSummary.js";
 import { measureProcessing, processingClock } from "./processing.js";
+import { allowsOutlets } from "../authorization.js";
+import { listOrders } from "../gateway/service.js";
 
 type Authed = Request & { person: Person; token: string };
 
@@ -51,7 +53,20 @@ function person(req: Request, res: Response, next: NextFunction) {
 
 const P = (req: Request) => (req as Authed).person;
 const T = (req: Request) => (req as Authed).token;
-const inPlanScope = (req: Request, plan: { outletId: string }) => P(req).hotelId === HOTEL_ID && (P(req).hotelScope || P(req).outlets.includes(plan.outletId));
+const inPlanScope = (req: Request, plan: { outletId: string }) => {
+  const saved = "needs" in plan ? plan as StoredPlan : undefined;
+  return allowsOutlets(P(req), HOTEL_ID, [plan.outletId,
+    ...(saved?.needs.map((need) => need.outletId) ?? []),
+    ...(saved?.lines.filter((line) => !line.removed).map((line) => line.outletId) ?? []),
+  ]);
+};
+const inEventScope = (req: Request, event: StoredEvent) => allowsOutlets(P(req), HOTEL_ID, [
+  ...event.dishes.map((dish) => dish.outletId),
+  ...listPlans(event.id).filter((plan) => plan.basketedAt && !plan.removedFromBasketAt && !plan.orderIds.length)
+    .flatMap((plan) => plan.lines.filter((line) => !line.removed).map((line) => line.outletId)),
+  ...listOrders(HOTEL_ID, event.id).filter((order) => order.state !== "rejected")
+    .flatMap((order) => order.lines.filter((line) => !line.removed).map((line) => line.outletId)),
+]);
 
 // An in-flight item recheck must not save an older copy over a removal or commit.
 const changingPlan = (handler: (req: Request, res: Response) => unknown) => async (req: Request, res: Response) => {
@@ -113,6 +128,31 @@ export function appRouter(): Router {
   });
 
   r.use(person);
+  // Project after processing has saved the original plan, so a private embedded
+  // event is omitted from HTTP responses without changing the stored workflow.
+  r.use((req, res, next) => {
+    const json = res.json.bind(res);
+    const planView = (plan: StoredPlan) => {
+      if (!inPlanScope(req, plan)) return null;
+      const event = plan.event;
+      return event && (hotelFor({ eventId: event.id }) !== P(req).hotelId || !inEventScope(req, event as StoredEvent))
+        ? { ...plan, event: null } : plan;
+    };
+    const projection = (body: any) => {
+      if (!body || typeof body !== "object") return body;
+      const result = { ...body };
+      for (const key of ["plan", "viability", "orderPlan"])
+        if (body[key]) result[key] = planView(body[key]);
+      if (Array.isArray(body.questions)) result.questions = body.questions.filter((question: ReturnType<typeof allQuestions>[number]) => {
+        const plan = getPlan(question.planId);
+        return (!plan || inPlanScope(req, plan)) && allowsOutlets(P(req), HOTEL_ID, question.outletId ? [question.outletId] : []);
+      });
+      if (body.basket) result.basket = projection(body.basket);
+      return result;
+    };
+    res.json = (body) => json(projection(body));
+    next();
+  });
   r.use(measureProcessing);
   // These app workflows are backed by the single Demo Hotel agent. Keep their
   // plans, baskets and policy out of another hotel's session. The explicit
@@ -134,7 +174,7 @@ export function appRouter(): Router {
   });
 
   const ownEvents = (req: Request) => listEvents().filter(e => hotelFor({ eventId: e.id }) === P(req).hotelId);
-  const ownPlans = (req: Request) => listPlans().filter(pl => hotelFor({ details: { planId: pl.id } }) === P(req).hotelId);
+  const ownPlans = (req: Request) => listPlans().filter(pl => hotelFor({ details: { planId: pl.id } }) === P(req).hotelId && inPlanScope(req, pl));
 
   r.get("/me", (req, res) => res.json({ person: P(req) }));
 
@@ -182,10 +222,13 @@ export function appRouter(): Router {
   // UI-04 confirmed chips → a plan → quote → questions or an order.
   r.post("/requests", async (req, res) => {
     const request = SingleRequest.parse(req.body.request);
+    if (!inPlanScope(req, request)) return res.status(403).json({ error: "This item is outside your hotel or outlet scope" });
     // An order basket (an event) the request is added to; its delivery date is the needed-by date.
     const eventId = req.body.eventId == null ? null : z.string().parse(req.body.eventId);
     const reviewing = req.body.reviewing === true;
     if (eventId && !getEvent(eventId)) return res.status(404).json({ error: "No such order" });
+    if (eventId && hotelFor({ eventId }) !== P(req).hotelId)
+      return res.status(403).json({ error: "This order belongs to another hotel or has unknown ownership" });
     const plan = await startRequest(req, request, eventId, reviewing, reviewing && req.body.itemReview === true);
     res.json({ plan, questions: allQuestions().filter((q) => q.planId === plan.id) });
   });
@@ -210,6 +253,7 @@ export function appRouter(): Router {
   r.get("/plans/:id", (req, res) => {
     const plan = getPlan(String(req.params.id));
     if (!plan) return res.status(404).json({ error: "No such plan" });
+    if (!inPlanScope(req, plan)) return res.status(403).json({ error: "This item is outside your hotel or outlet scope" });
     res.json({ plan, questions: allQuestions().filter((q) => q.planId === plan.id) });
   });
 
@@ -304,7 +348,7 @@ export function appRouter(): Router {
     audit({ actor: personActor(p), action: "request_received", summary: `${p.name} added ${plan.title} to the order`, eventId: plan.eventId, details: { kind: "confirmation", planId: plan.id, lines: plan.lines.map((l) => l.productId) }, visibility: "hotel" });
     savePlan(plan);
     invalidateBasketReview(plan.eventId);
-    res.json({ plan, questions: allQuestions().filter((q) => q.planId === plan.id), basket: await basketView(plan.eventId) });
+    res.json({ plan, questions: allQuestions().filter((q) => q.planId === plan.id), basket: await basketView(plan.eventId, req) });
   }));
 
   r.post("/plans/:id/items/:needId/approve", changingPlan((req, res) => {
@@ -399,6 +443,7 @@ export function appRouter(): Router {
   r.post("/plans/:id/too-late", changingPlan((req, res) => {
     const plan = getPlan(String(req.params.id));
     if (!plan) return res.status(404).json({ error: "No such plan" });
+    if (!inPlanScope(req, plan)) return res.status(403).json({ error: "This item is outside your hotel or outlet scope" });
     if (!plan.tooLate) return res.status(409).json({ error: "This request isn't too late" });
     const { choice } = z.object({ choice: z.enum(["remove", "review"]) }).parse(req.body);
     const p = P(req);
@@ -428,6 +473,8 @@ export function appRouter(): Router {
 
   // Order baskets: one per event, named by the event and its delivery date. Requests attach to one.
   const basketPlans = (eventId: string) => listPlans(eventId).filter((pl) => pl.kind === "single" && !pl.reviewing && !pl.removedFromBasketAt && pl.tooLateChoice !== "removed");
+  const inBasketScope = (req: Request, event: StoredEvent) => inEventScope(req, event)
+    && basketPlans(event.id).every((plan) => inPlanScope(req, plan));
   const planRow = (pl: ReturnType<typeof listPlans>[number]) => ({
     id: pl.id, title: pl.title, status: pl.status, summary: pl.summary, createdAt: pl.createdAt, createdBy: pl.createdBy.name, totalExVat: pl.totalExVat, orderIds: pl.orderIds,
     tooLate: pl.tooLate ?? null, tooLateChoice: pl.tooLateChoice ?? null, basketedAt: pl.basketedAt ?? null,
@@ -445,9 +492,16 @@ export function appRouter(): Router {
   };
   // Return the same saved basket projection on reads and successful submissions so
   // the builder can update its items and deadline without a second browser request.
-  const basketView = async (id: string) => {
-    if (!getEvent(id)) throw new BasketReviewError(404, "No such order");
+  const basketView = async (id: string, req?: Request) => {
+    const event = getEvent(id);
+    if (!event) throw new BasketReviewError(404, "No such order");
+    // Mutation responses add a full read projection only when this person may
+    // read it. Their existing authority to contribute their own items is intact.
+    if (req && !inBasketScope(req, event)) return undefined;
     const { orders } = await gw.orders(id);
+    const currentEvent = getEvent(id);
+    if (!currentEvent) throw new BasketReviewError(404, "No such order");
+    if (req && !inBasketScope(req, currentEvent)) return undefined;
     const review = basketReview(id, orders);
     const plans = basketPlans(id);
     return { ...eventView(id), requests: plans.map(planRow), orders, review, ...basketSummary(getEvent(id)!, orders, plans) };
@@ -499,12 +553,21 @@ export function appRouter(): Router {
     res.json({ basket: { id: e.id, name: e.name, deliveryDate: e.serviceDate } });
   });
   r.get("/baskets/:id", async (req, res) => {
-    res.json(await basketView(String(req.params.id)));
+    const id = String(req.params.id);
+    const event = getEvent(id);
+    if (!event) return res.status(404).json({ error: "No such order" });
+    if (!inBasketScope(req, event))
+      return res.status(403).json({ error: "This order is outside your hotel or outlet scope" });
+    const basket = await basketView(id, req);
+    if (!basket) return res.status(403).json({ error: "This order is outside your hotel or outlet scope" });
+    res.json(basket);
   });
   r.post("/baskets/:id/submit-review", async (req, res) => {
     const id = String(req.params.id);
+    const event = getEvent(id);
+    if (!event) return res.status(404).json({ error: "No such order" });
     const review = await submitBasketForReview(id, P(req), T(req));
-    res.json({ review, basket: await basketView(id) });
+    res.json({ review, basket: await basketView(id, req) });
   });
   r.post("/baskets/:id/requests/:planId/correct", async (req, res) => {
     const { changeToken, action } = z.object({ changeToken: z.string().min(1), action: z.enum(["edit", "remove"]) }).parse(req.body);
@@ -512,6 +575,13 @@ export function appRouter(): Router {
     res.json({ plan, questions: allQuestions().filter((q) => q.planId === plan.id) });
   });
 
+  // All event detail and mutation routes share the basket's all-outlets policy.
+  r.use("/events/:id", (req, res, next) => {
+    const event = getEvent(String(req.params.id));
+    if (!event) return res.status(404).json({ error: "No such order" });
+    if (!inEventScope(req, event)) return res.status(403).json({ error: "This order is outside your hotel or outlet scope" });
+    next();
+  });
   r.get("/events", (req, res) => res.json({ events: ownEvents(req).map((e) => ({ ...e, coverage: coverageSummary(e.id) })) }));
   r.get("/events/:id", (req, res) => res.json(eventView(String(req.params.id))));
   r.post("/events/:id/viability", async (req, res) => res.json({ plan: await runViability(String(req.params.id), P(req)) }));
@@ -542,7 +612,10 @@ export function appRouter(): Router {
   r.put("/events/:id/menu", (req, res) => {
     const id = String(req.params.id);
     if (!getEvent(id)) return res.status(404).json({ error: "No such order" });
-    const e = saveMenu(id, MenuBody.parse(req.body), P(req));
+    const body = MenuBody.parse(req.body);
+    if (!allowsOutlets(P(req), HOTEL_ID, body.dishes.map((dish) => dish.outletId)))
+      return res.status(403).json({ error: "This menu is outside your hotel or outlet scope" });
+    const e = saveMenu(id, body, P(req));
     audit({ actor: personActor(P(req)), action: "request_received", summary: `${P(req).name} saved the menu for ${e.name}: ${e.dishes.length} dish${e.dishes.length === 1 ? "" : "es"}, ${e.guests} guests`, eventId: id, details: { kind: "review", version: e.version }, visibility: "hotel" });
     res.json({ event: e, scale: scaleMenu(e) });
   });

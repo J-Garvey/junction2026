@@ -67,10 +67,10 @@ beforeEach(async () => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("standalone proposal acceptance scope", () => {
-  it("keeps shared reads but rejects a bar-only person's accept and replacement without side effects (R05-01)", async () => {
+  it("rejects a bar-only person's private read, accept and replacement without side effects (R05-01)", async () => {
     const plan = await proposal();
     await signIn("p-mikko");
-    expect((await call("GET", `/plans/${plan.id}`)).status).toBe(200);
+    expect((await call("GET", `/plans/${plan.id}`)).status).toBe(403);
     const before = storedState();
     const quote = vi.mocked(gw.quote).mockClear();
     const order = vi.mocked(gw.order).mockClear();

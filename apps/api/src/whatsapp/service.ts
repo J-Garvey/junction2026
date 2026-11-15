@@ -210,6 +210,10 @@ export async function handleWhatsAppMessage(input: { person: Person; token: stri
     const confirmAction = { label: current.orders.length ? "Submit for finance review" : "Review final order", text: "confirm order" };
     const summary = (extra: Partial<WhatsAppReplyFacts> = {}) => respond({ status: "summary", headline: "Your current order basket", order, lines: current.displayed, totalExVat: current.totalExVat, numbered: true, actions: [confirmAction], ...extra });
     const blocked = (headline: string, detail?: string, appLink?: WhatsAppReplyFacts["appLink"]) => respond({ status: "blocked", headline, detail, order, appLink });
+    const financeInApp = () => {
+      conversation.pending = null;
+      return blocked("Financial approvals stay in the app.", "The financial approver must sign in and review the decision there.", { label: "Review in the app", path: `/baskets/${encodeURIComponent(id)}` });
+    };
     // Another person may have changed the basket while this message was being
     // interpreted or waiting for its lock. Check current scope before any reply.
     if (!mandate().sites.some((s) => s.id === current.e.siteId) || (!person.hotelScope
@@ -222,15 +226,18 @@ export async function handleWhatsAppMessage(input: { person: Person; token: stri
     if (interpretation.intent === "summary" || interpretation.intent === "select_order") {
       const waiting = decisions(id, person);
       const tips = current.displayed.length ? [TIPS.add, TIPS.remove, TIPS.change] : [TIPS.add];
-      if (waiting.mine.length) tips.push(TIPS.approve, TIPS.refuse);
+      if (waiting.mine.length && input.channel !== "web") tips.push(TIPS.approve, TIPS.refuse);
       const detail = [
         current.orders.length ? "Lines marked placed are already ordered; changing them amends the mock order." : "You can add, remove or change items, then confirm the final basket.",
-        waiting.mine.length ? `${waiting.mine.length === 1 ? "A decision is" : `${waiting.mine.length} decisions are`} waiting for you: ${waiting.mine[0].title}.` : "",
+        waiting.mine.length ? `${waiting.mine.length === 1 ? "A decision is" : `${waiting.mine.length} decisions are`} waiting ${input.channel === "web" ? "in the app" : "for you"}: ${waiting.mine[0].title}.` : "",
         !waiting.mine.length && waiting.others.length ? "Waiting for a manager's approval." : "",
       ].filter(Boolean).join(" ");
-      return summary({ detail, tips });
+      return summary({ detail, tips, ...(input.channel === "web" && waiting.mine.length ? { appLink: { label: "Review in the app", path: `/baskets/${encodeURIComponent(id)}` } } : {}) });
     }
     if (interpretation.intent === "approve" || interpretation.intent === "refuse") {
+      // Real group senders inherit a demo ordering identity, never its financial
+      // approval authority. Even the linked phone must approve in the app.
+      if (input.channel === "web") return financeInApp();
       conversation.pending = null;
       const waiting = decisions(id, person);
       const q = waiting.mine[0];
@@ -412,6 +419,8 @@ export async function handleWhatsAppMessage(input: { person: Person; token: stri
 
     /** Records the approver's decision exactly as the app's decision card does. */
     async function answerFromChat(questionId: string, optionId: string, note: string | undefined, fingerprint: string) {
+      // Also reject persisted pre-fix answer_question confirmations.
+      if (input.channel === "web") return financeInApp();
       const q = allQuestions().find((x) => x.id === questionId);
       if (!q || q.state !== "open" || questionFingerprint(q) !== fingerprint) return blocked("This decision changed or was already answered.", "Say 'summary' to see what is waiting now.");
       const out = await answer(q.id, person, optionId, input.token, note);

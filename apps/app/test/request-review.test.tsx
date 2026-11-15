@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { SingleRequest, type Candidate, type Need, type Plan, type PlanLine, type ProductDetails, type Question } from "@aimo/contracts";
@@ -745,7 +745,9 @@ describe("saved request review controls", () => {
       requests: [{ ...initial.plan, createdBy: "Jonas", basketedAt: null }],
       orderBy: { state: "unknown", at: null, reason: "Recheck supplier terms.", usesFixtures: true },
     } as unknown as BasketResp;
-    vi.spyOn(api, "basket").mockResolvedValue(basket);
+    let finishOlderRead!: (value: BasketResp) => void;
+    const olderRead = new Promise<BasketResp>((resolve) => { finishOlderRead = resolve; });
+    vi.spyOn(api, "basket").mockResolvedValueOnce(basket).mockReturnValue(olderRead);
     vi.spyOn(api, "plan").mockResolvedValue(initial);
     vi.spyOn(api, "approveItem").mockResolvedValue(fixture(true));
     vi.spyOn(api, "basketPlan").mockResolvedValue({ ...fixture(true), basket: {
@@ -758,8 +760,12 @@ describe("saved request review controls", () => {
     fireEvent.click(await screen.findByRole("button", { name: /^10 l milk/ }));
     fireEvent.click(await screen.findByRole("button", { name: "Approve milk" }));
     await waitFor(() => expect((screen.getByRole("button", { name: "Add to order" }) as HTMLButtonElement).disabled).toBe(false));
+    await waitFor(() => expect(api.basket).toHaveBeenCalledTimes(2));
     fireEvent.click(screen.getByRole("button", { name: "Add to order" }));
     await screen.findByText("Ready to order");
+    // A read started before staging must not replace its authoritative response.
+    await act(async () => { finishOlderRead(basket); });
+    expect(screen.getByText("Ready to order")).toBeTruthy();
     expect(screen.getByText("Added to the order. Submit the final order for finance review.")).toBeTruthy();
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.queryByRole("button", { name: /^10 l milk/ })).toBeNull();

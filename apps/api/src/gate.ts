@@ -10,11 +10,18 @@ import { config } from "./config.js";
 
 const password = () => process.env.PREVIEW_PASSWORD ?? "";
 const cookieValue = () => hmac(config.signingKey, `gate:${password()}`);
-const same = (a: string, b: string) => a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
+const same = (a: string, b: string) => {
+  const left = Buffer.from(a), right = Buffer.from(b);
+  return left.length === right.length && timingSafeEqual(left, right);
+};
 
 function hasCookie(req: Request) {
   const m = (req.header("cookie") ?? "").match(/(?:^|;\s*)aimo_gate=([^;]+)/);
-  return Boolean(m && same(decodeURIComponent(m[1]), cookieValue()));
+  try {
+    return Boolean(m && same(decodeURIComponent(m[1]), cookieValue()));
+  } catch {
+    return false;
+  }
 }
 
 const page = (error: string) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Potato preview</title>

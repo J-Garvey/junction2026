@@ -89,13 +89,15 @@ function AuditLog({ viewer, eventId }: { viewer: Viewer; eventId?: string }) {
         )}
       </div>
       <div className="row" style={{ flexWrap: "wrap" }}>
-        <input className="search audit-filter" aria-label="Filter audit log" aria-describedby="audit-filter-help" placeholder="Text or reference ID" value={q} onChange={(e) => setSp(filterParams(e.target.value), { replace: true })} />
+        <label className="audit-search">Filter audit log
+          <input className="search audit-filter" aria-describedby="audit-filter-help" placeholder="Text or reference ID" value={q} onChange={(e) => setSp(filterParams(e.target.value), { replace: true })} />
+        </label>
         {q && <button type="button" className="linkbtn small" onClick={() => setSp(filterParams(""), { replace: true })}>Clear filter</button>}
       </div>
       <p id="audit-filter-help" className="small muted">Filter by text or reference ID. Select an order, quote or approval reference to follow related entries in the loaded audit history.</p>
       {error && <div className="callout red">{error}</div>}
       {loading && !data && <div className="muted">Loading…</div>}
-      <div className="card audit">
+      <div className="card audit" role="region" aria-label="Audit entries" tabIndex={0}>
         <table className="t">
           <thead>
             <tr>

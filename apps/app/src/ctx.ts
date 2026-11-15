@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import type { Question } from "@aimo/contracts";
 import type { Person, StatusResp, Outlet } from "./api";
 
@@ -64,22 +64,31 @@ export const outletName = (outlets: Outlet[], id: string | null | undefined) => 
 /** Fetch with loading and error state; refetches when deps or the global tick change. */
 export function useLoad<T>(fn: () => Promise<T>, deps: unknown[]): { data: T | null; error: string | null; loading: boolean; reload: () => void; setData: (d: T) => void } {
   const { tick } = useApp();
-  const [data, setData] = useState<T | null>(null);
+  const [data, storeData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [n, setN] = useState(0);
+  const generation = useRef(0);
+  const setData = useCallback((value: T) => {
+    // A successful mutation is newer than any read already in flight.
+    generation.current += 1;
+    storeData(value);
+    setError(null);
+    setLoading(false);
+  }, []);
   const reload = useCallback(() => setN((x) => x + 1), []);
   useEffect(() => {
     let live = true;
+    const current = ++generation.current;
     setLoading(true);
     fn()
       .then((d) => {
-        if (!live) return;
-        setData(d);
+        if (!live || current !== generation.current) return;
+        storeData(d);
         setError(null);
       })
-      .catch((e: Error) => live && setError(e.message))
-      .finally(() => live && setLoading(false));
+      .catch((e: Error) => live && current === generation.current && setError(e.message))
+      .finally(() => live && current === generation.current && setLoading(false));
     return () => {
       live = false;
     };

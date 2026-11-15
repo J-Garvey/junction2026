@@ -13,12 +13,13 @@ import { day, plural, when } from "../format";
 import { Icon } from "../ui/icons";
 
 export function Events() {
-  const { data, error } = useLoad(() => api.events(), []);
+  const { data, error, loading } = useLoad(() => api.events(), []);
   return (
     <div className="page stack-l">
       <h1>Events</h1>
       {error && <div className="callout red">{error}</div>}
       <div className="card">
+        {loading && <div className="li muted small" role="status">Loading events…</div>}
         {(data?.events ?? []).map((e) => (
           <Link key={e.id} to={`/events/${e.id}`} className="li evrow">
             <div style={{ flex: 1, minWidth: 0 }}>

@@ -110,7 +110,8 @@ export function App() {
     return (
       <div className="picker">
         <Lockup />
-        <div className="callout red">{bootErr}</div>
+        <div className="callout red" role="alert">{bootErr}</div>
+        <button type="button" className="btn" onClick={() => window.location.reload()}>Reload app</button>
       </div>
     );
   if ((!ctx || needPick) && status && !status.testMode) return <div className="picker"><Lockup /><p>Sign in with your personal hotel credential. Demo persona switching is disabled.</p></div>;

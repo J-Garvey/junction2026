@@ -131,7 +131,7 @@ beforeEach(async () => {
     next();
   }, whatsappRouter(handler));
   app.use(createApp());
-  server = app.listen(Number(process.env.E2_PORT ?? 8892), "127.0.0.1");
+  server = app.listen(Number(process.env.E2_PORT ?? 0), "127.0.0.1");
   await new Promise<void>((r, reject) => { server.once("listening", r); server.once("error", reject); });
   base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
   config.gatewayUrl = `${base}/gateway/v1`;
@@ -142,7 +142,7 @@ beforeEach(async () => {
       log("network-blocked", { origin: url.origin, path: url.pathname });
       return new Response(JSON.stringify({ error: "E2_fixture_only_no_external_network" }), { status: 503 });
     }
-    // Every case owns a fresh server on the same isolated port. Do not retain
+    // Every case owns a fresh server. Do not retain
     // Undici sockets to the previous server between cases (ECONNRESET on reuse).
     const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
     headers.set("connection", "close");
@@ -160,7 +160,7 @@ afterEach(async () => {
   globalThis.fetch = nativeFetch;
 });
 afterAll(() => {
-  writeFileSync(resolve(artifacts, "run.json"), JSON.stringify({ sha, runtime, port: process.env.E2_PORT ?? 8892,
+  writeFileSync(resolve(artifacts, "run.json"), JSON.stringify({ sha, runtime, port: process.env.E2_PORT ?? 0,
     testSourceSha256: createHash("sha256").update(testSource).digest("hex"),
     clock: new Date(NOW).toISOString(), mode: process.env.E2_EVIDENCE_MODE ?? "fixture-fallback-fake-browser", blockedExternalRequests: blocked,
     notes: "No model, real supplier, phone pairing or real browser. Results in Vitest JSON, observations append-only."
