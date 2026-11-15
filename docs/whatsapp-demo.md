@@ -15,6 +15,10 @@ Only new text from the exact selected group ID can reach the interpreter. Other 
 
 The person who starts pairing controls the connection and supplies the hotel's demo identity for group requests. Other demo people cannot view the QR or reconfigure the connection. After a demo reset, select a person, reconnect and choose the group again. Group changes and disconnect wait until any active order request finishes.
 
+Replies use a short question or result, blank lines, **bold** names and quantities, and _italic_ dates and status notes. Order-selection questions list each candidate once and accept its name; they omit totals, internal IDs and stock metadata. IDs are shown only when names need disambiguation. Add/remove confirmations show the affected items instead of repeating the full basket. The agent keeps its chat action available even when a long basket needs a linked detail view.
+
+App links point to the actual basket, request or approval card. Set `PUBLIC_APP_URL` in the ignored `.env.local` to the web address reachable from the group's phones. It defaults to the existing preview origin `https://aimo-copilot-j26.bestinhop23.com` (or `GATEWAY_ISSUER` when configured). Approval links include the card anchor and open that card after the approver signs into the app. No login tokens or credentials are included in links.
+
 ## Server setup
 
 Run the normal long-lived Node API (`pnpm start`). Chrome or Edge is detected automatically on Windows; standard Chrome/Chromium paths are also checked on macOS/Linux. Set `WHATSAPP_CHROME_PATH` in the ignored `.env.local` for another browser executable. Dependency installation intentionally skips Puppeteer's automatic browser download; the browser sandbox stays enabled.

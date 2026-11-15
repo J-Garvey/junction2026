@@ -21,6 +21,7 @@ loadEnvFile(resolve(REPO_ROOT, ".env"));
 
 export const config = {
   port: Number(process.env.PORT ?? 8787),
+  publicAppUrl: process.env.PUBLIC_APP_URL ?? process.env.GATEWAY_ISSUER ?? "https://aimo-copilot-j26.bestinhop23.com",
   dbPath: process.env.AIMO_DB ?? resolve(REPO_ROOT, "apps/api/var/aimo.db"),
   aimoBase: process.env.AIMO_BASE_URL ?? "https://junction26.valioaimo.fi",
   aimoKey: process.env.AIMO_API_KEY ?? "",

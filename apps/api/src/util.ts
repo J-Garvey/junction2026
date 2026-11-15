@@ -28,6 +28,13 @@ export function parseAimoTime(s: string | null | undefined): Date | null {
 
 export const isoDate = (d: Date) => d.toISOString().slice(0, 10);
 
+/** Date parsing may roll February 30 into March; delivery dates must round-trip. */
+export function isCalendarDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T12:00:00Z`);
+  return Number.isFinite(date.getTime()) && isoDate(date) === value;
+}
+
 /** 00:00 in Helsinki on a plain date (YYYY-MM-DD), as an instant. */
 export function helsinkiStartOfDay(date: string): Date {
   const guess = new Date(`${date}T00:00:00Z`);

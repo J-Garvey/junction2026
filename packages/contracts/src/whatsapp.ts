@@ -1,4 +1,4 @@
-/** Synthetic WhatsApp channel. No credentials or messages go to WhatsApp. */
+/** Shared facts for the live WhatsApp channel and offline simulator. */
 import type { SingleRequest } from "./index.js";
 
 export interface WhatsAppOrderRef {
@@ -55,6 +55,9 @@ export interface WhatsAppReplyFacts {
   warnings?: string[];
   actions?: { label: string; text: string }[];
   orderIds?: string[];
+  orderChoices?: WhatsAppOrderRef[];
+  change?: "add" | "remove" | "submit";
+  appLink?: { label: string; path: string };
 }
 
 export interface WhatsAppReply {
