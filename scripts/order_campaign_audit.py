@@ -400,10 +400,14 @@ def audit(row, catalog, fixture=None):
             if original - referenced and obj.get("status") not in ("needs_input", "blocked"):
                 failures.append({"rule": "unrepresented_need", "path": path, "needIds": sorted(original - referenced)})
             by_need = {n.get("id"): semantic_constraints(n) for n in obj["needs"]}
+            need_units = {n.get("id"): n.get("amount", {}).get("unit") for n in obj["needs"]}
             allocations = collections.defaultdict(list)
             for line in obj["lines"]:
                 if line.get("removed"):
                     continue
+                dimensions = {need_units.get(n) for n in line.get("needIds", [])}
+                if line.get("productId") and line.get("quantity", 0) > 0 and {"kg", "l"}.issubset(dimensions):
+                    failures.append({"rule": "mass_volume_needs_combined", "path": path, "productId": line["productId"], "needIds": line.get("needIds")})
                 line_requirements[line.get("id")] = [by_need[n] for n in line.get("needIds", []) if n in by_need]
                 if isinstance(line.get("stock"), dict) and line["stock"].get("kind") == "known":
                     allocations[(line.get("productId"), line.get("availableDate"))].append(line)

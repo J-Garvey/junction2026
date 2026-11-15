@@ -1856,5 +1856,35 @@
         }
       ]
     }
+  },
+  {
+    "caseId": "AUD-mixed-unit",
+    "family": "mass-volume",
+    "channel": "main",
+    "input": "5 l lactose-free milk 469363 and 5 kg lactose-free milk 469363 by 2027-03-01",
+    "plan": true,
+    "expected": {
+      "lines": [
+        {
+          "product": "milk",
+          "productId": "469363",
+          "amount": 5,
+          "unit": "l",
+          "claims": [
+            "FREE_FROM_LACTOSE"
+          ]
+        },
+        {
+          "product": "milk",
+          "productId": "469363",
+          "amount": 5,
+          "unit": "kg",
+          "claims": [
+            "FREE_FROM_LACTOSE"
+          ]
+        }
+      ],
+      "neededBy": "2027-03-01"
+    }
   }
 ]

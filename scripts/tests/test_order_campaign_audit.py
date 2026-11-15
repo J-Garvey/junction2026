@@ -96,6 +96,10 @@ class EvidenceBoundaries(unittest.TestCase):
         row = {"response": {"plan": {"urgent": True, "needs": [], "lines": lines}}}
         self.assertTrue(any(f["rule"] == "confirmed_stock_overallocation" for f in audit.audit(row, {})[1]))
 
+    def test_mass_and_volume_cannot_be_added_as_one_need(self):
+        row = {"response": {"plan": {"needs": [{"id": "a", "amount": {"value": 5, "unit": "l"}}, {"id": "b", "amount": {"value": 5, "unit": "kg"}}], "lines": [{"id": "combined", "productId": "p", "quantity": 10, "needIds": ["a", "b"]}]}}}
+        self.assertTrue(any(f["rule"] == "mass_volume_needs_combined" for f in audit.audit(row, {})[1]))
+
     def test_quote_must_retain_origin(self):
         row = {"response": {"plan": {"needs": [{"id": "a", "constraints": {"origin": "fi"}}], "lines": [{"id": "ref", "needIds": ["a"]}]}}, "gatewayQuoteRequests": [{"body": {"lines": [{"ref": "ref", "requires": {}}]}}]}
         self.assertTrue(any(f["rule"] == "quote_constraint_lost" for f in audit.audit(row, {})[1]))
