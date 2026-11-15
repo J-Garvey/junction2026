@@ -210,6 +210,31 @@ def channel_checks(row, catalog):
     return failures, checks, limits
 
 
+def confirmation_checks(row):
+    """An acknowledged UI preview must name the plan actually staged next."""
+    expected = row.get("auditExpected", row.get("expected", {}))
+    if not expected.get("previewMustMatchAppliedChange"):
+        return [], []
+    response = row.get("response", {})
+    previous = response.get("initial", {})
+    shown = None
+    failures = []
+    for index, step in enumerate(response.get("observations", [])):
+        output = step.get("output", {}).get("response", {})
+        reply = next((m["reply"] for m in reversed(output.get("messages", [])) if m.get("reply")), {})
+        current = step.get("baskets", {})
+        if reply.get("status") == "updated" and shown and shown.get("planId"):
+            added = []
+            for name, basket in current.items():
+                old_ids = {r["id"] for r in previous.get(name, {}).get("response", {}).get("requests", []) if r.get("basketedAt")}
+                added.extend(r["id"] for r in basket.get("response", {}).get("requests", []) if r.get("basketedAt") and r["id"] not in old_ids)
+            if added != [shown["planId"]]:
+                failures.append({"rule": "confirmation_preview_mismatch", "step": index, "expectedPlanId": shown["planId"], "stagedPlanIds": added})
+        shown = output.get("conversation", {}).get("pending")
+        previous = current
+    return failures, ["applied staged plan equals last preview exposed by channel response"]
+
+
 def audit(row, catalog, fixture=None):
     failures, checks, limitations = [], [], []
     response = row.get("response", row.get("output", {}))
@@ -235,6 +260,10 @@ def audit(row, catalog, fixture=None):
         failures.extend(channel_failures)
         checks.extend(channel_done)
         limitations.extend(channel_limits)
+    if row.get("channel") == "whatsapp_coordinator":
+        confirm_failures, confirm_done = confirmation_checks(row)
+        failures.extend(confirm_failures)
+        checks.extend(confirm_done)
     # Expected lines are independently authored, never derived from returned parse.
     exp_lines = expected.get("lines")
     if exp_lines is None and expected.get("product") and "amount" in expected:

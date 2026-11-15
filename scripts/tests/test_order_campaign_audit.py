@@ -121,6 +121,12 @@ class EvidenceBoundaries(unittest.TestCase):
         row = {"response": {"plan": {"needs": [], "lines": [], "deliveryDate": "2027-02-30", "proposal": True}}}
         self.assertTrue(any(f["rule"] == "invalid_calendar_delivery" for f in audit.audit(row, {})[1]))
 
+    def test_confirmation_must_apply_plan_from_last_exposed_preview(self):
+        preview = {"output": {"response": {"messages": [{"reply": {"status": "proposal"}}], "conversation": {"pending": {"planId": "old"}}}}, "baskets": {}}
+        updated = {"output": {"response": {"messages": [{"reply": {"status": "updated"}}], "conversation": {"pending": None}}}, "baskets": {"Darragh": {"response": {"requests": [{"id": "new", "basketedAt": "yes"}]}}}}
+        row = {"expected": {"previewMustMatchAppliedChange": True}, "response": {"initial": {}, "observations": [preview, updated]}}
+        self.assertTrue(any(f["rule"] == "confirmation_preview_mismatch" for f in audit.confirmation_checks(row)[0]))
+
 
 if __name__ == "__main__":
     unittest.main()
