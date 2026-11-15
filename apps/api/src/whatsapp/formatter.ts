@@ -53,10 +53,19 @@ export function formatWhatsAppReply(facts: WhatsAppReplyFacts, _channel: "web" |
   let receiptCount = Math.min(receipts.length, 3);
   let actionCount = actions.length;
   const order = facts.order;
-  const itemText = (line: WhatsAppLine) => {
+  const tips = choosingOrder ? [] : facts.tips ?? [];
+  let tipCount = tips.length;
+  const amendsPlaced = lines.some((l) => l.ordered) && (facts.change === "remove" || facts.change === "quantity");
+  const note = facts.change === "approve" || facts.change === "refuse"
+    ? facts.status === "proposal" ? "Nothing decided yet." : undefined
+    : amendsPlaced && facts.status === "proposal" ? "Not changed yet."
+    : amendsPlaced && facts.status === "updated" ? "Placed mock order amended · demo, no real purchase."
+    : NOTE[facts.status];
+  const itemText = (line: WhatsAppLine, index: number) => {
     const quantity = Number.isFinite(line.quantity) ? `${line.quantity} ${clean(line.unit ?? "units (unit unconfirmed)", 36)}` : "Quantity not confirmed";
     const unknownStock = facts.change !== "remove" && line.stock !== "confirmed";
-    return [`*${quantity}* ${clean(line.name, 140)}`, `_${money(line.lineTotal)}${line.lineTotal !== null && Number.isFinite(line.lineTotal) ? " ex VAT" : ""}${unknownStock ? " · stock unconfirmed" : ""}_`].join("\n");
+    const placed = line.ordered && facts.status !== "ordered" ? " · placed" : "";
+    return [`${facts.numbered ? `${index + 1}. ` : ""}*${quantity}* ${clean(line.name, 140)}`, `_${money(line.lineTotal)}${line.lineTotal !== null && Number.isFinite(line.lineTotal) ? " ex VAT" : ""}${placed}${unknownStock ? " · stock unconfirmed" : ""}_`].join("\n");
   };
   const render = () => {
     const sections: string[] = [`*${clean(heading)}*`];
@@ -92,7 +101,7 @@ export function formatWhatsAppReply(facts: WhatsAppReplyFacts, _channel: "web" |
         const label = facts.change === "add" && facts.status === "proposal" ? "Addition total" : "Order total";
         sections.push(`*${label}: ${money(facts.totalExVat)}*${facts.totalExVat !== null && Number.isFinite(facts.totalExVat) ? "\n_ex VAT_" : ""}`);
       }
-      if (NOTE[facts.status]) sections.push(`_${NOTE[facts.status]}_`);
+      if (note) sections.push(`_${note}_`);
       if (receipts.length) {
         sections.push(receipts.slice(0, receiptCount).map((id) => `Reference: \`${clip(plain(id, true), 128)}\``).join("\n\n"));
         if (receipts.length > receiptCount) sections.push(`_${receipts.length - receiptCount} more receipt references._`);
@@ -107,6 +116,13 @@ export function formatWhatsAppReply(facts: WhatsAppReplyFacts, _channel: "web" |
       if (warnings.length > warningCount) displayed.push(`_${warnings.length - warningCount} more warnings._`);
       sections.push(`*Please note*\n\n${displayed.join("\n\n")}`);
     }
+    if (tipCount) {
+      // "command — explanation": the command is what the person sends.
+      sections.push(`*You can reply*\n${tips.slice(0, tipCount).map((tip) => {
+        const [cmd, ...rest] = tip.split(" — ");
+        return `• *${clean(cmd, 80)}*${rest.length ? ` — ${clean(rest.join(" — "), 120)}` : ""}`;
+      }).join("\n")}`);
+    }
     if (chatAsk) sections.push(chatAsk);
     if (appLink) {
       const url = whatsAppLink(appLink.path, appUrl);
@@ -116,6 +132,7 @@ export function formatWhatsAppReply(facts: WhatsAppReplyFacts, _channel: "web" |
   };
   // Remove complete entries to preserve markup, safety notes, the ask and full URLs.
   let text = render();
+  while (text.length > MAX_LENGTH && tipCount) { tipCount--; text = render(); }
   while (text.length > MAX_LENGTH && itemCount) { itemCount--; text = render(); }
   while (text.length > MAX_LENGTH && warningCount) { warningCount--; text = render(); }
   while (text.length > MAX_LENGTH && choiceCount > 1) { choiceCount--; text = render(); }

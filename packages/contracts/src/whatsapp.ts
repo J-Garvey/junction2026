@@ -16,14 +16,22 @@ export interface WhatsAppLine {
   unit: string | null;
   lineTotal: number | null;
   stock: "confirmed" | "unknown" | null;
+  /** True when the line is already in a placed mock order; changing it amends that order. */
+  ordered?: boolean;
 }
 
 export interface WhatsAppPending {
-  kind: "add_items" | "remove_items" | "confirm_order";
+  kind: "add_items" | "remove_items" | "change_quantity" | "confirm_order" | "answer_question";
   orderId: string;
   fingerprint: string;
   planId?: string;
   lineIds?: string[];
+  /** change_quantity: the new whole sales units for lineIds[0]. */
+  quantity?: number;
+  /** answer_question: the approver card and the chosen option. */
+  questionId?: string;
+  optionId?: string;
+  note?: string;
 }
 
 export interface WhatsAppConversation {
@@ -37,8 +45,15 @@ export interface WhatsAppInterpretContext extends WhatsAppConversation {
 }
 
 export interface WhatsAppInterpretation {
-  intent: "select_order" | "add_items" | "remove_items" | "confirm_order" | "accept_change" | "cancel" | "summary" | "clarify";
+  intent: "select_order" | "add_items" | "remove_items" | "change_quantity" | "confirm_order" | "accept_change" | "cancel" | "summary"
+    | "approve" | "refuse" | "new_order" | "help" | "clarify";
   orderId: string | null;
+  /** change_quantity: whole sales units; new_order: unused. */
+  quantity?: number;
+  /** refuse: the note for the order builder. */
+  note?: string;
+  /** new_order: the basket to create. */
+  newOrder?: { name: string; deliveryDate: string };
   request: Omit<SingleRequest, "siteId" | "outletId"> | null;
   lineIds: string[];
   question: string | null;
@@ -56,7 +71,11 @@ export interface WhatsAppReplyFacts {
   actions?: { label: string; text: string }[];
   orderIds?: string[];
   orderChoices?: WhatsAppOrderRef[];
-  change?: "add" | "remove" | "submit";
+  change?: "add" | "remove" | "quantity" | "submit" | "approve" | "refuse";
+  /** Number the lines so the person can reply "remove 2" or "change 2 to 10". */
+  numbered?: boolean;
+  /** Short reply examples shown as a list. */
+  tips?: string[];
   appLink?: { label: string; path: string };
 }
 

@@ -79,7 +79,8 @@ describe("synthetic WhatsApp order flow", () => {
     const receipt = await send("confirm order", "checkout-final");
     expect(receipt.status, receipt.text).toBe("ordered");
     expect(await send("confirm order", "checkout-final")).toEqual(receipt);
-    expect((await send("confirm order")).status).toBe("ordered");
+    // A placed order goes to finance review on the next submit; it is never placed twice.
+    expect((await send("confirm order")).text).toContain("finance review");
     expect((await call(`/orders?eventId=${id}`)).orders).toHaveLength(1);
     expect((await call(`/baskets/${id}`)).requests[0].orderIds).toHaveLength(1);
   });
@@ -257,7 +258,7 @@ describe("synthetic WhatsApp order flow", () => {
     expect(requests[0].lines[0].quantity).toBe(3);
   });
 
-  it("keeps a confirmed addition additive and placed orders immutable", async () => {
+  it("keeps a confirmed addition additive and changes a placed order only after a second confirmation", async () => {
     const id = await basket("Darragh");
     await stage(id, "10 kg salmon 469672");
     await send(id);
@@ -269,13 +270,103 @@ describe("synthetic WhatsApp order flow", () => {
     await send("confirm order");
     expect((await send("confirm order")).status).toBe("ordered");
     expect((await call(`/orders?eventId=${id}`)).orders[0].lines[0].quantity).toBe(11);
-    for (const text of ["add 1 kg salmon 469672", "remove salmon", "confirm change"]) {
-      expect(["ordered", "clarification"]).toContain((await send(text)).status);
-    }
-    expect((await call(`/baskets/${id}`)).requests).toHaveLength(2);
-    const orders = (await call(`/orders?eventId=${id}`)).orders;
-    expect(orders).toHaveLength(1);
-    expect(orders[0].lines[0].quantity).toBe(11);
+
+    const summary = await send("summary");
+    expect(summary.text).toContain("1. *11 KG*");
+    expect(summary.text).toContain("placed");
+    expect(summary.text).toContain("change 2 to 15");
+    // Emptying a placed order is refused; the order is untouched.
+    expect((await send("remove 1")).text).toContain("empty the placed order");
+    const proposal = await send("change 1 to 12");
+    expect(proposal.status, proposal.text).toBe("proposal");
+    expect(proposal.text).toContain("amends the placed mock order");
+    expect(proposal.text).toContain("Not changed yet.");
+    expect((await call(`/orders?eventId=${id}`)).orders[0].lines[0].quantity).toBe(11);
+    const changed = await send("confirm change");
+    expect(changed.status, changed.text).toBe("updated");
+    expect(changed.text).toContain("Placed mock order amended");
+    const [order] = (await call(`/orders?eventId=${id}`)).orders;
+    expect(order.lines.filter((l: any) => !l.removed).map((l: any) => l.quantity)).toEqual([12]);
+    expect(order.version).toBe(2);
+    expect((await send("confirm change")).status).not.toBe("updated");
+  });
+
+  it("adds to a placed order, removes a placed line and sends the additions to finance review", async () => {
+    const id = await basket("Emma and Lauri's wedding");
+    await stage(id, "10 kg salmon 469672");
+    await send(id);
+    await send("confirm order");
+    expect((await send("confirm order")).status).toBe("ordered");
+    expect((await send("add 2 kg butter")).status).toBe("proposal");
+    expect((await send("confirm change")).status).toBe("updated");
+    expect((await send("add 3 kg salmon 469672")).status).toBe("proposal");
+    expect((await send("confirm change")).status).toBe("updated");
+    const summary = await send("summary");
+    expect(summary.text).toMatch(/2\. \*\d+ \w+\* /);
+    const submit = await send("confirm order");
+    expect(submit.text).toContain("Submit this order for finance review?");
+    const sent = await send("confirm order");
+    expect(sent.status, sent.text).toBe("approval_required");
+    expect(sent.text).toContain("#question-");
+
+    // The finance manager approves from chat with a second, explicit confirmation.
+    token = (await call("/session", { personId: "p-sanna" })).token;
+    await call("/whatsapp/connect", {});
+    await send(id);
+    const approve = await send("approve");
+    expect(approve.status, approve.text).toBe("proposal");
+    expect(approve.text).toContain("Nothing decided yet.");
+    expect((await call(`/orders?eventId=${id}`)).orders).toHaveLength(1);
+    const ordered = await send("confirm approval");
+    expect(ordered.status, ordered.text).toBe("ordered");
+    expect((await call(`/orders?eventId=${id}`)).orders).toHaveLength(2);
+  });
+
+  it("refuses a finance review from chat only with a note", async () => {
+    const id = await basket();
+    await stage(id, "10 kg salmon 469672");
+    await send(id);
+    await send("confirm order");
+    await send("confirm order");
+    await stage(id, "2 kg salmon 469672");
+    await send("confirm order");
+    expect((await send("confirm order")).status).toBe("approval_required");
+    token = (await call("/session", { personId: "p-sanna" })).token;
+    await call("/whatsapp/connect", {});
+    await send(id);
+    expect((await send("refuse")).text).toContain("What should I tell the order builder?");
+    expect((await send("refuse: too much salmon")).status).toBe("proposal");
+    const refused = await send("confirm refusal");
+    expect(refused.status, refused.text).toBe("updated");
+    const review = allQuestions().find((q) => q.eventId === id && q.type === "order_review")!;
+    expect(review.answer).toBe("reject");
+    expect(review.answerNote).toBe("too much salmon");
+  });
+
+  it("changes a staged line's quantity after a preview", async () => {
+    const id = await basket();
+    await stage(id, "10 kg salmon 469672");
+    await send(id);
+    const proposal = await send("change 1 to 4");
+    expect(proposal.status, proposal.text).toBe("proposal");
+    expect((await call(`/baskets/${id}`)).requests[0].lines[0].quantity).toBe(10);
+    expect((await send("confirm change")).status).toBe("updated");
+    const [request] = (await call(`/baskets/${id}`)).requests;
+    expect(request.lines[0].quantity).toBe(4);
+    expect(request.totalExVat).toBeCloseTo(request.lines[0].unitPrice * 4, 2);
+    expect((await send("change 1 to 4 kg")).text).toContain("already 4");
+    expect((await send("change 9 to 4")).text).toContain("There is no line 9");
+  });
+
+  it("creates a new order and explains the commands", async () => {
+    const created = await send("new order Emma's wedding on 17 Nov");
+    expect(created.status, created.text).toBe("updated");
+    expect(created.text).toContain("Emma's wedding");
+    expect((await call("/baskets")).baskets.some((b: any) => b.name === "Emma's wedding" && b.deliveryDate === "2026-11-17")).toBe(true);
+    const help = await send("help");
+    expect(help.text).toContain("*remove 2*");
+    expect(help.text).toContain("*approve*");
+    expect(help.text).toContain("https://junction.hewston.ie");
   });
 
   it("does not reveal a placed banquet basket to a bar-only person", async () => {

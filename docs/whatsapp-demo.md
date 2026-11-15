@@ -17,7 +17,7 @@ The person who starts pairing controls the connection and supplies the hotel's d
 
 Replies use a short question or result, blank lines, **bold** names and quantities, and _italic_ dates and status notes. Order-selection questions list each candidate once and accept its name; they omit totals, internal IDs and stock metadata. IDs are shown only when names need disambiguation. Add/remove confirmations show the affected items instead of repeating the full basket. The agent keeps its chat action available even when a long basket needs a linked detail view.
 
-App links point to the actual basket, request or approval card. Set `PUBLIC_APP_URL` in the ignored `.env.local` to the web address reachable from the group's phones. It defaults to the existing preview origin `https://aimo-copilot-j26.bestinhop23.com` (or `GATEWAY_ISSUER` when configured). Approval links include the card anchor and open that card after the approver signs into the app. No login tokens or credentials are included in links.
+App links point to the actual basket, request or approval card. Set `PUBLIC_APP_URL` in the ignored `.env.local` to the web address reachable from the group's phones. It defaults to `https://junction.hewston.ie`. Approval links include the card anchor and open that card after the approver signs into the app. No login tokens or credentials are included in links.
 
 ## Server setup
 
@@ -62,7 +62,7 @@ Use fixture mode and the demo clock before the fixture cutoffs, for example 14 N
 1. Send the basket's name or ID. If several orders fit, select one of the offered choices.
 2. Send `add 10 kg salmon 469672` for the known-stock fixture example. The existing request parser and product pipeline produce a proposal. A generic product request also works, but the selected product may have unconfirmed stock.
 3. Choose **Confirm change** to stage the reviewed items. This does not submit a supplier order.
-4. Send `remove salmon` to propose removal of an entire matching line, then confirm the change. Ambiguous matches need clarification. To reduce a quantity, remove the line and add the desired quantity.
+4. Send `remove salmon` or `remove 2` to propose removal of an entire line, then reply `confirm removal`. Send `change 2 to 15` to set line 2 to 15 sales units, then `confirm change`. `summary` numbers the lines. Ambiguous matches need clarification.
 5. Send `confirm order` to review the complete basket. Choose **Confirm final order** to submit that exact basket through the gateway. A basket inside the hotel mandate produces a mock receipt; one that needs approval produces a card in the existing app's **Waiting** view.
 
 Send `summary` to review the current basket or `cancel` to discard a pending proposal. Existing baskets can be selected by name, ID or an unambiguous delivery date. Missing order references and ambiguous product references produce a question.
@@ -71,7 +71,15 @@ Send changes for one basket at a time. Commands for all baskets, replacements, a
 
 Unknown stock stays visibly unconfirmed. A generic chat confirmation cannot accept the stock risk: make that explicit decision using the existing app flow. Other unresolved chef decisions and dietary, product, price or delivery problems must also be resolved in the app. Previously recorded stock decisions remain subject to gateway checks. Passed cutoffs cannot be approved through.
 
-Draft basket additions and whole-line removals are supported. Once a basket contains a placed mock order, chat shows its receipt and directs amendments to the app. Financial approval also stays in the app under the approver's own session.
+Chat covers what the order page does:
+
+- `new order Emma's wedding on 17 Nov` creates an empty order and selects it.
+- On a placed mock order, `remove 2` and `change 2 to 15` amend it through the gateway's amendment endpoint after a preview and a second reply. Lines past their cut-off, a change that would empty the order, and an increase on unconfirmed stock that the hotel has not accepted before are refused. An increase that needs approval raises an approver card and leaves the order unchanged.
+- `add …` on a placed order stages additions. `confirm order` then submits the complete order for finance review, like **Submit order for review**.
+- Signed in as an approver, `approve` or `refuse: <note>` answers the open approver card, after `confirm approval` or `confirm refusal`. A finance refusal needs a note.
+- `help` lists the commands.
+
+Chef decisions on stock, products and dietary rules stay in the app.
 
 ## Interfaces
 
