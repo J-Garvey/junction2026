@@ -103,10 +103,14 @@ try {
           matches: searchMatches({ q: line.query, limit: 50 }).map((m) => ({ tier: m.tier, id: m.product.id, name: m.product.name })) }));
       }
       if (c.plan && result.response.request) {
-        const planBody = { request: { ...result.response.request, neededBy: result.response.request.neededBy ?? "2026-11-16" }, reviewing: true };
+        // A recognized but invalid date must stay unresolved; the selected-basket
+        // fixture fills only genuinely absent dates, never a rejected date phrase.
+        const parsedDate = result.response.request.neededBy;
+        const explicitDateText = result.response.request.neededByText;
+        const planBody = { request: { ...result.response.request, neededBy: parsedDate ?? (explicitDateText ? null : "2026-11-16") }, reviewing: true };
         const planning = await call("/requests", planBody);
         result.response.planRequest = { method: "POST", path: "/api/requests", body: planBody,
-          dateSource: result.response.request.neededBy ? "preserved parsed request date" : "explicit selected-basket fixture date" };
+          dateSource: parsedDate ? "preserved parsed request date" : explicitDateText ? "preserved unresolved explicit date" : "explicit selected-basket fixture date" };
         result.response.planResponse = planning;
       }
     }
