@@ -26,7 +26,7 @@ import { newId } from "../util.js";
 import { MenuBody, menuRequest, saveMenu, scaleMenu } from "../agent/menu.js";
 import { listRemembered } from "../agent/memory.js";
 import { seedReset, OUTLETS, OUTSIDE_AGENT_TOKEN, VALIO_VIEWER_TOKEN } from "../seed.js";
-import { gw } from "../agent/gatewayClient.js";
+import { gw, GatewayError } from "../agent/gatewayClient.js";
 import { dataMode } from "../aimo/lookup.js";
 import { config } from "../config.js";
 import { modelConfigured, modelName } from "../agent/openai.js";
@@ -544,5 +544,10 @@ export function appErrors(err: unknown, _req: Request, res: Response, next: Next
   if (err instanceof BasketReviewError) return res.status(err.status).json({ error: "basket_review", message: err.message });
   if (err instanceof EditConflict) return res.status(409).json({ error: "edit_conflict", message: err.message, current: err.current });
   if (err instanceof z.ZodError) return res.status(422).json({ error: "invalid", message: err.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") });
+  // Valio Aimo's API couldn't answer (rate limited or down): say so, never a bare 500 "internal".
+  if (err instanceof GatewayError && err.status >= 500) {
+    if (err.body?.retryAfter !== undefined) res.setHeader("Retry-After", String(err.body.retryAfter));
+    return res.status(503).json({ error: err.body?.error ?? "upstream_unavailable", message: err.body?.message ?? "Valio Aimo's API couldn't answer. Nothing has been ordered. Try again in a minute.", ...(err.body?.retryAfter !== undefined ? { retryAfter: err.body.retryAfter } : {}) });
+  }
   next(err);
 }

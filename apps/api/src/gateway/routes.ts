@@ -8,7 +8,7 @@ import { AmendmentBody, ApprovalBody, LookupBody, OrderCreateBody, ProductSearch
 import { resolveToken, tokenFrom, type Identity } from "../identity.js";
 import { searchPage, getProduct } from "../catalog.js";
 import { lookup, UpstreamError } from "../aimo/lookup.js";
-import { amendOrder, createApproval, createQuote, getMandate, getOrder, getQuote, GatewayRefusal, listOrders, placeOrder } from "./service.js";
+import { amendOrder, createApproval, createQuote, getMandate, getOrder, getQuote, GatewayRefusal, listOrders, placeOrder, upstreamRefusal } from "./service.js";
 import { auditView, verifyChain } from "../audit.js";
 import { buildOpenApi } from "./openapi.js";
 import { brandProfile, ExternalUnavailable } from "../external/contextdev.js";
@@ -84,7 +84,7 @@ export function gatewayRouter(): Router {
       const out = await lookup(b.productIds, b.requestedDate);
       res.json(out);
     } catch (e) {
-      if (e instanceof UpstreamError) throw new GatewayRefusal(503, { error: "upstream_unavailable", message: e.message });
+      if (e instanceof UpstreamError) throw upstreamRefusal(e, "Can't check prices and stock right now. Nothing has been ordered. ");
       throw e;
     }
   });
@@ -128,7 +128,10 @@ export function gatewayRouter(): Router {
 }
 
 export function gatewayErrors(err: unknown, _req: Request, res: Response, next: NextFunction) {
-  if (err instanceof GatewayRefusal) return res.status(err.status).json(err.body);
+  if (err instanceof GatewayRefusal) {
+    if (err.body.retryAfter !== undefined) res.setHeader("Retry-After", String(err.body.retryAfter));
+    return res.status(err.status).json(err.body);
+  }
   if (err instanceof SyntaxError) return res.status(400).json({ error: "invalid", message: "Body is not valid JSON" });
   next(err);
 }

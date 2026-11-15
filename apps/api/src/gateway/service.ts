@@ -22,6 +22,15 @@ export class GatewayRefusal extends Error {
   }
 }
 
+/**
+ * The mock couldn't answer: rate limited (after the retries) or down. Always 503, never a 500, with a
+ * message a person can act on; a rate limit says so and when to try again.
+ */
+export function upstreamRefusal(e: UpstreamError, prefix = ""): GatewayRefusal {
+  if (e.rateLimited) return new GatewayRefusal(503, { error: "upstream_rate_limited", message: `${prefix}${e.message}`, ...(e.retryAfterSeconds !== null ? { retryAfter: e.retryAfterSeconds } : {}) });
+  return new GatewayRefusal(503, { error: "upstream_unavailable", message: `${prefix}${e.message}` });
+}
+
 // ---------- mandate (AP-06, MANDATE-SIGN) ----------
 
 /** Approvals are valid only with a JWS this gateway signed that names the same quote, fingerprint and grants. */
@@ -174,7 +183,7 @@ async function lookupMap(ids: string[], date: string): Promise<{ map: Map<string
     const r = await lookup(ids, date);
     return { map: new Map(r.lines.map((l) => [l.productId, l])), fallback: r.fallback };
   } catch (e) {
-    if (e instanceof UpstreamError) throw new GatewayRefusal(503, { error: "upstream_unavailable", message: `Can't check prices right now. Nothing has been ordered. (${e.message})` });
+    if (e instanceof UpstreamError) throw upstreamRefusal(e, "Can't check prices right now. Nothing has been ordered. ");
     throw e;
   }
 }
