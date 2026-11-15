@@ -142,6 +142,15 @@ describe("search finds what the product is", () => {
     const ms = searchMatches({ q: "oregano shaker", limit: 50 });
     expect(ms.length).toBeGreaterThan(0);
   });
+
+  it("can expand a small first page and keeps each later page as the same ranked prefix", () => {
+    const first = searchMatches({ q: "blueberries", limit: 1 });
+    const full = searchMatches({ q: "blueberries", limit: 50 });
+    expect(full.length).toBeGreaterThan(1);
+    expect(first).toEqual(full.slice(0, 1));
+    expect(searchMatches({ q: "blueberries", limit: 5 })).toEqual(full.slice(0, 5));
+    expect(searchMatches({ q: "blueberries", limit: 25 })).toEqual(full.slice(0, 25));
+  });
 });
 
 describe("the request parser keeps the product the chef named", () => {

@@ -12,7 +12,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p .",
     "search:check": "tsx src/scripts/search-check.ts",
-    "search:audit": "tsx src/scripts/search-audit.ts"
+    "search:audit": "tsx src/scripts/search-audit.ts",
+    "latency:check": "tsx src/scripts/latency-check.ts"
   },
   "dependencies": {
     "@aimo/contracts": "workspace:*",

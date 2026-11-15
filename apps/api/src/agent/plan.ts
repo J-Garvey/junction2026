@@ -18,6 +18,7 @@ import { toBase, quantitySanity, checkSingle } from "./parse.js";
 import { buildQuestions, expireOpenQuestions, openQuestionsForPlan } from "./questions.js";
 import { recallSubstitute } from "./memory.js";
 import { basketSnapshot } from "../whatsapp/snapshot.js";
+import { forEachConcurrent } from "./concurrency.js";
 import { quantityScope, refreshItemReviews } from "./itemReview.js";
 
 export const HOTEL_ID = "hotel-aurora";
@@ -370,7 +371,8 @@ export async function runPipeline(plan: StoredPlan): Promise<StoredPlan> {
     if (r.fallback) plan.note = r.fallback;
   }
   const tRank = performance.now();
-  for (const n of needs) {
+  // Type checks can wait on the model; independent needs need not wait on each other.
+  await forEachConcurrent(needs, 4, async (n) => {
     n.rules = n.rules.filter((r) => r.ruleId === "DLV-04" || r.ruleId === "QTY-02");
     const list = lists.get(n.id)!.filter((p) => !ov.excluded.includes(`${n.id}:${p.id}`));
     await rankNeed(n, list, pool, { lockedOk: ov.stockBlind, deliveryDays: m.deliveryDays, holidays: m.holidays });
@@ -379,7 +381,7 @@ export async function runPipeline(plan: StoredPlan): Promise<StoredPlan> {
     // An alternative the person picked goes first, so it fills the line.
     const pick = n.candidates.find((c) => (ov.chosen ?? []).includes(`${n.id}:${c.productId}`));
     if (pick) n.candidates = [pick, ...n.candidates.filter((c) => c !== pick)];
-  }
+  });
   plan.needs = needs;
   // One date for the whole plan: the latest of the needs' earliest dates, so every late need fits.
   const late = needs.filter((n) => n.rules.some((r) => r.ruleId === "DLV-06"));
