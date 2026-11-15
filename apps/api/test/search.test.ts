@@ -222,11 +222,15 @@ describe("products already selected into a basket", () => {
     expect(matchesSelectedProducts([oregano], [lineFor(oregano.id, productId)])).toBe(false);
   });
 
-  it("requires a real product, a valid request link and passing dietary declarations", () => {
+  it("requires a real product, a valid request link and passing hard dietary rules", () => {
     const need = needFor("monster");
     expect(matchesSelectedProducts([need], [lineFor(need.id, "999999")])).toBe(false);
     expect(matchesSelectedProducts([need], [lineFor("missing-need", "477529")])).toBe(false);
     const allergy = { ...need, constraints: { ...need.constraints, avoidAllergens: ["AF"] } };
-    expect(matchesSelectedProducts([allergy], [lineFor(need.id, "477529")])).toBe(false);
+    // D35 retains a selected product with missing data for the separate chef
+    // question; selection matching itself never authorizes an order.
+    expect(matchesSelectedProducts([allergy], [lineFor(need.id, "477529")])).toBe(true);
+    const fish = { ...needFor("salmon"), constraints: allergy.constraints };
+    expect(matchesSelectedProducts([fish], [lineFor(fish.id, "469672")])).toBe(false);
   });
 });

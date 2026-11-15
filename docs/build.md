@@ -143,7 +143,7 @@ What a full run gives (`pnpm test`, and by hand on the preview):
 
 Where the build differs from the demo plan, by rule:
 
-- **The potatoes also stop on Onni's allergy.** Product 460541 has no allergen declaration, and the approval rules say a missing declaration is never safe for an allergy. Aino gives Onni another side. The team can pick a potato product with a declaration, or decide fresh single-ingredient produce is exempt.
+- **The potatoes keep a missing-data concern (D35).** Product 460541 stays in the wedding seed. Aino is asked explicitly about tree nuts and the affected guest and can continue or pick another product. Continuing keeps **allergen data not confirmed** on the event, order, result summary and hotel audit. A change to the relevant guest scope, quantity or quote terms requires another chef decision. Contains, may-contain, explicit UNDECLARED and diet failures stay blocked. See [the D35 interface and checks](missing-allergen-data.md).
 - **The replacement cake is the agent's top pick, not fixed to 473522.** The card offers the best two that declare themselves free from tree nuts and are cakes (today: Fazer gluten-free caramel cake first). So totals after the change differ from the plan by a few euros.
 - **The coffee case overshoots** (4.4 kg for 1.8 kg, over 10% and €25), so Sanna's first card also names it.
 

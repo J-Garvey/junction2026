@@ -84,9 +84,9 @@ describe("campaign regressions: hard constraint retention", () => {
     expect(rulesParse(text).lines[0].quantity).toBeNull();
   });
 
-  it("still blocks missing allergen declarations after extracting nut avoidance", () => {
+  it("retains nut avoidance and asks the chef about missing declarations under D35", () => {
     const constraints = rulesParse("10 l milk without nuts").lines[0].constraints;
-    expect(dietRules(getProduct("460643")!, constraints, "request")).toContainEqual(expect.objectContaining({ ruleId: "ALG-03", outcome: "block" }));
+    expect(dietRules(getProduct("460643")!, constraints, "request")).toContainEqual(expect.objectContaining({ ruleId: "ALG-03", outcome: "ask_chef" }));
   });
 
   it("retains a global nut restriction even after a delivery date", () => {

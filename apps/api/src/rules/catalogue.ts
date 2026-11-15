@@ -34,7 +34,8 @@ const R = (id: string, area: string, outcome: Outcome, hard: boolean, trigger: s
 const LABELS: Record<string, string> = {
   "ALG-01": "Contains allergen",
   "ALG-02": "May contain allergen",
-  "ALG-03": "No allergen data",
+  "ALG-03": "Allergen data not confirmed",
+  "ALG-04": "Allergen undeclared",
   "ALG-10": "Allergy conflict",
   "DIET-01": "Diet not met",
   "DIET-02": "Claim contradicts",
@@ -90,10 +91,11 @@ const LABELS: Record<string, string> = {
 };
 
 export const RULES: RuleDef[] = [
-  // Allergens: block, always
+  // Declared allergen conflicts block; missing declarations require the chef's D35 decision.
   R("ALG-01", "Allergens", "block", true, "Product contains an allergen the line must avoid", "{product} contains {allergen}, which {group} must avoid."),
   R("ALG-02", "Allergens", "block", true, "Product may contain an allergen the line must avoid", "{product} may contain {allergen}, which {group} must avoid."),
-  R("ALG-03", "Allergens", "block", true, "No allergen declaration on a line with an allergy", "{product} has no allergen declaration, so it can't be confirmed safe for {group}."),
+  R("ALG-03", "Allergens", "ask_chef", false, "No allergen declaration on a line with an allergy (D35)", "{product}: allergen data not confirmed for {allergen}. The chef must decide whether to continue; this does not confirm safety for {group}."),
+  R("ALG-04", "Allergens", "block", true, "Product explicitly lists a requested allergen as UNDECLARED (Q02.3)", "{product} lists {allergen} as UNDECLARED, which does not meet the allergy requirements for {group}."),
   R("ALG-10", "Allergens", "block", true, "A new allergy makes an ordered line unsafe (D28)", "{product} contains {allergen}. {count} guests at {event} must avoid it. This line is still in the order."),
   // Diets
   R("DIET-01", "Diets", "block", true, "Product lacks a required diet claim and its declaration can't confirm it", "{product} has no {claim} claim, and its allergen declaration can't confirm it."),

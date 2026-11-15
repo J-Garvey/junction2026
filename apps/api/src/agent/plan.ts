@@ -4,7 +4,7 @@
  * questions or an order inside the mandate. Re-planning is deterministic, so an
  * answer is applied by recording an override and running the pipeline again.
  */
-import type { Constraints, EventSpec, FiredRule, Mandate, Need, Plan, PlanLine, Question, Quote, SingleRequest, BaseUnit, Candidate } from "@aimo/contracts";
+import type { AllergenAcknowledgement, Constraints, EventSpec, FiredRule, Mandate, Need, Plan, PlanLine, Question, Quote, SingleRequest, BaseUnit, Candidate } from "@aimo/contracts";
 import { carbonEstimateKg } from "@aimo/contracts";
 import { getDb, getJson, allJson, kvGet } from "../db.js";
 import { now, nowIso } from "../clock.js";
@@ -16,11 +16,12 @@ import { newId, round2, eur, fmtHelsinki, isoDate } from "../util.js";
 import { gw, GatewayError } from "./gatewayClient.js";
 import { shortlist, rankNeed, packRound, verdictOf, type Pool } from "./match.js";
 import { toBase, quantitySanity, checkSingle } from "./parse.js";
-import { buildQuestions, expireOpenQuestions, openQuestionsForPlan } from "./questions.js";
+import { buildAllergenQuestions, buildQuestions, expireOpenQuestions, openQuestionsForPlan } from "./questions.js";
 import { recallSubstitute } from "./memory.js";
 import { basketSnapshot } from "../whatsapp/snapshot.js";
 import { forEachConcurrent } from "./concurrency.js";
 import { quantityScope, refreshItemReviews } from "./itemReview.js";
+import { applyAllergenAcknowledgements, constraintsForLine, lineAllergenScope } from "./allergenData.js";
 import { HOTEL_ID, mandate } from "./mandate.js";
 
 export { HOTEL_ID, mandate } from "./mandate.js";
@@ -39,6 +40,7 @@ export type Overrides = {
   accepted?: boolean; // single request: the person approved adding the proposed products to the quote
   chosen?: string[]; // "needId:productId" the person picked from the alternatives
   salesQuantities?: { needId: string; productId: string; scope: string; quantity: number }[];
+  allergenAcknowledgements?: AllergenAcknowledgement[];
 };
 export type StoredPlan = Plan & {
   overrides: Overrides; event?: EventSpec | null; questionsAnswered: number;
@@ -93,18 +95,20 @@ function emptyNeed(partial: Partial<Need> & Pick<Need, "id" | "label" | "text" |
   };
 }
 
-export function needsFromSingle(r: SingleRequest): Need[] {
+export function needsFromSingle(r: SingleRequest, event?: EventSpec | null): Need[] {
   return r.lines
     .filter((l) => l.quantity && l.quantity.amount > 0)
     .map((l) => {
       const base = toBase(l.quantity!);
       const claims = l.constraints.claims.map((c) => CLAIM_LABEL[c] ?? c);
+      const affected = event?.dietGroups.filter((g) => l.constraints.avoidAllergens.length && g.constraints.avoidAllergens.some((code) => l.constraints.avoidAllergens.includes(code)));
       return emptyNeed({
         id: l.id,
         label: `${base.value} ${base.unit} ${[...claims, l.productType ?? l.query].join(" ")}`,
         text: l.text,
         groupId: "request",
         groupLabel: claims.length ? `${claims.join(", ")} request` : "this request",
+        guests: affected?.length ? affected.reduce((sum, g) => sum + g.count, 0) : null,
         outletId: r.outletId,
         amount: base,
         constraints: l.constraints,
@@ -183,7 +187,9 @@ const lineKey = (productId: string, outletId: string) => `${productId}|${outletI
 
 function candidateRules(c: Candidate, need: Need): FiredRule[] {
   const p = getProduct(c.productId)!;
-  return [...c.notes, ...reliabilityRules(p)];
+  // A combined SKU can serve regular and allergic guests. Retain each need's
+  // own declarations instead of reusing the unrestricted candidate's notes.
+  return [...(need.candidates.find((candidate) => candidate.productId === c.productId)?.notes ?? c.notes), ...reliabilityRules(p)];
 }
 
 /**
@@ -342,8 +348,9 @@ export async function runPipeline(plan: StoredPlan): Promise<StoredPlan> {
   const m = mandate();
   const ov = plan.overrides;
   let needs: Need[];
+  if (plan.event && plan.eventId) plan.event = getJson<EventSpec>("events", plan.eventId) ?? plan.event;
   if (plan.kind === "single") {
-    needs = needsFromSingle(plan.request!);
+    needs = needsFromSingle(plan.request!, plan.event);
   } else {
     const e = plan.event!;
     needs = needsFromEvent(e, m, ov.removedNeeds);
@@ -484,15 +491,6 @@ export async function quoteAndDecide(plan: StoredPlan, personToken?: string): Pr
     savePlan(plan);
     return plan;
   }
-  const requiresFor = (l: PlanLine): Constraints => {
-    const ns = plan.needs.filter((n) => l.needIds.includes(n.id));
-    return {
-      claims: [...new Set(ns.flatMap((n) => n.constraints.claims))],
-      avoidAllergens: [...new Set(ns.flatMap((n) => n.constraints.avoidAllergens))],
-      labels: [...new Set(ns.flatMap((n) => n.constraints.labels))],
-      ...(ns.find((n) => n.constraints.origin) ? { origin: ns.find((n) => n.constraints.origin)!.constraints.origin } : {}),
-    };
-  };
   let quote: Quote;
   const tQuote = performance.now();
   const recordQuoteTiming = () => {
@@ -503,7 +501,7 @@ export async function quoteAndDecide(plan: StoredPlan, personToken?: string): Pr
       siteId: plan.siteId,
       deliveryDate: plan.deliveryDate!,
       eventId: plan.eventId ?? undefined,
-      lines: orderable.map((l) => ({ productId: l.productId!, quantity: l.quantity, outletId: l.outletId, ref: l.id, requires: requiresFor(l) })),
+      lines: orderable.map((l) => ({ productId: l.productId!, quantity: l.quantity, outletId: l.outletId, ref: l.id, requires: constraintsForLine(plan, l), allergenScope: lineAllergenScope(plan, l) })),
     });
   } catch (e) {
     recordQuoteTiming();
@@ -544,6 +542,7 @@ export async function quoteAndDecide(plan: StoredPlan, personToken?: string): Pr
     Object.assign(l, verdictOf(l, plan.urgent));
   }
   for (const r of quote.mandateCheck.rules) if (!plan.inputRules.some((x) => x.ruleId === r.ruleId)) plan.inputRules.push(r);
+  applyAllergenAcknowledgements(plan, quote);
   if (quote.outcome === "block") {
     plan.status = "blocked";
     plan.summary = "Blocked";
@@ -554,7 +553,8 @@ export async function quoteAndDecide(plan: StoredPlan, personToken?: string): Pr
   if (plan.kind === "single" && !plan.overrides.accepted) {
     plan.status = "waiting";
     plan.proposal = true;
-    plan.summary = "Ready to add to the quote";
+    plan.summary = `Ready to add to the quote${plan.lines.some((l) => l.rules.some((r) => r.ruleId === "ALG-03")) ? " · allergen data not confirmed" : ""}`;
+    plan.questionIds = buildAllergenQuestions(plan, quote).map((q) => q.id);
     savePlan(plan);
     return plan;
   }
@@ -566,6 +566,7 @@ export async function quoteAndDecide(plan: StoredPlan, personToken?: string): Pr
   }
   plan.status = "waiting";
   plan.summary = `Waiting · ${questions.length} question${questions.length > 1 ? "s" : ""}`;
+  if (plan.lines.some((l) => l.rules.some((r) => r.ruleId === "ALG-03"))) plan.summary += " · allergen data not confirmed";
   savePlan(plan);
   return plan;
 }
@@ -581,7 +582,7 @@ export async function placeFromPlan(plan: StoredPlan, approvalId: string | undef
   }
   try {
     const continued = [...new Set(plan.lines.filter((l) => l.productId && l.stock?.kind === "unknown" && (plan.overrides.stockContinued ?? []).includes(l.productId)).map((l) => l.productId!))];
-    const o = await gw.order(plan.quoteId!, plan.idemKey, approvalId, continued, undefined, plan.overrides.builderConsentId);
+    const o = await gw.order(plan.quoteId!, plan.idemKey, approvalId, continued, undefined, plan.overrides.builderConsentId, plan.overrides.allergenAcknowledgements?.map((a) => a.token));
     plan.orderIds = [...new Set([...plan.orderIds, o.id])];
     for (const id of plan.basketCheckout?.sourcePlanIds ?? []) {
       const source = getPlan(id);
@@ -600,9 +601,11 @@ export async function placeFromPlan(plan: StoredPlan, approvalId: string | undef
         l.riskAccepted = ol.riskAccepted;
         l.status = "covered_at_risk";
       }
+      l.allergenDataAcknowledgement = ol?.allergenDataAcknowledgement;
     }
     const atRisk = plan.lines.filter((l) => l.riskAccepted).length;
     plan.summary = `Ordered · ${eur(o.totalExVat)}${atRisk ? ` · ${atRisk} at risk` : ""}${plan.shortfall && plan.overrides.keepShort ? ` · ${plan.shortfall.covered} of ${plan.shortfall.need} ${plan.shortfall.unit}` : ""}`;
+    if (plan.lines.some((l) => l.allergenDataAcknowledgement)) plan.summary += " · allergen data not confirmed";
     if (plan.overrides.keepShort && plan.shortfall) plan.status = "kept_short";
   } catch (e) {
     if (e instanceof GatewayError && e.body.error === "quote_stale") {

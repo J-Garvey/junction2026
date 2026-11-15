@@ -5,16 +5,28 @@
  */
 import type { Question } from "@aimo/contracts";
 import { audit } from "../audit.js";
-import { recordAnswer, openWaitingApprover, openQuestionsForPlan } from "./questions.js";
+import { getQuestion, saveQuestion, recordAnswer, openWaitingApprover, openQuestionsForPlan } from "./questions.js";
 import { getPlan, savePlan, quoteAndDecide, placeFromPlan, type StoredPlan } from "./plan.js";
 import { gw, GatewayError } from "./gatewayClient.js";
 import { rememberSubstitute } from "./memory.js";
-import { answerAllergy, answerChange, answerFinalSubstitute, personActor } from "./events.js";
+import { getEvent, answerAllergy, answerChange, answerFinalSubstitute, answerMissingAllergenReplacement, personActor } from "./events.js";
 import { nowIso } from "../clock.js";
 import type { Person } from "../identity.js";
-import { answerBasketReview } from "./baskets.js";
+import { answerBasketAllergens, answerBasketReview } from "./baskets.js";
+import { applyAllergenAcknowledgements, eventAllergenScope } from "./allergenData.js";
 
 export async function answer(qId: string, p: Person, optionId: string, token: string, note?: string) {
+  const pending = getQuestion(qId);
+  if (pending?.state === "open" && pending.type === "missing_allergen_data") {
+    const plan = getPlan(pending.planId);
+    const event = pending.eventId ? getEvent(pending.eventId) : null;
+    if ((pending.facts.eventScope && (!event || eventAllergenScope(event) !== pending.facts.eventScope)) ||
+      (pending.facts.kind === "allergen_data" && plan?.fingerprint !== pending.fingerprint)) {
+      pending.state = "replaced";
+      saveQuestion(pending);
+      return { ok: false as const, question: pending, reason: "The affected guests, products or terms changed. Review the missing allergen data again." };
+    }
+  }
   const r = recordAnswer(qId, p, optionId, note);
   if (!r.ok) return r;
   const q = r.question;
@@ -43,15 +55,26 @@ export async function answer(qId: string, p: Person, optionId: string, token: st
 async function applyAnswer(q: Question, p: Person, token: string) {
   if (q.type === "order_review") return answerBasketReview(q, p, token);
   const f = q.facts as any;
-  if (f.kind === "change" || f.kind === "change_stock") return answerChange(q, p, token);
+  if (f.kind === "basket_allergens") return answerBasketAllergens(q, p, token);
+  if (f.kind === "change" || f.kind === "change_stock" || f.kind === "change_allergens") return answerChange(q, p, token);
   if (f.kind === "allergy") return answerAllergy(q, p);
+  if (f.kind === "missing_allergen_replacement") return answerMissingAllergenReplacement(q, p);
   if (f.kind === "final_substitute") return answerFinalSubstitute(q, p);
   const plan = getPlan(q.planId);
   if (!plan) return;
   plan.questionsAnswered += 1;
   const ov = plan.overrides;
   let replan = false;
-  if (f.kind === "type") {
+  if (f.kind === "allergen_data") {
+    if (q.answer === "continue") {
+      const acknowledgement = await gw.acknowledgeAllergens(token, q.quoteId!, q.fingerprint!, f.productIds, q.outletId ?? undefined);
+      ov.allergenAcknowledgements = [...(ov.allergenAcknowledgements ?? []), acknowledgement];
+      applyAllergenAcknowledgements(plan, await gw.getQuote(q.quoteId!));
+    } else {
+      for (const l of f.lines) for (const n of l.needIds) ov.excluded.push(`${n}:${l.productId}`);
+      replan = true;
+    }
+  } else if (f.kind === "type") {
     for (const l of f.lines) for (const n of l.needIds) (q.answer === "yes" ? ov.confirmed : ov.excluded).push(`${n}:${l.productId}`);
     replan = q.answer === "no";
   } else if (f.kind === "substitute") {

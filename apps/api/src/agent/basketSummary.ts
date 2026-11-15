@@ -101,6 +101,7 @@ export function isConfirmedOrder(order: Order): boolean {
   return !!placedAt && ["placed", "amended", "checked", "locked"].includes(order.state) && validDate(order.deliveryDate) && !order.flags.length && lines.length > 0
     && lines.every((line) => line.outcome !== "block" && !!line.salesUnit && Number.isInteger(line.quantity) && line.quantity > 0
       && validDate(line.availableDate) && line.availableDate <= order.deliveryDate
+      && !line.allergenDataAcknowledgement && !line.rules?.some((r) => r.ruleId === "ALG-03")
       && line.stock.kind === "known" && Number.isFinite(line.stock.amount) && line.stock.amount >= order.lines
         .filter((other) => !other.removed && other.productId === line.productId && other.salesUnit === line.salesUnit)
         .reduce((sum, other) => sum + other.quantity, 0))

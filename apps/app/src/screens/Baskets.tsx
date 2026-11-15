@@ -5,7 +5,7 @@ import type { Order, Question } from "@aimo/contracts";
 import { api, ApiError, type BasketPlan, type BasketResp, type MessageResp, type PlanResp } from "../api";
 import { splitMine, useApp, useLoad, waitingForText } from "../ctx";
 import { OthersWaiting, QuestionCard } from "../ui/QuestionCard";
-import { Status, planStatusKind, PLAN_STATUS_TEXT } from "../ui/Status";
+import { AllergenDataMark, Status, planStatusKind, PLAN_STATUS_TEXT } from "../ui/Status";
 import { Icon } from "../ui/icons";
 import { OrderItemDialog } from "../ui/OrderItemDialog";
 import { RequestReviewDialog } from "../ui/RequestReviewDialog";
@@ -277,6 +277,7 @@ function StagedLines({ plans, submitted }: { plans: BasketPlan[]; submitted: boo
           <span className="bqty"><Pop ariaLabel={`Explain quantity for ${line.productName}`} label={`${qty(line.quantity)} ${line.salesUnit ?? ""}`}><LineCalculation line={line} /></Pop></span>
           <span style={{ flex: 1, minWidth: 0, color: "var(--ink)" }}>
             <span className="trunc">{line.productName}</span>
+            <AllergenDataMark line={line} />
             <CarbonEstimate line={line} />
           </span>
           <span className="stamp ask">{submitted ? "Awaiting finance approval" : "Ready to order"}</span>
@@ -304,6 +305,7 @@ function OrderedLines({ orders, showEmpty = true, emptyText = "Nothing ordered y
               <CarbonEstimate line={l} />
             </span>
             {l.stock.kind === "unknown" && <Status k={l.riskAccepted ? "covered_at_risk" : "unknown_stock"} />}
+            <AllergenDataMark line={l} />
             <span className="small">{eur(l.lineTotal)}</span>
           </button>
         ))}

@@ -40,7 +40,7 @@ export const ProductSearchQuery = z.object({
   q: z.string().optional().describe("What the product is, read against the English and Finnish names: 'cheese' finds cheeses, not cheesecake"),
   category: z.string().optional().describe("Category code or prefix, e.g. 10400"),
   claims: z.array(z.string()).optional().describe("Every listed claim must be present"),
-  excludeAllergens: z.array(z.string()).optional().describe("Products that contain or may contain these, or have no allergen declaration, are excluded"),
+  excludeAllergens: z.array(z.string()).optional().describe("Products that contain, may contain or explicitly list these as UNDECLARED, or have no allergen declaration, are excluded; allergen families include their members"),
   origin: z.string().optional(),
   labels: z.array(z.string()).optional(),
   limit: z.number().int().min(1).max(50).default(50),
@@ -57,6 +57,7 @@ export const Product = z.object({
   claims: z.array(z.string()),
   contains: z.array(z.string()),
   mayContain: z.array(z.string()),
+  allergenUndeclared: z.array(z.string()).optional().describe("Explicit UNDECLARED allergen codes; excluded for a requested allergy under Q02.3. Distinct from free-from and missing declarations. Optional for older product snapshots"),
   hasAllergenData: z.boolean(),
   origin: z.string().nullable(),
   labels: z.array(z.string()),
@@ -244,6 +245,7 @@ export const QuoteLineInput = z.object({
   outletId: z.string(),
   ref: z.string().optional().describe("Caller's line reference, echoed back"),
   requires: Constraints.optional().describe("Diet and allergen constraints the product must meet. No guest details are sent."),
+  allergenScope: z.string().optional().describe("Opaque hotel digest of affected guests, dishes and dietary scope. Changes invalidate a missing-data acknowledgement; never send guest details."),
 });
 
 export const QuoteCreateBody = z.object({
@@ -276,6 +278,8 @@ export const QuoteLine = z.object({
   rules: z.array(FiredRule),
   outcome: Outcome,
   requires: Constraints.optional().describe("Hard product requirements retained for rechecks and amendments"),
+  allergenScope: z.string().optional(),
+  allergenEvidence: z.string().optional().describe("Digest of the catalogue declarations checked for these terms"),
 });
 export type QuoteLine = z.infer<typeof QuoteLine>;
 
@@ -337,6 +341,20 @@ export const BuilderConsentBody = z.object({
   fingerprint: z.string(),
   productIds: z.array(z.string()).min(1),
 });
+export const AllergenAcknowledgementBody = z.object({
+  quoteId: z.string(),
+  fingerprint: z.string(),
+  productIds: z.array(z.string()).min(1),
+  outletId: z.string().min(1).optional().describe("Acknowledge only this outlet's matching lines. Omit only to review all matching outlets within the chef's scope."),
+});
+export type AllergenAcknowledgementBody = z.infer<typeof AllergenAcknowledgementBody>;
+export const AllergenAcknowledgement = z.object({
+  token: z.string(), fingerprint: z.string(), productIds: z.array(z.string()),
+  outletId: z.string().optional(),
+  personId: z.string(), by: z.string(), at: z.string(), expiresAt: z.string(),
+});
+export type AllergenAcknowledgement = z.infer<typeof AllergenAcknowledgement>;
+export const AllergenDataDecision = AllergenAcknowledgement.omit({ token: true, productIds: true, expiresAt: true });
 
 export const OrderCreateBody = z.object({
   quoteId: z.string(),
@@ -344,6 +362,7 @@ export const OrderCreateBody = z.object({
   continueWithUnconfirmedStock: z.array(z.string()).optional().describe("D31: product IDs whose stock Valio Aimo can't confirm and the hotel chose to order anyway"),
   builderConsentId: z.string().optional().describe("Server-issued chef consent for this exact quote; POST /builder-consents with the chef credential"),
   decidedBy: z.string().optional().describe("Deprecated, ignored: identity is taken only from authenticated chef consent"),
+  allergenAcknowledgements: z.array(z.string()).optional().describe("Gateway-issued chef acknowledgements for missing allergen data, bound to these exact terms. Not safety confirmation or stock acceptance."),
 });
 
 export const OrderState = z.enum(["placed", "amended", "checked", "locked", "rejected"]);
@@ -351,6 +370,7 @@ export const OrderState = z.enum(["placed", "amended", "checked", "locked", "rej
 export const OrderLine = QuoteLine.extend({
   removed: z.boolean().default(false),
   riskAccepted: z.object({ by: z.string(), at: z.string() }).nullable(),
+  allergenDataAcknowledgement: AllergenDataDecision.optional().describe("Chef continued with allergen data not confirmed; this never establishes safety"),
 });
 export type OrderLine = z.infer<typeof OrderLine>;
 
@@ -382,6 +402,8 @@ export const AmendmentBody = z.object({
         productId: z.string(),
         outletId: z.string(),
         quantity: z.number().int().nonnegative().describe("New whole sales units; 0 removes the line"),
+        requires: Constraints.optional(),
+        allergenScope: z.string().optional(),
       }),
     )
     .min(1),
@@ -390,11 +412,13 @@ export const AmendmentBody = z.object({
   continueWithUnconfirmedStock: z.array(z.string()).optional(),
   builderConsentId: z.string().optional(),
   decidedBy: z.string().optional().describe("Deprecated, ignored"),
+  allergenAcknowledgements: z.array(z.string()).optional(),
+  quoteOnly: z.boolean().optional().describe("Return rechecked amendment terms without changing the order, so the chef can review them"),
 });
 export type AmendmentBody = z.infer<typeof AmendmentBody>;
 
 export const Refusal = z.object({
-  error: z.enum(["mandate_violation", "stock_unconfirmed", "quote_stale", "cutoff_passed", "hard_rule", "idempotency_conflict", "not_found", "forbidden", "invalid", "upstream_unavailable"]),
+  error: z.enum(["mandate_violation", "stock_unconfirmed", "allergen_data_unconfirmed", "quote_stale", "cutoff_passed", "hard_rule", "idempotency_conflict", "not_found", "forbidden", "invalid", "upstream_unavailable"]),
   message: z.string(),
   rules: z.array(FiredRule).optional(),
   approvalsNeeded: z.array(z.string()).optional(),
@@ -546,6 +570,7 @@ export const QuestionType = z.enum([
   "reliability",
   "change_outside_tolerance",
   "allergy_conflict",
+  "missing_allergen_data",
   "delivery_alignment",
   "order_review",
 ]);

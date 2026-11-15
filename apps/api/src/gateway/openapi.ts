@@ -22,6 +22,7 @@ Stated assumptions about the upstream mock (see GROUND_TRUTH.md):
 - Simulated orders do not reduce upstream stock (Q08.8).
 - Prices are \`catalogPrice.value\` per sales unit, ex VAT. Orders are only created from a quote, at its fixed prices.
 - Every lookup value says whether it came from the live mock or a saved fixture.
+- Missing allergen declarations (ALG-03, D35) require the chef's own credential at \`POST /allergen-acknowledgements\`. Send its signed token in \`allergenAcknowledgements\` when ordering or amending. It is bound to the quote fingerprint, catalogue evidence and opaque hotel \`allergenScope\` (including affected guest count); a relevant edit or expiry requires a fresh chef decision. Use amendment \`quoteOnly\` to review terms without ordering. The label **allergen data not confirmed** remains. This neither establishes safety nor accepts unconfirmed stock. CONTAINS, MAY_CONTAIN, explicit UNDECLARED, contradictions and dietary failures stay blocked. Guest and diet details stay in the hotel audit.
 - The signed standing mandate's \`categoryOriginRequirements\` applies to exact catalogue category codes, in addition to every line's \`requires\`. Search filters these before the result limit; quotes, order commit and amendments block nonmatching or unknown catalogue origins with \`ORG-01\`. A recipe exception or approval cannot waive a standing origin requirement. Older mandates without this field have no category origin restriction. Demo Hotel's exact fish category scope is documented in \`docs/category-origin-policy.md\`.
 
 **Signatures.** Quotes, orders, approvals and the standing mandate carry a compact JWS (RFC 7515) signed with ES256 (ECDSA P-256), typed \`aimo-quote+jwt\`, \`aimo-order+jwt\`, \`aimo-approval+jwt\` and \`aimo-mandate+jwt\` (RFC 8725 §3.11). The payload is a JWT claim set (RFC 7519) in JCS order (RFC 8785). Verify with the public keys at \`/.well-known/jwks.json\` (RFC 7517; kid is the RFC 7638 thumbprint). No shared secret is needed.
@@ -48,6 +49,8 @@ export function buildOpenApi() {
     Quote: schema(C.Quote),
     ApprovalBody: schema(C.ApprovalBody),
     Approval: schema(C.Approval),
+    AllergenAcknowledgementBody: schema(C.AllergenAcknowledgementBody),
+    AllergenAcknowledgement: schema(C.AllergenAcknowledgement),
     OrderCreateBody: schema(C.OrderCreateBody),
     BuilderConsentBody: schema(C.BuilderConsentBody),
     Order: schema(C.Order),
@@ -72,6 +75,11 @@ export function buildOpenApi() {
     servers: [{ url: "/gateway/v1" }],
     security: [{ bearer: [] }],
     paths: {
+      "/allergen-acknowledgements": { post: {
+        operationId: "acknowledgeAllergenData", summary: "Chef only: continue with allergen data not confirmed on exact quote terms (D35). Does not establish safety or accept stock risk.",
+        requestBody: { required: true, ...json(ref("AllergenAcknowledgementBody")) },
+        responses: { "201": { description: "Signed chef acknowledgement; retained as a concern on the order", ...json(ref("AllergenAcknowledgement")) }, "403": { description: "Requires the chef's own session and outlet scope" }, ...refusals },
+      } },
       "/products": {
         get: {
           operationId: "searchProducts",

@@ -3,7 +3,7 @@
  * like any outside agent (Q08.2). It holds its own scoped agent token; an
  * approval is sent with the approving person's own session token.
  */
-import type { Approval, LookupLine, Order, Quote, QuoteCreateBody, Refusal, AmendmentBody } from "@aimo/contracts";
+import type { AllergenAcknowledgement, Approval, LookupLine, Order, Quote, QuoteCreateBody, Refusal, AmendmentBody } from "@aimo/contracts";
 import { config } from "../config.js";
 import { kvGet } from "../db.js";
 
@@ -36,9 +36,10 @@ export const gw = {
   quote: (body: QuoteCreateBody) => call<Quote>("POST", "/quotes", body),
   getQuote: (id: string) => call<Quote>("GET", `/quotes/${id}`),
   approve: (personToken: string, quoteId: string, fingerprint: string, grants: string[]) => call<Approval>("POST", "/approvals", { quoteId, fingerprint, grants }, { token: personToken }),
+  acknowledgeAllergens: (personToken: string, quoteId: string, fingerprint: string, productIds: string[], outletId?: string) => call<AllergenAcknowledgement>("POST", "/allergen-acknowledgements", { quoteId, fingerprint, productIds, outletId }, { token: personToken }),
   consent: (personToken: string, quote: Quote, productIds: string[]) => call<{ id: string }>("POST", "/builder-consents", { quoteId: quote.id, fingerprint: quote.fingerprint, productIds }, { token: personToken }),
-  order: (quoteId: string, idemKey: string, approvalId?: string, continueWithUnconfirmedStock: string[] = [], decidedBy?: string, builderConsentId?: string) =>
-    call<Order>("POST", "/orders", { quoteId, approvalId, continueWithUnconfirmedStock, builderConsentId: builderConsentId ?? undefined }, { headers: { "Idempotency-Key": idemKey } }),
+  order: (quoteId: string, idemKey: string, approvalId?: string, continueWithUnconfirmedStock: string[] = [], decidedBy?: string, builderConsentId?: string, allergenAcknowledgements?: string[]) =>
+    call<Order>("POST", "/orders", { quoteId, approvalId, continueWithUnconfirmedStock, builderConsentId: builderConsentId ?? undefined, allergenAcknowledgements }, { headers: { "Idempotency-Key": idemKey } }),
   getOrder: (id: string, token?: string) => call<Order>("GET", `/orders/${id}`, undefined, { token }),
   orders: (eventId?: string, token?: string) => call<{ orders: Order[] }>("GET", `/orders${eventId ? `?eventId=${encodeURIComponent(eventId)}` : ""}`, undefined, { token }),
   amend: (orderId: string, body: AmendmentBody) => call<{ order: Order; quote: Quote }>("POST", `/orders/${orderId}/amendments`, body),
