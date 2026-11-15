@@ -9,13 +9,18 @@ You need Node 22.13 or later and pnpm.
 ```sh
 pnpm install
 pnpm --filter @aimo/app build      # the web app, served by the API
-AIMO_TEST_MODE=1 pnpm start        # explicit local demo personas; http://127.0.0.1:8787
+pnpm start:demo                   # explicit demo personas; http://127.0.0.1:8787
 ```
 
 For development, `pnpm dev` runs the API with `tsx watch` and the Vite app on port 5173.
 
+The demo login is the **Demo persona** picker. Choose a person to enter; there are no individual demo passwords. **Switch user** in the account menu returns to the picker. If `PREVIEW_PASSWORD` is configured, enter that separate password at `/login` first; demo startup preserves the preview gate.
+
+To restore the picker on an existing local or hosted synthetic demo that uses `pnpm start` or `pnpm dev`, set `AIMO_TEST_MODE=1` in that instance's ignored `.env.local` and restart its API process. `pnpm start:demo` enables it for that process on Windows, macOS and Linux without editing environment files. Normal `pnpm start` retains personal authentication unless explicitly configured for demo mode.
+
 | Command | What it does |
 |---|---|
+| `pnpm start:demo` | Starts the built app with the simulated hotel persona login enabled; keeps any configured preview password |
 | `pnpm test` | 59 tests: the live console with a scripted model, rule units, the three PRD test cases end to end (the wedding twice from a fresh reset), and signature checks |
 | `pnpm seed` | Fresh database: one hotel, four people, the mandate, the event, clock at scene 1 |
 | `pnpm seed:demo` | Populated hotel workspace: seven bookings, a signed order, pending finance/stock decisions, a returned review, an allergen block and draft menus. See [demo seed data](demo-seed-data.md) |
@@ -38,7 +43,7 @@ The server reads the environment, then the untracked `.env.local`, then the trac
 | `PORT` | `8787` | |
 | `AIMO_DB` | `apps/api/var/aimo.db` | SQLite file; `:memory:` for tests |
 | `CONTEXT_DEV_API_KEY` | unset | Supplier brand profiles from context.dev at `GET /gateway/v1/products/{id}/brand`. External web data: cached, labelled, never used by a rule |
-| `AIMO_TEST_MODE` | disabled | Set exactly `1` only for the local synthetic demo: permits clearly marked persona switching and live demo cards. `0` or unset disables impersonation and rejects old demo sessions |
+| `AIMO_TEST_MODE` | disabled | Set exactly `1` for a trusted synthetic demo: permits clearly marked persona switching and live demo cards. `pnpm start:demo` sets it for that process. With ordinary startup, `0` or unset disables impersonation and rejects old demo sessions |
 | `PREVIEW_PASSWORD` | unset | Turns on the preview gate: browsers sign in at `/login`, scripts send `X-Preview-Password`. `/healthz` stays open |
 
 ## The live console (the demo screen)

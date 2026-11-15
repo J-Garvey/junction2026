@@ -25,6 +25,33 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("app shell", () => {
+  it("lets a demo visitor enter as the chef and switch to finance without a password", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.me).mockRejectedValue(new Error("Choose a demo persona"));
+    vi.mocked(api.status).mockResolvedValue({ ...status, testMode: true });
+    const session = vi.spyOn(api, "session").mockImplementation(async (id) => ({ person: id === manager.id ? manager : chef }));
+    render(<MemoryRouter><App /></MemoryRouter>);
+
+    await screen.findByRole("heading", { name: "Demo persona" });
+    await user.click(await screen.findByRole("button", { name: /Aino/ }));
+    expect(session).toHaveBeenCalledWith(chef.id);
+    await user.click(await screen.findByRole("button", { name: "Signed in as Aino" }));
+    await user.click(screen.getByRole("menuitem", { name: "Switch user" }));
+    await user.click(await screen.findByRole("button", { name: /Sanna/ }));
+    expect(session).toHaveBeenCalledWith(manager.id);
+    await screen.findByLabelText("Finance overview");
+    expect(screen.getByRole("button", { name: "Signed in as Sanna" })).toBeTruthy();
+  });
+
+  it("keeps demo persona login disabled during ordinary authenticated startup", async () => {
+    vi.mocked(api.me).mockRejectedValue(new Error("Authentication required"));
+    vi.mocked(api.status).mockResolvedValue({ ...status, testMode: false });
+    render(<MemoryRouter><App /></MemoryRouter>);
+    await screen.findByText("Sign in with your personal hotel credential. Demo persona switching is disabled.");
+    expect(screen.queryByRole("heading", { name: "Demo persona" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Aino/ })).toBeNull();
+  });
+
   it("opens read-only product search through the account menu using the keyboard", async () => {
     const user = userEvent.setup();
     vi.spyOn(api, "products").mockResolvedValue({ products: [], sites: [], source: "Local catalogue" });
