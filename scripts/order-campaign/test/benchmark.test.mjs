@@ -47,6 +47,7 @@ test('report excludes chat selection and separates failed planning from complete
       { attemptId: 'a', channel: 'main', status: 200, itemCount: 1, response: { request: { lines: [{}], parsedBy: 'rules' } }, benchmark: { bucket: '1-10', pass: 0 } },
       { attemptId: 'b', channel: 'whatsapp', status: 200, response: { messages: [{ direction: 'outbound', reply: { status: 'proposal' } }] }, related: [{ purpose: 'select-active-order', callId: 'select' }], benchmark: { bucket: '1-10', pass: 0 } },
       { attemptId: 'c', channel: 'main', status: null, error: { message: 'support /api/reset HTTP null' }, benchmark: { bucket: '100', pass: 0 } },
+      { attemptId: 'd', channel: 'main', status: 200, response: { request: { lines: [{}], parsedBy: 'openai' } }, benchmark: { bucket: 'model-smoke', pass: 0 } },
     ];
     writeFileSync(join(dir, 'raw-observations.jsonl'), raw.map(JSON.stringify).join('\n'));
     writeFileSync(join(dir, 'requests.jsonl'), rows.map(JSON.stringify).join('\n'));
@@ -58,6 +59,7 @@ test('report excludes chat selection and separates failed planning from complete
     assert.equal(report.aggregate[1].timings.firstByteMs.p50Ms, 6);
     assert.equal(report.aggregate[2].stratum[4], 'support-error');
     assert.equal(report.aggregate[2].timings.usefulMs.n, 0);
+    assert.equal(report.aggregate[3].stratum[4], 'parsed-count-not-scored');
     assert.ok(report.aggregate.every(g => g.timings.usefulMs.p95Ms === null));
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });

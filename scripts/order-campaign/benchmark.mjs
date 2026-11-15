@@ -85,8 +85,9 @@ export async function summarize(dir) {
     const reply = row.response?.messages?.findLast(m => m.direction === 'outbound')?.reply;
     const planCall = calls.find(r => r.path === '/api/requests');
     const limit = row.status >= 400 && row.status < 500;
+    const parseOutcome = !parsed ? 'no-parsed-request' : !Number.isSafeInteger(row.itemCount) ? 'parsed-count-not-scored' : parsed.lines.length === row.itemCount ? 'parsed-line-count-complete' : 'parsed-line-count-mismatch';
     const outcome = row.unsupported ? 'unsupported' : row.error?.message?.startsWith('support ') ? 'support-error' : limit ? 'http-client-rejection' : row.status === null || row.status >= 500 ? 'http-error' :
-      row.channel === 'main' ? parsed ? parsed.lines.length === row.itemCount ? `parsed-line-count-complete${planCall?.status >= 400 || planCall?.status === null ? '-plan-http-error' : ''}` : 'parsed-line-count-mismatch' : 'no-parsed-request' : `simulator-${reply?.status ?? row.response?.status ?? 'response'}`;
+      row.channel === 'main' ? `${parseOutcome}${planCall?.status >= 400 || planCall?.status === null ? '-plan-http-error' : ''}` : `simulator-${reply?.status ?? row.response?.status ?? 'response'}`;
     const key = JSON.stringify([row.benchmark?.bucket, row.benchmark?.pass, row.benchmark?.shape, row.channel, outcome]);
     if (!groups.has(key)) groups.set(key, { stratum: JSON.parse(key), rows: [] });
     const models = (row.telemetry || []).filter(t => t.kind === 'model');
