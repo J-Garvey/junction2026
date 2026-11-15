@@ -5,6 +5,7 @@
  * rephrase them.
  */
 import type { FiredRule, Outcome } from "@aimo/contracts";
+import { CONTROLS, chosenOutcome, policyParams } from "./policy.js";
 
 export type RuleDef = {
   id: string;
@@ -157,7 +158,7 @@ export const RULES: RuleDef[] = [
   // Final check and silence
   R("FIN-01", "Final check", "order", false, "Final check passed", "{product}: stock, delivery date, price and cut-off rechecked."),
   R("FIN-02", "Final check", "ask_chef", false, "Short at the final check", "{product}: {stock} in stock, {quantity} ordered. Answer by {cutoff}."),
-  R("SIL-01", "Silence", "order", false, "Unanswered at the cut-off: order stays as last approved (D9)", "Nobody answered by {cutoff}. The line stays as last approved and Valio Aimo has been told."),
+  R("SIL-01", "Silence", "order", false, "Unanswered at the cut-off: order stays as last approved (D9)", "Nobody answered by {cutoff}. The line stays as last approved{told}."),
 ];
 
 export const RULE_INDEX = new Map(RULES.map((r) => [r.id, r]));
@@ -170,7 +171,22 @@ export function fill(template: string, facts: Record<string, unknown>): string {
 export function fire(id: string, facts: Record<string, unknown>): FiredRule {
   const def = RULE_INDEX.get(id);
   if (!def) throw new Error(`Unknown rule ${id}`);
-  return { ruleId: id, label: def.label, outcome: def.outcome, message: fill(def.template, facts), facts, overridable: !def.hard };
+  const outcome = outcomeOf(id);
+  // A hotel that turns a rule into a question can answer it; a block never can.
+  const overridable = outcome !== "block" && (!def.hard || outcome !== def.outcome);
+  return { ruleId: id, label: def.label, outcome, message: fill(def.template, facts), facts, overridable };
+}
+
+/** The outcome this hotel set for a rule (RULE-POLICY), else the catalogue default. */
+export function outcomeOf(id: string): Outcome {
+  const def = RULE_INDEX.get(id);
+  if (!def) throw new Error(`Unknown rule ${id}`);
+  return chosenOutcome(id, def.outcome);
+}
+
+/** The catalogue as the hotel has set it: each rule's current outcome, its default and its controls. */
+export function rulesView() {
+  return RULES.map((r) => ({ ...r, outcome: outcomeOf(r.id), defaultOutcome: r.outcome, control: CONTROLS[r.id] ?? { choices: [r.outcome] } }));
 }
 
 const RANK: Record<Outcome, number> = { order: 0, ask_approver: 1, ask_chef: 2, block: 3 };
@@ -184,17 +200,18 @@ export function resolveOutcome(rules: FiredRule[]): Outcome {
 
 /** Hotel parameters vs product-fixed ones (Q05.10). */
 export const FIXED = {
-  decisionFact: 0.9,
-  decisionReject: 0.1,
-  reliabilityAmber: 0.95,
-  reliabilityAsk: 0.8,
-  urgentDays: 4,
+  // Hotel-tunable thresholds (RULE-POLICY): read live, so a change applies to the next check.
+  get decisionFact() { return policyParams().typeYesMin; },
+  get decisionReject() { return policyParams().typeNoMax; },
+  get reliabilityAmber() { return policyParams().reliabilityAmber; },
+  get reliabilityAsk() { return policyParams().reliabilityAsk; },
+  get urgentDays() { return policyParams().urgentDays; },
+  get packDisagreePct() { return policyParams().packDisagreePct; },
+  get perGuestMax() { return policyParams().perGuestMaxKg; }, // kg or L
+  get perGuestMin() { return policyParams().perGuestMinG / 1000; },
   finalCheckHoursBefore: 24,
   quoteMaxHours: 24,
   searchLimit: 50,
   candidatesShown: 3,
   lookupBatch: 1000,
-  packDisagreePct: 5,
-  perGuestMax: 1, // kg or L
-  perGuestMin: 0.001,
 };

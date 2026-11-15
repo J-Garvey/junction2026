@@ -204,13 +204,15 @@ export function mandateRules(m: Mandate, totalExVat: number, productIds: { id: s
   const needed: string[] = [];
   if (!m.sites.some((s) => s.id === siteId)) rules.push(fire("DLV-05", { site: siteId }));
   if (totalExVat > m.spendCapEur) {
-    rules.push(fire("MAN-01", { total: eur(totalExVat), cap: eur(m.spendCapEur) }));
-    needed.push("spend_cap");
+    const r = fire("MAN-01", { total: eur(totalExVat), cap: eur(m.spendCapEur) });
+    rules.push(r);
+    if (r.outcome !== "block") needed.push("spend_cap");
   }
   for (const p of productIds)
     if (m.blockedProducts.includes(p.id)) {
-      rules.push(fire("MAN-02", { product: p.name, productId: p.id }));
-      if (!needed.includes("blocked_product")) needed.push("blocked_product");
+      const r = fire("MAN-02", { product: p.name, productId: p.id });
+      rules.push(r);
+      if (r.outcome !== "block" && !needed.includes("blocked_product")) needed.push("blocked_product");
     }
   return { rules, approvalsNeeded: needed };
 }
