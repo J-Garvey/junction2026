@@ -11,6 +11,7 @@ import { fire } from "../rules/catalogue.js";
 import { isoDate } from "../util.js";
 import { structured, ModelUnavailable } from "./openai.js";
 import { headIndex, isLiteralProductQuery, queryTerms, QUERY_FORMS } from "../search.js";
+import { z } from "zod";
 
 /** Known product words: the type asked for and a category hint (CATEGORY-HINT, deterministic tier). */
 export const PRODUCT_WORDS: { re: RegExp; word: string; type: string | null; category: string | null }[] = [
@@ -55,9 +56,39 @@ const CLAIM_WORDS: [RegExp, string][] = [
 
 const UNIT_MAP: Record<string, Unit> = { l: "l", litre: "l", litres: "l", liter: "l", liters: "l", ltr: "l", kg: "kg", kilo: "kg", kilos: "kg", g: "g", gram: "g", grams: "g", ml: "ml", dl: "dl", pcs: "pcs", pieces: "pcs", piece: "pcs", pc: "pcs" };
 
-const UNIT_AMOUNT = /(\d[\d\s]*(?:[.,]\d+)?)\s*(litres?|liters?|ltr|l|kg|kilos?|grams?|g|ml|dl|pcs|pieces?|pc)\b/;
+const NUMBER = "[+-]?(?:\\d+(?:[.,]\\d+)?|[.,]\\d+)";
+const UNIT_AMOUNT = new RegExp(`(?<![\\d.,])(${NUMBER})\\s*(litres?|liters?|ltr|l|kg|kilos?|grams?|g|ml|dl|pcs|pieces?|pc)\\b`);
 /** A number on its own, with an optional "x" either side; not a 6-digit product code or a day of the month. */
-const BARE_COUNT = /(?:\bx\s*)?(?<![\d.,/-])(\d{1,5}(?:[.,]\d+)?)(?![\d.,/-])(?!\s*(?:\.|st|nd|rd|th)?\s*(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec))(?:\s*x\b)?/;
+const BARE_COUNT = /(?:\bx\s*)?(?<![\d.,/-])([+-]?(?:\d{1,5}(?:[.,]\d+)?|[.,]\d+))(?![\d.,/-])(?!\s*(?:\.|st|nd|rd|th)?\s*(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec))(?:\s*x\b)?/;
+
+/** Consume complete groups only, without joining separate lines or decimal commas. */
+const normalizeNumbers = (text: string) => text.replace(/\b\d{1,3}(?:[, \u00a0]\d{3})+(?!\d)/g, (s) => s.replace(/[, \u00a0]/g, ""));
+const LIST_SEPARATOR = /\s*(?:,(?!\d)|\band\b|\+|;|\r?\n)\s*/i;
+const DATE_WORD = "(?:mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?|today|tomorrow|20\\d\\d-\\d\\d-\\d\\d)";
+
+/** Only explicit countries are facts; a brand or missing origin proves nothing. */
+function restrictions(text: string) {
+  let rest = text;
+  const claims = CLAIM_WORDS.filter(([re]) => re.test(text)).map(([, claim]) => claim);
+  rest = rest.replace(/\b(?:lactose[- ]?free|laktoositon|gluten[- ]?free|gluteeniton|vegan|milk[- ]?free|maidoton)\b/g, " ");
+  const avoidAllergens: string[] = [];
+  const allergens: [string, string[]][] = [
+    ["(?:tree[- ]?)?nuts?", ["AN", "AP"]], ["peanuts?", ["AP"]], ["almonds?", ["SA"]],
+    ["milk|dairy", ["AM"]], ["eggs?", ["AE"]], ["soy|soya", ["AY"]], ["sesame", ["AS"]],
+    ["fish", ["AF"]], ["shellfish", ["UN", "AC", "UM"]], ["wheat", ["UW"]], ["gluten", ["AW"]],
+  ];
+  for (const [word, codes] of allergens) {
+    rest = rest.replace(new RegExp(`\\b(?:${word})[- ]free\\b|\\b(?:without|no)\\s+(?:${word})\\b`, "g"), () => {
+      avoidAllergens.push(...codes);
+      return " ";
+    });
+  }
+  const origins = new Set<string>();
+  for (const [word, code] of [["finnish|from finland|suomalainen|kotimainen", "fi"], ["swedish|from sweden", "se"], ["norwegian|from norway", "no"]]) {
+    rest = rest.replace(new RegExp(`\\b(?:${word})\\b`, "g"), () => { origins.add(code); return " "; });
+  }
+  return { rest, claims, avoidAllergens: [...new Set(avoidAllergens)], origin: [...origins][0], conflictingOrigin: origins.size > 1 };
+}
 
 const DAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 
@@ -99,10 +130,33 @@ const lineId = () => `ln${Date.now().toString(36)}${(lineSeq++).toString(36)}`;
 export function rulesParse(text: string): Omit<SingleRequest, "siteId" | "outletId"> {
   const date = resolveDate(text);
   // "1,000 litres" and "1 000 l" are thousands, not two items; "1,5 l" stays a decimal.
-  const clean = text.replace(/(\d)[,\s](\d{3})(?!\d)/g, "$1$2");
+  let clean = normalizeNumbers(text.toLowerCase());
+  let global = restrictions("");
+  const globalPrefix = clean.match(/^(?:all(?:\s+(?:items|products))?|everything)(?:\s+(?:must|should))?(?:\s+be)?\s+([^:]+):\s*/);
+  if (globalPrefix) {
+    const parsed = restrictions(globalPrefix[1]);
+    if (!parsed.rest.trim() && (parsed.claims.length || parsed.avoidAllergens.length || parsed.origin)) {
+      global = parsed;
+      clean = clean.slice(globalPrefix[0].length);
+    }
+  }
+  const globalText = clean.match(/(?:[,;]\s*|\s+)(?:all(?:\s+(?:items|products))?|everything)(?:\s+(?:must|should))?(?:\s+be)?\s+(.+)$/);
+  if (globalText) {
+    const parsed = restrictions(globalText[1]);
+    if (!parsed.rest.trim() && (parsed.claims.length || parsed.avoidAllergens.length || parsed.origin)) {
+      global = {
+        ...parsed,
+        claims: [...new Set([...global.claims, ...parsed.claims])],
+        avoidAllergens: [...new Set([...global.avoidAllergens, ...parsed.avoidAllergens])],
+        origin: parsed.origin ?? global.origin,
+        conflictingOrigin: global.conflictingOrigin || parsed.conflictingOrigin || Boolean(global.origin && parsed.origin && global.origin !== parsed.origin),
+      };
+      clean = clean.slice(0, globalText.index);
+    }
+  }
   const parts = clean
-    .replace(/\b(by|before|on|for)\s+(mon|tue|wed|thu|fri|sat|sun)[a-z]*\b.*$/i, "")
-    .split(/\s*(?:,(?!\d)|\band\b|\+|;)\s*/i)
+    .replace(new RegExp(`\\b(?:by|before|on|for)\\s+${DATE_WORD}\\b`, "gi"), "")
+    .split(LIST_SEPARATOR)
     .filter((s) => s.trim());
   const lines: SingleLine[] = [];
   for (const raw of parts) {
@@ -110,14 +164,17 @@ export function rulesParse(text: string): Omit<SingleRequest, "siteId" | "outlet
     const q = s.match(UNIT_AMOUNT);
     // A bare count ("10 cheese", "12 x birthday cakes") is pieces; no number at all is one piece.
     const count = q ? null : s.match(BARE_COUNT);
-    const quantity: Amount = q
+    const parsedQuantity: Amount = q
       ? { amount: Number(q[1].replace(/\s/g, "").replace(",", ".")), unit: UNIT_MAP[q[2]] ?? "pcs" }
       : { amount: count ? Number(count[1].replace(",", ".")) : 1, unit: "pcs" };
-    const claims = CLAIM_WORDS.filter(([re]) => re.test(s)).map(([, c]) => c);
+    const local = restrictions(s);
+    const conflictingOrigin = local.conflictingOrigin || global.conflictingOrigin || Boolean(local.origin && global.origin && local.origin !== global.origin);
+    const quantity = parsedQuantity.amount >= 0 && Number.isFinite(parsedQuantity.amount) && !conflictingOrigin ? parsedQuantity : null;
+    const claims = [...new Set([...global.claims, ...local.claims])];
     const pid = s.match(/\b(4\d{5})\b/);
-    const leftover = s
+    const leftover = local.rest
       .replace(q ? UNIT_AMOUNT : BARE_COUNT, "")
-      .replace(/lactose[- ]?free|gluten[- ]?free|vegan|milk[- ]?free|\bof\b|\bi need\b|\bwe need\b|\bplease\b|\border\b/g, "")
+      .replace(/\bof\b|\bi need\b|\bwe need\b|\bplease\b|\border\b|^\s*add\b/g, "")
       .replace(/\s+/g, " ")
       .trim();
     const pw = productWord(leftover || s);
@@ -131,7 +188,12 @@ export function rulesParse(text: string): Omit<SingleRequest, "siteId" | "outlet
       category: pw?.category ?? null,
       productId: pid?.[1] ?? null,
       quantity,
-      constraints: { claims, avoidAllergens: [], labels: [] },
+      constraints: {
+        claims,
+        avoidAllergens: [...new Set([...global.avoidAllergens, ...local.avoidAllergens])],
+        labels: [],
+        ...(local.origin || global.origin ? { origin: local.origin ?? global.origin } : {}),
+      },
     });
   }
   return { kind: "single", originalText: text, neededBy: date.date, neededByText: date.text, lines, parsedBy: "rules" };
@@ -148,7 +210,7 @@ const PARSE_SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["text", "productWord", "productType", "productId", "amount", "unit", "claims", "avoidAllergens"],
+        required: ["text", "productWord", "productType", "productId", "amount", "unit", "claims", "avoidAllergens", "origin"],
         properties: {
           text: { type: "string" },
           productWord: { type: "string", description: "The complete product description in English, preserving brand, species, form and modifiers, e.g. 'chicken burger', 'oat milk', 'unsalted butter'. Never shorten to a broader product." },
@@ -158,11 +220,24 @@ const PARSE_SCHEMA = {
           unit: { type: ["string", "null"], enum: ["g", "kg", "ml", "dl", "l", "pcs", null] },
           claims: { type: "array", items: { type: "string", enum: ["FREE_FROM_LACTOSE", "FREE_FROM_GLUTEN", "VEGAN", "FREE_FROM_MILK"] } },
           avoidAllergens: { type: "array", items: { type: "string" }, description: "GS1 allergen codes to avoid, only if stated" },
+          origin: { type: ["string", "null"], description: "Required ISO alpha-2 country of origin, lowercase (Finnish = fi); null if none. Never infer origin from a brand." },
         },
       },
     },
   },
 };
+
+const MODEL_RESULT = z.object({
+  neededByText: z.string().nullable(),
+  lines: z.array(z.object({
+    text: z.string().min(1), productWord: z.string().min(1), productType: z.string().nullable(),
+    productId: z.string().regex(/^\d{6}$/).nullable(), amount: z.number().nullable(),
+    unit: z.enum(["g", "kg", "ml", "dl", "l", "pcs"]).nullable(),
+    claims: z.array(z.enum(["FREE_FROM_LACTOSE", "FREE_FROM_GLUTEN", "VEGAN", "FREE_FROM_MILK"])),
+    avoidAllergens: z.array(z.string().regex(/^[A-Z]{2,3}$/)),
+    origin: z.string().regex(/^[a-z]{2}$/).nullable().optional(),
+  })),
+});
 
 /**
  * Fully consumed literal product lists need no model: quantity, supported diet claims,
@@ -170,11 +245,11 @@ const PARSE_SCHEMA = {
  * path, especially allergy instructions, alternatives, delivery times and unknown words.
  */
 export function parseSimpleRequest(text: string): Omit<SingleRequest, "siteId" | "outletId"> | null {
-  let body = text.toLowerCase().trim().replace(/(\d)[,\s](\d{3})(?!\d)/g, "$1$2");
+  let body = normalizeNumbers(text.toLowerCase().trim());
   const dateSuffix = body.match(/\s+(?:by|before|on|for)\s+(mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?|today|tomorrow|20\d\d-\d\d-\d\d)$/);
   if (dateSuffix) body = body.slice(0, dateSuffix.index);
   body = body.replace(/^(?:(?:i|we) need\s+|please\s+|add\s+|order\s+)+/, "");
-  const parts = body.split(/\s*(?:,(?!\d)|\band\b|\+|;)\s*/i);
+  const parts = body.split(LIST_SEPARATOR);
   if (!parts.length) return null;
   const amountPrefix = /^(\d+(?:[.,]\d+)?)\s*(?:(litres?|liters?|ltr|kg|kilos?|grams?|ml|dl|pcs|pieces?|pc|l|g)\b|x\b)?\s*/;
   for (let part of parts) {
@@ -200,13 +275,16 @@ export async function parseRequest(text: string): Promise<{ request: Omit<Single
   const simple = parseSimpleRequest(text);
   if (simple) return { request: simple, note: null };
   try {
-    const r = await structured<{ neededByText: string | null; lines: any[] }>({
+    const rawResult = await structured<unknown>({
       name: "purchase_request",
       system:
-        "You turn a hotel kitchen's purchasing message to a food wholesaler into structured lines. Fill in only what the text says. Never invent a quantity, unit, date or product. Translate Finnish to English in productWord but keep the original text. Use diet claims only when stated.",
+        "You turn a hotel kitchen's purchasing message to a food wholesaler into structured lines. Fill in only what the text says. Never invent a quantity, unit, date or product. Retain EVERY requested item, including long lists and repetitions. Translate Finnish to English in productWord but keep the original text. Preserve brand, species and form. Use diet claims, allergen exclusions and required origin only when stated. Apply item-specific constraints only to that item; apply explicit global constraints to every item. Nut-free excludes both tree nuts (AN) and peanuts (AP). Never infer origin from a brand. Keep country requirements in origin, not in productWord. Do not turn an alternative into an additional ordered item. Unsupported or unclear quantities must have null amount and unit.",
       user: text,
       schema: PARSE_SCHEMA,
     });
+    const parsed = MODEL_RESULT.safeParse(rawResult);
+    if (!parsed.success) throw new ModelUnavailable("The parser returned an invalid request");
+    const r = parsed.data;
     const date = resolveDate(r.neededByText ?? text);
     const lines: SingleLine[] = r.lines.map((l) => {
       const pw = productWord(String(l.productWord));
@@ -217,9 +295,9 @@ export async function parseRequest(text: string): Promise<{ request: Omit<Single
         productType: l.productType ?? pw?.type ?? null,
         category: pw?.category ?? null,
         productId: l.productId && /^\d{6}$/.test(l.productId) ? l.productId : null,
-        // A count without a unit is pieces; no amount at all is one piece.
-        quantity: typeof l.amount === "number" ? { amount: l.amount, unit: l.unit ?? "pcs" } : { amount: 1, unit: "pcs" },
-        constraints: { claims: l.claims ?? [], avoidAllergens: l.avoidAllergens ?? [], labels: [] },
+        // A count without a unit is pieces; an unclear or invalid amount needs clarification.
+        quantity: typeof l.amount === "number" ? (l.amount >= 0 ? { amount: l.amount, unit: l.unit ?? "pcs" } : null) : null,
+        constraints: { claims: l.claims, avoidAllergens: l.avoidAllergens, labels: [], ...(l.origin ? { origin: l.origin } : {}) },
       };
     });
     return { request: { kind: "single", originalText: text, neededBy: date.date, neededByText: date.text, lines, parsedBy: "openai" }, note: null };
