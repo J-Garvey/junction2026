@@ -179,6 +179,8 @@ export function buildCorpus() {
     const lines=Array.from({length:count},(_,j)=>({product:ps[j%ps.length],amount:j%4+1,unit:ps[j%ps.length]==='milk'?'l':'kg'}));
     add(lines.map(l=>`${l.amount} ${l.unit} ${l.product}`).join('; ')+', all products must be gluten-free by 2026-11-16',`every_length_${count}`,{lineCount:count,lines,globalClaims:['FREE_FROM_GLUTEN'],neededBy:'2026-11-16'},{plan:[2,5,10,30,60].includes(count),modelSample:[4,15,45,59].includes(count),tags:['all_lengths_1_to_60',`items_${count}`]});
   }
+  add('Proposal then newer fixture-miss failure then confirmation','failed_newer_preview',{mustInvalidatePendingOnFailure:true,finalSeededSalmonKg:2,mustNotApplyOlderProposal:true},{channel:'whatsapp',scenario:{drafts:['Darragh'],noSeedEvent:true},sequence:['add 1 kg salmon 469672 to Darragh','add 2 kg chicken burger to Darragh','confirm change']});
+  add('Older completed delivery retried with a newer pending proposal','older_delivery_replay',{mustReturnCurrentSession:true,mustNotRestorePriorPending:true},{channel:'whatsapp',scenario:{drafts:['Darragh'],noSeedEvent:true},sequence:['add 1 kg salmon 469672 to Darragh','confirm change','add 2 kg salmon 469672 to Darragh'],special:'older_delivery_replay'});
   return cases;
 }
 if(process.argv[1]&&resolve(process.argv[1])===resolve(import.meta.filename)) {

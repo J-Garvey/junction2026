@@ -80,6 +80,11 @@ for(const c of cases){
        const prior=related.at(-1);await support('/api/whatsapp/disconnect',{});await support('/api/whatsapp/connect',{});
        related.push({...await http(prior.path,prior.body,attemptId),purpose:'prior-delivery-after-reconnect'});
      }
+     if(c.special==='older_delivery_replay'){
+       snapshots.sessionBeforeOlderRetry=await support('/api/whatsapp/session');
+       const prior=related[1];related.push({...await http(prior.path,prior.body,attemptId),purpose:'older-completed-delivery-with-newer-pending'});
+       snapshots.sessionAfterOlderRetry=await support('/api/whatsapp/session');
+     }
      snapshots.after=await support('/api/baskets');snapshots.orders=await support('/api/orders');snapshots.draftDetailsAfter=[];
      for(const d of scenario.drafts)snapshots.draftDetailsAfter.push(await support(`/api/baskets/${d.id}`));
      const t=await support('/campaign/telemetry');record({...c,input:main.body.text,seedInput:c.input,attemptId,timestamp:new Date().toISOString(),phase,runId,scenario,sha:meta.sha,parserMode:meta.mode,modelMode:meta.mode,model:meta.model,supplierInterception:true,http:{method:main.method,path:main.path,body:main.body},status:main.status,response:main.response,elapsedMs:related.reduce((n,r)=>n+r.elapsedMs,0),related,snapshots,telemetry:t.events.slice(cursor)});
