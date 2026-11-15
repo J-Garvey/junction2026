@@ -36,12 +36,13 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
   const exactMatch = review?.requiresApproval === false && review.canApprove;
   const hasDietRequirements = !!(line.constraints.claims.length || line.constraints.avoidAllergens.length || line.constraints.labels.length || line.constraints.origin);
   const found = lines.filter((product) => product.productId);
+  const hasUnconfirmedStock = found.some((product) => product.stock?.kind === "unknown");
   const selected = new Set(found.map((product) => product.productId));
   const rules = [...(need?.rules ?? []), ...lines.flatMap((product) => product.rules)];
   const unknownProduct = rules.some((rule) => rule.ruleId === "REQ-04");
   const noMatch = rules.some((rule) => rule.ruleId === "DIET-04");
   const tooLate = rules.some((rule) => rule.ruleId === "DLV-06");
-  // Unknown stock (STK-01) is shown by the marker on the product and decided by approving the item.
+  // Unknown stock (STK-01) keeps its own notice, including after the item is approved.
   const warnings = [...new Set(rules.filter((rule) => rule.outcome !== "order" && !["REQ-04", "DIET-04", "DLV-06", "STK-01"].includes(rule.ruleId)).map((rule) => rule.message))];
   // Every other product that passed, usable ones first; the first few show and the rest load on request.
   const alternatives = need?.candidates.filter((candidate) => !selected.has(candidate.productId))
@@ -54,14 +55,14 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
   const lateOptions = lateList.visible;
   const products = found.length ? found : [null];
   const decisionNote = review && !exactMatch && !review.approvedAt
-    ? review.reason ?? (found.some((product) => product.stock?.kind === "unknown") ? "Approving continues with stock not confirmed." : null)
+    ? review.reason
     : null;
   const hasIssue = unknownProduct || noMatch || tooLate || !found.length;
   // Keep the sales-unit correction available after checking a manual quantity.
   // A known weight per pack still cannot convert a request for pieces.
   const canEditSalesQuantity = !!review && found.length === 1 && !!found[0].salesUnit
     && (!found[0].packContent || found[0].packContent.unit !== (need?.amount.unit ?? line.quantity?.unit));
-  const expanded = !!children || !checked || hasIssue || warnings.length > 0 || !!decisionNote || canEditSalesQuantity || showDetails;
+  const expanded = !!children || !checked || hasIssue || hasUnconfirmedStock || warnings.length > 0 || !!decisionNote || canEditSalesQuantity || showDetails;
 
   return (
     <tbody className="add-review-item" aria-labelledby={headingId} aria-busy={disabled && !checked}>
@@ -168,6 +169,13 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
                 </form>
               )}
 
+              {hasUnconfirmedStock && <div className="callout yellow add-review-stock-warning">
+                <Icon n="alert" s={18} />
+                <div>
+                  <b>Stock not confirmed</b>
+                  {review && !exactMatch && !review.approvedAt && review.canApprove && <p>Approving continues with stock not confirmed.</p>}
+                </div>
+              </div>}
               {decisionNote && <p className="small muted add-review-decision-note" role="status">{decisionNote}</p>}
 
               {showDetails && !tooLate && need && <button type="button" className="btn sm" disabled={disabled} aria-expanded={showReplacements} onClick={() => setShowReplacements(!showReplacements)}>Suggest replacements</button>}
