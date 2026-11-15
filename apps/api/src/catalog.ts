@@ -8,6 +8,7 @@ import type { Product, ProductDetails, ProductSearchQuery } from "@aimo/contract
 import { config } from "./config.js";
 import { registerBrand } from "./util.js";
 import { relevance, type Match } from "./search.js";
+import { allergenConflicts } from "./rules/allergens.js";
 
 type Raw = Record<string, any>;
 
@@ -35,6 +36,7 @@ function toProduct(p: Raw, ingredients: Map<string, string>): Product {
     claims: p.claims ?? [],
     contains: p.contains ?? [],
     mayContain: p.may_contain ?? [],
+    allergenUndeclared: p.allergen_undeclared ?? [],
     hasAllergenData: Boolean(p.has_allergen_data),
     origin: p.origin ?? null,
     labels: p.labels ?? [],
@@ -92,7 +94,7 @@ export function getProductDetails(id: string): ProductDetails | null {
       vatCategory: p.vat ?? null,
       variableWeight: p.var_weight ?? null,
       freeFrom: p.free_from ?? [],
-      allergenUndeclared: p.allergen_undeclared ?? [],
+      allergenUndeclared: product.allergenUndeclared ?? [],
       netWeightKg: p.net_kg ?? null,
       netVolumeL: p.net_l ?? null,
       netContentSource: p.net_src ?? null,
@@ -115,12 +117,9 @@ export function catalogSize() {
 /** A product with no allergen declaration is never "safe" for an allergy (GROUND_TRUTH 4.2). */
 export function failsAllergens(p: Product, avoid: string[]): string | null {
   if (!avoid.length) return null;
+  const conflict = allergenConflicts(p, avoid)[0];
+  if (conflict) return `${conflict.level} ${conflict.code}`;
   if (!p.hasAllergenData) return "no allergen declaration";
-  for (const a of avoid) {
-    if (a === "X99") continue;
-    if (p.contains.includes(a)) return `contains ${a}`;
-    if (p.mayContain.includes(a)) return `may contain ${a}`;
-  }
   return null;
 }
 

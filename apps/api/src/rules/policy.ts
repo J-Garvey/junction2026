@@ -100,6 +100,7 @@ export const CONTROLS: Record<string, Control> = {
   "ALG-01": { choices: ["block"], lock: SAFETY },
   "ALG-02": { choices: ["block"], lock: SAFETY },
   "ALG-03": { choices: ["block"], lock: "No declaration means unknown, not safe." },
+  "ALG-04": { choices: ["block"], lock: SAFETY },
   "ALG-10": { choices: ["block"], lock: SAFETY },
   "DIET-01": { choices: ["block"], lock: SAFETY },
   "DIET-02": { choices: ["block"], lock: "The product data contradicts itself." },
