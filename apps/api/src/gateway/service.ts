@@ -10,7 +10,7 @@ import { getProduct } from "../catalog.js";
 import { carbonBasisFor } from "../carbon.js";
 import { lookup, UpstreamError } from "../aimo/lookup.js";
 import { fire, resolveOutcome, FIXED, outcomeOf } from "../rules/catalogue.js";
-import { cutoffRule, dietRules, mandateRules, priceValidityRule, stockCheck, supplyRules } from "../rules/checks.js";
+import { cutoffRule, productRules, mandateRules, priceValidityRule, stockCheck, supplyRules } from "../rules/checks.js";
 import { audit, GATEWAY, type Actor } from "../audit.js";
 import { newId, round2, sha256, stableStringify, parseAimoTime, eur, isCalendarDate } from "../util.js";
 import { signJwt, verifyJwt, jcs, checkoutHash } from "./keys.js";
@@ -126,7 +126,7 @@ function buildQuote({ hotelId, body, lookups, amendsOrderId, fixedPrices }: Buil
       rules.push(fire("PRC-01", { product: name, productId: li.productId, reason: "invalid price or validity" }));
     const cut = cutoffRule({ name }, l, at);
     if (cut) rules.push(cut);
-    if (p && li.requires) rules.push(...dietRules(p, li.requires, "this line").filter((r) => r.outcome === "block"));
+    if (p) rules.push(...productRules(p, li.requires, "this line", mandate).filter((r) => r.outcome === "block"));
     if (l.deliverable) rules.push(...stockCheck({ name }, l, quantities.get(li.productId)!, urgent, l.salesUnit ?? "units").rules.filter((r) => r.ruleId !== "STK-05"));
     if (l.deliverable && l.stock.kind === "none" && !urgent)
       rules.push(fire("STK-04", { product: name, productId: li.productId, quantity: li.quantity, unit: l.salesUnit ?? "units", stock: 0, date: l.availableDate ?? "" }));
@@ -385,7 +385,7 @@ export async function placeOrder(id: Identity, quoteId: string, idemKey: string,
   const hard = q.lines.flatMap((l) => l.rules).filter((r) => r.outcome === "block");
   for (const line of q.lines) {
     const product = getProduct(line.productId);
-    if (product && line.requires) hard.push(...dietRules(product, line.requires, "this line").filter((r) => r.outcome === "block"));
+    if (product) hard.push(...productRules(product, line.requires, "this line", getMandate(hotelId)).filter((r) => r.outcome === "block"));
   }
   if (hard.length) refuse(409, { error: hard.some((r) => r.ruleId === "CUT-01") ? "cutoff_passed" : "hard_rule", message: hard.map((r) => r.message).join(" "), rules: hard });
   if (new Date(q.expiresAt).getTime() <= at.getTime()) refuse(409, { error: "quote_stale", message: "The quote has expired; request a new one" });

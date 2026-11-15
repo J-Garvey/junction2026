@@ -213,6 +213,12 @@ export const PreAnswers = z.object({
 });
 export type PreAnswers = z.infer<typeof PreAnswers>;
 
+export const CategoryOriginRequirement = z.object({
+  categories: z.array(z.string().regex(/^\d{5}$/)).min(1).describe("Exact catalogue category codes, never prefixes"),
+  origin: z.string().regex(/^[a-z]{2}$/).describe("Required catalogue country of origin, ISO alpha-2 lowercase; missing evidence fails"),
+});
+export type CategoryOriginRequirement = z.infer<typeof CategoryOriginRequirement>;
+
 export const Mandate = z.object({
   id: z.string(),
   type: z.literal("aimo.mandate.standing.1").describe("The hotel's standing rules. AP2 v0.2 has no field for spend caps, sites or tolerances, so this is our own object, signed the same way"),
@@ -221,6 +227,7 @@ export const Mandate = z.object({
   sites: z.array(z.object({ id: z.string(), name: z.string(), address: z.string() })),
   spendCapEur: z.number().nonnegative().describe("Per order, ex VAT, inclusive"),
   blockedProducts: z.array(z.string()),
+  categoryOriginRequirements: z.array(CategoryOriginRequirement).optional().describe("Standing origin requirements, all applicable entries must pass in addition to request constraints. Omitted on older mandates; no category origin restriction then"),
   deliveryDays: z.array(z.number().int().min(0).max(6)).describe("0 = Sunday"),
   holidays: z.array(z.string()),
   preAnswers: PreAnswers,
