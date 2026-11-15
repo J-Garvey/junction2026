@@ -42,6 +42,9 @@ class EvidenceBoundaries(unittest.TestCase):
     def test_milk_free_claim_representation_is_equivalent(self):
         self.assertEqual(audit.semantic_constraints({"claims": ["FREE_FROM_MILK"]})["avoidAllergens"], ["AM"])
 
+    def test_duplicate_milk_avoidance_representations_do_not_create_false_failure(self):
+        self.assertEqual(audit.semantic_constraints({"claims": ["FREE_FROM_MILK"], "avoidAllergens": ["AM"]})["avoidAllergens"], ["AM"])
+
     def test_independent_expectation_survives_lost_parse_constraint(self):
         row = {"expected": {"lines": [{"amount": 10, "origin": "fi"}]}, "response": {"request": {"lines": [line()]}, "plan": {"needs": [{"id": "a", "constraints": {}, "candidates": [{"productId": "p"}]}]}}}
         verdict, failures, _, _ = audit.audit(row, {"p": {"origin": "no"}})
@@ -109,6 +112,12 @@ class EvidenceBoundaries(unittest.TestCase):
         actual = line()
         actual["constraints"]["claims"] = ["VEGAN"]
         row = {"expected": {"oracle": "independent", "globalClaims": ["VEGAN"], "lines": [{"product": "milk", "amount": 10, "unit": "l"}]}, "response": {"request": {"lines": [actual]}}}
+        self.assertEqual(audit.audit(row, {})[0], "pass")
+
+    def test_global_allergens_union_with_local_allergens(self):
+        actual = line()
+        actual["constraints"]["avoidAllergens"] = ["AM", "AN"]
+        row = {"expected": {"oracle": "independent", "globalAvoidAllergens": ["AN"], "lines": [{"product": "milk", "avoidAllergens": ["AM"]}]}, "response": {"request": {"lines": [actual]}}}
         self.assertEqual(audit.audit(row, {})[0], "pass")
 
     def test_explicit_sku_can_establish_identity_without_name_in_query(self):

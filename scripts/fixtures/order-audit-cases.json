@@ -1814,5 +1814,28 @@
       "globalOrigin": "fi",
       "neededBy": "2026-11-16"
     }
+  },
+  {
+    "caseId": "AUD-fractional-rounding",
+    "family": "whole-pack-rounding",
+    "channel": "main",
+    "input": "0.4 kg salmon 469672 and 0.4 kg salmon 469672",
+    "plan": true,
+    "expected": {
+      "lines": [
+        {
+          "product": "salmon",
+          "productId": "469672",
+          "amount": 0.4,
+          "unit": "kg"
+        },
+        {
+          "product": "salmon",
+          "productId": "469672",
+          "amount": 0.4,
+          "unit": "kg"
+        }
+      ]
+    }
   }
 ]

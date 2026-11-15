@@ -56,11 +56,12 @@ def same(a, b):
 def semantic_constraints(line):
     """Canonicalize two explicit representations of milk avoidance, not text."""
     c = dict(line.get("constraints", line))
-    c["claims"] = list(c.get("claims", []))
+    c["claims"] = sorted(set(c.get("claims", [])))
     c["avoidAllergens"] = list(c.get("avoidAllergens", []))
     if "FREE_FROM_MILK" in c["claims"]:
         c["claims"].remove("FREE_FROM_MILK")
         c["avoidAllergens"].append("AM")
+    c["avoidAllergens"] = sorted(set(c["avoidAllergens"]))
     return c
 
 
@@ -279,7 +280,7 @@ def audit(row, catalog, fixture=None):
             exp = dict(exp_lines[i]) if exp_lines is not None and i < len(exp_lines) else {}
             for global_key, local_key in (("globalClaims", "claims"), ("globalAvoidAllergens", "avoidAllergens"), ("globalOrigin", "origin")):
                 if global_key in expected:
-                    exp[local_key] = expected[global_key]
+                    exp[local_key] = expected[global_key] if local_key == "origin" else sorted(set(exp.get(local_key, [])) | set(expected[global_key]))
             expected_by_id[line.get("id")] = exp
             got = semantic_constraints(line)
             for global_key, local_key in (("globalClaims", "claims"), ("globalAvoidAllergens", "avoidAllergens"), ("globalOrigin", "origin")):
