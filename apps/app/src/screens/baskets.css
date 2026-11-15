@@ -37,7 +37,6 @@
 .btile.form { gap: 10px; }
 
 .bhead { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.order-submit { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; margin-left: auto; }
 .bhead.confirmed { border-bottom: 2px solid var(--green); padding-bottom: 12px; }
 .basket-context { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px 24px; }
 .bqty { font-family: var(--mono); font-size: 13px; color: var(--ink); white-space: nowrap; min-width: 72px; }

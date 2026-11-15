@@ -115,7 +115,7 @@ export function ManagerApprovalPanel({ q: initial, orderContext, onAnswered }: {
         )}
         {actionable && !refusing && (
           <div className="qopts">
-            {q.options.some((o) => o.id === "approve") && <button type="button" className="btn primary" disabled={busy} onClick={() => decide("approve")}>{busy ? "Saving…" : "Approve order"}</button>}
+            {q.options.some((o) => o.id === "approve") && <button type="button" className="btn primary" disabled={busy} onClick={() => decide("approve")}>{busy ? "Saving…" : "Order"}</button>}
             {q.options.some((o) => o.id === "reject") && <button ref={refuseButton} type="button" className="btn" disabled={busy} onClick={() => { setError(null); setRefusing(true); }}>Refuse order</button>}
           </div>
         )}
