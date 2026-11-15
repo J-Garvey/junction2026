@@ -52,6 +52,8 @@ On an order page, **Submit order for review** sends the current basket to the fi
 
 The add-to-order modal lets the builder **approve each item** independently, including a choice to continue with visibly unconfirmed stock. Every retained item must be approved before **Add to order** is enabled. A missing pack conversion asks for an explicit whole sales-unit quantity, then shows its checked price before approval; it never invents a piece-to-weight conversion. Editing or replacing a row invalidates its approval when the terms change, while unrelated approvals remain. Adding rechecks supplier terms and asks again if they changed. Diet failures, unavailable delivery and expired cutoffs stay blocked. Final finance approval still applies to the complete order.
 
+Opening a pending request on an order uses that same review dialog. Saved proposals start with **Review items** (`POST /api/plans/{id}/review-items`), which rechecks their terms without placing an order or hiding the request. **Suggest replacements** shows matching alternatives; selecting one rechecks the plan and clears approvals when terms change. The detail includes SKU, requested quantity, whole sales units, pack evidence, prices, stock, delivery, cutoff and catalogue dietary declarations. A piece count in the name of a product sold by kilogram is not a pieces-per-kilogram conversion: the builder specifies the sales quantity. Item review, replacement and staging enforce outlet scope; final finance decisions keep their existing role checks.
+
 ## How it fits together
 
 ```text

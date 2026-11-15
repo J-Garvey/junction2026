@@ -42,6 +42,7 @@ function person(req: Request, res: Response, next: NextFunction) {
 
 const P = (req: Request) => (req as Authed).person;
 const T = (req: Request) => (req as Authed).token;
+const inPlanScope = (req: Request, plan: { outletId: string }) => P(req).hotelId === HOTEL_ID && (P(req).hotelScope || P(req).outlets.includes(plan.outletId));
 
 function sessionCookie(res: Response, token: string) {
   res.setHeader("Set-Cookie", `aimo_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax`);
@@ -145,10 +146,24 @@ export function appRouter(): Router {
     res.json({ plan, questions: allQuestions().filter((q) => q.planId === plan.id) });
   });
 
+  // Resume a saved proposal in the same per-item review as the add-to-order dialog.
+  // Keep it visible in its basket; opening details alone never changes the request.
+  r.post("/plans/:id/review-items", async (req, res) => {
+    const plan = getPlan(String(req.params.id));
+    if (!plan) return res.status(404).json({ error: "No such plan" });
+    if (!inPlanScope(req, plan)) return res.status(403).json({ error: "This item is outside your hotel or outlet scope" });
+    if (plan.kind !== "single" || !plan.eventId || plan.basketedAt || plan.orderIds.length || plan.overrides.accepted)
+      return res.status(409).json({ error: "This request can no longer be reviewed" });
+    plan.itemReviews ??= [];
+    await quoteAndDecide(plan, T(req));
+    res.json({ plan, questions: allQuestions().filter((q) => q.planId === plan.id) });
+  });
+
   // Re-check an edited, not-yet-accepted request without leaving abandoned plans in the basket.
   r.post("/plans/:id/requote", async (req, res) => {
     const plan = getPlan(String(req.params.id));
     if (!plan) return res.status(404).json({ error: "No such plan" });
+    if (!inPlanScope(req, plan)) return res.status(403).json({ error: "This item is outside your hotel or outlet scope" });
     if (plan.kind !== "single" || plan.orderIds.length || plan.overrides.accepted || plan.basketedAt) return res.status(409).json({ error: "This request can no longer be changed" });
     const request = SingleRequest.parse(req.body.request);
     const p = P(req);
@@ -175,6 +190,7 @@ export function appRouter(): Router {
   r.post("/plans/:id/basket", async (req, res) => {
     const plan = getPlan(String(req.params.id));
     if (!plan) return res.status(404).json({ error: "No such plan" });
+    if (!inPlanScope(req, plan)) return res.status(403).json({ error: "This item is outside your hotel or outlet scope" });
     if (!plan.eventId || !plan.proposal || plan.orderIds.length) return res.status(409).json({ error: "This request is not ready to add to the order" });
     // A previously saved proposal may predate the current matching rules/catalogue.
     // Reject changed matches so the chef reviews the result before anything is staged.
@@ -215,7 +231,7 @@ export function appRouter(): Router {
     const p = P(req);
     if (p.hotelId !== HOTEL_ID || (!p.hotelScope && !p.outlets.includes(plan.outletId)))
       return res.status(403).json({ error: "This item is outside your hotel or outlet scope" });
-    if (!plan.itemReviews || !plan.reviewing || plan.basketedAt || plan.orderIds.length)
+    if (!plan.itemReviews || plan.overrides.accepted || plan.basketedAt || plan.orderIds.length)
       return res.status(409).json({ error: "This request is no longer being reviewed" });
     refreshItemReviews(plan);
     const item = plan.itemReviews.find((item) => item.needId === String(req.params.needId));
@@ -239,7 +255,7 @@ export function appRouter(): Router {
     const p = P(req);
     if (p.hotelId !== HOTEL_ID || (!p.hotelScope && !p.outlets.includes(plan.outletId)))
       return res.status(403).json({ error: "This item is outside your hotel or outlet scope" });
-    if (!plan.itemReviews || !plan.reviewing || plan.basketedAt || plan.orderIds.length)
+    if (!plan.itemReviews || plan.overrides.accepted || plan.basketedAt || plan.orderIds.length)
       return res.status(409).json({ error: "This request is no longer being reviewed" });
     const { fingerprint, productId, quantity } = z.object({ fingerprint: z.string(), productId: z.string(), quantity: z.number().int().positive().max(1_000_000) }).parse(req.body);
     refreshItemReviews(plan);
@@ -273,7 +289,8 @@ export function appRouter(): Router {
   r.post("/plans/:id/choose", async (req, res) => {
     const plan = getPlan(String(req.params.id));
     if (!plan) return res.status(404).json({ error: "No such plan" });
-    const reviewing = plan.kind === "single" && plan.reviewing && !plan.basketedAt && !plan.orderIds.length && !plan.overrides.accepted;
+    if (!inPlanScope(req, plan)) return res.status(403).json({ error: "This item is outside your hotel or outlet scope" });
+    const reviewing = plan.kind === "single" && (plan.reviewing || plan.itemReviews) && !plan.basketedAt && !plan.orderIds.length && !plan.overrides.accepted;
     if (!plan.proposal && !reviewing) return res.status(409).json({ error: "Nothing waiting to be added" });
     const { needId, productId } = z.object({ needId: z.string(), productId: z.string() }).parse(req.body);
     const need = plan.needs.find((n) => n.id === needId);
