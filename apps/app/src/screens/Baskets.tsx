@@ -509,20 +509,25 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
             }}
             aria-label="Upload a file"
           />
-          <textarea
-            rows={1}
-            value={text}
-            maxLength={2000}
-            placeholder="e.g. 40 L lactose-free milk"
-            onChange={(event) => setText(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                search();
-              }
-            }}
-            aria-label="Add to this order"
-          />
+          <div className="composer-input">
+            <textarea
+              rows={1}
+              value={text}
+              maxLength={2000}
+              onChange={(event) => setText(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  search();
+                }
+              }}
+              aria-label="Add to this order"
+            />
+            {!text && <span className="composer-hint">
+              e.g. 40 L lactose-free milk &amp;{" "}
+              <button type="button" onClick={() => picker.current?.click()}>file upload</button>
+            </span>}
+          </div>
           <button type="submit" className={`send ${text.trim() ? "go" : ""}`} disabled={busy} aria-label="Search">
             {busy ? "..." : <Icon n="send" s={18} w={2.2} />}
           </button>
