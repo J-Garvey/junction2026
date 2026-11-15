@@ -22,7 +22,7 @@ a.btile:hover { text-decoration: none; border-color: var(--ink); box-shadow: 0 1
 .bhead { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .bqty { font-family: var(--mono); font-size: 13px; color: var(--ink); white-space: nowrap; min-width: 72px; }
 .staged-lines { margin-bottom: 10px; }
-.add-review-date { display: inline-flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px; background: var(--soft); color: var(--ink); }
+.add-review-date { display: flex; align-items: center; justify-content: flex-end; gap: 10px; color: var(--ink); }
 .add-review-date span, .add-review-total { display: flex; flex-direction: column; gap: 2px; }
 .add-review-date small, .add-review-total small { color: var(--mute); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 .add-review-section { margin-top: 22px; }
