@@ -39,7 +39,7 @@ export function WhatsAppWebConnection({ person }: { person: { id: string; name: 
   const disabled = busy || !!status?.busy;
   return <section className="wa-web" aria-label="WhatsApp Web connection">
     <div className="wa-web-head"><Icon n="chat" s={22} /><div><h2>WhatsApp Web</h2><p>Link your regular WhatsApp account using your phone.</p></div><span className={`stamp ${ready ? "order" : "info"}`}>{ready ? "Connected" : status?.phase === "qr" ? "Scan QR" : status?.phase ?? "Loading"}</span></div>
-    <p className="small muted">Uses a dedicated local WhatsApp Web browser. Hotel requests run as <strong>{person.name}</strong>; orders remain Junction mock orders.</p>
+    <p className="small muted">Hotel requests run as <strong>{person.name}</strong>; orders remain Junction mock orders. Once linked, WhatsApp reconnects automatically after a server restart.</p>
     {(error || status?.lastError) && <p className="callout red" role="alert">{error ?? status?.lastError}</p>}
     {idle ? <button type="button" className="btn" disabled={busy || !status} onClick={() => void run(whatsappApi.web.connect)}><Icon n="plug" s={17} />{busy ? "Connecting…" : "Connect WhatsApp Web"}</button> : <>
       {!ready && <div className="wa-web-pairing" aria-live="polite">
@@ -55,6 +55,7 @@ export function WhatsAppWebConnection({ person }: { person: { id: string; name: 
         </label>
         <p className="small muted">{selected ? `The agent replies only in “${selected.name}”. Other groups and direct messages are ignored.` : "Select a real group from this account to enable replies. The agent is paused until you choose one."}</p>
         <p className="small muted">Send text in this group from your linked phone or another group member. The agent ignores its own replies, old history and attachments. Each sender has separate order context.</p>
+        <p className="small muted">Your login, group and selected orders are saved across restarts. Pending changes need a fresh review after reconnecting. Disconnect logs out of WhatsApp.</p>
         <div className="wa-web-actions"><button type="button" className="btn sm ghost" disabled={disabled} onClick={() => void run(whatsappApi.web.refreshGroups)}><Icon n="refresh" s={15} /> Refresh groups</button><span className="small muted" role="status">{status.busy ? "Handling a group message…" : `${status.handledMessages} message${status.handledMessages === 1 ? "" : "s"} answered`}</span></div>
       </>}
       <button type="button" className="btn sm ghost" disabled={disabled} onClick={() => void run(whatsappApi.web.disconnect)}>{busy ? "Working…" : ready ? "Disconnect WhatsApp" : "Cancel pairing"}</button>

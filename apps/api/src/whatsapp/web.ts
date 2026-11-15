@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { WhatsAppConversation, WhatsAppWebStatus } from "@aimo/contracts";
 import { kvGet, kvSet } from "../db.js";
-import { resolveToken, type Person } from "../identity.js";
+import { getPerson, issueToken, resolveToken, type Person } from "../identity.js";
 import { sha256 } from "../util.js";
 import type { WhatsAppHandler } from "./routes.js";
 import { createWhatsAppBrowser, encodePairingQr, type WhatsAppBrowserClient, type WebInboundMessage } from "./web-client.js";
@@ -10,6 +10,8 @@ export class WhatsAppWebError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
 type Selection = { account: string; groupId: string; revision: string; since: number };
+type Resume = { personId: string };
+type SavedConversation = { runId: string; conversation: WhatsAppConversation };
 type Options = { createClient?: () => Promise<WhatsAppBrowserClient>; encodeQr?: (value: string) => Promise<string>; clock?: () => number };
 const freshState = (): WhatsAppWebStatus => ({ phase: "disconnected", qrDataUrl: null, accountName: null, ownerName: null, groups: [], selectedGroupId: null, busy: false, lastError: null, lastMessageAt: null, handledMessages: 0 });
 
@@ -29,7 +31,9 @@ export class WhatsAppWebBridge {
   constructor(private handler: WhatsAppHandler, private options: Options = {}) { this.clock = options.clock ?? Date.now; }
 
   private assertOwner(person: Person) {
-    if (this.owner && this.owner.person.id !== person.id) throw new WhatsAppWebError(403, `WhatsApp Web is controlled by ${this.owner.person.name}. Switch to that person to manage it.`);
+    const saved = kvGet<Resume>("whatsapp-web:resume");
+    const owner = this.owner?.person ?? (saved ? getPerson(saved.personId) : null);
+    if (owner && owner.id !== person.id) throw new WhatsAppWebError(403, `WhatsApp Web is controlled by ${owner.name}. Switch to that person to manage it.`);
   }
   private selection(): Selection | null {
     const saved = kvGet<Selection>("whatsapp-web:group");
@@ -40,8 +44,20 @@ export class WhatsAppWebBridge {
     this.state.selectedGroupId = this.selection()?.groupId ?? null;
     return structuredClone(this.state);
   }
+  /** Only an explicitly enabled connection resumes. Recreate its private server
+   * credential from the current person record, never from a saved browser token. */
+  async restore(): Promise<boolean> {
+    const saved = kvGet<Resume>("whatsapp-web:resume");
+    if (!saved) return false;
+    const person = getPerson(saved.personId);
+    if (!person) { kvSet("whatsapp-web:resume", null); return false; }
+    if (this.owner && !["disconnected", "error"].includes(this.state.phase)) return true;
+    await this.connect(person, issueToken({ kind: "person", personId: person.id, testSession: true }));
+    return true;
+  }
   async connect(person: Person, token: string): Promise<WhatsAppWebStatus> {
     this.assertOwner(person);
+    kvSet("whatsapp-web:resume", { personId: person.id } satisfies Resume);
     if (this.owner && !["disconnected", "error"].includes(this.state.phase)) {
       this.owner = { person, token };
       return this.status(person);
@@ -135,6 +151,7 @@ export class WhatsAppWebBridge {
   }
   /** Server shutdown closes the dedicated browser but keeps the linked-device profile. */
   async close(logout = false): Promise<void> {
+    if (logout) kvSet("whatsapp-web:resume", null);
     ++this.epoch;
     const client = this.client;
     this.client = null;
@@ -168,12 +185,15 @@ export class WhatsAppWebBridge {
       // repeat a purchase or resend a reply with an uncertain outcome.
       if (kvGet(messageKey)) return;
       kvSet(messageKey, { state: "processing" });
-      const conversationKey = `whatsapp-web:conversation:${sha256(`${this.account}:${this.runId}:${selection.revision}:${sender}`)}`;
-      const conversation = kvGet<WhatsAppConversation>(conversationKey) ?? { activeOrderId: null, pending: null };
+      const conversationKey = `whatsapp-web:conversation:${sha256(`${this.account}:${owner.person.id}:${selection.revision}:${sender}`)}`;
+      const saved = kvGet<SavedConversation>(conversationKey);
+      // Keep the sender's order selection after restart, but an old/unseen
+      // proposal always needs a fresh preview in this browser connection.
+      const conversation: WhatsAppConversation = { activeOrderId: saved?.conversation.activeOrderId ?? null, pending: saved?.runId === this.runId ? saved.conversation.pending : null };
       try {
         const handled = await this.handler({ person: identity.person, token: owner.token, conversation, text: message.body, messageId: message.id._serialized, channel: "web" });
         if (epoch !== this.epoch || this.selection()?.revision !== selection.revision || !resolveToken(owner.token) || !this.client) return;
-        kvSet(conversationKey, handled.conversation);
+        kvSet(conversationKey, { runId: this.runId, conversation: handled.conversation } satisfies SavedConversation);
         kvSet(messageKey, { state: "sending" });
         kvSet(`whatsapp-web:outbound:${sha256(`${this.account}:${selection.groupId}:${handled.reply.text}`)}`, true);
         await this.client.sendText(selection.groupId, handled.reply.text);
@@ -185,8 +205,8 @@ export class WhatsAppWebBridge {
         // A failed request or uncertain reply must not leave an old or unseen
         // proposal actionable. Never restore context after reset/reconnection.
         if (epoch === this.epoch && this.selection()?.revision === selection.revision && resolveToken(owner.token)) {
-          const latest = kvGet<WhatsAppConversation>(conversationKey) ?? conversation;
-          kvSet(conversationKey, { ...latest, pending: null });
+          const latest = kvGet<SavedConversation>(conversationKey)?.conversation ?? conversation;
+          kvSet(conversationKey, { runId: this.runId, conversation: { ...latest, pending: null } } satisfies SavedConversation);
         }
         // Never echo arbitrary upstream errors or message contents into a group.
         this.state.lastError = "A group message could not be completed or its reply confirmed. Check the order and group before sending a new request.";

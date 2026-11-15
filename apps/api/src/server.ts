@@ -80,7 +80,12 @@ export function createApp() {
 
 if (process.argv[1] && resolve(process.argv[1]).endsWith("server.ts")) {
   const app = createApp();
-  const server = app.listen(config.port, "127.0.0.1", () => console.log(`Aimo Copilot on http://127.0.0.1:${config.port}  (gateway /gateway/v1, spec /openapi.json)`));
+  const server = app.listen(config.port, "127.0.0.1", () => {
+    console.log(`Aimo Copilot on http://127.0.0.1:${config.port}  (gateway /gateway/v1, spec /openapi.json)`);
+    void (app.locals.whatsappWeb as WhatsAppWebBridge).restore().catch(() => {
+      console.error("Saved WhatsApp connection could not be restored. Open Demo settings to reconnect.");
+    });
+  });
   let stopping = false;
   const shutdown = async () => {
     if (stopping) return;

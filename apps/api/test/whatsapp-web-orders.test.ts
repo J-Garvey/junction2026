@@ -27,7 +27,7 @@ async function call(path: string, body?: unknown): Promise<any> {
   return response.json();
 }
 
-it("handles selected real-group events through the existing interpreter, basket and gateway, with text reply commands", async () => {
+it("handles selected group orders across restarts, requiring fresh previews before edits and purchases", async () => {
   await call("/reset", {});
   token = (await call("/session", { personId: "p-aino" })).token;
   await call("/clock", { time: "2026-11-14T10:00:00Z" });
@@ -41,8 +41,17 @@ it("handles selected real-group events through the existing interpreter, basket 
   browser.getGroups = async () => [{ id: group, name: "Conference kitchen" }];
   const sendText = vi.fn(async (_destination: string, _text: string) => {});
   browser.sendText = sendText;
-  const bridge = new WhatsAppWebBridge(handleWhatsAppMessage, { createClient: async () => browser });
+  const createBridge = () => new WhatsAppWebBridge(handleWhatsAppMessage, { createClient: async () => browser });
+  let bridge = createBridge();
   const person = getPerson("p-aino")!;
+  const restart = async () => {
+    await bridge.close();
+    bridge = createBridge();
+    expect(await bridge.restore()).toBe(true);
+    browser.emit("ready");
+    await vi.waitFor(() => expect(bridge.status(person).phase).toBe("ready"));
+    expect(bridge.status(person).selectedGroupId).toBe(group);
+  };
   try {
     await bridge.connect(person, token);
     browser.emit("ready");
@@ -58,11 +67,19 @@ it("handles selected real-group events through the existing interpreter, basket 
     expect(proposal).toContain("*Add these items to your basket?*");
     expect(proposal).toContain("Reply *confirm change* or *cancel*.");
     expect(proposal).not.toContain("FAKE WhatsApp");
+    await restart();
+    await send("confirm change");
+    expect((await call(`/baskets/${basket.id}`)).requests).toHaveLength(0);
+    const freshProposal = await send("add 10 kg salmon 469672");
+    expect(freshProposal).toContain("*Add these items to your basket?*");
     await send("confirm change", "unselected@g.us");
     expect((await call(`/baskets/${basket.id}`)).requests).toHaveLength(0);
     await send("confirm change");
     expect((await call(`/baskets/${basket.id}`)).requests).toHaveLength(1);
     await send("confirm order");
+    await restart();
+    await send("confirm order");
+    expect((await call("/orders")).orders).toHaveLength(0);
     await send("confirm order", "private@c.us");
     expect((await call("/orders")).orders).toHaveLength(0);
     const receipt = await send("confirm order", group, "final-order");
