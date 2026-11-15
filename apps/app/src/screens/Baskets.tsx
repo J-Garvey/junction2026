@@ -266,9 +266,9 @@ function StagedLines({ plans, submitted }: { plans: BasketPlan[]; submitted: boo
       {lines.map((line) => (
         <div key={`${line.planId}-${line.id}`} className="li">
           <span className="bqty">{qty(line.quantity)} {line.salesUnit ?? ""}</span>
-          <span className="trunc" style={{ flex: 1, color: "var(--ink)" }}>{line.productName}</span>
-          <span className="stamp ask">{submitted ? "Awaiting finance approval" : "Awaiting final order"}</span>
-          <span className="small">{eur(line.lineTotal)}</span>
+          <span className="staged-line-name">{line.productName}</span>
+          <span className="stamp ask staged-line-status">{submitted ? "Awaiting finance approval" : "Awaiting final order"}</span>
+          <span className="small staged-line-price">{eur(line.lineTotal)}</span>
         </div>
       ))}
     </div>

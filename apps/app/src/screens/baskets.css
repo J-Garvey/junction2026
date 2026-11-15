@@ -41,6 +41,18 @@
 .basket-context { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px 24px; }
 .bqty { font-family: var(--mono); font-size: 13px; color: var(--ink); white-space: nowrap; min-width: 72px; }
 .staged-lines { margin-bottom: 10px; }
+.staged-lines > .li { display: grid; grid-template-columns: max-content minmax(0, 1fr) auto auto; align-items: start; }
+.staged-line-name { min-width: 0; color: var(--ink); overflow-wrap: anywhere; }
+.staged-lines .staged-line-status { justify-self: start; max-width: 100%; white-space: normal; line-height: 1.35; overflow-wrap: anywhere; }
+.staged-line-price { text-align: right; white-space: nowrap; }
+
+@media (max-width: 700px) {
+  .staged-lines > .li { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; }
+  .staged-line-name { grid-column: 1 / -1; grid-row: 1; }
+  .staged-lines .bqty { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+  .staged-line-price { grid-column: 2; grid-row: 2; }
+  .staged-line-status { grid-column: 1 / -1; }
+}
 .add-review-date { display: flex; align-items: center; gap: 10px; color: var(--ink); }
 .add-review-date span, .add-review-total { display: flex; flex-direction: column; gap: 2px; }
 .add-review-date small, .add-review-total small { color: var(--mute); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
