@@ -16,7 +16,7 @@ beforeEach(() => {
     constructor() { super(); stream = this; }
     close() {}
   });
-  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ order: { lines: [], totalExVat: 12.4 }, signature: { valid: true, alg: "ES256", jwks: "/.well-known/jwks.json", jws: null } }) }));
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ order: { lines: [], totalExVat: 12.4 }, signature: { valid: true, alg: "ES256", jwks: "/.well-known/jwks.json", jws: "synthetic-receipt-signature" } }) }));
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
@@ -54,10 +54,10 @@ describe("live console accessibility", () => {
     fireEvent.keyDown(trigger, { key });
     const dialog = await screen.findByRole("dialog", { name: "Signed order fixture-order" });
     expect((dialog as HTMLDialogElement).open).toBe(true);
-    const publicKeys = await screen.findByRole("link", { name: "Public keys (JWKS)" });
+    const receiptToken = await screen.findByRole("region", { name: "Signed receipt token" });
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "Close signed order" }));
     fireEvent.keyDown(document.activeElement!, { key: "Tab", shiftKey: true });
-    expect(document.activeElement).toBe(publicKeys);
+    expect(document.activeElement).toBe(receiptToken);
     fireEvent.keyDown(document.activeElement!, { key: "Tab" });
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "Close signed order" }));
     fireEvent(dialog, new Event("cancel", { cancelable: true }));

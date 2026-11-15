@@ -364,7 +364,7 @@ function Record({ id, onClose }: { id: string; onClose: () => void }) {
       onCancel={(event) => { event.preventDefault(); onClose(); }}
       onKeyDown={(event) => {
         if (event.key !== "Tab") return;
-        const controls = [...event.currentTarget.querySelectorAll<HTMLElement>("button:not(:disabled), a[href]")];
+        const controls = [...event.currentTarget.querySelectorAll<HTMLElement>("button:not(:disabled), a[href], [tabindex='0']")];
         const first = controls[0], last = controls.at(-1);
         if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
         else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
@@ -400,7 +400,7 @@ function Record({ id, onClose }: { id: string; onClose: () => void }) {
                 Public keys (JWKS)
               </a>
             </div>
-            {r.signature.jws && <code className="lv-jws">{r.signature.jws}</code>}
+            {r.signature.jws && <div className="lv-jws" role="region" aria-label="Signed receipt token" tabIndex={0}><code>{r.signature.jws}</code></div>}
           </>
         )}
       </div>
