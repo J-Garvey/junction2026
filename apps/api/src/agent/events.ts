@@ -9,7 +9,8 @@ import { getDb, getJson, allJson } from "../db.js";
 import { now, nowIso } from "../clock.js";
 import { getProduct, getRaw, searchProducts } from "../catalog.js";
 import { audit, AGENT, decisionCount } from "../audit.js";
-import { fire } from "../rules/catalogue.js";
+import { fire, outcomeOf } from "../rules/catalogue.js";
+import { policyParams } from "../rules/policy.js";
 import { dietRules, allergenName, packContent } from "../rules/checks.js";
 import { typeCheck } from "./judge.js";
 import { newId, round2, fmtHelsinki, parseAimoTime, eur, shortName } from "../util.js";
@@ -179,7 +180,13 @@ async function applyChange(e: StoredEvent, p: Person, what: string) {
     return { applied: true, reason: "No change: pack rounding absorbs it.", diff };
   }
   const within = Math.abs(pct) <= m.preAnswers.guestChangeMaxPct && !diff.some((d) => d.change === "needs_substitute");
-  if (within) {
+  // RULE-POLICY: CHG-01 may be set to always ask, and CHG-02 to refuse changes over tolerance.
+  if (!within && outcomeOf("CHG-02") === "block") {
+    const reason = `${fire("CHG-02", facts).message} The hotel refuses such changes; the order stays as it is.`;
+    audit({ actor: AGENT, action: "order_amended", summary: reason, eventId: e.id, orderId: order.id, ruleIds: ["CHG-02"], details: { diff, refused: true }, visibility: "hotel" });
+    return { applied: false, reason, diff };
+  }
+  if (within && outcomeOf("CHG-01") === "order") {
     try {
       const r = await gw.amend(order.id, { changes, continueWithUnconfirmedStock: continueWith, decidedBy: p.name });
       e.orderedGuests = e.guests;
@@ -194,7 +201,7 @@ async function applyChange(e: StoredEvent, p: Person, what: string) {
   const q = makeQuestion({
     planId: plan.id, eventId: e.id, type: "change_outside_tolerance", forRole: "approver", outletId: null, quoteId: null, fingerprint: null,
     title: facts.from === facts.to ? "Approve the change?" : `${facts.from} → ${facts.to} guests?`,
-    body: `${facts.from === facts.to ? "" : `${facts.pct} · `}${within ? "needs approval at the gateway" : `over ${facts.tolerance}`} · ${diff.filter((d) => d.change !== "unchanged").length} lines change`,
+    body: `${facts.from === facts.to ? "" : `${facts.pct} · `}${within ? (outcomeOf("CHG-01") === "order" ? "needs approval at the gateway" : "the hotel approves every change") : `over ${facts.tolerance}`} · ${diff.filter((d) => d.change !== "unchanged").length} lines change`,
     facts: { kind: "change", orderId: order.id, changes, diff, continueWith, decidedBy: p.name, ...facts },
     ruleIds: [within ? "CHG-01" : "CHG-02"],
     options: [{ id: "approve", label: "Approve the change", primary: true }, { id: "keep", label: "Keep the order as is", primary: false }],
@@ -574,10 +581,10 @@ export function runCutoff(eventId: string) {
     q.state = "expired";
     saveQuestion(q);
     const f = q.facts as any;
-    const msg = q.type === "allergy_conflict" ? `Hotel has not confirmed; ${getProduct(f.productId)?.name} conflicts with a stated allergy and is still in the order.` : fire("SIL-01", { cutoff: q.deadline ? fmtHelsinki(q.deadline) : "the cut-off" }).message;
+    const msg = q.type === "allergy_conflict" ? `Hotel has not confirmed; ${getProduct(f.productId)?.name} conflicts with a stated allergy and is still in the order.` : fire("SIL-01", { cutoff: q.deadline ? fmtHelsinki(q.deadline) : "the cut-off", told: policyParams().silenceFlagsValioAimo ? " and Valio Aimo has been told" : "" }).message;
     flags.push(msg);
     audit({ actor: AGENT, action: "question_expired", summary: `Unanswered at the cut-off: ${q.title}`, eventId, questionId: q.id, ruleIds: ["SIL-01"], details: {}, visibility: "hotel" });
-    audit({ actor: AGENT, action: "flag_sent_to_valio_aimo", summary: `Unresolved at cut-off: ${msg}`, eventId, orderId: f.orderId ?? null, ruleIds: ["SIL-01"], details: { productId: f.productId ?? f.original ?? null, askedAt: q.createdAt }, visibility: "shared" });
+    if (q.type === "allergy_conflict" || policyParams().silenceFlagsValioAimo) audit({ actor: AGENT, action: "flag_sent_to_valio_aimo", summary: `Unresolved at cut-off: ${msg}`, eventId, orderId: f.orderId ?? null, ruleIds: ["SIL-01"], details: { productId: f.productId ?? f.original ?? null, askedAt: q.createdAt }, visibility: "shared" });
   }
   return flags;
 }

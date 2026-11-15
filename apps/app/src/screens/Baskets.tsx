@@ -1,5 +1,5 @@
 /** Order baskets: one tile per event (name + delivery date); inside, what is ordered, what waits, and a box to add more. */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import type { Order, Question } from "@aimo/contracts";
 import { api, ApiError, type BasketPlan, type MessageResp, type PlanResp } from "../api";
@@ -9,6 +9,7 @@ import { Status, planStatusKind, PLAN_STATUS_TEXT } from "../ui/Status";
 import { Icon } from "../ui/icons";
 import { OrderItemDialog } from "../ui/OrderItemDialog";
 import { RequestReviewDialog } from "../ui/RequestReviewDialog";
+import { MenuEditor } from "../ui/MenuEditor";
 import { BasketCard } from "../ui/BasketCard";
 import { OrderBy } from "../ui/OrderBy";
 import { OrderReviewHistory } from "../ui/OrderReviewHistory";
@@ -17,6 +18,7 @@ import { tooLateText } from "../ui/TooLate";
 import { addDays, day, eur, helsinkiDate, plural, qty, when } from "../format";
 import "./baskets.css";
 import { useMessagePreparation } from "../useMessagePreparation";
+import { addAttachment, fileSize, isText, listAttachments, removeAttachment, type Attachment } from "../attachments";
 
 
 export function BasketsHome() {
@@ -105,6 +107,7 @@ export function BasketPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [reviewFeedback, setReviewFeedback] = useState<{ eventId: string; message: string; error: boolean } | null>(null);
   const [requestNote, setRequestNote] = useState<string | null>(null);
+  const [addMode, setAddMode] = useState<"product" | "menu">("product");
 
   async function submitForReview() {
     setSubmitting(true);
@@ -158,7 +161,24 @@ export function BasketPage() {
       {returned && <div className="callout yellow small" role="status"><strong>Changes requested</strong><p className="decision-note">{returned.answerNote ?? "Returned to the order builder for changes."}</p><span className="muted">{returned.answeredBy?.name} · {when(returned.answeredAt)}</span></div>}
       {requestNote && <div className="callout green small" role="status">{requestNote}</div>}
 
-      <AddToBasket eventId={ev.id} deliveryDate={ev.serviceDate} onAdded={reload} />
+      <section className="stack">
+        <div className="add-mode">
+          <h2>Add to the order</h2>
+          <div className="seg" role="tablist" aria-label="How to add">
+            <button type="button" role="tab" aria-selected={addMode === "product"} className={addMode === "product" ? "on" : ""} onClick={() => setAddMode("product")}>
+              Products
+            </button>
+            <button type="button" role="tab" aria-selected={addMode === "menu"} className={addMode === "menu" ? "on" : ""} onClick={() => setAddMode("menu")}>
+              From a menu
+            </button>
+          </div>
+        </div>
+        {addMode === "product" ? (
+          <AddToBasket eventId={ev.id} deliveryDate={ev.serviceDate} onAdded={reload} />
+        ) : (
+          <MenuEditor event={ev} menuInOrder={staged.some((r) => r.title.startsWith("Menu ·")) || live.length > 0} onSaved={reload} onAdded={() => { refresh(); reload(); }} />
+        )}
+      </section>
 
       {(waitingQs.length > 0 || pending.length > 0) && (
         <section>
@@ -297,6 +317,39 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ cls: string; body: React.ReactNode } | null>(null);
   useMessagePreparation(busy || review ? "" : text);
+  const picker = useRef<HTMLInputElement>(null);
+  const [files, setFiles] = useState<Attachment[]>([]);
+
+  useEffect(() => {
+    let live = true;
+    listAttachments(eventId).then((rows) => live && setFiles(rows), () => {});
+    return () => { live = false; };
+  }, [eventId]);
+
+  async function attach(list: FileList | null) {
+    if (!list?.length) return;
+    try {
+      const added: Attachment[] = [];
+      for (const file of Array.from(list)) added.push(await addAttachment(eventId, file));
+      setFiles((prev) => [...prev, ...added]);
+      // A plain-text order list goes straight into the box, ready to search.
+      const textFile = Array.from(list).find(isText);
+      if (textFile && !text.trim()) setText((await textFile.text()).trim().slice(0, 2000));
+    } catch (e) {
+      setNote({ cls: "red", body: (e as Error).message });
+    }
+  }
+
+  async function detach(id: string) {
+    await removeAttachment(id);
+    setFiles((prev) => prev.filter((f) => f.id !== id));
+  }
+
+  function openFile(file: Attachment) {
+    const url = URL.createObjectURL(file.blob);
+    window.open(url, "_blank", "noopener");
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }
 
   function added() {
     setReview(null);
@@ -346,6 +399,20 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
     <section className="composer-wrap">
       <form className="composer" onSubmit={(event) => { event.preventDefault(); search(); }}>
         <div className="txt">
+          <button type="button" className="send attach" onClick={() => picker.current?.click()} aria-label="Upload a file">
+            <Icon n="plus" s={18} w={2.2} />
+          </button>
+          <input
+            ref={picker}
+            type="file"
+            multiple
+            hidden
+            onChange={(event) => {
+              attach(event.target.files);
+              event.target.value = "";
+            }}
+            aria-label="Upload a file"
+          />
           <textarea
             rows={1}
             value={text}
@@ -361,9 +428,24 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
             aria-label="Add to this order"
           />
           <button type="submit" className={`send ${text.trim() ? "go" : ""}`} disabled={busy} aria-label="Search">
-            {busy ? "..." : <Icon n="plus" s={18} w={2.2} />}
+            {busy ? "..." : <Icon n="send" s={18} w={2.2} />}
           </button>
         </div>
+        {files.length > 0 && (
+          <div className="attachments">
+            {files.map((file) => (
+              <span key={file.id} className="chip">
+                <button type="button" className="attach-name trunc" onClick={() => openFile(file)} title={`Open ${file.name}`}>
+                  {file.name}
+                </button>
+                <span className="small muted">{fileSize(file.size)}</span>
+                <button type="button" onClick={() => detach(file.id)} aria-label={`Remove ${file.name}`}>
+                  <Icon n="x" s={14} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
       </form>
       {busy && <div className="small muted" role="status">Checking products, stock and delivery...</div>}
       {note && <div className={`callout ${note.cls} small`} role="status">{note.body}</div>}

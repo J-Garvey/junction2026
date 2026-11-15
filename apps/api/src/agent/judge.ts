@@ -12,7 +12,7 @@ import { sha256, stableStringify } from "../util.js";
 import { structured, ModelUnavailable, modelName } from "./openai.js";
 import { z } from "zod";
 
-const TH = { fact: FIXED.decisionFact, reject: FIXED.decisionReject };
+const TH = { get fact() { return FIXED.decisionFact; }, get reject() { return FIXED.decisionReject; } };
 const verdictOf = (p: number | null): ModelJudgement["verdict"] => (p === null ? "unsure" : p >= TH.fact ? "yes" : p <= TH.reject ? "no" : "unsure");
 const ROUTE_RESULT = z.object({ new_request: z.number().min(0).max(1), event_change: z.number().min(0).max(1), neither: z.number().min(0).max(1) })
   .refine((r) => Math.abs(r.new_request + r.event_change + r.neither - 1) < .02);

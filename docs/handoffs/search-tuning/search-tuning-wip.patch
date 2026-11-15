@@ -1,0 +1,541 @@
+diff --git a/apps/api/src/catalog.ts b/apps/api/src/catalog.ts
+index 5b3beae..5f2bb6b 100644
+--- a/apps/api/src/catalog.ts
++++ b/apps/api/src/catalog.ts
+@@ -7,7 +7,7 @@ import { resolve } from "node:path";
+ import type { Product, ProductSearchQuery } from "@aimo/contracts";
+ import { config } from "./config.js";
+ import { registerBrand } from "./util.js";
+-import { relevance, type Match } from "./search.js";
++import { relevance, useCatalogue, type Match } from "./search.js";
+ 
+ type Raw = Record<string, any>;
+ 
+@@ -68,6 +68,7 @@ export function loadCatalog() {
+     registerBrand(prod.name, prod.brand);
+   }
+   orderedProducts = [...products.values()].sort((a, b) => a.id.localeCompare(b.id));
++  useCatalogue(orderedProducts);
+ }
+ 
+ export function getProduct(id: string): Product | null {
+diff --git a/apps/api/src/categoryTags.ts b/apps/api/src/categoryTags.ts
+new file mode 100644
+index 0000000..07a100d
+--- /dev/null
++++ b/apps/api/src/categoryTags.ts
+@@ -0,0 +1,259 @@
++/**
++ * Category tags: what each of the catalogue's categories holds, in the words its own product
++ * names use, in English and Finnish. Built from data/products_slim.jsonl at start-up, so a new
++ * catalogue gets new tags without a hand-made list.
++ *
++ * A tag is a word that names many products in the category and is not spread thin across the
++ * catalogue: "bean" is a tag of canned beans and of coffee beans; "frozen" is a tag of nothing.
++ * Search uses the same word statistics to map Finnish words to English ones ("papu" → "bean"),
++ * to find the Finnish stem of an English word ("lentil" → "linssi") and to suggest a spelling
++ * ("chese" → "cheese"). `pnpm --filter @aimo/api tags` writes the tags to
++ * data/category_tags.json for people to read.
++ */
++import type { Product } from "@aimo/contracts";
++
++export type Tag = { word: string; n: number; share: number; focus: number };
++export type CategoryTags = { category: string; size: number; label: string; en: Tag[]; fi: Tag[]; examples: string[] };
++
++const lc = (s: string) => s.toLowerCase().normalize("NFC");
++const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
++export const singularEn = (w: string) =>
++  w.length > 4 && w.endsWith("ies") ? w.slice(0, -3) + "y" : w.length > 4 && /(oes|ches|shes|sses|xes)$/.test(w) ? w.slice(0, -2) : w.length > 3 && w.endsWith("s") && !/(ss|us|is)$/.test(w) ? w.slice(0, -1) : w;
++
++/** Words that describe any product (state, diet, pack, size), so they never name a category. */
++const GENERIC = new Set(`and with in of for the a an on to or from by n x e ca appr approx about pcs pc kpl pkt pack packs box boxes bag bags
++  can cans tin jar jars bottle bottles bucket tub tray trays pouch carton cartons sack sacks pail case portion portions piece pieces
++  frozen fresh chilled organic natural plain classic original premium professional pro mini maxi big large small medium extra super
++  free lactose gluten vegan vegetarian low fat light whole half sliced diced grated shredded cut cooked raw ready smoked dried
++  salted unsalted sweetened unsweetened finnish finland suomi suomalainen new style type mix mixed assorted assortment various
++  red green white black yellow brown blue pink gold golden dark uht esl gn approximately
++  ja tai sekä ilman pakaste pakasteena tuore luomu kypsä raaka iso pieni rasia pussi purkki pullo laatikko säkki noin
++  gluteeniton laktoositon vegaaninen maidoton kevyt rasvaton täysjyvä viipaloitu suolattu suolaton kuivattu savustettu`.split(/\s+/));
++
++/** The plain words of a name: letters only, brand removed, anything after a comma or bracket left out. */
++export function nameWords(name: string | null, brand: string | null): string[] {
++  if (!name) return [];
++  let s = lc(name).replace(/[®™©]/g, " ");
++  const b = brand ? lc(brand).trim() : "";
++  if (b.length >= 3) s = s.replace(new RegExp(`(^|[^\\p{L}])${esc(b)}(?=$|[^\\p{L}])`, "gu"), "$1 ");
++  s = s.split(/[,;(]/)[0];
++  return [...s.matchAll(/\p{L}{3,}/gu)].map((m) => m[0]).filter((w) => !GENERIC.has(w));
++}
++
++/** A Finnish word and the tails a compound ends in: "juustokakku" → juustokakku, ustokakku … kakku. */
++export function fiTails(w: string): string[] {
++  const out = [w];
++  for (let i = 1; i + 4 <= w.length; i++) out.push(w.slice(i));
++  return out;
++}
++
++/**
++ * Finnish consonant gradation, strong → weak, so a stem also finds its other forms:
++ * papu/pavut, kakku/kakut, tomaatti/tomaatit.
++ */
++const V = "[aeiouyäö]";
++const GRADATION: [RegExp, string][] = [
++  [new RegExp(`kk(${V})$`), "k$1"], [new RegExp(`pp(${V})$`), "p$1"], [new RegExp(`tt(${V})$`), "t$1"], [new RegExp(`nk(${V})$`), "ng$1"],
++  [new RegExp(`mp(${V})$`), "mm$1"], [new RegExp(`lt(${V})$`), "ll$1"], [new RegExp(`nt(${V})$`), "nn$1"], [new RegExp(`rt(${V})$`), "rr$1"],
++  [new RegExp(`(${V})p(${V})$`), "$1v$2"], [new RegExp(`(${V})t(${V})$`), "$1d$2"],
++];
++export function fiVariants(w: string): string[] {
++  const out = new Set([w]);
++  for (const [re, to] of GRADATION) if (re.test(w)) out.add(w.replace(re, to));
++  return [...out].filter((v) => v.length >= 4);
++}
++
++type Words = { p: Product; en: string[]; fi: string[]; copy: boolean };
++type Built = {
++  cats: Map<string, CategoryTags>;
++  /** English word (singular) → categories where it is a tag. */
++  enIndex: Map<string, (Tag & { category: string })[]>;
++  /** Whole catalogue words in either language, with product counts. */
++  vocab: Map<string, number>;
++  fiVocab: Set<string>;
++  /** English word (singular) → products whose English name has it. */
++  enCount: Map<string, number>;
++  words: Words[];
++};
++let built: Built | null = null;
++let builtFor: Product[] | null = null;
++
++/** A tag names at least two products and a tenth of the range, and the category holds a tenth of the word's products. */
++export const TAG_MIN = 2;
++export const TAG_SHARE = 0.1;
++export const TAG_FOCUS = 0.1;
++
++export function buildCategoryTags(all: Product[]): Built {
++  if (built && builtFor === all) return built;
++  const size = new Map<string, number>();
++  const df = { en: new Map<string, Map<string, number>>(), fi: new Map<string, Map<string, number>>() };
++  const gdf = { en: new Map<string, number>(), fi: new Map<string, number>() };
++  const examples = new Map<string, string[]>();
++  const vocab = new Map<string, number>();
++  const fiVocab = new Set<string>();
++  const enCount = new Map<string, number>();
++  const words: Words[] = [];
++  for (const p of all) {
++    const en = nameWords(p.name, p.brand);
++    const fi = nameWords(p.nameFi, p.brand);
++    words.push({ p, en, fi, copy: !p.nameFi || lc(p.nameFi) === lc(p.name) });
++    size.set(p.category, (size.get(p.category) ?? 0) + 1);
++    const ex = examples.get(p.category) ?? [];
++    if (ex.length < 3) ex.push(p.name);
++    examples.set(p.category, ex);
++    for (const w of new Set([...en, ...fi])) vocab.set(w, (vocab.get(w) ?? 0) + 1);
++    for (const w of fi) fiVocab.add(w);
++    if (!(!p.nameFi || lc(p.nameFi) === lc(p.name))) for (const w of new Set(en.map(singularEn))) enCount.set(w, (enCount.get(w) ?? 0) + 1);
++    for (const [lang, ws] of [["en", new Set(en.map(singularEn))], ["fi", new Set(fi.flatMap(fiTails))]] as const) {
++      for (const w of ws) {
++        const m = df[lang].get(p.category) ?? new Map<string, number>();
++        m.set(w, (m.get(w) ?? 0) + 1);
++        df[lang].set(p.category, m);
++        gdf[lang].set(w, (gdf[lang].get(w) ?? 0) + 1);
++      }
++    }
++  }
++  const cats = new Map<string, CategoryTags>();
++  const enIndex: Built["enIndex"] = new Map();
++  for (const [cat, n] of [...size].sort((a, b) => (a[0] < b[0] ? -1 : 1))) {
++    const pick = (lang: "en" | "fi") =>
++      [...(df[lang].get(cat) ?? new Map<string, number>())]
++        .map(([word, k]) => ({ word, n: k, share: +(k / n).toFixed(3), focus: +(k / gdf[lang].get(word)!).toFixed(3) }))
++        .filter((t) => t.n >= TAG_MIN && t.share >= TAG_SHARE && t.focus >= TAG_FOCUS)
++        .sort((a, b) => b.n - a.n || (a.word < b.word ? -1 : 1));
++    const en = pick("en").slice(0, 12);
++    // A Finnish tail counts only as a real word ("kakku", not "akakku"), and only if no longer
++    // tail holds nearly all of it.
++    const fiAll = pick("fi").filter((t) => fiVocab.has(t.word));
++    const fi = fiAll.filter((t) => !fiAll.some((o) => o.word.length > t.word.length && o.word.endsWith(t.word) && o.n >= 0.8 * t.n)).slice(0, 12);
++    cats.set(cat, { category: cat, size: n, label: (en.length ? en : fi).slice(0, 3).map((t) => t.word).join(", "), en, fi, examples: examples.get(cat) ?? [] });
++    for (const t of en) enIndex.set(t.word, [...(enIndex.get(t.word) ?? []), { ...t, category: cat }]);
++  }
++  built = { cats, enIndex, vocab, fiVocab, enCount, words };
++  builtFor = all;
++  return built;
++}
++
++/** Products whose English name has the word (any number). */
++export function enWordCount(word: string, all: Product[]): number {
++  const w = singularEn(lc(word));
++  return buildCategoryTags(all).enCount.get(w) ?? 0;
++}
++
++/** Categories where the English word (any number) is a tag. */
++export function tagCategories(word: string, all: Product[]): (Tag & { category: string })[] {
++  return buildCategoryTags(all).enIndex.get(singularEn(lc(word))) ?? [];
++}
++
++const fiToEnCache = new Map<string, string | null>();
++/**
++ * The English word the catalogue uses for a Finnish one: the English word most of the products
++ * share whose Finnish name has that word ("papu" → "bean", "kakku" → "cake"). The word on its own
++ * ("sipuli", "sipulit") outvotes compounds ("valkosipuli" is garlic). Null when the word isn't
++ * Finnish product vocabulary or the products don't agree.
++ */
++export function fiToEn(word: string, all: Product[]): string | null {
++  const w = lc(word);
++  if (fiToEnCache.has(w)) return fiToEnCache.get(w)!;
++  const vs = fiVariants(w);
++  const { words } = buildCategoryTags(all);
++  const own: Words[] = [];
++  const compound: Words[] = [];
++  for (const x of words) {
++    if (x.copy) continue;
++    // The word is the head: nothing, or a short ending, after it.
++    const at = (f: string) => vs.map((v) => ({ at: f.lastIndexOf(v), v })).find((h) => h.at >= 0 && f.length - h.at - h.v.length <= 3);
++    const hits = x.fi.map(at).filter(Boolean) as { at: number }[];
++    if (!hits.length) continue;
++    (hits.some((h) => h.at === 0) ? own : compound).push(x);
++  }
++  const vote = (ps: Words[]) => {
++    const counts = new Map<string, number>();
++    for (const x of ps) for (const e of new Set(x.en.map(singularEn))) counts.set(e, (counts.get(e) ?? 0) + 1);
++    const top = [...counts].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))[0];
++    return top && top[1] >= Math.max(3, 0.4 * ps.length) ? top[0] : null;
++  };
++  const out = (own.length >= 3 ? vote(own) : null) ?? vote([...own, ...compound]);
++  fiToEnCache.set(w, out);
++  return out;
++}
++
++const enToFiCache = new Map<string, string[]>();
++/**
++ * Finnish stems for an English word: the Finnish word most of the products named with it share,
++ * and that seldom appears without it ("bean" → "papu", "lentil" → "linssi"). A stem must be
++ * a real Finnish word; its gradation forms are added ("papu" → "pavu").
++ */
++export function enToFi(word: string, all: Product[]): string[] {
++  const w = singularEn(lc(word));
++  const hit = enToFiCache.get(w);
++  if (hit) return hit;
++  const { words, fiVocab } = buildCategoryTags(all);
++  const withWord = words.filter((x) => !x.copy && x.en.some((e) => singularEn(e) === w));
++  const df = new Map<string, number>();
++  for (const x of withWord) {
++    const en = new Set(x.en);
++    // Every real Finnish word inside the name's words: "jättipapuja" holds "papu" and "papuja".
++    const stems = new Set<string>();
++    for (const f of x.fi) {
++      if (en.has(f)) continue;
++      for (let i = 0; i < f.length; i++) for (let j = i + 4; j <= f.length; j++) if (fiVocab.has(f.slice(i, j))) stems.add(f.slice(i, j));
++    }
++    for (const t of stems) df.set(t, (df.get(t) ?? 0) + 1);
++  }
++  const need = Math.max(3, 0.4 * withWord.length);
++  // On a tie the longer word wins: "hillo", not "hill".
++  const cands = [...df].filter(([, k]) => k >= need).sort((a, b) => b[1] - a[1] || b[0].length - a[0].length);
++  const out: string[] = [];
++  for (const [s, k] of cands) {
++    // A stem holding the English word is the loanword itself ("smokehouse" for "house").
++    if (s.includes(w) || out.some((o) => s.includes(o) || o.includes(s))) continue;
++    // Most Finnish names with the stem are this product in English too.
++    let total = 0;
++    for (const x of words) if (x.fi.some((f) => f.includes(s))) total++;
++    if (k / total < 0.5) continue;
++    out.push(s);
++    if (out.length >= 2) break;
++  }
++  const withForms = [...new Set(out.flatMap(fiVariants))];
++  enToFiCache.set(w, withForms);
++  return withForms;
++}
++
++/** Two words the catalogue also writes as one ("chick peas" / "chickpeas"): another product. */
++export function isCompound(a: string, b: string, all: Product[]): boolean {
++  const { vocab } = buildCategoryTags(all);
++  return [a + b, a + singularEn(b), singularEn(a + b)].some((w) => (vocab.get(w) ?? 0) >= 3);
++}
++
++/** Catalogue words one edit away (two for long words), most common first: "chese" → "cheese". */
++export function didYouMean(word: string, all: Product[], limit = 3): string[] {
++  const w = lc(word);
++  if (w.length < 4) return [];
++  const { vocab } = buildCategoryTags(all);
++  if ((vocab.get(w) ?? 0) >= 3) return [];
++  const max = w.length >= 8 ? 2 : 1;
++  const out: [string, number][] = [];
++  for (const [v, n] of vocab) {
++    if (n < 3 || v === w || Math.abs(v.length - w.length) > max) continue;
++    if (editDistance(w, v, max) <= max) out.push([v, n]);
++  }
++  return out.sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).slice(0, limit).map(([v]) => v);
++}
++
++/** Damerau-Levenshtein (an adjacent swap counts one), stopping early past `max`. */
++export function editDistance(a: string, b: string, max = 2): number {
++  const d: number[][] = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
++  for (let j = 1; j <= b.length; j++) d[0][j] = j;
++  for (let i = 1; i <= a.length; i++) {
++    let rowMin = Infinity;
++    for (let j = 1; j <= b.length; j++) {
++      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
++      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost);
++      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
++      rowMin = Math.min(rowMin, d[i][j]);
++    }
++    if (rowMin > max) return max + 1;
++  }
++  return d[a.length][b.length];
++}
+diff --git a/apps/api/src/search.ts b/apps/api/src/search.ts
+index cb8f189..3e0f40d 100644
+--- a/apps/api/src/search.ts
++++ b/apps/api/src/search.ts
+@@ -19,6 +19,7 @@
+  * A search returns its best non-empty group: tiers 0–1, else 2, else 3.
+  */
+ import type { Product } from "@aimo/contracts";
++import { enToFi, enWordCount, fiToEn, fiVariants, isCompound } from "./categoryTags.js";
+ 
+ type Role = "head" | "modifier" | "mention";
+ type Tok = { w: string; seg: number; joined: boolean; num: boolean };
+@@ -28,7 +29,7 @@ const singular = (w: string) =>
+   w.length > 4 && w.endsWith("ies") ? w.slice(0, -3) + "y" : w.length > 4 && /(oes|ches|shes)$/.test(w) ? w.slice(0, -2) : w.length > 3 && w.endsWith("s") && !w.endsWith("ss") ? w.slice(0, -1) : w;
+ const plurals = (w: string) => [w, w + "s", w + "es", ...(w.endsWith("y") ? [w.slice(0, -1) + "ies"] : [])];
+ 
+-type Entry = { en: string[]; fi: string[]; isa?: string[]; notPrev?: string[]; notNext?: string[]; notPrefix?: string[]; flavour?: boolean };
++type Entry = { en: string[]; fi: string[]; isa?: string[]; notPrev?: string[]; notNext?: string[]; notPrefix?: string[]; flavour?: boolean; adhoc?: boolean };
+ 
+ /**
+  * Terms a chef types, with the Finnish stems the catalogue uses. `isa` names the parent
+@@ -126,6 +127,8 @@ const LEXICON: Record<string, Entry> = {
+   juice: { en: ["juice"], fi: ["täysmehu", "mehu"] },
+   "orange juice": { en: ["orange juice"], fi: ["appelsiinitäysmehu", "appelsiinimehu"], isa: ["juice"] },
+   cheesecake: { en: ["cheesecake", "cheese cake"], fi: ["juustokakku"] },
++  // Pancakes, rice cakes, fish cakes and crab cakes are other products; a cake tin is equipment.
++  cake: { en: ["cake", "gateau", "gâteau", "torte"], fi: ["kakku", "kakut", "kaku", "torttu"], notPrev: ["rice", "corn", "fish", "crab", "potato", "oat", "pan", "rye", "salmon"], notPrefix: ["pan", "rice", "corn", "fish", "crab", "oat", "pannu", "riisi", "maissi", "kala", "rapu", "kaura", "ruis", "peruna", "lohi"] },
+ };
+ 
+ /** A noun after the term means the term only describes it: "cheese sauce", "milk chocolate". */
+@@ -184,7 +187,7 @@ export function tokenize(name: string, brand: string | null): Tok[] {
+   return out;
+ }
+ 
+-type Term = { key: string; en: string[][]; fi: string[]; family: Set<string>; famFi: string[]; notPrev: Set<string>; notNext: Set<string>; notPrefix: string[]; flavour: boolean };
++type Term = { key: string; en: string[][]; fi: string[]; family: Set<string>; famFi: string[]; notPrev: Set<string>; notNext: Set<string>; notPrefix: string[]; flavour: boolean; adhoc: boolean };
+ 
+ const termCache = new Map<string, Term>();
+ function entryTerm(key: string, e: Entry): Term {
+@@ -206,13 +209,37 @@ function entryTerm(key: string, e: Entry): Term {
+   addFam(e);
+   for (const p of e.isa ?? []) if (LEXICON[p]) addFam(LEXICON[p]);
+   for (const c of Object.values(LEXICON)) if (c.isa?.includes(key)) addFam(c);
+-  const t: Term = { key, en, fi, family, famFi, notPrev: new Set(e.notPrev ?? []), notNext: new Set(e.notNext ?? []), notPrefix: e.notPrefix ?? [], flavour: Boolean(e.flavour) };
++  const t: Term = { key, en, fi, family, famFi, notPrev: new Set(e.notPrev ?? []), notNext: new Set(e.notNext ?? []), notPrefix: e.notPrefix ?? [], flavour: Boolean(e.flavour), adhoc: Boolean(e.adhoc) };
+   termCache.set(key, t);
+   return t;
+ }
++/** The catalogue, for words the lexicon doesn't know (set by catalog.ts when it loads). */
++let catalogue: Product[] | null = null;
++export function useCatalogue(all: Product[]) {
++  catalogue = all;
++}
++
++/**
++ * A word the lexicon doesn't know. With the catalogue loaded, a Finnish word becomes the English
++ * word the catalogue uses for it ("papu" → bean, "kakku" → the cake entry), and an English word
++ * gets the Finnish stems its products share ("lentil" → "linssi"), so both languages search alike.
++ */
+ function adhocTerm(w: string): Term {
+   const key = `~${w}`;
+-  return termCache.get(key) ?? entryTerm(key, { en: [w], fi: w.length >= 5 ? [w] : [] });
++  const cached = termCache.get(key);
++  if (cached) return cached;
++  if (catalogue && !QUERY_FILLER.has(w) && !QUERY_FORMS.has(w)) {
++    const en = fiToEn(w, catalogue);
++    if (en && en !== w && enWordCount(w, catalogue) < 3) {
++      const known = byVariant.get(en) ?? byVariant.get(singular(en));
++      if (known) return entryTerm(known, LEXICON[known]);
++      const t = entryTerm(`~${en}`, { en: [en], fi: [...new Set([...fiVariants(w), ...enToFi(en, catalogue)])], adhoc: true });
++      termCache.set(key, t);
++      return t;
++    }
++    if (enWordCount(w, catalogue) >= 2) return entryTerm(key, { en: [w], fi: [...new Set([...(w.length >= 5 ? [w] : []), ...enToFi(w, catalogue)])], adhoc: true });
++  }
++  return entryTerm(key, { en: [w], fi: w.length >= 5 ? [w] : [], adhoc: true });
+ }
+ 
+ const byVariant = new Map<string, string>();
+@@ -278,6 +305,8 @@ function roleAfter(toks: Tok[], i: number, t: Term, fi: boolean): Role {
+ }
+ 
+ function roleBefore(toks: Tok[], i: number, t: Term, fi = false): Role | null {
++  // A word the lexicon doesn't know, after a product noun, is its filling: "Gyoza Dumplings Tofu & Vegetable".
++  if (t.adhoc && !fi) for (let j = i - 1; j >= 0 && toks[j].seg === toks[i].seg; j--) if (!toks[j].num && isModWord(toks[j].w, t, false)) return "modifier";
+   // A product noun, then the size, then the term: "yoghurt 4x125 g strawberry" is a flavour.
+   let sized = t.flavour;
+   for (let j = i - 1; j >= 0 && toks[j].seg === toks[i].seg; j--) {
+@@ -320,7 +349,10 @@ function occurrences(toks: Tok[], t: Term, fi: boolean): Role[] {
+       }
+       const v = seq[0];
+       if (plurals(v).includes(w)) {
+-        role = roleBefore(toks, i, t, fi) ?? roleAfter(toks, i, t, fi);
++        // "Chick peas" are chickpeas: the catalogue writes the pair as one word elsewhere.
++        const p = toks[i - 1];
++        if (t.adhoc && catalogue && p && p.seg === toks[i].seg && !p.num && isCompound(p.w, w, catalogue)) role = "modifier";
++        else role = roleBefore(toks, i, t, fi) ?? roleAfter(toks, i, t, fi);
+         break;
+       }
+       // English compounds only in the English name; Finnish compounds are read below.
+@@ -332,7 +364,8 @@ function occurrences(toks: Tok[], t: Term, fi: boolean): Role[] {
+         }
+         if (w.endsWith(v) || w.endsWith(v + "s")) {
+           const prefix = w.slice(0, w.lastIndexOf(v));
+-          role = t.notPrefix.some((x) => prefix.endsWith(x)) ? "modifier" : (roleBefore(toks, i, t, fi) ?? roleAfter(toks, i, t, fi));
++          // Without a lexicon entry we can't tell "cupcake" from "pancake" or "smokehouse".
++          role = t.adhoc ? "mention" : t.notPrefix.some((x) => prefix.endsWith(x)) ? "modifier" : (roleBefore(toks, i, t, fi) ?? roleAfter(toks, i, t, fi));
+           break;
+         }
+         if (w.includes(v)) {
+@@ -351,6 +384,11 @@ function occurrences(toks: Tok[], t: Term, fi: boolean): Role[] {
+           role = "modifier";
+           break;
+         }
++        // Without a lexicon entry, "sokeriherne" (a pea) and "kikherne" (a chickpea) look alike.
++        if (t.adhoc && prefix) {
++          role = "mention";
++          break;
++        }
+         // A longer stem in the list owns the hit ("kananmuna" is egg, not chicken).
+         if (prefix && t.fi.some((o) => o !== v && o.length > v.length && w.includes(o))) continue;
+         const r = fiRemainder(w.slice(at + v.length), t);
+@@ -398,10 +436,13 @@ export function homeCategories(t: Term, all: Iterable<Product>): Map<string, Hom
+   const cached = homeCache.get(t.key);
+   if (cached) return cached;
+   const heads = new Map<string, number>();
++  const named = new Map<string, number>();
+   const size = new Map<string, number>();
+   for (const p of all) {
+     size.set(p.category, (size.get(p.category) ?? 0) + 1);
+-    if (termRole(p, t) === "head") heads.set(p.category, (heads.get(p.category) ?? 0) + 1);
++    const r = termRole(p, t);
++    if (r) named.set(p.category, (named.get(p.category) ?? 0) + 1);
++    if (r === "head") heads.set(p.category, (heads.get(p.category) ?? 0) + 1);
+   }
+   const out = new Map<string, HomeStats>();
+   const stats = new Map<string, HomeStats>();
+@@ -410,18 +451,61 @@ export function homeCategories(t: Term, all: Iterable<Product>): Map<string, Hom
+   foodTerm.set(t.key, food >= 0);
+   if (food >= 0) for (const cat of [...heads.keys()]) if (isNonFood(cat)) heads.delete(cat);
+   const most = Math.max(0, ...heads.values());
++  // A word the lexicon doesn't know is often a narrow product ("peas", "avocado") spread over
++  // fresh, frozen and canned ranges, so a tenth of a range is enough.
++  const share = t.adhoc ? HOME_SHARE_ADHOC : HOME_SHARE;
+   for (const [cat, h] of heads) {
+     const n = size.get(cat)!;
+     stats.set(cat, { heads: h, size: n, share: h / n });
+     // The category with the most heads counts even when the term is a narrow kind in a wide
+     // range (feta among the salad cheeses, 8 of 47).
+-    if (h >= 2 && (h / n >= HOME_SHARE || (h === most && h / n >= MOST_SHARE))) out.set(cat, { heads: h, size: n, share: h / n });
++    // An unknown word is also at home in a wide range where most products naming it are it:
++    // two frozen peas among 150 frozen vegetables, against one pea-and-carrot mix.
++    const mostlyIt = t.adhoc && h >= 3 && h / named.get(cat)! >= ADHOC_HEAD_RATIO;
++    if (h >= 2 && (h / n >= share || mostlyIt || (h === most && h / n >= MOST_SHARE))) out.set(cat, { heads: h, size: n, share: h / n });
+   }
+   homeCache.set(t.key, out);
+   statsCache.set(t.key, stats);
+   return out;
+ }
++const kindCache = new Map<string, Map<string, string>>();
++/**
++ * Home categories where the word nearly always follows the same other product noun: in the coffee
++ * range "beans" are "coffee beans". Maps the category to that noun.
++ */
++export function kindOfCategories(t: Term, all: Iterable<Product>): Map<string, string> {
++  const cached = kindCache.get(t.key);
++  if (cached) return cached;
++  const out = new Map<string, string>();
++  const forms = new Set(t.en.filter((seq) => seq.length === 1).flatMap((seq) => plurals(seq[0])));
++  const prev = new Map<string, Map<string, number>>();
++  const heads = new Map<string, number>();
++  const home = homeCategories(t, all);
++  for (const p of all) {
++    if (!home.has(p.category) || termRole(p, t) !== "head") continue;
++    heads.set(p.category, (heads.get(p.category) ?? 0) + 1);
++    const toks = tokenize(p.name, p.brand);
++    const i = toks.findIndex((x) => forms.has(x.w));
++    const w = i > 0 && toks[i - 1].seg === toks[i].seg && !toks[i - 1].num ? toks[i - 1].w : null;
++    if (!w) continue;
++    const m = prev.get(p.category) ?? new Map<string, number>();
++    m.set(w, (m.get(w) ?? 0) + 1);
++    prev.set(p.category, m);
++  }
++  for (const [cat, m] of prev) {
++    const [w, n] = [...m].sort((a, b) => b[1] - a[1])[0];
++    const known = byVariant.get(w) ?? byVariant.get(singular(w));
++    if (known && n >= KIND_SHARE * heads.get(cat)!) out.set(cat, known);
++  }
++  kindCache.set(t.key, out);
++  return out;
++}
++/** "coffee" before "beans" in three products of four makes the range coffee. */
++export const KIND_SHARE = 0.6;
++
+ export const HOME_SHARE = 0.2;
++export const HOME_SHARE_ADHOC = 0.1;
++export const ADHOC_HEAD_RATIO = 0.5;
+ /** The top category still needs this share: three lemon teas among 106 teas don't make tea a lemon range. */
+ export const MOST_SHARE = 0.05;
+ /** Above this share the whole category counts (tier 1), even products the name doesn't say. */
+@@ -462,7 +546,8 @@ const MEAT_TERMS = new Set("chicken beef pork ham bacon turkey duck lamb fish sa
+ const DAIRY_TERMS = new Set(["milk", "cream", "butter", "cheese", "yoghurt", "quark", "ice cream"]);
+ const PLANT_WORDS = /\b(?:vegan|vegetarian|veggie|plant[ -]?based|meat[ -]?free)\b|\b(?:kasvis|kasvipohjai|vegaani)/i;
+ const VEGAN_WORDS = /\b(?:vegan|plant[ -]?based|non[ -]?dairy|dairy[ -]?free)\b|\b(?:kasvipohjai|vegaani)/i;
+-const QUERY_FILLER = new Set("some nice please a an the of i we need want buy order me us find for".split(" "));
++/** Filler and occasions: a birthday cake is a cake for a birthday; no product name says "birthday". */
++const QUERY_FILLER = new Set("some nice please a an the of i we need want buy order me us find for birthday wedding anniversary graduation banquet conference celebration guests guest".split(" "));
+ const negationCache = new Map<string, RegExp[]>();
+ 
+ function deniesTerm(text: string, t: Term): boolean {
+@@ -504,7 +589,14 @@ export function rank(q: string, candidates: Product[], all: Iterable<Product>, h
+   // Only known conversational filler may be dropped. An unknown brand, species or form
+   // must leave the request unmatched rather than silently broadening it.
+   const quals = terms.filter((t, i) => i !== hi && !QUERY_FILLER.has(t.key.replace(/^~/, "")));
+-  const home = homeOverride ? null : homeCategories(head, all_);
++  // An unknown word's own home decides where it may be trusted, even inside a named category.
++  const natural = head.adhoc ? homeCategories(head, all_) : null;
++  let home = homeOverride ? null : homeCategories(head, all_);
++  // A range where the word is nearly always part of another product ("coffee beans", "vanilla
++  // beans") is that product's home, unless the query names it too.
++  const asked = new Set(terms.map((t) => t.key.replace(/^~/, "")));
++  const kinds = head.adhoc ? kindOfCategories(head, all_) : new Map<string, string>();
++  if (home && [...kinds].some(([, w]) => !asked.has(w))) home = new Map([...home].filter(([cat]) => !kinds.has(cat) || asked.has(kinds.get(cat)!)));
+   // Category codes group like products (1060x cheeses, 1870x fish), so a neighbour of a home
+   // category holds the same kind: "SALMON FILLET C-CUT" sits with the trout fillets.
+   // Only where the term is still a twentieth of that range: ready meals (17300) sit beside fresh pasta.
+@@ -526,9 +618,16 @@ export function rank(q: string, candidates: Product[], all: Iterable<Product>, h
+     else if (role === "head") tier = 2;
+     else if (role !== null) tier = 3;
+     if (tier !== null && tier < 3 && foodTerm.get(head.key) && isNonFood(p.category)) tier = 3;
+-    // Unknown nouns and brand/compound substrings support browsing only. They do
+-    // not prove that a chef asking for "houses" wants smokehouse meat or insecticide.
+-    if (tier !== null && head.key.startsWith("~") && !EN_MOD.has(head.key.slice(1))) tier = 3;
++    // A word the lexicon doesn't know earns a shortlist only where the catalogue itself names
++    // products with it: its home categories. Elsewhere, and for a word like "houses" (one
++    // gingerbread house) or a brand substring, it supports browsing only.
++    if (tier !== null && tier < 3 && head.adhoc && !EN_MOD.has(head.key.slice(1))) {
++      // Only a product the name calls the word: without a lexicon entry a compound or a
++      // mention ("chickpeas" for "peas") proves nothing.
++      if (tier === 2 || role !== "head") tier = 3;
++      else if (homeOverride && !natural!.has(p.category)) tier = 3;
++      else if (kinds.has(p.category) && !asked.has(kinds.get(p.category)!)) tier = 3;
++    }
+     // Identity checks matter only for a text/category match, not every catalogue row.
+     if (tier !== null && !conflictsWithRequest(p, terms, q, claims)) out.push({ product: p, tier, role, term: head.key.replace(/^~/, "") });
+   }
+@@ -538,7 +637,7 @@ export function rank(q: string, candidates: Product[], all: Iterable<Product>, h
+ /** The head term: the last word that isn't a form ("salmon fillet" is about salmon). */
+ export function headIndex(terms: Term[]): number {
+   let hi = terms.length - 1;
+-  while (hi > 0 && QUERY_FORMS.has(terms[hi].key.replace(/^~/, ""))) hi--;
++  while (hi > 0 && (QUERY_FORMS.has(terms[hi].key.replace(/^~/, "")) || QUERY_FILLER.has(terms[hi].key.replace(/^~/, "")))) hi--;
+   return hi;
+ }
+ 

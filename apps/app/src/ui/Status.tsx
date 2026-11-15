@@ -31,6 +31,19 @@ export function Status({ k, role, title, label }: { k: Kind; role?: string | nul
   );
 }
 
+/**
+ * D34: a product whose stock Valio Aimo can't confirm is listed like any other match, with this
+ * small marker. Its accessible name keeps the words, so it never reads as confirmed (D31).
+ */
+export function UnknownStockMark({ reason }: { reason?: "terminal_sentinel" | "stock_sentinel" | string }) {
+  const why = reason === "terminal_sentinel" ? "ships from the supplier, so Valio Aimo reports no figure" : "Valio Aimo sent a placeholder figure";
+  return (
+    <span className="stock-unknown-mark" role="img" aria-label="Stock not confirmed" title={`Stock not confirmed: ${why}`}>
+      ?
+    </span>
+  );
+}
+
 export const Fixture = ({ show = true, name }: { show?: boolean; name?: string | null }) =>
   show ? (
     <span className="stamp fixture" title={name ? `Saved fixture: ${name}` : "Seed or saved test data, not a live answer"}>

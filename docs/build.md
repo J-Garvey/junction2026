@@ -128,6 +128,7 @@ The PRD left these open. Each choice follows the chunk's recommended answer unle
 
 | Question | What the build does |
 |---|---|
+| Q01.1 Event intake | A table editor on the order page ("From a menu"): dishes, ingredient, amount per guest or in total, unit, diet groups and which dishes they eat, head count, and an explicit "allergies and diets are complete". Saved with EDIT-GUARD. "Generate order" scales each ingredient by the guests who eat that dish, combines identical needs across dishes (each dish's share kept), and sends the result through the same review, basket and finance approval as a typed product request. No file upload or paste import. All dishes are ordered under the chef's outlet. |
 | Q01.2 Request fields | As recommended. Events carry dishes, ingredients with amount per portion, and disjoint diet groups. An ingredient can name a recipe-approved product per diet group (`variants`). |
 | Q01.5 Ambiguity | Known broad words ("cream", "bread", "cheese", "fish") always ask. Other words go to the model; unreachable means ask. |
 | Q01.6 Parser failure | Falls back to a built-in parser for the same grammar and tells the user to check the chips. |

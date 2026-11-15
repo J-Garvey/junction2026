@@ -650,6 +650,7 @@ Core rules shared by every scene, followed by add-ons for the teams that run the
   5. confirmed stock over unconfirmed, as the last tie-breaker only (D32).
 - A product that wins on steps 1 to 4 is picked even if its stock is unconfirmed. The person is then asked whether to continue (CH-05).
 - Ties keep a stable order (product ID), so the same input always gives the same result.
+- For a line counted in pieces, the price step compares the cost to cover the need after rounding to whole packs, not price per kg (D36; decided, not yet built).
 - The audit shows which step decided the pick.
 
 **SF-07** Use real stock straight away when the delivery date is inside the lead time so that urgent requests are checked against what can actually ship.

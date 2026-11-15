@@ -10,7 +10,9 @@ import { allPeople, getPerson, issueToken, resolveToken, tokenFrom, type Person 
 import { clockState, setClock, SCENES, now } from "../clock.js";
 import { audit, auditView, verifyChain, decisionCount, SYSTEM } from "../audit.js";
 import { kvGet, kvSet } from "../db.js";
-import { RULES, FIXED } from "../rules/catalogue.js";
+import { FIXED, rulesView } from "../rules/catalogue.js";
+import { PARAMS, policyParams, storedPolicy } from "../rules/policy.js";
+import { editRules, resetRules, RuleEditError } from "../rules/editor.js";
 import { getProduct, catalogSize } from "../catalog.js";
 import { interpretMessage } from "../agent/message.js";
 import { logSearch } from "../searchlog.js";
@@ -21,6 +23,7 @@ import { questionsFor, allQuestions, getQuestion, canAnswer } from "../agent/que
 import { answer } from "../agent/answers.js";
 import { addDietGroup, changeEvent, changeGuests, coverageSummary, EditConflict, eventView, finalCheck, getEvent, listEvents, orderEvent, removeNeed, runCutoff, runViability, saveEvent, warnings, personActor, type StoredEvent } from "../agent/events.js";
 import { newId } from "../util.js";
+import { MenuBody, menuRequest, saveMenu, scaleMenu } from "../agent/menu.js";
 import { listRemembered } from "../agent/memory.js";
 import { seedReset, OUTLETS, OUTSIDE_AGENT_TOKEN, VALIO_VIEWER_TOKEN } from "../seed.js";
 import { gw } from "../agent/gatewayClient.js";
@@ -139,17 +142,23 @@ export function appRouter(): Router {
     const eventId = req.body.eventId == null ? null : z.string().parse(req.body.eventId);
     const reviewing = req.body.reviewing === true;
     if (eventId && !getEvent(eventId)) return res.status(404).json({ error: "No such order" });
+    const plan = await startRequest(req, request, eventId, reviewing, reviewing && req.body.itemReview === true);
+    res.json({ plan, questions: allQuestions().filter((q) => q.planId === plan.id) });
+  });
+
+  /** One path for a typed request and a generated menu order: plan, quote, then review or order. */
+  async function startRequest(req: Request, request: SingleRequest, eventId: string | null, reviewing: boolean, itemReview: boolean, title?: string, summary?: string) {
     const p = P(req);
-    const plan = newPlan("single", { personId: p.id, name: p.name }, request.outletId, { request, title: request.lines.map((l) => `${l.quantity ? `${l.quantity.amount} ${l.quantity.unit} ` : ""}${l.constraints.claims.includes("FREE_FROM_LACTOSE") ? "lactose-free " : ""}${l.query}`).join(", ") || request.originalText.slice(0, 60) });
+    const plan = newPlan("single", { personId: p.id, name: p.name }, request.outletId, { request, title: title ?? (request.lines.map((l) => `${l.quantity ? `${l.quantity.amount} ${l.quantity.unit} ` : ""}${l.constraints.claims.includes("FREE_FROM_LACTOSE") ? "lactose-free " : ""}${l.query}`).join(", ") || request.originalText.slice(0, 60)) });
     plan.eventId = eventId;
     plan.siteId = request.siteId ?? plan.siteId;
     plan.reviewing = reviewing;
-    if (reviewing && req.body.itemReview === true) plan.itemReviews = [];
-    audit({ actor: personActor(p), action: "request_received", summary: reviewing ? `${p.name} checked the request: ${plan.title}` : `${p.name} confirmed the request: ${plan.title}`, details: { kind: reviewing ? "review" : "confirmation", planId: plan.id }, visibility: "hotel" });
+    if (itemReview) plan.itemReviews = [];
+    audit({ actor: personActor(p), action: "request_received", summary: summary ?? (reviewing ? `${p.name} checked the request: ${plan.title}` : `${p.name} confirmed the request: ${plan.title}`), ...(summary ? { eventId } : {}), details: { kind: reviewing ? "review" : "confirmation", planId: plan.id }, visibility: "hotel" });
     savePlan(plan);
     await quoteAndDecide(plan, T(req));
-    res.json({ plan: getPlan(plan.id), questions: allQuestions().filter((q) => q.planId === plan.id) });
-  });
+    return getPlan(plan.id)!;
+  }
   r.get("/plans", (_req, res) =>
     res.json({ plans: listPlans().filter((pl) => pl.kind === "single").map((pl) => ({ id: pl.id, title: pl.title, status: pl.status, summary: pl.summary, createdAt: pl.createdAt, createdBy: pl.createdBy.name, totalExVat: pl.totalExVat })) }),
   );
@@ -433,6 +442,34 @@ export function appRouter(): Router {
     const b = z.object({ group: DietGroup, version: z.number() }).parse(req.body);
     res.json(await addDietGroup(String(req.params.id), b.group, b.version, P(req)));
   });
+  // Menu → order (CH-01, CH-12): the chef's dishes and amounts per guest, scaled by the head count.
+  r.get("/events/:id/menu", (req, res) => {
+    const e = getEvent(String(req.params.id));
+    if (!e) return res.status(404).json({ error: "No such order" });
+    res.json({ event: e, scale: scaleMenu(e) });
+  });
+  r.put("/events/:id/menu", (req, res) => {
+    const id = String(req.params.id);
+    if (!getEvent(id)) return res.status(404).json({ error: "No such order" });
+    const e = saveMenu(id, MenuBody.parse(req.body), P(req));
+    audit({ actor: personActor(P(req)), action: "request_received", summary: `${P(req).name} saved the menu for ${e.name}: ${e.dishes.length} dish${e.dishes.length === 1 ? "" : "es"}, ${e.guests} guests`, eventId: id, details: { kind: "review", version: e.version }, visibility: "hotel" });
+    res.json({ event: e, scale: scaleMenu(e) });
+  });
+  r.post("/events/:id/menu/order", async (req, res) => {
+    const id = String(req.params.id);
+    const e = getEvent(id);
+    if (!e) return res.status(404).json({ error: "No such order" });
+    const { version } = z.object({ version: z.number().int() }).parse(req.body ?? {});
+    // The order is generated from the menu the chef is looking at, never a newer one they haven't seen.
+    if (version !== e.version) throw new EditConflict(e);
+    const scale = scaleMenu(e);
+    if (scale.problems.length) return res.status(422).json({ error: "menu_incomplete", message: scale.problems.map((r) => r.message).join(" "), problems: scale.problems, scale });
+    const p = P(req);
+    const request = menuRequest(e, scale, e.siteId ?? mandate().sites[0].id, p.outlets[0] ?? "banquet");
+    const title = `Menu · ${e.guests} guests · ${scale.lines.length} item${scale.lines.length === 1 ? "" : "s"}`;
+    const plan = await startRequest(req, request, id, true, true, title, `${p.name} generated the order from the menu: ${e.dishes.length} dish${e.dishes.length === 1 ? "" : "es"} × ${e.guests} guests → ${scale.lines.length} lines`);
+    res.json({ plan, questions: allQuestions().filter((q) => q.planId === plan.id), scale });
+  });
   r.post("/events/:id/final-check", async (req, res) => res.json({ finalCheck: await finalCheck(String(req.params.id)) }));
   r.post("/events/:id/cutoff", (req, res) => res.json({ flags: runCutoff(String(req.params.id)) }));
 
@@ -445,15 +482,40 @@ export function appRouter(): Router {
     res.json({ viewer, chain: verifyChain(), entries: auditView(viewer, { eventId }), decisions: eventId ? decisionCount(eventId) : null });
   });
 
-  r.get("/rules", (_req, res) =>
-    res.json({
-      rules: RULES,
+  const rulesPayload = (req: Request) => {
+    const p = storedPolicy();
+    return {
+      rules: rulesView(),
       mandate: mandate(),
       fixed: FIXED,
+      params: PARAMS,
+      policy: { params: policyParams(), version: p.version, updatedBy: p.updatedBy, updatedAt: p.updatedAt },
+      canEdit: P(req).role === "approver",
       remembered: listRemembered(),
       tokens: { outsideAgent: OUTSIDE_AGENT_TOKEN, valioViewer: VALIO_VIEWER_TOKEN },
-    }),
-  );
+    };
+  };
+  r.get("/rules", (req, res) => res.json(rulesPayload(req)));
+  // RULE-EDIT: an approver changes outcomes and limits. The next quote uses them.
+  r.put("/rules", (req, res) => {
+    const b = z.object({ outcomes: z.record(z.string(), z.string()).optional(), params: z.record(z.string(), z.unknown()).optional() }).parse(req.body);
+    try {
+      const changes = editRules(P(req), b);
+      res.json({ ...rulesPayload(req), changes });
+    } catch (e) {
+      if (e instanceof RuleEditError) return res.status(P(req).role === "approver" ? 400 : 403).json({ error: e.message });
+      throw e;
+    }
+  });
+  r.post("/rules/reset", (req, res) => {
+    try {
+      const changes = resetRules(P(req));
+      res.json({ ...rulesPayload(req), changes });
+    } catch (e) {
+      if (e instanceof RuleEditError) return res.status(403).json({ error: e.message });
+      throw e;
+    }
+  });
   r.get("/products/:id", (req, res) => {
     const p = getProduct(String(req.params.id));
     if (!p) return res.status(404).json({ error: "Not in catalogue" });

@@ -7,7 +7,7 @@
  */
 import type { Amount, SingleLine, SingleRequest, Unit, FiredRule } from "@aimo/contracts";
 import { now } from "../clock.js";
-import { fire } from "../rules/catalogue.js";
+import { fire, FIXED } from "../rules/catalogue.js";
 import { isoDate, isCalendarDate } from "../util.js";
 import { structured, ModelUnavailable } from "./openai.js";
 import { headIndex, isLiteralProductQuery, queryTerms, QUERY_FORMS } from "../search.js";
@@ -381,8 +381,8 @@ export function quantitySanity(need: string, perPortion: Amount, guests: number,
   const out: FiredRule[] = [];
   const b = toBase(perPortion);
   if (b.unit !== "pcs") {
-    if (b.value > 1) out.push(fire("QTY-02", { need, amount: `${perPortion.amount} ${perPortion.unit}`, suggest: `${perPortion.amount} ${b.unit === "l" ? "dl" : "g"}` }));
-    else if (b.value < 0.001) out.push(fire("QTY-02", { need, amount: `${perPortion.amount} ${perPortion.unit}`, suggest: `${perPortion.amount} ${b.unit === "l" ? "dl" : "kg"}` }));
+    if (b.value > FIXED.perGuestMax) out.push(fire("QTY-02", { need, amount: `${perPortion.amount} ${perPortion.unit}`, suggest: `${perPortion.amount} ${b.unit === "l" ? "dl" : "g"}` }));
+    else if (b.value < FIXED.perGuestMin) out.push(fire("QTY-02", { need, amount: `${perPortion.amount} ${perPortion.unit}`, suggest: `${perPortion.amount} ${b.unit === "l" ? "dl" : "kg"}` }));
   }
   if (statedTotal) {
     const t = toBase(statedTotal);
