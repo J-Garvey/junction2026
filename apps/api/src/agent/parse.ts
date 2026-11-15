@@ -185,14 +185,15 @@ export function rulesParse(text: string): Omit<SingleRequest, "siteId" | "outlet
   for (const raw of parts) {
     const s = raw.toLowerCase();
     const q = s.match(UNIT_AMOUNT);
-    // A bare count ("10 cheese", "12 x birthday cakes") is pieces; no number at all is one piece.
+    // A bare count ("10 cheese", "12 x birthday cakes") is pieces. No number at all is not one piece:
+    // the amount is asked for (REQ-02), since a guessed "1 pcs" can be thousands of percent off.
     const count = q ? null : s.match(BARE_COUNT);
-    const parsedQuantity: Amount = q
+    const parsedQuantity: Amount | null = q
       ? { amount: Number(q[1].replace(/\s/g, "").replace(",", ".")), unit: UNIT_MAP[q[2]] ?? "pcs" }
-      : { amount: count ? Number(count[1].replace(",", ".")) : 1, unit: "pcs" };
+      : count ? { amount: Number(count[1].replace(",", ".")), unit: "pcs" } : null;
     const local = restrictions(s);
     const conflictingOrigin = local.conflictingOrigin || global.conflictingOrigin || Boolean(local.origin && global.origin && local.origin !== global.origin);
-    const quantity = parsedQuantity.amount >= 0 && Number.isFinite(parsedQuantity.amount) && !conflictingOrigin && !UNSUPPORTED_SPEC.test(s) && !unclearQuantity(s) ? parsedQuantity : null;
+    const quantity = parsedQuantity && parsedQuantity.amount >= 0 && Number.isFinite(parsedQuantity.amount) && !conflictingOrigin && !UNSUPPORTED_SPEC.test(s) && !unclearQuantity(s) ? parsedQuantity : null;
     const claims = [...new Set([...global.claims, ...local.claims])];
     const pid = s.match(/\b(4\d{5})\b/);
     const leftover = local.rest
@@ -208,7 +209,8 @@ export function rulesParse(text: string): Omit<SingleRequest, "siteId" | "outlet
       id: lineId(),
       text: raw.trim(),
       // "salmon fillet" keeps its form word for the search; "lactose-free milk" is just milk.
-      query: leftover || pw?.word || s,
+      // A product code with only a count ("4 x 469363") searches for the code, not the count.
+      query: leftover || pw?.word || (pid ? pid[1] : s),
       productType: pw?.type ?? null,
       category: pw?.category ?? null,
       productId: pid?.[1] ?? null,

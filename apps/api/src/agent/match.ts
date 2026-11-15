@@ -29,7 +29,8 @@ export function shortlist(need: Need, opts: { log?: boolean } = {}): Product[] {
     // A category can mix distinct products (plain, coffee and sour milk). Alternatives
     // must retain the named identity; an ID alone does not establish a substitute spec.
     const query = need.query.replace(/\b\d{6}\b/g, "").trim();
-    if (pinned && query) {
+    // Only words can name alternatives: a leftover count or "x" would list the whole category.
+    if (pinned && contentWords(query).some((w) => /\p{L}{2}/u.test(w))) {
       const matches = searchMatches({ q: query, category: pinned.category, claims: claims.filter((c) => c !== "FREE_FROM_MILK"), limit: FIXED.searchLimit });
       for (const m of matches) if (m.tier < 3 && m.product.id !== pinned.id) out.push(m.product);
     }

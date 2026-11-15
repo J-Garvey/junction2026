@@ -7,7 +7,7 @@ const { dietRules, stockCheck, cutoffRule, earliestDelivery, packContent, mandat
 const { resolveOutcome, fire, RULES } = await import("../src/rules/catalogue.js");
 const { packRound, rankNeed } = await import("../src/agent/match.js");
 const { setClock } = await import("../src/clock.js");
-const { rulesParse, quantitySanity, toBase } = await import("../src/agent/parse.js");
+const { rulesParse, quantitySanity, toBase, checkSingle } = await import("../src/agent/parse.js");
 const { MANDATE } = await import("../src/seed.js");
 const { audit, verifyChain, SYSTEM } = await import("../src/audit.js");
 const { getDb } = await import("../src/db.js");
@@ -228,10 +228,13 @@ describe("REQUEST-PARSE (built-in parser)", () => {
     expect(r.lines[0].constraints.claims).toEqual(["FREE_FROM_LACTOSE"]);
     expect(r.lines[0].productType).toBe("plain drinking milk");
   });
-  it("splits two items and defaults a missing number to one piece", () => {
+  it("splits two items and asks how much instead of guessing one piece", () => {
     const r = rulesParse("milk and cream by Monday");
     expect(r.lines).toHaveLength(2);
-    expect(r.lines.every((l) => l.quantity?.amount === 1 && l.quantity.unit === "pcs")).toBe(true);
+    // A guessed "1 pcs" overshot a real need by thousands of percent in the search audit.
+    expect(r.lines.map((l) => l.quantity)).toEqual([null, null]);
+    const asks = checkSingle({ ...r, siteId: "site-aurora", outletId: "banquet" }).filter((x) => x.ruleId === "REQ-02");
+    expect(asks.map((x) => x.facts.lineId)).toEqual(r.lines.map((l) => l.id));
   });
   it("reads a bare count as pieces and keeps the number out of the product", () => {
     for (const [text, amount, query] of [
@@ -239,17 +242,18 @@ describe("REQUEST-PARSE (built-in parser)", () => {
       ["12 birthday cakes", 12, "birthday cakes"],
       ["12 x birthday cakes by Monday", 12, "birthday cakes"],
       ["birthday cake x 3", 3, "birthday cake"],
-      ["birthday cake", 1, "birthday cake"],
     ] as const) {
       const l = rulesParse(text).lines[0];
       expect(l.quantity).toEqual({ amount, unit: "pcs" });
       expect(l.query).toBe(query);
     }
+    expect(rulesParse("birthday cake").lines[0]).toMatchObject({ query: "birthday cake", quantity: null });
   });
   it("doesn't read a date or product code as a count", () => {
-    expect(rulesParse("cheese by 2026-11-16").lines[0].quantity).toEqual({ amount: 1, unit: "pcs" });
-    expect(rulesParse("cheese for 16 Nov").lines[0].quantity).toEqual({ amount: 1, unit: "pcs" });
+    expect(rulesParse("cheese by 2026-11-16").lines[0].quantity).toBeNull();
+    expect(rulesParse("cheese for 16 Nov").lines[0].quantity).toBeNull();
     expect(rulesParse("4 x 464306").lines[0]).toMatchObject({ productId: "464306", quantity: { amount: 4, unit: "pcs" } });
+    expect(rulesParse("464306").lines[0]).toMatchObject({ productId: "464306", quantity: null });
   });
 });
 

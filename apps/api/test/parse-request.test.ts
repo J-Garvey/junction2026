@@ -13,7 +13,6 @@ describe("literal purchase requests skip the model", () => {
     ["12 x cakes", "cakes", 12, "pcs", []],
     ["10 slices of cheese", "sliced cheese", 10, "pcs", []],
     ["1 slice of cheese", "sliced cheese", 1, "pcs", []],
-    ["milk", "milk", 1, "pcs", []],
     ["Please add 1,5 l gluten-free oat milk", "oat milk", 1.5, "l", ["FREE_FROM_GLUTEN"]],
     ["I need 1,000 litres of lactose-free milk by Monday", "milk", 1000, "l", ["FREE_FROM_LACTOSE"]],
   ])("reads %s locally", async (text, query, amount, unit, claims) => {
@@ -22,6 +21,13 @@ describe("literal purchase requests skip the model", () => {
     expect(result.request.originalText).toBe(text);
     expect(result.request.lines[0]).toMatchObject({ query, quantity: { amount, unit }, constraints: { claims } });
     expect(result.note).toBeNull();
+    expect(model).not.toHaveBeenCalled();
+  });
+
+  it("reads a product without an amount locally and leaves the amount to ask for", async () => {
+    const result = await parseRequest("milk");
+    expect(result.request.parsedBy).toBe("rules");
+    expect(result.request.lines[0]).toMatchObject({ query: "milk", quantity: null });
     expect(model).not.toHaveBeenCalled();
   });
 
