@@ -216,6 +216,17 @@ describe("manager order review", () => {
     expect(screen.queryByText("Review expires")).toBeNull();
   });
 
+  it("hides the decisions section when only other people need to decide", async () => {
+    const basket = {
+      event: { id: "conference", name: "HackJunction", serviceDate: "2026-11-16" }, questions: [question], requests: [], orders: [], review: question,
+      orderBy: { state: "unknown", at: null, reason: null, usesFixtures: false, excludedItems: 0, unconfirmedStockItems: 0 }, confirmed: false,
+    } as unknown as BasketResp;
+    vi.spyOn(api, "basket").mockResolvedValue(basket);
+    render(<MemoryRouter initialEntries={["/baskets/conference"]}><Ctx.Provider value={context(chef)}><Routes><Route path="/baskets/:id" element={<BasketPage />} /></Routes></Ctx.Provider></MemoryRouter>);
+    await screen.findByRole("heading", { name: "In the order" });
+    expect(screen.queryByRole("heading", { name: "Decisions before processing" })).toBeNull();
+  });
+
   it("does not claim a refusal note for the distinct request-rejection workflow", async () => {
     const requestQuestion: Question = { ...question, type: "spend_cap", planId: "request", options: [{ id: "reject", label: "Reject request", primary: false }] };
     const decision: Question = { ...requestQuestion, state: "answered", answer: "reject", answeredBy: { personId: manager.id, name: manager.name } };

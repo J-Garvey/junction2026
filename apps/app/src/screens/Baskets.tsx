@@ -160,7 +160,7 @@ export function BasketPage() {
 
       <AddToBasket eventId={ev.id} deliveryDate={ev.serviceDate} onAdded={reload} />
 
-      {(waitingQs.length > 0 || others.length > 0 || pending.length > 0) && (
+      {(waitingQs.length > 0 || pending.length > 0) && (
         <section>
           <div className="sechead">
             <h2>Decisions before processing</h2>
