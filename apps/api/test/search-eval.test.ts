@@ -12,7 +12,7 @@ import { allProducts, searchMatches } from "../src/catalog.js";
 import { FIXED } from "../src/rules/catalogue.js";
 import { rulesParse } from "../src/agent/parse.js";
 import { needsFromSingle } from "../src/agent/plan.js";
-import { searchHelp, shortlist } from "../src/agent/match.js";
+import { replacementShortlist, searchHelp, shortlist } from "../src/agent/match.js";
 import { categoryLabel } from "../src/categoryTags.js";
 
 type Case = {
@@ -118,6 +118,23 @@ describe("search evaluation: the shortlist is the thing the chef asked for", () 
 
 describe("search help when nothing matched (never ordered automatically)", () => {
   const needFor = (query: string) => needsFromSingle({ ...rulesParse(`10 pcs ${query} by Monday`), siteId: "site-main", outletId: "out-kitchen" })[0];
+
+  it("keeps broader replacements separate from the exact shortlist and only offers them for hard-blocked known products", () => {
+    for (const query of ["unicorn chicken burger", "houses", "princess cake"]) {
+      const need = needFor(query);
+      expect(replacementShortlist(need, shortlist(need))).toBeNull();
+    }
+    const need = needFor("princess cake");
+    need.constraints.avoidAllergens = ["AN"];
+    const original = shortlist(need);
+    const broader = replacementShortlist(need, original)!;
+    expect(broader.query).toBe("cake");
+    expect(broader.products.length).toBeLessThanOrEqual(50);
+    expect(broader.products.map((product) => product.id)).toContain("473522");
+    expect(broader.products.every((product) => product.category === original[0].category)).toBe(true);
+    expect(shortlist(need)).toEqual(original);
+    expect(need.candidates).toHaveLength(0);
+  });
 
   it.each([["chese", "cheese"], ["strawbery", "strawberry"], ["strawbery jam", "strawberry jam"]])("%s: did you mean %s", (q, fixed) => {
     const need = needFor(q);

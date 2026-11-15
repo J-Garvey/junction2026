@@ -10,11 +10,11 @@ import { getDb, getJson, allJson, kvGet } from "../db.js";
 import { now, nowIso } from "../clock.js";
 import { getProduct } from "../catalog.js";
 import { fire, resolveOutcome, outcomeOf } from "../rules/catalogue.js";
-import { reliabilityRules, CLAIM_LABEL, allergenName } from "../rules/checks.js";
+import { blocks, reliabilityRules, CLAIM_LABEL, allergenName } from "../rules/checks.js";
 import { audit, AGENT } from "../audit.js";
 import { newId, round2, eur, fmtHelsinki, isoDate } from "../util.js";
 import { gw, GatewayError } from "./gatewayClient.js";
-import { shortlist, rankNeed, packRound, searchHelp, verdictOf, type Pool } from "./match.js";
+import { shortlist, replacementShortlist, rankNeed, packRound, searchHelp, verdictOf, type Pool } from "./match.js";
 import { toBase, quantitySanity, checkSingle } from "./parse.js";
 import { buildAllergenQuestions, buildQuestions, expireOpenQuestions, openQuestionsForPlan } from "./questions.js";
 import { recallSubstitute } from "./memory.js";
@@ -363,7 +363,8 @@ export async function runPipeline(plan: StoredPlan): Promise<StoredPlan> {
   needs = needs.filter((n) => !ov.removedNeeds.includes(n.id));
   // Shortlist every need, then one batched lookup for the whole plan (VA-13).
   const lists = new Map(needs.map((n) => [n.id, shortlist(n)]));
-  const ids = [...new Set([...lists.values()].flat().map((p) => p.id))];
+  const replacements = new Map(needs.map((n) => [n.id, plan.kind === "single" ? replacementShortlist(n, lists.get(n.id)!) : null]));
+  const ids = [...new Set([...lists.values(), ...[...replacements.values()].map((replacement) => replacement?.products ?? [])].flat().map((p) => p.id))];
   const dates = needs.map((n) => n.neededBy).filter((d): d is string => Boolean(d)).sort();
   const deliveryDate = plan.kind === "single" ? (plan.request!.neededBy ? alignSingle(plan.request!.neededBy, m) : null) : dates[0] ?? null;
   plan.deliveryDate = deliveryDate;
@@ -396,6 +397,14 @@ export async function runPipeline(plan: StoredPlan): Promise<StoredPlan> {
     await rankNeed(n, list, pool, { lockedOk: ov.stockBlind, deliveryDays: m.deliveryDays, holidays: m.holidays, combinedPieceNeed: pieceAmounts.get(n.id) });
     // Nothing to order from the text: spellings and possible products for the person, never ordered.
     n.searchHelp = lists.get(n.id)!.length ? null : searchHelp(n);
+    // Broader suggestions are checked and priced but never enter automatic allocation.
+    n.replacementCandidates = [];
+    const replacement = replacements.get(n.id);
+    if (!n.candidates.length && replacement) {
+      const suggestion: Need = { ...n, query: replacement.query, productType: replacement.query, pinnedProductId: null, rules: [], judgements: [] };
+      await rankNeed(suggestion, replacement.products, pool, { deliveryDays: m.deliveryDays, holidays: m.holidays, combinedPieceNeed: pieceAmounts.get(n.id) });
+      n.replacementCandidates = suggestion.candidates.filter((candidate) => candidate.unitPrice !== null && !blocks(candidate.notes).length);
+    }
     // A chef's confirmation removes the type question for that product.
     for (const c of n.candidates) if (ov.confirmed.includes(`${n.id}:${c.productId}`)) c.notes = c.notes.filter((r) => r.ruleId !== "TYP-01");
     // An alternative the person picked goes first, so it fills the line.

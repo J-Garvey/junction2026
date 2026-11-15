@@ -45,8 +45,9 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
   // Unknown stock (STK-01) keeps its own notice, including after the item is approved.
   const warnings = [...new Set(rules.filter((rule) => rule.outcome !== "order" && !["REQ-04", "DIET-04", "DLV-06", "STK-01"].includes(rule.ruleId)).map((rule) => rule.message))];
   // Every other product that passed, usable ones first; the first few show and the rest load on request.
-  const alternatives = need?.candidates.filter((candidate) => !selected.has(candidate.productId))
-    .sort((a, b) => replacementScore(a, deliveryDate) - replacementScore(b, deliveryDate) || a.rank - b.rank) ?? [];
+  const outsideBrief = new Set(need?.replacementCandidates?.map((candidate) => candidate.productId));
+  const alternatives = [...(need?.candidates ?? []), ...(need?.replacementCandidates ?? [])].filter((candidate) => !selected.has(candidate.productId))
+    .sort((a, b) => replacementScore(a, deliveryDate) - replacementScore(b, deliveryDate) || a.rank - b.rank);
   const replacementRanges = useCategoryFilter(alternatives);
   const replacementList = useShowAll(replacementRanges.filtered, 3, "replacements");
   const help = need?.searchHelp ?? null;
@@ -178,21 +179,24 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
               </div>}
               {decisionNote && <p className="small muted add-review-decision-note" role="status">{decisionNote}</p>}
 
-              {showDetails && !tooLate && need && <button type="button" className="btn sm" disabled={disabled} aria-expanded={showReplacements} onClick={() => setShowReplacements(!showReplacements)}>Suggest replacements</button>}
+              {showDetails && !tooLate && need && !(!found.length && outsideBrief.size > 0) && <button type="button" className="btn sm" disabled={disabled} aria-expanded={showReplacements} onClick={() => setShowReplacements(!showReplacements)}>Suggest replacements</button>}
               {showDetails && showReplacements && !tooLate && !alternatives.length && <p className="small muted" role="status">No other matching products were returned. Refine the description to search again.</p>}
-              {showDetails && showReplacements && !tooLate && alternatives.length > 0 && need && (
+              {((showDetails && showReplacements) || (!found.length && outsideBrief.size > 0)) && !tooLate && alternatives.length > 0 && need && (
                 <div className="add-review-replacements">
                   <h4>Suggested replacements</h4>
+                  {outsideBrief.size > 0 && <p className="small muted">These differ from your requested product and were checked against the same dietary rules. Choose one to check the substitution; the original item stays blocked.</p>}
                   {replacementRanges.chips}
                   <SuggestedProducts label={`Suggested replacements for ${line.query}`}>
                     {replacementList.visible.map((candidate) => {
                       const quantity = replacementQuantity(candidate, need);
                       const blockedReason = replacementBlock(candidate, quantity, deliveryDate, now);
+                      const outside = outsideBrief.has(candidate.productId);
                       return (
-                        <ReviewProductRow key={candidate.productId} tone="suggested"
+                        <ReviewProductRow key={candidate.productId} tone={outside ? "outside" : "suggested"}
                           product={<>
-                            <SuggestionMark />
+                            <SuggestionMark outside={outside} />
                             <b>{candidate.name}{candidate.stock.kind === "unknown" && <UnknownStockMark reason={candidate.stock.reason} />}</b>
+                            <AllergenDataMark line={{ rules: candidate.notes }} />
                             <small className="muted">Product {candidate.productId}{candidate.stock.kind !== "unknown" && ` · ${stockText(candidate.stock, candidate.salesUnit)}`} · {candidate.availableDate ? `delivery ${day(candidate.availableDate)}` : "delivery date not supplied"}{candidate.source === "fixture" ? " · Fixture" : ""}</small>
                             <small className="muted">Cutoff (Helsinki): {candidate.closingTime ? when(candidate.closingTime) : "Not supplied"}</small>
                             <SupplierSchedule terms={candidate} />
@@ -202,7 +206,7 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
                           </>}
                           quantity={quantity === null ? "TBC" : `${qty(quantity)} ${candidate.salesUnit ?? "sales units"}`}
                           price={<><b>{eur(quantity === null || candidate.unitPrice === null ? null : quantity * candidate.unitPrice)}</b><small className="muted">{eur(candidate.unitPrice)} / {candidate.salesUnit ?? "sales unit"}</small></>}
-                          actions={<button type="button" className="btn sm" disabled={disabled || !!blockedReason} onClick={() => onChoose(candidate.productId)}>Use replacement</button>}
+                          actions={<button type="button" className="btn sm" disabled={disabled || !!blockedReason} onClick={() => onChoose(candidate.productId)} aria-label={outside ? `Use ${candidate.name}` : undefined}>{outside ? "Choose & check" : "Use replacement"}</button>}
                         />
                       );
                     })}

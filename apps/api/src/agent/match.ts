@@ -46,6 +46,25 @@ export function shortlist(need: Need, opts: { log?: boolean } = {}): Product[] {
   return list;
 }
 
+/** A blocked named product can offer its broader type, without changing the requested specification. */
+export function replacementShortlist(need: Need, original: Product[]): { query: string; products: Product[] } | null {
+  const m = mandate();
+  // This is a deliberate alternative to a known product that fails the hotel's rules,
+  // never a way to turn an unknown query into a category-wide automatic choice.
+  if (!original.length || original.some((p) => !blocks(productRules(p, need.constraints, need.groupLabel, m)).length)) return null;
+  const categories = new Set(original.map((p) => p.category));
+  if (categories.size !== 1) return null;
+  const words = contentWords(need.query).filter((word) => /\p{L}/u.test(word));
+  if (words.length < 2) return null;
+  const query = words.at(-1)!;
+  const excluded = new Set(original.map((p) => p.id));
+  const products = searchMatches({ q: query, category: original[0].category, claims: need.constraints.claims.filter((claim) => claim !== "FREE_FROM_MILK"), excludeAllergens: need.constraints.avoidAllergens, origin: need.constraints.origin, limit: 50 }, m)
+    .filter((match) => !excluded.has(match.product.id)
+      && !blocks(productRules(match.product, need.constraints, need.groupLabel, m)).length)
+    .map((match) => match.product).slice(0, 50);
+  return products.length ? { query, products } : null;
+}
+
 /** Possible products listed at most; `possibleTotal` says how many there are. */
 export const HELP_SHOWN = 20;
 
