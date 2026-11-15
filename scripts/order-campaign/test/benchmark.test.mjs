@@ -42,17 +42,19 @@ test('report excludes chat selection and separates failed planning from complete
       { kind: 'http-response', attempt: 'a', callId: 'plan', path: '/api/requests', status: 503, elapsedMs: 3, response: { error: 'fixture miss' } },
       { kind: 'http-response', attempt: 'b', callId: 'select', path: '/api/whatsapp/messages', status: 200, elapsedMs: 100 },
       { kind: 'http-response', attempt: 'b', callId: 'message', path: '/api/whatsapp/messages', status: 200, elapsedMs: 7, firstByteMs: 6 },
+      { kind: 'http-response', attempt: 'e', callId: 'quote', path: '/gateway/v1/quotes', status: 201, elapsedMs: 11 },
     ];
     const rows = [
       { attemptId: 'a', channel: 'main', status: 200, itemCount: 1, response: { request: { lines: [{}], parsedBy: 'rules' } }, benchmark: { bucket: '1-10', pass: 0 } },
       { attemptId: 'b', channel: 'whatsapp', status: 200, response: { messages: [{ direction: 'outbound', reply: { status: 'proposal' } }] }, related: [{ purpose: 'select-active-order', callId: 'select' }], benchmark: { bucket: '1-10', pass: 0 } },
       { attemptId: 'c', channel: 'main', status: null, error: { message: 'support /api/reset HTTP null' }, benchmark: { bucket: '100', pass: 0 } },
       { attemptId: 'd', channel: 'main', status: 200, response: { request: { lines: [{}], parsedBy: 'openai' } }, benchmark: { bucket: 'model-smoke', pass: 0 } },
+      { attemptId: 'e', channel: 'gateway', status: 201, benchmark: { bucket: 'other', pass: 0 } },
     ];
     writeFileSync(join(dir, 'raw-observations.jsonl'), raw.map(JSON.stringify).join('\n'));
     writeFileSync(join(dir, 'requests.jsonl'), rows.map(JSON.stringify).join('\n'));
     const report = await summarize(dir);
-    assert.equal(report.accounting.usefulHttpMs, 12);
+    assert.equal(report.accounting.usefulHttpMs, 23);
     assert.equal(report.accounting.supportHttpMs, 100);
     assert.equal(report.aggregate[0].stratum[4], 'parsed-line-count-complete-plan-http-error');
     assert.equal(report.aggregate[1].stratum[4], 'simulator-proposal');
@@ -60,6 +62,7 @@ test('report excludes chat selection and separates failed planning from complete
     assert.equal(report.aggregate[2].stratum[4], 'support-error');
     assert.equal(report.aggregate[2].timings.usefulMs.n, 0);
     assert.equal(report.aggregate[3].stratum[4], 'parsed-count-not-scored');
+    assert.equal(report.aggregate[4].stratum[4], 'http-workflow-unscored');
     assert.ok(report.aggregate.every(g => g.timings.usefulMs.p95Ms === null));
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });

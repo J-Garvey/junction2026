@@ -73,9 +73,8 @@ export async function summarize(dir) {
   });
   const responses = raw.filter(r => r.kind === 'http-response'), starts = raw.filter(r => r.kind === 'run-start');
   const requestedAt = new Map(raw.filter(r => r.kind === 'http-request').map(r => [r.callId, Date.parse(r.at)]));
-  const requestPaths = new Set(['/api/messages', '/api/whatsapp/messages', '/api/requests']);
   const selectionIds = new Set(rows.flatMap(r => (r.related || []).filter(c => c.purpose === 'select-active-order').map(c => c.callId)));
-  const useful = responses.filter(r => !String(r.attempt).startsWith('support') && requestPaths.has(r.path) && !selectionIds.has(r.callId));
+  const useful = responses.filter(r => !String(r.attempt).startsWith('support') && !selectionIds.has(r.callId));
   const support = responses.filter(r => String(r.attempt).startsWith('support') || selectionIds.has(r.callId));
   const groups = new Map();
   for (const row of rows) {
@@ -87,7 +86,7 @@ export async function summarize(dir) {
     const limit = row.status >= 400 && row.status < 500;
     const parseOutcome = !parsed ? 'no-parsed-request' : !Number.isSafeInteger(row.itemCount) ? 'parsed-count-not-scored' : parsed.lines.length === row.itemCount ? 'parsed-line-count-complete' : 'parsed-line-count-mismatch';
     const outcome = row.unsupported ? 'unsupported' : row.error?.message?.startsWith('support ') ? 'support-error' : limit ? 'http-client-rejection' : row.status === null || row.status >= 500 ? 'http-error' :
-      row.channel === 'main' ? `${parseOutcome}${planCall?.status >= 400 || planCall?.status === null ? '-plan-http-error' : ''}` : `simulator-${reply?.status ?? row.response?.status ?? 'response'}`;
+      row.channel === 'main' ? `${parseOutcome}${planCall?.status >= 400 || planCall?.status === null ? '-plan-http-error' : ''}` : row.channel === 'whatsapp' ? `simulator-${reply?.status ?? row.response?.status ?? 'response'}` : 'http-workflow-unscored';
     const key = JSON.stringify([row.benchmark?.bucket, row.benchmark?.pass, row.benchmark?.shape, row.channel, outcome]);
     if (!groups.has(key)) groups.set(key, { stratum: JSON.parse(key), rows: [] });
     const models = (row.telemetry || []).filter(t => t.kind === 'model');
