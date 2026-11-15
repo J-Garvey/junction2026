@@ -11,6 +11,7 @@ const previous=existsSync(resolve(dir,'requests.jsonl'))?readFileSync(resolve(di
 let cases=corpus;
 if(args.ids){const ids=new Set(String(args.ids).split(','));cases=cases.filter(c=>ids.has(c.caseId));}
 if(args['model-only'])cases=cases.filter(c=>c.modelSample);
+if(args['main-only'])cases=cases.filter(c=>c.channel==='main');
 if(args['whatsapp-only'])cases=cases.filter(c=>c.channel==='whatsapp');
 cases=cases.slice(start,start+limit);
 if(args['cross-channel'])cases=cases.filter(c=>c.channel==='main').map(c=>({...c,caseId:`${c.caseId}-wa`,channel:'whatsapp',crossChannelOf:c.caseId,scenario:{drafts:['Darragh','Pavit','Conference'],selectActive:'Darragh'}}));

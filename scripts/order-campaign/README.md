@@ -44,7 +44,7 @@ HTTP outcomes; model-enabled rows that fall back are not model successes. Real
 WhatsApp state, bounding upstream/model concurrency to the production request's
 own bounded work.
 
-Use `--model-only --parse-only --limit=30` for bounded representative parsing
+Use `--model-only --main-only --parse-only --limit=30` for bounded representative parsing
 samples; omit `--parse-only` for planning. Use
 `--ids=nl-00005,nl-00009` and a new `--phase=final-replay` to replay findings. Main
 plans preserve the parsed request; a missing date is supplied by an explicitly
