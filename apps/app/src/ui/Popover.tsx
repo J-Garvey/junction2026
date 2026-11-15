@@ -1,3 +1,4 @@
+import { CandidateRanking } from "./CandidateRanking";
 /** UI-05: tap a price, quantity or status to see where it came from. */
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import type { Candidate, FiredRule, ModelJudgement, PlanLine, StockFact } from "@aimo/contracts";
@@ -205,6 +206,7 @@ export function CandidateSource({ c }: { c: Candidate }) {
         <div className="small muted">
           Rank {c.rank} ({c.label}), decided by: <b>{c.rankStep}</b>
         </div>
+        {c.costToCover !== undefined && <p className="small"><CandidateRanking candidate={c} /></p>}
       </div>
       <div className="popsec">
         <dl className="kv small">

@@ -218,6 +218,34 @@ describe("per-item order review", () => {
     expect((await approve(updated.plan, 0)).status).toBe(200);
   });
 
+  it("prices identical piece needs on one combined whole-pack rounding", async () => {
+    await call("POST", "/clock", { scene: "3" });
+    const { plan } = await draft("6 pcs cake, 6 pcs cake", ["466509", "466509"]);
+    expect(plan.needs).toHaveLength(2);
+    for (const n of plan.needs) expect(n.candidates[0].costToCover).toEqual({ need: 12, quantity: 1, totalExVat: 24.34 });
+    expect(plan.lines).toHaveLength(1);
+    expect(plan.lines[0]).toMatchObject({ quantity: 1, lineTotal: 24.34, needAmount: { value: 12, unit: "pcs" } });
+  });
+
+  it("requires builder quantity input for an unverified named piece count", async () => {
+    await call("POST", "/clock", { scene: "3" });
+    const fx = loadFixture("base")!;
+    const price = fx.price["466509"];
+    const comparison = price.comparisonPrice;
+    price.comparisonPrice = null;
+    try {
+      const { plan } = await draft("194 pcs cake", ["466509"]);
+      expect(plan.lines[0]).toMatchObject({ quantity: 0, packContent: { verified: false } });
+      expect(plan.needs[0].candidates.find((c: any) => c.productId === "466509").costToCover).toBeNull();
+      expect(plan.itemReviews[0]).toMatchObject({ canApprove: false, quantityRequired: true });
+      const item = plan.itemReviews[0];
+      const checked = await call("POST", `/plans/${plan.id}/items/${item.needId}/quantity`, { fingerprint: item.fingerprint, productId: "466509", quantity: 13 });
+      expect(checked.status).toBe(200);
+      expect(checked.plan.lines[0]).toMatchObject({ quantity: 13, lineTotal: 316.42, packContent: { verified: false } });
+      expect(checked.plan.itemReviews[0]).toMatchObject({ canApprove: true, quantityRequired: false });
+    } finally { price.comparisonPrice = comparison; }
+  });
+
   it("asks for explicit whole sales units when the eggs pack cannot be converted, then prices and processes it", async () => {
     const { basket, plan } = await draft("30 pcs 468445", ["468445"]);
     expect(plan.lines[0]).toMatchObject({ productId: "468445", quantity: 0, packContent: null });

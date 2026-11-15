@@ -30,6 +30,8 @@ export interface Candidate {
   label: "best" | "better" | "good" | "more";
   unitPrice: number | null;
   pricePerBase: number | null;
+  /** D36: checked whole sales packs and ex-VAT total for this piece need. Absent on older plans and kg/L needs. */
+  costToCover?: { need: number; quantity: number; totalExVat: number } | null;
   baseUnit: BaseUnit | null;
   stock: StockFact;
   reliability: number | null;

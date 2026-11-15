@@ -374,7 +374,7 @@ function Proposal({ plan, onDone }: { plan: Plan; onDone: (r: PlanResp) => void 
           <span>Or instead:</span>
           {alts.map(({ n, c }) => (
             <button key={`${n.id}:${c.productId}`} type="button" className="linkbtn" disabled={!!busy || !inScope} onClick={() => run(c.productId, () => api.choose(plan.id, n.id, c.productId))}>
-              {busy === c.productId ? "…" : `${c.name} · ${eur(c.pricePerBase)}/${n.amount.unit}`}
+              {busy === c.productId ? "…" : `${c.name} · ${n.amount.unit === "pcs" ? `${eur(c.costToCover?.totalExVat ?? null)} ex VAT to cover need` : `${eur(c.pricePerBase)}/${n.amount.unit}`}`}
             </button>
           ))}
         </div>
