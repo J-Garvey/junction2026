@@ -35,7 +35,7 @@ When goals conflict: correct beats trustworthy beats fast. A fast wrong order co
 
 - **Purchasing Manager: kept for now as an optional role (revised 14 Nov, Darragh).** Whether a hotel has a separate purchaser depends on the hotel: research/07 found none in Finnish hotels, where the kitchen manager orders, but other hotels may. The hotel's own role setup decides who places orders and who approves. The approval rules stay as above: one Approver signs off what breaks the mandate. [TEAM D1, revised][SRC research/07]
 - **Questions are routed by type, not by person.** Recipe fit goes to the Chef. Money and policy go to the Approver. If both, Chef first; the Approver sees it only after a Chef yes. [TEAM D6]
-- **Tension to keep visible:** in the one practitioner interview, the manager reviews and approves **every** order before it is submitted ([research/08](../research/08-interview-owen-bar-events.md), drinks not hotel food, poor audio). We designed for exceptions-only approval (D1). A hotel that wants to approve everything sets its spend cap to zero; the PRD should make that a valid mandate, not a special mode. [INF]
+- **Tension to keep visible:** in the one practitioner interview, the manager reviews and approves **every** order before it is submitted ([research/08](../research/08-interview-owen-bar-events.md): Owen, a hotel chef and kitchen manager; one account, poor audio). We designed for exceptions-only approval (D1). A hotel that wants to approve everything sets its spend cap to zero; the PRD should make that a valid mandate, not a special mode. [INF]
 
 ## When the agent acts
 
