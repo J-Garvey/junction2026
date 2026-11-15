@@ -35,8 +35,10 @@ globalThis.fetch = async (input, init) => {
 const { createApp } = await import("../server.js");
 const { searchMatches } = await import("../catalog.js");
 const { setClock } = await import("../clock.js");
+const startupStart = performance.now();
 const server = createApp().listen(0, "127.0.0.1");
 await new Promise<void>((resolve) => server.once("listening", resolve));
+const startupMs = +(performance.now() - startupStart).toFixed(2);
 const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
 config.gatewayUrl = `${base}/gateway/v1`;
 setClock({ time: "2026-11-14T10:00:00Z" });
@@ -86,8 +88,8 @@ try {
     return { scenario, requests: rows.length, p50Ms: percentile(times, .5), p95Ms: percentile(times, .95), firstMs: times[0], lastMs: times.at(-1) };
   });
   const report = { at: new Date().toISOString(), sha: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(), worktreeDirty: Boolean(execFileSync("git", ["status", "--porcelain", "--untracked-files=no"], { encoding: "utf8" }).trim()), modelMode: live ? "configured-real-model" : "scripted-model", model: live ? config.openai.model : "scripted", modelDelayMs: live ? null : modelDelayMs, modelCalls, concurrent, scenarios, samples, limitations: ["Synthetic database; no supplier calls or placed orders", "Catalog timings measure local search, message timings measure actual HTTP routing and parsing", "Concurrent per-request model call counts are null; aggregate counts are reported separately", ...(!live ? ["Model network time is simulated; this measures avoided calls and HTTP overhead, not live OpenAI latency"] : [])] };
-  if (process.argv.includes("--out")) writeFileSync(arg("--out"), JSON.stringify(report, null, 2));
-  console.log(JSON.stringify({ ...report, samples: undefined }, null, 2));
+  if (process.argv.includes("--out")) writeFileSync(arg("--out"), JSON.stringify({ startupMs, ...report }, null, 2));
+  console.log(JSON.stringify({ startupMs, ...report, samples: undefined }, null, 2));
 } finally {
   globalThis.fetch = nativeFetch;
   await new Promise<void>((resolve, reject) => server.close((err) => err ? reject(err) : resolve()));
