@@ -147,6 +147,11 @@
 .bmodal-item { font-weight: 600; color: var(--ink); }
 
 /* Files attached to the order, stored in this browser only. */
+.composer .composer-input { display: grid; flex: 1; min-width: 0; font-size: 16px; line-height: 1.5; }
+.composer .composer-input > * { grid-area: 1 / 1; min-width: 0; }
+.composer .composer-input textarea { width: 100%; line-height: inherit; }
+.composer .composer-hint { z-index: 1; padding: 8px 0; color: var(--mute); pointer-events: none; }
+.composer .composer-hint button { padding: 0; border: 0; background: transparent; color: var(--link); text-decoration: underline; pointer-events: auto; }
 .composer .send.attach { background: transparent; color: var(--mute); }
 .composer .send.attach:hover { background: var(--soft); color: var(--ink); }
 .composer .attachments { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px 10px; }
