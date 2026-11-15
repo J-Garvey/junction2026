@@ -9,7 +9,7 @@ const { createApp } = await import("../src/server.js");
 const { config } = await import("../src/config.js");
 const { getDb } = await import("../src/db.js");
 const { issueToken } = await import("../src/identity.js");
-const { MANDATE, HOTEL_AGENT_TOKEN, VALIO_VIEWER_TOKEN } = await import("../src/seed.js");
+const { MANDATE, SEED_EVENT, HOTEL_AGENT_TOKEN, VALIO_VIEWER_TOKEN } = await import("../src/seed.js");
 const { putMandate } = await import("../src/gateway/service.js");
 const { setClock } = await import("../src/clock.js");
 const { audit, auditView, verifyChain, SYSTEM } = await import("../src/audit.js");
@@ -29,6 +29,7 @@ beforeAll(async () => {
   config.gatewayUrl = `${base}/gateway/v1`;
   setClock({ time: "2026-11-14T10:00:00Z" });
   putMandate({ ...MANDATE, id: "mandate-second", hotelId: "hotel-second", sites: [{ id: "site-second", name: "Second Hotel", address: "Other street, 00100 Helsinki" }] });
+  getDb().prepare("INSERT INTO events (id, json, version) VALUES (?, ?, ?)").run("event-second", JSON.stringify({ ...SEED_EVENT, id: "event-second", siteId: "site-second", version: 1, name: "PRIVATE_SECOND_EVENT", removedNeeds: [], viabilityPlanId: null, orderPlanId: null, orderedGuests: null, lastDiff: null, finalCheck: null, changes: [] }), 1);
   getDb().prepare("INSERT INTO people (id, json) VALUES (?, ?)").run("p-other", JSON.stringify({ id: "p-other", hotelId: "hotel-second", name: "Other chef", role: "chef", outlets: ["banquet"], hotelScope: true, title: "Chef" }));
   person = issueToken({ kind: "person", personId: "p-aino" });
   foreignPerson = issueToken({ kind: "person", personId: "p-other" });
@@ -99,6 +100,10 @@ describe("hotel ownership on every trade read", () => {
       expect((await call(foreignPerson, `/api${path}`)).status).toBe(403);
     expect((await call(foreignPerson, `/api/orders/${first.o.id}`)).status).toBe(403);
     expect((await call(person, `/api/orders/${first.o.id}`)).status).toBe(200);
+    for (const path of ["/events/event-second", "/baskets/event-second", "/events/%65vent-second"])
+      expect((await call(person, `/api${path}`)).status, path).toBe(403);
+    for (const path of ["/home", "/events", "/baskets"])
+      expect((await call(person, `/api${path}`)).text).not.toContain("PRIVATE_SECOND_EVENT");
     expect((await call(foreignPerson, "/api/audit?eventId=event-first")).body.entries).toEqual([]);
     expect((await call(foreignPerson, "/api/orders?eventId=event-first")).body.orders).toEqual([]);
     for (const token of [other, VALIO_VIEWER_TOKEN, foreignPerson, ""]) {

@@ -3,6 +3,7 @@ import { allJson, getJson } from "./db.js";
 
 type Subject = { hotelId?: string | null; quoteId?: string | null; orderId?: string | null; eventId?: string | null; questionId?: string | null; details?: Record<string, unknown>; actor?: { kind: string; id: string } };
 export function hotelFor(subject: Subject): string | null {
+  if (subject.hotelId === null) return null;
   const owners = new Set<string>();
   let unresolved = false;
   const add = (hotel?: string | null) => { if (hotel) owners.add(hotel); else unresolved = true; };
