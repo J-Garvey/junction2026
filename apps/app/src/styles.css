@@ -152,7 +152,7 @@ h4 { font-size: 13px; font-weight: 700; text-transform: uppercase; color: var(--
 .countb { font-size: 12px; font-weight: 700; color: var(--ink); background: var(--primary); border-radius: 4px; padding: 0 7px; }
 
 /* badges */
-.stamp { display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase; line-height: 1; padding: 5px 7px; border-radius: 4px; white-space: nowrap; }
+.stamp { display: inline-block; font-size: 12px; font-weight: 700; text-transform: uppercase; line-height: 1.2; padding: 5px 7px; border-radius: 4px; white-space: nowrap; }
 .stamp.order { color: var(--green-ink); background: var(--green-soft); }
 .stamp.ask { color: #7a4d00; background: var(--yellow-soft); }
 .stamp.block { color: var(--red-ink); background: var(--red-soft); }
@@ -387,6 +387,8 @@ table.t tr:last-child td { border-bottom: 0; }
 }
 
 /* receipt */
+.audit-search { display: grid; gap: 6px; font-size: 13px; max-width: 100%; }
+.receipt-amount { flex: 0 0 auto; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .receipt { background: var(--doc); font-family: var(--mono); font-size: 13px; color: var(--ink); padding: 20px; border: 1px solid var(--hairline); border-radius: 6px; max-width: 760px; }
 .receipt .rl { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; min-width: 0; }
 .receipt hr { border: 0; border-top: 1px dashed var(--hairline); margin: 10px 0; }

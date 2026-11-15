@@ -21,14 +21,14 @@ export function Orders() {
   return (
     <div className="page stack-l">
       <div>
-        <h1>Orders</h1>
+        <h1>Order receipts</h1>
         {eventId && (
-          <Link to="/orders" className="small">All orders</Link>
+          <Link to="/orders" className="small">All receipts</Link>
         )}
       </div>
       {error && <div className="callout red">{error}</div>}
       {loading && !data && <div className="muted">Loading…</div>}
-      {data && !orders.length && <div className="empty">No orders yet.</div>}
+      {data && !orders.length && <div className="empty">No order receipts yet.</div>}
       {orders.map((o) => (
         <div key={o.id} className="receipt">
           <div className="rl">
@@ -61,7 +61,7 @@ export function Orders() {
                 <span className="trunc">
                   {l.quantity} {l.salesUnit ?? ""} {l.productName}
                 </span>
-                <span>{eur(l.lineTotal)}</span>
+                <span className="receipt-amount">{eur(l.lineTotal)}</span>
               </div>
               <CarbonEstimate line={l} />
               {(l.removed || l.stock.kind === "unknown") && (

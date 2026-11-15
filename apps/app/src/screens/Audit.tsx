@@ -24,7 +24,9 @@ export function Audit() {
         </div>
       </div>
       <div className="row" style={{ flexWrap: "wrap" }}>
-        <input className="search audit-filter" aria-label="Filter audit entries" placeholder="Filter" value={q} onChange={(e) => setQ(e.target.value)} />
+        <label className="audit-search">Filter audit entries
+          <input className="search audit-filter" placeholder="Filter" value={q} onChange={(e) => setQ(e.target.value)} />
+        </label>
       </div>
       {error && <div className="callout red">{error}</div>}
       {loading && !data && <div className="muted">Loading…</div>}
