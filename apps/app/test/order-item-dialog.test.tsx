@@ -41,6 +41,35 @@ async function openExample(disconnectTrigger = false) {
 }
 
 describe("shared item dialog keyboard and isolation", () => {
+  it.each([false, true])("remembers an async opener blurred while disabled (reset form: %s)", async (resetForm) => {
+    let finishOpening!: () => void;
+    const pending = new Promise<void>((resolve) => { finishOpening = resolve; });
+    function AsyncExample() {
+      const [text, setText] = useState("40 l lactose-free milk");
+      const [busy, setBusy] = useState(false);
+      const [open, setOpen] = useState(false);
+      return <form onSubmit={async (event) => { event.preventDefault(); setBusy(true); await pending; setBusy(false); setOpen(true); }}>
+        <input aria-label="Add milk" value={text} onChange={(event) => setText(event.target.value)} />
+        <button type="submit" disabled={busy || !text}>Search</button>
+        {open && <OrderItemDialog eyebrow="Request" title="Async review" onClose={() => { setOpen(false); if (resetForm) setText(""); }} />}
+      </form>;
+    }
+    const user = userEvent.setup();
+    render(<StrictMode><AsyncExample /></StrictMode>);
+    const trigger = screen.getByRole("button", { name: "Search" });
+    const input = screen.getByRole("textbox", { name: "Add milk" });
+    await user.click(trigger);
+    // Simulate Chromium's automatic blur; happy-dom ignores blur() on a
+    // disabled button, so move focus to body explicitly while it is pending.
+    act(() => { document.body.tabIndex = -1; document.body.focus(); document.body.removeAttribute("tabindex"); });
+    expect(document.activeElement).toBe(document.body);
+    await act(async () => { finishOpening(); await pending; });
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Close details" }));
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(document.activeElement).toBe(resetForm ? input : trigger));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
   it("starts on Close and wraps both directions past disabled, hidden and collapsed controls", async () => {
     const { user, dialog } = await openExample();
     const close = within(dialog).getByRole("button", { name: "Close details" });
