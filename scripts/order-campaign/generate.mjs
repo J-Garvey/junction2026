@@ -139,6 +139,14 @@ export function buildCorpus() {
     const text=lines.map(l=>`${l.amount} ${l.unit} ${l.claims?'gluten-free ':''}${l.product}`).join('; ')+(variant==='global_vegan'?', everything vegan':variant==='global_nuts'?', everything nut-free':'');
     add(text,`compact_${count}_${variant}`,{lineCount:count,lines,...(variant==='global_vegan'?{globalClaims:['VEGAN']}:variant==='global_nuts'?{globalAvoidAllergens:['AN','AP']}:{})},{plan:true,modelSample:true,tags:[`items_${count}`,'compact_length_boundary']});
   }
+  const fixturePool=[{product:'lactose-free milk',productId:'469363',unit:'l',claims:['FREE_FROM_LACTOSE']},{product:'lactose-free milk',productId:'464306',unit:'l',claims:['FREE_FROM_LACTOSE']},{product:'whipping cream',productId:'464727',unit:'l'},{product:'salmon',productId:'469672',unit:'kg'},{product:'potatoes',productId:'460541',unit:'kg'}];
+  for(let n=0;n<250;n++){
+    const count=[1,2,3,5,10][n%5],lines=Array.from({length:count},(_,j)=>({...fixturePool[(n*3+j)%fixturePool.length],amount:[0.5,2,10,40,1000][(n+j)%5]}));
+    const suffix=n%5===0?' by 2026-11-13':n%5===1?' by 2026-11-16':n%5===2?', everything gluten-free':n%5===3?', everything nut-free':', Finnish products only';
+    const qualifier=n%4===0?'vegan ':n%4===1?'gluten-free ':n%4===2?'nut-free ':'';
+    const text=lines.map(l=>`${l.amount} ${l.unit} ${qualifier}${l.product} ${l.productId}`).join('; ')+suffix;
+    add(text,'fixture_focused_plan',{lineCount:count,lines,globalQualifier:qualifier.trim(),...(n%5===0?{neededBy:'2026-11-13',mustNotOrder:true}:n%5===1?{neededBy:'2026-11-16'}:n%5===2?{globalClaims:['FREE_FROM_GLUTEN']}:n%5===3?{globalAvoidAllergens:['AN','AP']}:{globalOrigin:'fi'})},{plan:true,tags:['fixture_focused','full_planning','diet_origin_cutoff']});
+  }
   return cases;
 }
 if(process.argv[1]&&resolve(process.argv[1])===resolve(import.meta.filename)) {
