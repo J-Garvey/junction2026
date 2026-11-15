@@ -111,6 +111,16 @@ describe("model request reuse", () => {
     await structured(big);
     expect(fetch).toHaveBeenCalledTimes(132);
   });
+
+  it("does not evict unrelated interpretations for each caller of one shared request", async () => {
+    const fetch = vi.spyOn(globalThis, "fetch").mockImplementation(async () => response({ answer: "yes" }));
+    const retained = Array.from({ length: 127 }, options);
+    for (const opts of retained) await structured(opts);
+    const shared = options();
+    await Promise.all(Array.from({ length: 8 }, () => structured(shared)));
+    await structured(retained[0]);
+    expect(fetch).toHaveBeenCalledTimes(128);
+  });
 });
 
 describe("cached request interpretations retain parser boundaries", () => {

@@ -60,6 +60,7 @@ export async function structured<T>(opts: StructuredOptions<T>): Promise<T> {
     if (opts.validate) {
       const json = JSON.stringify(value);
       if (Buffer.byteLength(json) <= CACHE_MAX_BYTES) {
+        interpretations.delete(key);
         if (interpretations.size >= CACHE_LIMIT) interpretations.delete(interpretations.keys().next().value!);
         interpretations.set(key, { json, expiresAt: Date.now() + CACHE_TTL_MS });
       }

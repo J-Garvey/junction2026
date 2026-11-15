@@ -58,16 +58,16 @@ async function message(scenario: string, text: string) {
 try {
   let concurrent: { elapsedMs: number; modelCalls: number; requests: number } | null = null;
   if (!process.argv.includes("--search-only")) {
-  token = (await call("/session", { personId: "p-aino" })).token;
-  for (let i = 0; i < 10; i++) await message("literal", "10 kg chicken burger");
-  const complex = "Please source 10 l of milk without nuts from Finland by tomorrow";
-  for (let i = 0; i < 3; i++) await message("complex-repeat", complex);
-  const concurrentStart = performance.now(), concurrentCalls = modelCalls;
-  await Promise.all(Array.from({ length: live ? 4 : 8 }, () => message("complex-concurrent", `${complex} for breakfast`)));
-  concurrent = { elapsedMs: +(performance.now() - concurrentStart).toFixed(2), modelCalls: modelCalls - concurrentCalls, requests: live ? 4 : 8 };
-  for (let i = 0; i < 3; i++) await message("route-and-parse-repeat", "Please find Finnish nut-free milk for tomorrow");
-  const large = Array.from({ length: 60 }, (_, i) => `${i + 1} kg ${["salmon fillet", "chicken burger", "butter", "potatoes"][i % 4]}`).join("; ");
-  for (let i = 0; i < 5; i++) await message("literal-60-items", large);
+    token = (await call("/session", { personId: "p-aino" })).token;
+    for (let i = 0; i < 10; i++) await message("literal", "10 kg chicken burger");
+    const complex = "Please source 10 l of milk without nuts from Finland by tomorrow";
+    for (let i = 0; i < 3; i++) await message("complex-repeat", complex);
+    const concurrentStart = performance.now(), concurrentCalls = modelCalls;
+    await Promise.all(Array.from({ length: live ? 4 : 8 }, () => message("complex-concurrent", `${complex} for breakfast`)));
+    concurrent = { elapsedMs: +(performance.now() - concurrentStart).toFixed(2), modelCalls: modelCalls - concurrentCalls, requests: live ? 4 : 8 };
+    for (let i = 0; i < 3; i++) await message("route-and-parse-repeat", "Please find Finnish nut-free milk for tomorrow");
+    const large = Array.from({ length: 60 }, (_, i) => `${i + 1} kg ${["salmon fillet", "chicken burger", "butter", "potatoes"][i % 4]}`).join("; ");
+    for (let i = 0; i < 5; i++) await message("literal-60-items", large);
   }
   const queries = ["milk", "butter", "salmon fillet", "chicken burger", "oat milk", "coffee", "cheese", "bread", "potatoes", "cream cheese"];
   for (let pass = 0; pass < 2; pass++) for (const q of queries) {
