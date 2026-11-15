@@ -271,17 +271,20 @@ describe("E2 WhatsApp production channel baseline", () => {
     expect((await ok(`/baskets/${id}`)).requests).toHaveLength(0);
   });
 
-  it("E2-05 records exact synthetic message and ID boundaries including pending state", async () => {
+  it("E2-05 rejects oversized synthetic input and requires a fresh preview (E2-F02)", async () => {
     await connectSim(); const id = await basket(); await sim(id);
     expect((await sim("help".padEnd(8000), "i".repeat(128))).status).toBe(200);
     expect((await sim("help", "i".repeat(129))).status).toBe(400);
     expect((await sim(" ", "blank")).status).toBe(400);
     await sim("add 10 kg salmon 469672");
     const before = await ok("/whatsapp/session"); expect(before.conversation.pending).not.toBeNull();
-    expect((await sim("cancel".padEnd(8001), "E2-too-long")).status).toBe(400);
-    expect(await ok("/whatsapp/session")).toEqual(before);
+    const rejected = await sim("cancel".padEnd(8001), "E2-too-long");
+    expect(rejected.status).toBe(400); expect(rejected.body.error).toMatch(/too long.*8,000.*cancelled/);
+    expect(await ok("/whatsapp/session")).toEqual({ ...before, conversation: { ...before.conversation, pending: null } });
+    await sim("confirm change");
     expect((await ok(`/baskets/${id}`)).requests).toHaveLength(0);
-    log("boundary-observation", { codeUnits: 8001, response: 400, pendingSurvivesRejectedInput: true });
+    expect((await ok("/orders")).orders).toHaveLength(0);
+    log("boundary-observation", { codeUnits: 8001, response: 400, pendingSurvivesRejectedInput: false, subsequentConfirmStagesEarlierPreview: false });
   });
 
   it("E2-06 protects every Web control and QR with owner identity and has no injection endpoint", async () => {
@@ -388,15 +391,19 @@ describe("E2 WhatsApp production channel baseline", () => {
     expect((await ok(`/orders?eventId=${id}`)).orders).toHaveLength(1);
   });
 
-  it("E2-12 records silent Web input rejection and whether the older confirmation survives", async () => {
+  it("E2-12 visibly rejects oversized Web input and requires a fresh preview (E2-F01)", async () => {
     const id = await basket(); await ready(); await event(id);
     await event("help".padEnd(8000)); expect(calls).toBe(2);
     await event("add 10 kg salmon 469672");
     const before = state(); expect(pending().some(Boolean)).toBe(true);
-    const ignored = await event("cancel".padEnd(8001), { id: { _serialized: "E2-long-web" } });
-    expect(ignored.outbound).toEqual([]); expect(state()).toEqual(before);
-    await event("confirm change"); expect((await ok(`/baskets/${id}`)).requests).toHaveLength(1);
-    log("boundary-observation", { codeUnits: 8001, response: "silently-ignored", pendingSurvivesRejectedInput: true, subsequentConfirmStagesEarlierPreview: true });
+    const rejected = await event("cancel".padEnd(8001), { id: { _serialized: "E2-long-web" } });
+    expect(rejected.outbound).toEqual([[GROUP, expect.stringMatching(/too long.*8,000.*cancelled/)]]);
+    expect(rejected.outbound[0][1].length).toBeLessThan(250);
+    expect(pending().every((p) => p === null)).toBe(true);
+    expect(state().tables).toEqual(before.tables); expect(calls).toBe(before.calls);
+    await event("confirm change"); expect((await ok(`/baskets/${id}`)).requests).toHaveLength(0);
+    expect((await ok("/orders")).orders).toHaveLength(0);
+    log("boundary-observation", { codeUnits: 8001, response: "visible-bounded-rejection", pendingSurvivesRejectedInput: false, subsequentConfirmStagesEarlierPreview: false });
   });
 
   it("E2-13 refuses Web reconfiguration while a production coordinator request is active", async () => {
@@ -431,5 +438,27 @@ describe("E2 WhatsApp production channel baseline", () => {
     expect((await ok(`/baskets/${id}`)).requests).toHaveLength(0);
     expect((await ok("/orders")).orders).toHaveLength(0);
     log("offline-planning-limitation", { input: "add 2 kg butter", status: failed.status, earlierConfirmationCleared: true });
+  });
+
+  it.each(["simulator", "web"] as const)("E2-15 %s oversized rejection invalidates final checkout without placing an order", async (channel) => {
+    const id = await basket();
+    if (channel === "web") await ready(); else await connectSim();
+    const send = async (text: string) => {
+      if (channel === "simulator") {
+        const r = await sim(text);
+        return { status: r.status, text: r.status === 200 ? lastReply(r).text : r.body.error };
+      }
+      const r = await event(text);
+      return { status: 200, text: r.outbound[0][1] };
+    };
+    await send(id); await send("add 10 kg salmon 469672"); await send("confirm change");
+    const basketBefore = await ok(`/baskets/${id}`);
+    expect((await send("confirm order")).text).toContain("Confirm this final order?");
+    const rejected = await send("cancel".padEnd(8001));
+    expect(rejected.text).toContain("pending confirmation was cancelled");
+    expect(rejected.status).toBe(channel === "simulator" ? 400 : 200);
+    expect((await send("confirm order")).text).toContain("Confirm this final order?");
+    expect((await ok("/orders")).orders).toHaveLength(0);
+    expect(await ok(`/baskets/${id}`)).toEqual(basketBefore);
   });
 });
