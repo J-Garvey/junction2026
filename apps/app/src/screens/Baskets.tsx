@@ -15,7 +15,8 @@ import { OrderBy } from "../ui/OrderBy";
 import { OrderReviewHistory } from "../ui/OrderReviewHistory";
 import { CarbonEstimate } from "../ui/CarbonEstimate";
 import { FinanceOrderSummary } from "./Finance";
-import { stockText } from "../ui/Popover";
+import { Pop, stockText } from "../ui/Popover";
+import { LineCalculation, TotalCalculation } from "../ui/CalculationEvidence";
 import { tooLateText } from "../ui/TooLate";
 import { addDays, day, eur, helsinkiDate, plural, qty, when } from "../format";
 import "./baskets.css";
@@ -135,12 +136,14 @@ export function BasketPage() {
   const staged = requests.filter((r) => r.basketedAt && !r.orderIds.length);
   const { mine: waitingQs, others } = splitMine(questions.filter((q) => q.state === "open" || q.state === "waiting"), me, people);
   const pending = requests.filter((r) => !r.basketedAt && r.status !== "ordered" && r.status !== "rejected" && !r.orderIds.length);
-  const orderTotal = staged.some((p) => p.totalExVat == null || p.lines.some((line) => line.lineTotal == null))
+  const orderTotal = staged.some((p) => p.totalExVat == null || p.lines.some((line) => !line.removed && line.lineTotal == null))
     ? null
     : live.reduce((sum, order) => sum + order.totalExVat, 0) + staged.reduce((sum, plan) => sum + plan.totalExVat!, 0);
   const isApprover = me.role === "approver";
   const placedTotal = live.reduce((sum, order) => sum + order.totalExVat, 0);
   const pendingTotal = orderTotal === null ? null : orderTotal - placedTotal;
+  const placedParts = live.map((order) => ({ label: `Placed order ${order.id} · v${order.version}`, total: order.totalExVat, lines: order.lines }));
+  const currentParts = [...placedParts, ...staged.map((plan) => ({ label: `Staged request ${plan.title}`, total: plan.totalExVat, lines: plan.lines }))];
 
   return (
     <div className="page stack-l">
@@ -172,7 +175,7 @@ export function BasketPage() {
           <Link to={`/orders?eventId=${encodeURIComponent(ev.id)}`}><Icon n="box" s={16} /> Order receipts</Link>
           <Link to="/rules"><Icon n="shield" s={16} /> Hotel rules</Link>
         </nav>
-        <FinanceOrderSummary total={orderTotal} placed={placedTotal} pending={pendingTotal} review={review} />
+        <FinanceOrderSummary total={orderTotal} placed={placedTotal} pending={pendingTotal} review={review} currentParts={currentParts} placedParts={placedParts} />
       </>}
 
       {!isApprover && <section className="stack">
@@ -224,7 +227,7 @@ export function BasketPage() {
       <section>
         <div className="sechead">
           <h2>In the order</h2>
-          {(live.length > 0 || staged.length > 0) && <span className="small muted">{eur(orderTotal)} ex VAT</span>}
+          {(live.length > 0 || staged.length > 0) && <span id="order-calculation" className="small muted"><TotalCalculation title="current order total" total={orderTotal} parts={currentParts} note="Placed supplier orders plus staged requests. Pending proposals and rejected orders are excluded; requests already placed are not added twice." /> ex VAT</span>}
         </div>
         <StagedLines plans={staged} submitted={!!review} />
         <OrderedLines orders={live} showEmpty={!staged.length} emptyText={isApprover ? "No items in this order yet. The kitchen is preparing it." : undefined} />
@@ -266,13 +269,13 @@ function StagedLines({ plans, submitted }: { plans: BasketPlan[]; submitted: boo
     <div className="card staged-lines">
       {lines.map((line) => (
         <div key={`${line.planId}-${line.id}`} className="li">
-          <span className="bqty">{qty(line.quantity)} {line.salesUnit ?? ""}</span>
+          <span className="bqty"><Pop ariaLabel={`Explain quantity for ${line.productName}`} label={`${qty(line.quantity)} ${line.salesUnit ?? ""}`}><LineCalculation line={line} /></Pop></span>
           <span style={{ flex: 1, minWidth: 0, color: "var(--ink)" }}>
             <span className="trunc">{line.productName}</span>
             <CarbonEstimate line={line} />
           </span>
           <span className="stamp ask">{submitted ? "Awaiting finance approval" : "Awaiting final order"}</span>
-          <span className="small">{eur(line.lineTotal)}</span>
+          <span className="small"><Pop ariaLabel={`Explain line amount for ${line.productName}`} label={eur(line.lineTotal)}><LineCalculation line={line} /></Pop></span>
         </div>
       ))}
     </div>
@@ -322,7 +325,7 @@ function OrderedLines({ orders, showEmpty = true, emptyText = "Nothing ordered y
             { label: "Price valid to", value: selected.priceValidTo ?? "Not supplied" },
           ]}
           onClose={() => setSelected(null)}
-        />
+        ><LineCalculation line={selected} /></OrderItemDialog>
       )}
     </>
   );
