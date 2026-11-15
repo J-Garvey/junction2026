@@ -76,6 +76,8 @@ What changed when the two uploads were merged is in **[CHANGES.md](CHANGES.md)**
 
 To run the prototype: `pnpm install && pnpm --filter @aimo/app build && pnpm start`, then open http://127.0.0.1:8787. Details in [docs/build.md](docs/build.md).
 
+The [simulated WhatsApp ordering channel](docs/whatsapp-demo.md) adds a demo connection and web chat at `/whatsapp` for selecting a basket, adding or removing items, and confirming a mock order under the existing hotel rules.
+
 The slim data is already in `data/`, so most work needs no download.
 
 To find croissants for a hotel breakfast, filter on the tag before calling the API for shortlisted items. Other tags are described in the [data dictionary](docs/data-dictionary.md#hotel-use-tags).

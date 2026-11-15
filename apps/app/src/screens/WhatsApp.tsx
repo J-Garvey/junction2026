@@ -1,0 +1,199 @@
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Link } from "react-router";
+import type { WhatsAppMessage, WhatsAppSession } from "@aimo/contracts";
+import { useApp } from "../ctx";
+import { Icon } from "../ui/icons";
+import { whatsappApi } from "../whatsapp-api";
+import "./whatsapp.css";
+
+type PendingMessage = { id: string; text: string; error: string | null };
+const errorText = (error: unknown) => error instanceof Error ? error.message : "The chat could not complete this request.";
+
+export function WhatsApp() {
+  const { me } = useApp();
+  // Drop history, drafts, retries and outstanding UI callbacks on person switch.
+  return <WhatsAppChat key={me.id} />;
+}
+
+function WhatsAppChat() {
+  const { me, refresh } = useApp();
+  const [session, setSession] = useState<WhatsAppSession | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState(me.name);
+  const [draft, setDraft] = useState("");
+  const [operation, setOperation] = useState<"connect" | "disconnect" | null>(null);
+  const [pending, setPending] = useState<PendingMessage | null>(null);
+  const mounted = useRef(false);
+  const working = useRef(false);
+  const log = useRef<HTMLDivElement>(null);
+  const composer = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    mounted.current = true;
+    let live = true;
+    whatsappApi.session()
+      .then((value) => { if (live) setSession(value); })
+      .catch((e: unknown) => { if (live) setError(errorText(e)); })
+      .finally(() => { if (live) setLoading(false); });
+    return () => { live = false; mounted.current = false; };
+  }, []);
+
+  useEffect(() => {
+    if (log.current) log.current.scrollTop = log.current.scrollHeight;
+  }, [session?.messages.length, pending]);
+
+  async function reload() {
+    if (working.current) return;
+    working.current = true;
+    setLoading(true);
+    setError(null);
+    try {
+      const value = await whatsappApi.session();
+      if (!mounted.current) return;
+      setSession(value);
+      if (!value.connected || value.messages.some((m) => m.direction === "inbound" && m.id === pending?.id)) setPending(null);
+    } catch (e) {
+      if (mounted.current) setError(errorText(e));
+    } finally {
+      working.current = false;
+      if (mounted.current) setLoading(false);
+    }
+  }
+
+  async function connection(kind: "connect" | "disconnect") {
+    if (working.current) return;
+    working.current = true;
+    setOperation(kind);
+    setError(null);
+    try {
+      const value = kind === "connect" ? await whatsappApi.connect(displayName.trim() || undefined) : await whatsappApi.disconnect();
+      if (!mounted.current) return;
+      setSession(value);
+      setPending(null);
+      setDraft("");
+    } catch (e) {
+      if (mounted.current) setError(errorText(e));
+    } finally {
+      working.current = false;
+      if (mounted.current) setOperation(null);
+    }
+  }
+
+  async function deliver(message: PendingMessage) {
+    if (working.current || !session?.connected) return;
+    working.current = true;
+    setPending({ ...message, error: null });
+    setError(null);
+    try {
+      const value = await whatsappApi.message({ id: message.id, text: message.text });
+      if (!mounted.current) return;
+      setSession(value);
+      setPending(null);
+      refresh();
+      // A retry may return an earlier cached response; load the latest history
+      // without discarding a successful response if this follow-up is offline.
+      try {
+        const latest = await whatsappApi.session();
+        if (mounted.current) setSession(latest);
+      } catch { /* The completed message is already visible. */ }
+    } catch (e) {
+      if (mounted.current) setPending({ ...message, error: errorText(e) });
+    } finally {
+      working.current = false;
+      if (mounted.current) composer.current?.focus();
+    }
+  }
+
+  function send(text: string) {
+    if (!text.trim() || pending || working.current || !session?.connected) return;
+    const message = { id: crypto.randomUUID(), text, error: null };
+    setDraft("");
+    void deliver(message);
+  }
+
+  const sending = !!pending && !pending.error;
+  const unavailable = loading || !!operation || !!pending;
+  const lastReply = session?.messages.findLast((message) => message.direction === "outbound");
+
+  return (
+    <section className="wa-page" aria-labelledby="wa-title">
+      <div className="wa-heading">
+        <div><h1 id="wa-title">WhatsApp demo</h1><p>Chat with Aimo Copilot about your hotel orders.</p></div>
+        <span className="wa-fake">FAKE WHATSAPP</span>
+      </div>
+      <div className="wa-warning"><Icon n="info" s={19} /><p><strong>Simulated WhatsApp.</strong> No messages leave the Junction demo. No phone number, password or QR code is needed.</p></div>
+      <p className="wa-viewing">Viewing as <strong>{me.name}</strong> · {me.title}. Chat actions use this person's existing permissions.</p>
+
+      {error && <div className="wa-error" role="alert"><span>{error}</span><button type="button" onClick={() => void reload()} disabled={loading || !!operation || sending}>Reload chat</button></div>}
+      {loading && !session && <p role="status">Loading your demo chat…</p>}
+      {!loading && !session && !error && <button type="button" className="btn" onClick={() => void reload()}>Load chat</button>}
+
+      {session && !session.connected && (
+        <div className="wa-connect">
+          <div className="wa-avatar"><Icon n="chat" s={32} /></div>
+          <h2>Connect a fake WhatsApp chat</h2>
+          <p>Continue as <strong>{me.name}</strong> to try the simulated ordering assistant.</p>
+          <form onSubmit={(event) => { event.preventDefault(); void connection("connect"); }}>
+            <label htmlFor="wa-display-name">Demo display name (optional)</label>
+            <input id="wa-display-name" value={displayName} maxLength={80} autoComplete="off" disabled={!!operation} onChange={(event) => setDisplayName(event.target.value)} />
+            <button className="wa-primary" type="submit" disabled={!!operation || loading}><Icon n="plug" s={18} />{operation === "connect" ? "Connecting…" : "Connect demo chat"}</button>
+          </form>
+          <p className="wa-help">Reconnecting starts a fresh chat and clears the selected order. Changes already made to orders remain.</p>
+        </div>
+      )}
+
+      {session?.connected && (
+        <div className="wa-chat" aria-busy={sending || !!operation}>
+          <header className="wa-chat-header">
+            <div className="wa-avatar"><Icon n="chat" s={24} /></div>
+            <div className="wa-contact"><h2>Aimo Copilot</h2><span>Demo connected · {session.displayName}</span></div>
+            {session.conversation.activeOrderId && <Link className="wa-disconnect" to={`/baskets/${encodeURIComponent(session.conversation.activeOrderId)}`}>Open basket</Link>}
+            <button type="button" className="wa-disconnect" disabled={sending || !!operation || loading} onClick={() => void connection("disconnect")}>{operation === "disconnect" ? "Disconnecting…" : "Disconnect"}</button>
+          </header>
+          <div className="wa-log" ref={log} role="log" aria-label="Demo chat messages" aria-live="polite" aria-relevant="additions">
+            <div className="wa-chat-note">A synthetic conversation with your hotel assistant</div>
+            {!session.messages.length && !pending && <div className="wa-empty"><h3>What does the kitchen need?</h3><p>Ask to see your orders, select an order, or describe a change.</p><button type="button" disabled={unavailable} onClick={() => send("Show my orders")}>Show my orders <Icon n="send" s={16} /></button></div>}
+            {session.messages.map((message) => (
+              <MessageBubble key={`${message.direction}:${message.id}`} message={message} who={me.name}>
+                {message === lastReply && !!message.reply?.actions.length && <div className="wa-actions">{message.reply.actions.map((action, index) => <button type="button" key={index} disabled={unavailable} onClick={() => send(action.text)}>{action.label}</button>)}</div>}
+              </MessageBubble>
+            ))}
+            {pending && !session.messages.some((m) => m.direction === "inbound" && m.id === pending.id) && (
+              <div className={`wa-message wa-inbound ${pending.error ? "wa-failed" : ""}`}>
+                <span className="wa-sender">{me.name}</span>
+                <div className="wa-text"><ChatText text={pending.text} /></div>
+                <span className="wa-message-meta">{pending.error ? "Delivery not confirmed" : "Sending…"}</span>
+                {pending.error && <div className="wa-send-error" role="alert"><p>{pending.error}</p><button type="button" disabled={loading || !!operation} onClick={() => void deliver(pending)}>Retry message</button><button type="button" disabled={loading || !!operation} onClick={() => void reload()}>Check chat</button></div>}
+              </div>
+            )}
+            {sending && <div className="wa-typing" role="status">Aimo Copilot is working…</div>}
+          </div>
+          <form className="wa-composer" onSubmit={(event) => { event.preventDefault(); send(draft); }}>
+            <label className="wa-sr-only" htmlFor="wa-message">Message Aimo Copilot</label>
+            <textarea id="wa-message" ref={composer} value={draft} maxLength={8000} rows={2} placeholder="Message Aimo Copilot…" disabled={unavailable} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); send(draft); }
+            }} />
+            <button className="wa-primary wa-send" type="submit" disabled={unavailable || !draft.trim()} aria-label="Send message"><Icon n="send" s={22} /><span>Send</span></button>
+            <p className="wa-composer-hint">Enter to send · Shift+Enter for a new line · Demo messages only</p>
+          </form>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function MessageBubble({ message, who, children }: { message: WhatsAppMessage; who: string; children?: ReactNode }) {
+  const date = new Date(message.at);
+  return <div className={`wa-message wa-${message.direction}`}>
+    <span className="wa-sender">{message.direction === "inbound" ? who : "Aimo Copilot"}</span>
+    <div className="wa-text"><ChatText text={message.text} /></div>
+    <div className="wa-message-meta">{message.reply && <span>{message.reply.status.replaceAll("_", " ")}</span>}<time dateTime={message.at}>{Number.isNaN(date.getTime()) ? "" : date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time></div>
+    {children}
+  </div>;
+}
+
+/** Only *bold* is interpreted. React escapes every text fragment, including HTML. */
+function ChatText({ text }: { text: string }) {
+  return <>{text.split(/(\*[^*\n]+\*)/g).map((part, index) => part.startsWith("*") && part.endsWith("*") && part.length > 2 ? <strong key={index}>{part.slice(1, -1)}</strong> : part)}</>;
+}

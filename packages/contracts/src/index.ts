@@ -501,3 +501,4 @@ export const AnswerBody = z.object({ optionId: z.string() });
 
 export const ClockSetBody = z.object({ time: z.string().optional(), scene: z.enum(["1", "2", "3", "4", "live"]).optional() });
 export * from "./hotel.js";
+export * from "./whatsapp.js";

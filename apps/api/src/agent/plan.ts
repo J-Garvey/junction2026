@@ -17,6 +17,7 @@ import { shortlist, rankNeed, packRound, verdictOf, type Pool } from "./match.js
 import { toBase, quantitySanity, checkSingle } from "./parse.js";
 import { buildQuestions, expireOpenQuestions, openQuestionsForPlan } from "./questions.js";
 import { recallSubstitute } from "./memory.js";
+import { basketSnapshot } from "../whatsapp/snapshot.js";
 
 export const HOTEL_ID = "hotel-aurora";
 
@@ -33,7 +34,11 @@ export type Overrides = {
   accepted?: boolean; // single request: the person approved adding the proposed products to the quote
   chosen?: string[]; // "needId:productId" the person picked from the alternatives
 };
-export type StoredPlan = Plan & { overrides: Overrides; event?: EventSpec | null; questionsAnswered: number };
+export type StoredPlan = Plan & {
+  overrides: Overrides; event?: EventSpec | null; questionsAnswered: number;
+  /** A channel checkout combines staged requests under one mandate evaluation. */
+  basketCheckout?: { snapshot: string; sourcePlanIds: string[] };
+};
 
 export const emptyOverrides = (): Overrides => ({ confirmed: [], excluded: [], removedNeeds: [], keepShort: false, approvedSoft: [], stockContinued: [], useConfirmed: false });
 
@@ -511,10 +516,26 @@ export async function quoteAndDecide(plan: StoredPlan, personToken?: string): Pr
 
 /** ORDER-PLACE from the hotel side, with the plan's idempotency key, so a retry is one order. */
 export async function placeFromPlan(plan: StoredPlan, approvalId: string | undefined): Promise<StoredPlan> {
+  if (plan.basketCheckout && plan.eventId && basketSnapshot(plan.eventId) !== plan.basketCheckout.snapshot) {
+    plan.status = "blocked";
+    plan.error = "The basket changed after review. Review and confirm the latest basket.";
+    plan.summary = plan.error;
+    savePlan(plan);
+    return plan;
+  }
   try {
     const continued = [...new Set(plan.lines.filter((l) => l.productId && l.stock?.kind === "unknown" && (plan.overrides.stockContinued ?? []).includes(l.productId)).map((l) => l.productId!))];
     const o = await gw.order(plan.quoteId!, plan.idemKey, approvalId, continued, plan.overrides.stockDecidedBy);
     plan.orderIds = [...new Set([...plan.orderIds, o.id])];
+    for (const id of plan.basketCheckout?.sourcePlanIds ?? []) {
+      const source = getPlan(id);
+      if (source) {
+        source.orderIds = [...new Set([...source.orderIds, o.id])];
+        source.status = "ordered";
+        source.summary = `Included in mock order ${o.id}`;
+        savePlan(source);
+      }
+    }
     plan.status = "ordered";
     plan.approvalId = approvalId ?? null;
     for (const l of plan.lines) {
