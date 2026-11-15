@@ -277,6 +277,12 @@ table.t tr:last-child td { border-bottom: 0; }
 .propline { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
 .alts { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 0 4px; }
 .alts .linkbtn { font-size: 12.5px; color: var(--mute); text-decoration: underline; }
+/* "Show all N": a list is never cut short for good. */
+.show-all { display: inline-block; margin-top: 8px; text-decoration: underline; }
+/* Ranges of an ambiguous word ("pepper": spice or fresh); the pressed chip narrows the list. */
+.category-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 8px; }
+.category-chips .chip { min-height: 30px; font-size: 13px; cursor: pointer; }
+.category-chips .chip[aria-pressed="true"] { background: var(--green-soft); border-color: transparent; font-weight: 600; }
 .totalrow { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--hairline); padding-top: 12px; margin-top: 6px; }
 .moneybar { display: flex; gap: 32px; flex-wrap: wrap; padding: 4px 0 12px; border-bottom: 1px solid var(--hairline); margin-bottom: 4px; }
 .dishgroup .small-h { font-size: 15px; margin-bottom: 4px; }

@@ -6,10 +6,10 @@ import { claimLabel, day, eur, parseTime, qty, when } from "../format";
 import { stockText } from "./Popover";
 import { Status, UnknownStockMark } from "./Status";
 import { Icon } from "./icons";
-import { useShowAll } from "./ShowAll";
+import { useCategoryFilter, useShowAll } from "./ShowAll";
 
 /** One compact table group per requested item; supporting evidence opens on demand. */
-export function ProductReviewItem({ line, need, lines, deliveryDate, checked, disabled, review, onApprove, onSalesQuantity, onEdit, onDiscard, onChoose, children }: {
+export function ProductReviewItem({ line, need, lines, deliveryDate, checked, disabled, review, onApprove, onSalesQuantity, onEdit, onDiscard, onChoose, onSearch, children }: {
   line: SingleLine;
   need?: Need;
   lines: PlanLine[];
@@ -22,6 +22,8 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
   onEdit: (field: "quantity" | "description") => void;
   onDiscard?: () => void;
   onChoose: (productId: string) => void;
+  /** Check this item again with another description: a corrected spelling, or a product the person picked. */
+  onSearch?: (description: string) => void;
   children?: ReactNode;
 }) {
   const { now } = useApp();
@@ -41,7 +43,10 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
   // Every other product that passed, usable ones first; the first few show and the rest load on request.
   const alternatives = need?.candidates.filter((candidate) => !selected.has(candidate.productId))
     .sort((a, b) => replacementScore(a, deliveryDate) - replacementScore(b, deliveryDate) || a.rank - b.rank) ?? [];
-  const replacementList = useShowAll(alternatives, 3, "replacements");
+  const replacementRanges = useCategoryFilter(alternatives);
+  const replacementList = useShowAll(replacementRanges.filtered, 3, "replacements");
+  const help = need?.searchHelp ?? null;
+  const possibleList = useShowAll(help?.possible ?? [], 5, "possible products");
   const lateList = useShowAll(need?.lateDeliveryOptions ?? [], 2, "later options");
   const lateOptions = lateList.visible;
   const products = found.length ? found : [null];
@@ -118,6 +123,34 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
                   <button type="button" className="btn sm" disabled={disabled} onClick={() => onEdit("description")} aria-label={`Refine search for ${line.query}`}>Refine search</button>
                 </div>
               )}
+              {noMatch && help && (help.didYouMean.length > 0 || help.possible.length > 0) && (
+                <div className="search-help" role="region" aria-label={`Suggestions for ${line.query}`}>
+                  {help.didYouMean.length > 0 && (
+                    <p className="small">
+                      Did you mean{" "}
+                      {help.didYouMean.map((q, i) => (
+                        <span key={q}>{i > 0 && " or "}<button type="button" className="linkbtn" disabled={disabled || !onSearch} onClick={() => onSearch?.(q)}>{q}</button></span>
+                      ))}?
+                    </p>
+                  )}
+                  {help.possible.length > 0 && (
+                    <>
+                      <h4>Possible matches</h4>
+                      <p className="small muted">{help.possible[0].reason} These are not ordered unless you pick one; a picked product is checked like any item.</p>
+                      <ul className="search-help-possible">
+                        {possibleList.visible.map((p) => (
+                          <li key={p.productId}>
+                            <span><b>{p.name}</b><small className="muted">Product {p.productId} · {p.categoryLabel}</small></span>
+                            <button type="button" className="btn sm" disabled={disabled || !onSearch} onClick={() => onSearch?.(`${p.productId} ${p.query}`)} aria-label={`Use ${p.name}`}>Use this product</button>
+                          </li>
+                        ))}
+                      </ul>
+                      {possibleList.toggle}
+                      {help.possibleTotal > help.possible.length && <p className="small muted">{help.possibleTotal - help.possible.length} more mention it. Refine the description to narrow them.</p>}
+                    </>
+                  )}
+                </div>
+              )}
               {warnings.length > 0 && <ul className="add-review-item-warnings small">{warnings.map((message) => <li key={message}>{message}</li>)}</ul>}
               {showDetails && hasDietRequirements && <p className="small muted">{[
                 ...line.constraints.claims.map(claimLabel),
@@ -144,6 +177,7 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
               {showDetails && showReplacements && !tooLate && alternatives.length > 0 && need && (
                 <div className="add-review-replacements">
                   <h4>Suggested replacements</h4>
+                  {replacementRanges.chips}
                   {replacementList.visible.map((candidate) => {
                     const quantity = replacementQuantity(candidate, need);
                     const cutoff = parseTime(candidate.closingTime);

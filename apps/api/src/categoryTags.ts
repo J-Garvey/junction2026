@@ -13,7 +13,17 @@
 import type { Product } from "@aimo/contracts";
 
 export type Tag = { word: string; n: number; share: number; focus: number };
-export type CategoryTags = { category: string; size: number; label: string; en: Tag[]; fi: Tag[]; examples: string[] };
+export type Storage = "frozen" | "chilled" | "ambient";
+export type CategoryTags = { category: string; size: number; label: string; storage: Storage | null; en: Tag[]; fi: Tag[]; examples: string[] };
+
+/** Countries and origins name where a product comes from, not what it is. */
+const PLACES = new Set(`finland finnish netherland netherlands holland dutch mexico china chinese spain spanish italy italian germany german france french
+  sweden swedish denmark danish poland polish peru chile brazil argentina india indian thailand thai vietnam turkey turkish greece greek morocco egypt
+  israel kenya colombia ecuador portugal belgium austria norway estonia latvia lithuania hungary ireland england scotland usa america american japan japanese
+  korea korean canada australia zealand africa`.split(/\s+/));
+const STORAGE: Record<string, Storage> = { freeze: "frozen", cool: "chilled", warm: "ambient" };
+/** A tag names products from at least this many brands, so a product line ("Bravo Chef") is not a kind. */
+export const TAG_SOURCES = 2;
 
 const lc = (s: string) => s.toLowerCase().normalize("NFC");
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -77,6 +87,9 @@ type Built = {
 };
 let built: Built | null = null;
 let builtFor: Product[] | null = null;
+let builtSet: Set<Product> | null = null;
+/** The same products, perhaps in a new array or order (allProducts() copies): no rebuild. */
+const sameProducts = (all: Product[]) => all === builtFor || (builtSet !== null && all.length === builtSet.size && all.every((p) => builtSet!.has(p)));
 
 /** A tag names at least two products and a tenth of the range, and the category holds a tenth of the word's products. */
 export const TAG_MIN = 2;
@@ -84,7 +97,7 @@ export const TAG_SHARE = 0.1;
 export const TAG_FOCUS = 0.1;
 
 export function buildCategoryTags(all: Product[]): Built {
-  if (built && builtFor === all) return built;
+  if (built && sameProducts(all)) return built;
   const size = new Map<string, number>();
   const df = { en: new Map<string, Map<string, number>>(), fi: new Map<string, Map<string, number>>() };
   const gdf = { en: new Map<string, number>(), fi: new Map<string, number>() };
@@ -93,6 +106,9 @@ export function buildCategoryTags(all: Product[]): Built {
   const fiVocab = new Set<string>();
   const enCount = new Map<string, number>();
   const words: Words[] = [];
+  // Per category and word, the brands (or vendors) whose product names use it.
+  const sources = { en: new Map<string, Set<string>>(), fi: new Map<string, Set<string>>() };
+  const temps = new Map<string, Map<string, number>>();
   for (const p of all) {
     const en = nameWords(p.name, p.brand);
     const fi = nameWords(p.nameFi, p.brand);
@@ -101,15 +117,25 @@ export function buildCategoryTags(all: Product[]): Built {
     const ex = examples.get(p.category) ?? [];
     if (ex.length < 3) ex.push(p.name);
     examples.set(p.category, ex);
+    if (p.temperatureLabel) {
+      const t = temps.get(p.category) ?? new Map<string, number>();
+      t.set(p.temperatureLabel, (t.get(p.temperatureLabel) ?? 0) + 1);
+      temps.set(p.category, t);
+    }
     for (const w of new Set([...en, ...fi])) vocab.set(w, (vocab.get(w) ?? 0) + 1);
     for (const w of fi) fiVocab.add(w);
     if (!(!p.nameFi || lc(p.nameFi) === lc(p.name))) for (const w of new Set(en.map(singularEn))) enCount.set(w, (enCount.get(w) ?? 0) + 1);
+    const source = lc(p.brand ?? p.vendor ?? p.id);
     for (const [lang, ws] of [["en", new Set(en.map(singularEn))], ["fi", new Set(fi.flatMap(fiTails))]] as const) {
       for (const w of ws) {
         const m = df[lang].get(p.category) ?? new Map<string, number>();
         m.set(w, (m.get(w) ?? 0) + 1);
         df[lang].set(p.category, m);
         gdf[lang].set(w, (gdf[lang].get(w) ?? 0) + 1);
+        const key = `${p.category}|${w}`;
+        const s = sources[lang].get(key) ?? new Set<string>();
+        s.add(source);
+        sources[lang].set(key, s);
       }
     }
   }
@@ -120,18 +146,35 @@ export function buildCategoryTags(all: Product[]): Built {
       [...(df[lang].get(cat) ?? new Map<string, number>())]
         .map(([word, k]) => ({ word, n: k, share: +(k / n).toFixed(3), focus: +(k / gdf[lang].get(word)!).toFixed(3) }))
         .filter((t) => t.n >= TAG_MIN && t.share >= TAG_SHARE && t.focus >= TAG_FOCUS)
+        .filter((t) => !PLACES.has(t.word) && sources[lang].get(`${cat}|${t.word}`)!.size >= TAG_SOURCES)
         .sort((a, b) => b.n - a.n || (a.word < b.word ? -1 : 1));
     const en = pick("en").slice(0, 12);
     // A Finnish tail counts only as a real word ("kakku", not "akakku"), and only if no longer
     // tail holds nearly all of it.
     const fiAll = pick("fi").filter((t) => fiVocab.has(t.word));
     const fi = fiAll.filter((t) => !fiAll.some((o) => o.word.length > t.word.length && o.word.endsWith(t.word) && o.n >= 0.8 * t.n)).slice(0, 12);
-    cats.set(cat, { category: cat, size: n, label: (en.length ? en : fi).slice(0, 3).map((t) => t.word).join(", "), en, fi, examples: examples.get(cat) ?? [] });
+    const temp = [...(temps.get(cat) ?? new Map<string, number>())].sort((a, b) => b[1] - a[1])[0];
+    const storage = temp && temp[1] >= 0.6 * n ? (STORAGE[temp[0]] ?? null) : null;
+    cats.set(cat, { category: cat, size: n, label: (en.length ? en : fi).slice(0, 3).map((t) => t.word).join(", "), storage, en, fi, examples: examples.get(cat) ?? [] });
     for (const t of en) enIndex.set(t.word, [...(enIndex.get(t.word) ?? []), { ...t, category: cat }]);
   }
   built = { cats, enIndex, vocab, fiVocab, enCount, words };
   builtFor = all;
+  builtSet = new Set(all);
   return built;
+}
+
+/**
+ * A short name for a category, for a person choosing between ranges: its top tags and how it is
+ * stored ("Pepper, ground · ambient", "Chili, capsicum · chilled"). Falls back to the code.
+ */
+export function categoryLabel(category: string, all: Product[]): string {
+  const c = buildCategoryTags(all).cats.get(category);
+  if (!c) return category;
+  const words = c.label ? c.label.split(", ").slice(0, 2).join(", ") : "";
+  if (!words) return c.storage ? `${c.storage[0].toUpperCase()}${c.storage.slice(1)} (${category})` : `Category ${category}`;
+  const name = words[0].toUpperCase() + words.slice(1);
+  return c.storage ? `${name} · ${c.storage}` : name;
 }
 
 /** Products whose English name has the word (any number). */

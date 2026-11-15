@@ -8,8 +8,12 @@
  */
 import { describe, it, expect } from "vitest";
 import type { Product } from "@aimo/contracts";
-import { searchMatches } from "../src/catalog.js";
+import { allProducts, searchMatches } from "../src/catalog.js";
 import { FIXED } from "../src/rules/catalogue.js";
+import { rulesParse } from "../src/agent/parse.js";
+import { needsFromSingle } from "../src/agent/plan.js";
+import { searchHelp, shortlist } from "../src/agent/match.js";
+import { categoryLabel } from "../src/categoryTags.js";
 
 type Case = {
   q: string;
@@ -72,6 +76,8 @@ const CASES: Case[] = [
   { q: "chicken burger", min: 3, all: /burger|pihvi|hampurilai/i, ids: ["461651"], none: /nochicken|vegetarian|vegan/i },
   { q: "strawberries", min: 3, none: /yoghurt|ice cream|quark|pastille|jam/i },
   { q: "oat milk", min: 10, all: /oat|kaura/i },
+  // An explicit plant request finds the analogue range, never the dairy cheese or a cheesecake.
+  { q: "vegan cheese", min: 3, all: /sheese|vegan|dairy-free|plant|alternative|vaihtoehto|kasvi/i, none: /cake|kakku|dip|cumin|kumina/i },
   { q: "orange juice", min: 10, all: /orange|appelsiini/i },
   { q: "napkins", min: 20, all: /napkin|servietti|lautasliina|serviette/i },
   { q: "yoghurt", min: 20, all: /yog|jogurt/i },
@@ -107,5 +113,56 @@ describe("search evaluation: the shortlist is the thing the chef asked for", () 
 
   it("words that aren't products stay off the shortlist", () => {
     for (const q of ["houses", "unicorn chicken burger", "unlistedbrand milk"]) expect(shortlistFor(q), q).toEqual([]);
+  });
+});
+
+describe("search help when nothing matched (never ordered automatically)", () => {
+  const needFor = (query: string) => needsFromSingle({ ...rulesParse(`10 pcs ${query} by Monday`), siteId: "site-main", outletId: "out-kitchen" })[0];
+
+  it.each([["chese", "cheese"], ["strawbery", "strawberry"], ["strawbery jam", "strawberry jam"]])("%s: did you mean %s", (q, fixed) => {
+    const need = needFor(q);
+    expect(shortlist(need)).toEqual([]);
+    const help = searchHelp(need)!;
+    expect(help.unmatched.length).toBeGreaterThan(0);
+    expect(help.didYouMean).toContain(fixed);
+    // Each suggestion is checked to find something to order.
+    for (const s of help.didYouMean) expect(shortlistFor(s).length, s).toBeGreaterThan(0);
+  });
+
+  it("an unknown qualifier lists what the rest finds, with the reason, and keeps it off the shortlist", () => {
+    const need = needFor("unicorn chicken burger");
+    const help = searchHelp(need)!;
+    expect(help.unmatched).toEqual(["unicorn"]);
+    expect(help.possible.map((p) => p.productId)).toContain("461651");
+    expect(help.possible[0].reason).toMatch(/unicorn/);
+    expect(help.possible.every((p) => p.query === "chicken burger" && p.categoryLabel)).toBe(true);
+    expect(shortlist(need)).toEqual([]);
+  });
+
+  it("mention-only matches are possible, not ordered", () => {
+    const help = searchHelp(needFor("houses"))!;
+    expect(help.possible.length).toBeGreaterThan(0);
+    expect(help.possibleTotal).toBeGreaterThanOrEqual(help.possible.length);
+    expect(shortlistFor("houses")).toEqual([]);
+  });
+
+  it("a pinned product or a found product needs no help", () => {
+    expect(searchHelp({ ...needFor("milk"), pinnedProductId: "464306" })).toBeNull();
+    expect(searchHelp(needFor("cheese"))).toBeNull();
+  });
+});
+
+describe("category labels for narrowing an ambiguous word", () => {
+  it("names ranges from their own products and storage, not brands or countries", () => {
+    const all = allProducts();
+    expect(categoryLabel("22630", all)).toMatch(/pepper/i);
+    expect(categoryLabel("21591", all)).toMatch(/cucumber.*· ambient|pickled/i);
+    expect(categoryLabel("21594", all)).not.toMatch(/bravo|chef/i);
+    expect(categoryLabel("17405", all)).not.toMatch(/china|netherland/i);
+  });
+
+  it("pepper's shortlist spans more than one labelled range", () => {
+    const labels = new Set(shortlistFor("pepper").map((p) => categoryLabel(p.category, allProducts())));
+    expect(labels.size).toBeGreaterThan(1);
   });
 });

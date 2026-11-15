@@ -77,15 +77,32 @@ export function RequestReviewDialog({ initialReview, deliveryDate, onClose, onCh
     onChanged();
   }
 
-  async function checkChanges() {
-    if (!request || !editTarget || !editReady || busy) return;
+  function checkChanges() {
+    if (!editTarget || !editReady) return;
+    return applyChange(editTarget.lineId, editTarget.amount, editTarget.unit, editTarget.description);
+  }
+
+  /** A suggestion (a corrected spelling, or a product the person picked) checks the item again. */
+  function searchAgain(line: SingleRequest["lines"][number], description: string) {
+    if (busy || !editable) return;
+    // Without an amount the person adds one first; the suggestion is already filled in.
+    if (!line.quantity) {
+      setDialogError(null);
+      setEditTarget({ lineId: line.id, field: "quantity", amount: "", unit: "pcs", description });
+      return;
+    }
+    return applyChange(line.id, String(line.quantity.amount), line.quantity.unit, description);
+  }
+
+  async function applyChange(lineId: string, amount: string, unit: Unit, description: string) {
+    if (!request || busy) return;
     setBusy("check");
     setDialogError(null);
     try {
-      const original = request.lines.find((line) => line.id === editTarget.lineId)!;
-      let updated = { ...original, quantity: { amount: Number(editTarget.amount), unit: editTarget.unit } };
-      if (editTarget.description.trim() !== original.query) {
-        const parsed = await api.message(`${editTarget.amount} ${editTarget.unit} ${editTarget.description.trim()}`);
+      const original = request.lines.find((line) => line.id === lineId)!;
+      let updated = { ...original, quantity: { amount: Number(amount), unit } };
+      if (description.trim() !== original.query) {
+        const parsed = await api.message(`${amount} ${unit} ${description.trim()}`);
         if (parsed.route === "event_change" || parsed.route === "neither" || parsed.request.lines.length !== 1) {
           throw new Error("Describe one product for this row, then check it again.");
         }
@@ -216,6 +233,7 @@ export function RequestReviewDialog({ initialReview, deliveryDate, onClose, onCh
               onEdit={(field) => edit(line, field)}
               onDiscard={request.lines.length > 1 || plan?.reviewing ? () => discard(line.id) : undefined}
               onChoose={(productId) => choose(line.id, productId)}
+              onSearch={editable ? (description) => searchAgain(line, description) : undefined}
             >
               {editTarget?.lineId === line.id && (
                 <form className="add-review-editor" onSubmit={(event) => { event.preventDefault(); checkChanges(); }}>

@@ -36,6 +36,23 @@ describe("candidates for a need", () => {
     expect(rows()).toHaveLength(CANDIDATES_SHOWN);
   });
 
+  it("narrows an ambiguous word to one range with category chips", () => {
+    const need = needWith(6);
+    need.candidates.forEach((c, i) => Object.assign(c, i < 4 ? { category: "22630", categoryLabel: "Pepper, ground · ambient" } : { category: "17406", categoryLabel: "Chili, capsicum" }));
+    show(need);
+    const chips = screen.getByRole("group", { name: "Narrow by range" });
+    fireEvent.click(within(chips).getByRole("button", { name: "Chili, capsicum 2" }));
+    expect(rows()).toHaveLength(2);
+    expect(screen.getByText("Milk 5")).toBeTruthy();
+    fireEvent.click(within(chips).getByRole("button", { name: "All 6" }));
+    expect(rows()).toHaveLength(CANDIDATES_SHOWN);
+  });
+
+  it("shows no chips when every product is from one range", () => {
+    show(needWith(3));
+    expect(screen.queryByRole("group", { name: "Narrow by range" })).toBeNull();
+  });
+
   it("has no button when every product already shows", () => {
     show(needWith(4));
     expect(rows()).toHaveLength(4);

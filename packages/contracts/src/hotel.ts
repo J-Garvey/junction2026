@@ -41,6 +41,25 @@ export interface Candidate {
   source: "live" | "fixture";
   judgement: ModelJudgement | null;
   notes: FiredRule[];
+  /** Catalogue category code, so a person can narrow an ambiguous word ("pepper": spice or fresh). */
+  category?: string;
+  /** A short name for the category, from its own product names and storage ("Pepper, ground · ambient"). */
+  categoryLabel?: string;
+}
+
+/**
+ * Help when the search found nothing it may order: catalogue spellings for words it doesn't know,
+ * and products that only might be the thing. None is ordered unless the person picks it.
+ */
+export interface SearchHelp {
+  /** Query words no product name uses. */
+  unmatched: string[];
+  /** The query with a misspelt word corrected, each checked to find products ("chese" → "cheese"). */
+  didYouMean: string[];
+  /** Products that may be meant, never on the automatic shortlist. */
+  possible: { productId: string; name: string; category: string; categoryLabel: string; reason: string; query: string }[];
+  /** How many possible products there are in all (the list holds the first ones). */
+  possibleTotal: number;
 }
 
 export interface Need {
@@ -73,6 +92,8 @@ export interface Need {
   earliestDelivery?: string | null;
   /** Display-only full-quantity options, earliest delivery first. Never allocated to the late order. */
   lateDeliveryOptions?: (Candidate & { quantity: number; deliveryEstimated: boolean })[];
+  /** Set when the search found nothing to order: suggestions for the person, never ordered automatically. */
+  searchHelp?: SearchHelp | null;
 }
 
 export interface PlanLine {

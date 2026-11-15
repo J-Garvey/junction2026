@@ -583,6 +583,17 @@ const VEGAN_WORDS = /\b(?:vegan|plant[ -]?based|non[ -]?dairy|dairy[ -]?free)\b|
 const QUERY_FILLER = new Set("some nice please a an the of i we need want buy order me us find for birthday wedding anniversary graduation banquet conference celebration guests guest".split(" "));
 const negationCache = new Map<string, RegExp[]>();
 
+/** A product says it replaces another: "cheese alternative", "vaihtoehto juustolle". */
+const ALTERNATIVE = /\b(?:alternative|substitute|replacement)\b|vaihtoehto|korvike/i;
+/** Plant-based by its declaration or its name. */
+const isPlant = (p: Product) =>
+  p.claims.some((c) => c === "VEGAN" || c === "VEGETARIAN") || PLANT_WORDS.test(`${p.name} ${p.nameFi ?? ""}`) || VEGAN_WORDS.test(`${p.name} ${p.nameFi ?? ""}`) || /kasviperäi/i.test(p.nameFi ?? "");
+
+/** The words of a query that a product name could hold: no filler or occasion words. */
+export function contentWords(q: string): string[] {
+  return lc(q).split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 1 && !QUERY_FILLER.has(w));
+}
+
 function deniesTerm(text: string, t: Term): boolean {
   let patterns = negationCache.get(t.key);
   if (!patterns) patterns = t.en.map((seq) => {
@@ -638,6 +649,10 @@ export function rank(q: string, candidates: Product[], all: Iterable<Product>, h
   const sibling = (cat: string) => prefixes.has(cat.slice(0, 4)) && (stats?.get(cat)?.share ?? 0) >= SIBLING_SHARE;
   // A brand on its own ("valio") lists the brand's range; the names were read without it.
   const brand = head.key.startsWith("~") && !quals.length ? head.key.slice(1) : null;
+  // "Vegan cheese" asks for the analogue, which sits in its own range: a plant product that names
+  // the thing ("dairy-free cheese") or says it is its alternative ("cheese alternative") is the match.
+  const analogue = (claims.includes("VEGAN") || claims.includes("VEGETARIAN") || PLANT_WORDS.test(q))
+    && (MEAT_TERMS.has(head.key) || DAIRY_TERMS.has(head.key) || Boolean(LEXICON[head.key]?.isa?.some((k) => DAIRY_TERMS.has(k))) || head.key === "egg");
   if (brand && candidates.some((p) => p.brand && lc(p.brand) === brand))
     return candidates.filter((p) => p.brand && lc(p.brand) === brand).map((product) => ({ product, tier: 3, role: "mention", term: brand }));
   const out: Match[] = [];
@@ -664,6 +679,7 @@ export function rank(q: string, candidates: Product[], all: Iterable<Product>, h
       else if (homeOverride && !natural!.has(p.category)) tier = 3;
       else if (kinds.has(p.category) && !asked.has(kinds.get(p.category)!)) tier = 3;
     }
+    if (analogue && tier !== null && tier > 1 && isPlant(p) && (role === "head" || role === "mention" || (role === "modifier" && ALTERNATIVE.test(`${p.name} ${p.nameFi ?? ""}`)))) tier = 1;
     // Identity checks matter only for a text/category match, not every catalogue row.
     if (tier !== null && !conflictsWithRequest(p, terms, q, claims)) out.push({ product: p, tier, role, term: head.key.replace(/^~/, "") });
   }

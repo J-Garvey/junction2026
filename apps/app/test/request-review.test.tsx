@@ -240,6 +240,43 @@ describe("saved request review controls", () => {
     expect(screen.getAllByRole("button", { name: "Use replacement" })).toHaveLength(3);
   });
 
+  it("offers a spelling and possible products when nothing matched, and orders none until picked", async () => {
+    const none = fixture();
+    none.plan.lines = [];
+    none.plan.needs[0].candidates = [];
+    none.plan.needs[0].query = "chese";
+    none.plan.request!.lines[0].query = "chese";
+    none.plan.needs[0].rules = [{ ruleId: "DIET-04", outcome: "block", message: "Nothing matched", facts: {}, overridable: false }];
+    none.plan.needs[0].searchHelp = {
+      unmatched: ["chese"], didYouMean: ["cheese"], possibleTotal: 1,
+      possible: [{ productId: "466750", name: "Cheese cake", category: "41763", categoryLabel: "Cake · frozen", reason: "The name mentions \"chese\", but it may be something else.", query: "chese" }],
+    };
+    none.plan.itemReviews![0].canApprove = false;
+    const message = vi.spyOn(api, "message").mockResolvedValue({ route: "new_request", request: { ...none.plan.request!, lines: [{ ...none.plan.request!.lines[0], query: "cheese" }] }, note: null });
+    vi.spyOn(api, "requote").mockResolvedValue(fixture());
+    show(none);
+    const help = screen.getByRole("region", { name: "Suggestions for chese" });
+    expect(within(help).getByText("Possible matches")).toBeTruthy();
+    expect(within(help).getByText(/not ordered unless you pick one/)).toBeTruthy();
+    fireEvent.click(within(help).getByRole("button", { name: "cheese" }));
+    await waitFor(() => expect(message).toHaveBeenCalledWith("10 l cheese"));
+  });
+
+  it("checks a picked possible product again with its id pinned", async () => {
+    const none = fixture();
+    none.plan.lines = [];
+    none.plan.needs[0].candidates = [];
+    none.plan.needs[0].rules = [{ ruleId: "DIET-04", outcome: "block", message: "Nothing matched", facts: {}, overridable: false }];
+    none.plan.needs[0].searchHelp = { unmatched: ["unicorn"], didYouMean: [], possibleTotal: 1,
+      possible: [{ productId: "461651", name: "RF Chicken Burger", category: "41712", categoryLabel: "Breaded · frozen", reason: "No product name says \"unicorn\".", query: "chicken burger" }] };
+    none.plan.itemReviews![0].canApprove = false;
+    const message = vi.spyOn(api, "message").mockResolvedValue({ route: "new_request", request: none.plan.request!, note: null });
+    vi.spyOn(api, "requote").mockResolvedValue(fixture());
+    show(none);
+    fireEvent.click(screen.getByRole("button", { name: "Use RF Chicken Burger" }));
+    await waitFor(() => expect(message).toHaveBeenCalledWith("10 l 461651 chicken burger"));
+  });
+
   it("shows changed supplier terms after an add conflict and allows review and retry", async () => {
     const changed = fixture();
     changed.plan.lines[0].unitPrice = 25;
