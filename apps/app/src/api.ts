@@ -1,5 +1,5 @@
 /** Thin client for the hotel app API (/api). Shapes follow apps/api/src/app/routes.ts. */
-import type { AuditEntry, BasketStatus, Order, Plan, Product, Question, SingleRequest, WarningRecord, DietGroup, FiredRule, Mandate } from "@aimo/contracts";
+import type { AuditEntry, BasketStatus, Order, Plan, Product, Question, SingleRequest, WarningRecord, DietGroup, FiredRule, Mandate, Unit } from "@aimo/contracts";
 
 export class ApiError extends Error {
   constructor(
@@ -139,12 +139,48 @@ export interface FinalCheck {
   summary: string;
   lines: { productId: string; productName: string; result: string; detail: string }[];
 }
+export interface EventIngredient {
+  id: string;
+  text: string;
+  query?: string;
+  category?: string;
+  productId?: string;
+  variants?: Record<string, string>;
+  perPortion?: { amount: number; unit: Unit };
+  total?: { amount: number; unit: Unit };
+  claims?: string[];
+  origin?: string;
+  productType?: string;
+  frozen?: boolean;
+}
 export interface EventDish {
   id: string;
   name: string;
   outletId: string;
   excludesGroups: string[];
-  ingredients: { id: string; text: string; productId?: string; perPortion: { amount: number; unit: string } }[];
+  ingredients: EventIngredient[];
+}
+/** The menu scaled by the head count: one line per product or spec, with each dish's share (CH-12). */
+export interface MenuScale {
+  guests: number;
+  regularGuests: number;
+  lines: {
+    lineId: string;
+    text: string;
+    productId: string | null;
+    total: { amount: number; unit: "kg" | "l" | "pcs" };
+    constraints: { claims: string[]; avoidAllergens: string[]; labels: string[]; origin?: string };
+    shares: { dishName: string; groupId: string; groupLabel: string; guests: number | null; perPortion: { amount: number; unit: string } | null; amount: number }[];
+  }[];
+  problems: FiredRule[];
+  warnings: FiredRule[];
+}
+export interface MenuBody {
+  version: number;
+  guests: number;
+  dietsConfirmed: boolean;
+  dietGroups: DietGroup[];
+  dishes: EventDish[];
 }
 export interface StoredEvent {
   id: string;
@@ -312,6 +348,9 @@ export const api = {
   choose: (id: string, needId: string, productId: string) => post<PlanResp>(`/api/plans/${encodeURIComponent(id)}/choose`, { needId, productId }),
   answer: (id: string, optionId: string, note?: string) => post<AnswerResp>(`/api/questions/${encodeURIComponent(id)}/answer`, { optionId, ...(note !== undefined ? { note } : {}) }),
   event: (id: string) => get<EventResp>(`/api/events/${encodeURIComponent(id)}`),
+  menu: (id: string) => get<{ event: StoredEvent; scale: MenuScale }>(`/api/events/${encodeURIComponent(id)}/menu`),
+  saveMenu: (id: string, body: MenuBody) => call<{ event: StoredEvent; scale: MenuScale }>("PUT", `/api/events/${encodeURIComponent(id)}/menu`, body),
+  menuOrder: (id: string, version: number) => post<PlanResp & { scale: MenuScale }>(`/api/events/${encodeURIComponent(id)}/menu/order`, { version }),
   events: () => get<{ events: (StoredEvent & { coverage: Coverage })[] }>("/api/events"),
   viability: (id: string) => post<{ plan: Plan }>(`/api/events/${id}/viability`),
   orderEvent: (id: string) => post<{ plan: Plan }>(`/api/events/${id}/order`),

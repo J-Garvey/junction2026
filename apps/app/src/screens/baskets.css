@@ -133,3 +133,37 @@
 .composer .attach-name { color: var(--ink) !important; font-size: 14px !important; max-width: 220px; cursor: pointer; text-align: left; }
 .composer .attach-name:hover { text-decoration: underline; }
 .composer .txt:has(> .attach) { padding-left: 8px; gap: 8px; }
+
+/* Menu → order: dishes, amounts per guest, head count. */
+.add-mode { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.menu-head { display: grid; gap: 14px; }
+.menu-head .field input { width: 120px; }
+.menu-diets { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.menu-diets > .small { flex-basis: 100%; }
+.menu-diet { display: inline-flex; align-items: center; gap: 6px; padding: 4px 4px 4px 8px; border: 1px solid var(--hairline-soft); border-radius: 6px; }
+.menu-diet select, .menu-row select, .menu-row input, .menu-dish-name { height: 32px; border: 1px solid var(--hairline); border-radius: 6px; padding: 0 8px; background: var(--card); min-width: 0; }
+.menu-confirm { gap: 8px; align-items: center; }
+.menu-dish { padding: 12px 16px; display: grid; gap: 8px; }
+.menu-dish-head { display: flex; align-items: center; gap: 10px; }
+.menu-dish-name { flex: 1; font-weight: 700; font-size: 15px; color: var(--ink); }
+.menu-serves { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
+.menu-rows { display: grid; gap: 6px; }
+.menu-row { display: grid; grid-template-columns: minmax(0, 1fr) 84px 68px 118px 86px 36px; gap: 6px; align-items: center; }
+.menu-row-head { padding-bottom: 0; }
+.menu-ing { position: relative; display: flex; min-width: 0; }
+.menu-ing input { flex: 1; padding-right: 64px; }
+.menu-pin { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); font-family: var(--mono); font-size: 11px; pointer-events: auto; }
+.menu-total { text-align: right; font-family: var(--mono); color: var(--ink); white-space: nowrap; }
+.menu-add { justify-self: start; }
+.menu-shares { display: block; margin-top: 2px; }
+.menu-problem { color: var(--red); gap: 6px; }
+.menu-warning { color: var(--body); background: var(--yellow-soft); gap: 6px; }
+.menu-actions { gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 640px) {
+  .menu-row { grid-template-columns: 64px 58px minmax(0, 1fr) 58px; }
+  .menu-row > .menu-ing { grid-column: 1 / 4; grid-row: 1; }
+  .menu-row > :last-child { grid-column: 4; grid-row: 1; justify-self: end; }
+  .menu-row > .menu-total { grid-column: 4; grid-row: 2; }
+  .menu-row-head { display: none; }
+  .menu-rows { gap: 12px; }
+}
