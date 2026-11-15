@@ -209,9 +209,10 @@ function buildLines(needs: Need[], urgent: boolean, ov: Overrides, m: Mandate): 
       combined.set(k, e);
       continue;
     }
-    // Urgent (D32): the best-ranked product takes the whole need, even if its stock is unconfirmed;
-    // the person is then asked whether to continue (D31), with the confirmed-stock split as the alternative.
-    const best = n.candidates[0];
+    // Unpriced candidates remain visible, but cannot displace a priced option during allocation.
+    const priced = n.candidates.filter((c) => c.unitPrice !== null);
+    const candidates = priced.length ? priced : n.candidates;
+    const best = candidates[0];
     if (best.stock.kind === "unknown" && !ov.useConfirmed && best.packContent && best.packContent.unit === n.amount.unit) {
       const packs = Math.ceil(n.amount.value / best.packContent.value - 1e-9);
       lines.push(makeLine(best, [n], n.amount.value, packs, n.amount.unit, "primary", m));
@@ -220,7 +221,7 @@ function buildLines(needs: Need[], urgent: boolean, ov: Overrides, m: Mandate): 
     // Otherwise fill from confirmed stock in rank order, then the best unconfirmed product for the rest.
     let remaining = n.amount.value;
     let covered = 0;
-    for (const c of n.candidates) {
+    for (const c of candidates) {
       if (remaining <= 1e-9) break;
       if (c.stock.kind !== "known" || !c.packContent || c.packContent.unit !== n.amount.unit || c.stock.amount <= 0) continue;
       const want = Math.ceil(remaining / c.packContent.value - 1e-9);
@@ -233,7 +234,7 @@ function buildLines(needs: Need[], urgent: boolean, ov: Overrides, m: Mandate): 
     }
     if (remaining > 1e-9) {
       shortfall = { need: n.amount.value, covered: round2(covered), unit: n.amount.unit };
-      const unknown = n.candidates.find((c) => c.stock.kind === "unknown" && c.packContent && c.packContent.unit === n.amount.unit);
+      const unknown = candidates.find((c) => c.stock.kind === "unknown" && c.packContent && c.packContent.unit === n.amount.unit);
       if (unknown && !ov.keepShort && !ov.useConfirmed) {
         const packs = Math.ceil(remaining / unknown.packContent!.value - 1e-9);
         lines.push(makeLine(unknown, [n], remaining, packs, n.amount.unit, "unknown_fill", m));
