@@ -57,6 +57,8 @@ Both channels were explicitly requested after the earlier product decision to cu
 
 ## Try it
 
+WhatsApp uses the web app's product parser, with order selection and confirmation commands around it. For example, `add 10 slices of cheese to Darragh's Birthday` preserves the quantity as 10 pieces and searches for sliced cheese. Supplier pack conversion is checked separately; a slice count never implies a weight or a number of sales packs. Missing quantities still need clarification.
+
 Use fixture mode and the demo clock before the fixture cutoffs, for example 14 November 2026 at 12:00 Helsinki. Create an empty order basket in the app for 16 November 2026. In chat:
 
 1. Send the basket's name or ID. If several orders fit, select one of the offered choices.
