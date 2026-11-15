@@ -19,7 +19,11 @@ if(command==='stop'){await stop();process.exit(0);}
 const before=git('rev-parse','HEAD');let after=before;
 if(command==='refresh'){
  if(git('status','--porcelain'))throw Error('Commit the task checkout before refresh');
- git('fetch','origin');const main=git('rev-parse','origin/main');
+ for(let retry=0;;retry++){
+  try{git('fetch','origin','refs/heads/main:refs/remotes/origin/main');break;}
+  catch(error){if(retry>=3)throw error;await new Promise(r=>setTimeout(r,250*(retry+1)));}
+ }
+ const main=git('rev-parse','origin/main');
  try{git('merge-base','--is-ancestor',main,'HEAD');}catch{await stop();git('merge','--no-edit','origin/main');}
  after=git('rev-parse','HEAD');
 }

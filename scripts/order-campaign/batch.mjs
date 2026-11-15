@@ -10,7 +10,11 @@ if(args['main-only'])selectedCorpus=selectedCorpus.filter(c=>c.channel==='main')
 if(args['whatsapp-only'])selectedCorpus=selectedCorpus.filter(c=>c.channel==='whatsapp');
 const first=Number(args.start||0),last=Number(args.end||selectedCorpus.length),size=100;
 for(let start=first;start<last;start+=size){
- git('fetch','origin');const main=git('rev-parse','origin/main');
+ for(let retry=0;;retry++){
+   try{git('fetch','origin','refs/heads/main:refs/remotes/origin/main');break;}
+   catch(error){if(retry>=3)throw error;await new Promise(r=>setTimeout(r,250*(retry+1)));}
+ }
+ const main=git('rev-parse','origin/main');
  let meta;
  for(let retry=0;retry<4;retry++){
    try{meta=await(await fetch('http://127.0.0.1:8891/campaign/status')).json();break;}
