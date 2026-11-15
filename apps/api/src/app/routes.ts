@@ -15,7 +15,7 @@ import { getProduct, catalogSize } from "../catalog.js";
 import { interpretMessage } from "../agent/message.js";
 import { logSearch } from "../searchlog.js";
 import { matchesCurrentShortlists, shortlist } from "../agent/match.js";
-import { allItemsApproved, quantityScope, refreshItemReviews } from "../agent/itemReview.js";
+import { allItemsResolved, quantityScope, refreshItemReviews } from "../agent/itemReview.js";
 import { newPlan, quoteAndDecide, getPlan, listPlans, mandate, savePlan, emptyOverrides, HOTEL_ID, needsFromSingle } from "../agent/plan.js";
 import { questionsFor, allQuestions, getQuestion, canAnswer } from "../agent/questions.js";
 import { answer } from "../agent/answers.js";
@@ -212,7 +212,7 @@ export function appRouter(): Router {
     if (plan.itemReviews) {
       // Check current supplier terms before accepting the collection of item decisions.
       await quoteAndDecide(plan, T(req));
-      if (!allItemsApproved(plan) || !plan.proposal)
+      if (!allItemsResolved(plan) || !plan.proposal)
         return res.status(409).json({ error: "Approve every unresolved item before adding this request. Changed terms need approval again.", plan });
     }
     const { continueWithWarnings } = z.object({ continueWithWarnings: z.boolean().default(false) }).parse(req.body ?? {});

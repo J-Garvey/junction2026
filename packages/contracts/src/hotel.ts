@@ -112,6 +112,8 @@ export interface ItemReview {
   needId: string;
   fingerprint: string;
   canApprove: boolean;
+  /** False only for a verified exact match; older reviews still require a decision. */
+  requiresApproval?: boolean;
   quantityRequired: boolean;
   reason: string | null;
   approvedBy: string | null;

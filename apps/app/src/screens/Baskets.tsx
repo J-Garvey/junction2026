@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import type { Order, Question } from "@aimo/contracts";
-import { api, type BasketPlan, type MessageResp, type PlanResp } from "../api";
+import { api, ApiError, type BasketPlan, type MessageResp, type PlanResp } from "../api";
 import { splitMine, useApp, useLoad, waitingForText } from "../ctx";
 import { OthersWaiting, QuestionCard } from "../ui/QuestionCard";
 import { Status, planStatusKind, PLAN_STATUS_TEXT } from "../ui/Status";
@@ -291,11 +291,19 @@ function OrderedLines({ orders, showEmpty = true }: { orders: Order[]; showEmpty
 
 /** Search and check a new request, then use the shared saved-request review. */
 function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deliveryDate: string; onAdded: () => void }) {
+  const { refresh } = useApp();
   const [text, setText] = useState("");
   const [review, setReview] = useState<PlanResp | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ cls: string; body: React.ReactNode } | null>(null);
   useMessagePreparation(busy || review ? "" : text);
+
+  function added() {
+    setReview(null);
+    setText("");
+    setNote({ cls: "green", body: <><b>Added to the order.</b> Submit the final order for finance review.</> });
+    onAdded();
+  }
 
   async function search() {
     if (!text.trim() || busy) return;
@@ -308,7 +316,25 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
       } else if (parsed.route === "neither") {
         setNote({ cls: "blue", body: parsed.message });
       } else {
-        setReview(await api.request({ ...parsed.request, neededBy: deliveryDate }, eventId, true, true));
+        const checked = await api.request({ ...parsed.request, neededBy: deliveryDate }, eventId, true, true);
+        const plan = checked.plan;
+        const exact = plan.proposal && !plan.error && !plan.tooLate && !!plan.request?.lines.length
+          && plan.itemReviews?.length === plan.request.lines.length
+          && plan.itemReviews.every((item) => item.canApprove && item.requiresApproval === false)
+          && !checked.questions.some((question) => question.state === "open" || question.state === "waiting");
+        if (exact) {
+          try {
+            await api.basketPlan(plan.id);
+            added();
+            refresh();
+          } catch (e) {
+            // A supplier change during staging returns the current terms for review.
+            setReview(e instanceof ApiError && e.body?.plan ? { plan: e.body.plan, questions: [] } : checked);
+            setNote({ cls: "red", body: (e as Error).message });
+          }
+        } else {
+          setReview(checked);
+        }
       }
     } catch (e) {
       setNote({ cls: "red", body: (e as Error).message });
@@ -341,12 +367,7 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
       </form>
       {busy && <div className="small muted" role="status">Checking products, stock and delivery...</div>}
       {note && <div className={`callout ${note.cls} small`} role="status">{note.body}</div>}
-      {review && <RequestReviewDialog initialReview={review} deliveryDate={deliveryDate} onClose={() => setReview(null)} onChanged={onAdded} onAdded={() => {
-        setReview(null);
-        setText("");
-        setNote({ cls: "green", body: <><b>Added to the order.</b> Submit the final order for finance review.</> });
-        onAdded();
-      }} />}
+      {review && <RequestReviewDialog initialReview={review} deliveryDate={deliveryDate} onClose={() => setReview(null)} onChanged={onAdded} onAdded={added} />}
     </section>
   );
 }
