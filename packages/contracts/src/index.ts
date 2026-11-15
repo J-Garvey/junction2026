@@ -104,7 +104,7 @@ export const StockFact = z.discriminatedUnion("kind", [
 ]);
 export type StockFact = z.infer<typeof StockFact>;
 
-/** Original supplier schedules, retained before the demo adapter projects dates. */
+/** Original supplier schedules; requested dates never alter these terms. */
 export const AvailabilityEvidence = z.object({
   salesBlock: z.boolean(),
   schedules: z.array(z.object({
@@ -135,7 +135,7 @@ export const LookupLine = z.object({
     .string()
     .nullable()
     .optional()
-    .describe("The mock ignores requestedDate and offers its own date. When the requested date is later, availableDate is the requested date and closingTime is the mock's cut-off moved forward by the same number of days. This holds the mock's original date. The cut-off is an estimate"),
+    .describe("Legacy snapshot projection marker. New lookups preserve supplier dates and cutoffs unchanged; requested dates never establish supplier commitments"),
   price: z
     .object({
       value: z.number().describe("catalogPrice.value per sales unit, ex VAT"),
@@ -248,7 +248,7 @@ export const QuoteLineInput = z.object({
 
 export const QuoteCreateBody = z.object({
   siteId: z.string(),
-  deliveryDate: z.string().describe("YYYY-MM-DD, the date the hotel needs delivery"),
+  deliveryDate: z.string().describe("YYYY-MM-DD, the date the hotel needs delivery by. An earlier original supplier schedule can satisfy it if allowed by the hotel's deliveryDays and holidays; its original cutoff still applies"),
   eventId: z.string().optional(),
   lines: z.array(QuoteLineInput).min(1).max(1000),
 });
@@ -512,6 +512,8 @@ export type SingleLine = z.infer<typeof SingleLine>;
 
 export const SingleRequest = z.object({
   kind: z.literal("single"),
+  /** Reference to server-saved parsing evidence; never a client-supplied duration. */
+  parseAuditId: z.string().optional(),
   originalText: z.string(),
   siteId: z.string().nullable(),
   outletId: z.string(),

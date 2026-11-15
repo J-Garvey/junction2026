@@ -59,6 +59,36 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("saved request review controls", () => {
+  it("carries fresh description-parsing evidence into a request edit", async () => {
+    const initial = fixture();
+    initial.plan.request!.parseAuditId = "old-parsing";
+    const parsed = structuredClone(initial.plan.request!);
+    parsed.parseAuditId = "new-parsing";
+    parsed.lines[0].query = "cream";
+    vi.spyOn(api, "message").mockResolvedValue({ route: "new_request", request: parsed, note: null });
+    vi.spyOn(api, "requote").mockResolvedValue(initial);
+    show(initial);
+    fireEvent.click(screen.getByRole("button", { name: "Edit description for milk" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Description for milk" }), { target: { value: "cream" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check item" }));
+    await waitFor(() => expect(api.requote).toHaveBeenCalledOnce());
+    expect(vi.mocked(api.requote).mock.calls[0][1]).toMatchObject({ parseAuditId: "new-parsing", lines: [{ id: "need", query: "cream" }] });
+  });
+
+  it("does not count old parsing again when only a quantity changes", async () => {
+    const initial = fixture();
+    initial.plan.request!.parseAuditId = "old-parsing";
+    vi.spyOn(api, "message");
+    vi.spyOn(api, "requote").mockResolvedValue(initial);
+    show(initial);
+    fireEvent.click(screen.getByRole("button", { name: "Edit quantity for milk" }));
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Quantity for milk" }), { target: { value: "20" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check item" }));
+    await waitFor(() => expect(api.requote).toHaveBeenCalledOnce());
+    expect(vi.mocked(api.requote).mock.calls[0][1].parseAuditId).toBeUndefined();
+    expect(api.message).not.toHaveBeenCalled();
+  });
+
   it("keeps products in compact rows and approves only the selected item", async () => {
     const multiple = fixture();
     const request = multiple.plan.request!;

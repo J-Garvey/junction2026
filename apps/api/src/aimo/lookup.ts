@@ -11,7 +11,6 @@ import { config } from "../config.js";
 import { getProduct } from "../catalog.js";
 import { nowIso } from "../clock.js";
 import { kvGet } from "../db.js";
-import { isCalendarDate } from "../util.js";
 
 export const BATCH = 1000;
 const TERMINAL_SENTINEL = 999999;
@@ -155,22 +154,6 @@ export function normalise(id: string, a: RawAvail | undefined, p: RawPrice | und
   };
 }
 
-const dayMs = 86_400_000;
-const addDaysTo = (date: string, n: number) => new Date(new Date(`${date}T12:00:00Z`).getTime() + n * dayMs).toISOString().slice(0, 10);
-
-/**
- * PROJECT-DATE: the mock ignores requestedDate and always offers its next Monday. A later
- * date is still deliverable, with its own cut-off. The mock's cut-off moves forward by
- * the same number of days (an estimate), so a passed Monday cut-off doesn't block a
- * delivery weeks away. An earlier requested date is left alone: it really is too soon.
- */
-export function projectToDate(l: LookupLine, requestedDate: string): LookupLine {
-  if (!l.availableDate || !isCalendarDate(l.availableDate) || !isCalendarDate(requestedDate) || !l.deliverable || requestedDate <= l.availableDate) return l;
-  const days = Math.round((new Date(`${requestedDate}T12:00:00Z`).getTime() - new Date(`${l.availableDate}T12:00:00Z`).getTime()) / dayMs);
-  const m = l.closingTime?.match(/^(\d{4}-\d{2}-\d{2})(.*)$/);
-  return { ...l, availableDate: requestedDate, closingTime: m ? `${addDaysTo(m[1], days)}${m[2]}` : l.closingTime, projectedFrom: l.availableDate };
-}
-
 /**
  * Look up ids. Fixture mode serves saved responses where they exist and calls the
  * live mock for the rest; every line is labelled with its source. Live mode falls
@@ -203,5 +186,7 @@ export async function lookup(ids: string[], requestedDate: string, mode: DataMod
       for (const id of uniq) out.set(id, normalise(id, fx.availability[id], fx.price[id], "fixture", fx.label, fx.recordedAt));
     }
   }
-  return { lines: uniq.map((id) => projectToDate(out.get(id)!, requestedDate)), fallback };
+  // requestedDate is a query, never evidence of a supplier commitment. Explicit
+  // fixture overlays can supply other schedules, but live terms are never shifted.
+  return { lines: uniq.map((id) => out.get(id)!), fallback };
 }

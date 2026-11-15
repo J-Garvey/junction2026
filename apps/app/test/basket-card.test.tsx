@@ -20,7 +20,7 @@ describe("order cards", () => {
     expect(html).not.toContain("Fixture");
     expect(html).toContain('dateTime="2026-11-15T15:00:00Z"');
     expect(html).toContain("17:00");
-    expect(html).toContain("Helsinki");
+    expect(html).not.toContain("Helsinki");
     expect(html).toContain('<summary aria-label="About this ordering deadline">');
     expect(html).toContain('role="note"');
     expect(html).not.toContain("excluded from the calculation");

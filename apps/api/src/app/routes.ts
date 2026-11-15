@@ -34,6 +34,7 @@ import { config } from "../config.js";
 import { modelConfigured, modelName } from "../agent/openai.js";
 import { basketReview, submitBasketForReview, invalidateBasketReview, BasketReviewError } from "../agent/baskets.js";
 import { approvalLevels, basketStatus, pendingQuestions } from "../agent/basketSummary.js";
+import { measureProcessing, processingClock } from "./processing.js";
 
 type Authed = Request & { person: Person; token: string };
 
@@ -99,6 +100,7 @@ export function appRouter(): Router {
   });
 
   r.use(person);
+  r.use(measureProcessing);
 
   r.get("/me", (req, res) => res.json({ person: P(req) }));
 
@@ -127,17 +129,20 @@ export function appRouter(): Router {
 
   // Chat box: route the message (MESSAGE-ROUTE), then parse a new request into chips (REQUEST-PARSE).
   r.post("/messages", async (req, res) => {
+    const started = processingClock.now();
     const { text } = messageBody.parse(req.body);
     const { route, parsed } = await interpretMessage(text);
     if (route.route === "event_change") {
       const m = text.match(/(\d{1,5})\s*guests?/i);
-      return res.json({ route: "event_change", guests: m ? Number(m[1]) : null, events: listEvents().map((e) => ({ id: e.id, name: e.name, guests: e.guests, version: e.version })), judgement: route.judgement });
+      const guests = m ? Number(m[1]) : null;
+      const parsedEntry = audit({ actor: personActor(P(req)), action: "request_parsed", summary: "Interpreted an event change", details: { route: "event_change", guests, processingMs: Math.round(processingClock.now() - started) }, visibility: "hotel" });
+      return res.json({ route: "event_change", parseAuditId: parsedEntry.id, guests, events: listEvents().map((e) => ({ id: e.id, name: e.name, guests: e.guests, version: e.version })), judgement: route.judgement });
     }
     if (route.route === "neither") return res.json({ route: "neither", message: "I can take a new request or a change to an event." });
     if (!parsed) throw new Error("Missing request interpretation");
     logSearch({ source: "request_parse", query: text, interpreted: { route: route.route, parsedBy: parsed.request.parsedBy, note: parsed.note, neededBy: parsed.request.neededBy, neededByText: parsed.request.neededByText, lines: parsed.request.lines } });
-    audit({ actor: personActor(P(req)), action: "request_parsed", summary: `Parsed "${text.slice(0, 80)}" into ${parsed.request.lines.length} line(s) (${parsed.request.parsedBy})`, details: { request: parsed.request }, visibility: "hotel", judgements: route.judgement ? [route.judgement] : [] });
-    res.json({ route: route.route === "unsure" ? "new_request_unsure" : "new_request", request: { ...parsed.request, siteId: mandate().sites[0].id, outletId: P(req).outlets[0] ?? "banquet" }, note: parsed.note });
+    const parsedEntry = audit({ actor: personActor(P(req)), action: "request_parsed", summary: `Parsed "${text.slice(0, 80)}" into ${parsed.request.lines.length} line(s) (${parsed.request.parsedBy})`, details: { request: parsed.request, processingMs: Math.round(processingClock.now() - started) }, visibility: "hotel", judgements: route.judgement ? [route.judgement] : [] });
+    res.json({ route: route.route === "unsure" ? "new_request_unsure" : "new_request", request: { ...parsed.request, parseAuditId: parsedEntry.id, siteId: mandate().sites[0].id, outletId: P(req).outlets[0] ?? "banquet" }, note: parsed.note });
   });
 
   // UI-04 confirmed chips → a plan → quote → questions or an order.
