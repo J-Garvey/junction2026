@@ -1,4 +1,5 @@
-import type { Need, Plan } from "@aimo/contracts";
+import type { Need } from "@aimo/contracts";
+import type { StoredPlan } from "./plan.js";
 import { now } from "../clock.js";
 import { parseAimoTime, sha256, stableStringify } from "../util.js";
 
@@ -8,7 +9,7 @@ export function quantityScope(need: Need): string {
 }
 
 /** Recalculate after every lookup/edit; retain decisions only while their terms match. */
-export function refreshItemReviews(plan: Plan): void {
+export function refreshItemReviews(plan: StoredPlan): void {
   if (!plan.itemReviews || !plan.request) return;
   plan.itemReviews = plan.request.lines.map((request) => {
     const need = plan.needs.find((n) => n.id === request.id);
@@ -40,9 +41,12 @@ export function refreshItemReviews(plan: Plan): void {
         && !!line.packContent?.verified && line.packContent.unit === need.amount.unit
         && Math.abs(line.packContent.value * line.quantity - need.amount.value) < 1e-6
         && (!line.overshoot || line.overshoot.amount === 0));
+    // Picking a replacement requires a separate decision even if it is an exact match
+    // and the previous item could not be approved.
+    const replacementChosen = lines.some((line) => plan.overrides.chosen?.includes(`${request.id}:${line.productId}`));
     // A changed quote needs a fresh decision even if the product still matches.
     // Keep that requirement across save/recheck until its current terms are approved.
-    const requiresApproval = !exactMatch || (!!prior?.canApprove && (!previous || previous.requiresApproval !== false));
+    const requiresApproval = replacementChosen || !exactMatch || (!!prior?.canApprove && (!previous || previous.requiresApproval !== false));
     return {
       needId: request.id, fingerprint, canApprove: !reason, quantityRequired, reason: reason ?? null,
       requiresApproval,
@@ -52,7 +56,7 @@ export function refreshItemReviews(plan: Plan): void {
   });
 }
 
-export function allItemsResolved(plan: Plan): boolean {
+export function allItemsResolved(plan: StoredPlan): boolean {
   refreshItemReviews(plan);
   return !!plan.itemReviews?.length && plan.itemReviews.every((item) => item.canApprove && (item.requiresApproval === false || item.approvedAt));
 }

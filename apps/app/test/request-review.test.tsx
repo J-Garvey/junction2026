@@ -294,6 +294,40 @@ describe("saved request review controls", () => {
     expect(screen.getByText("0 of 1 items ready")).toBeTruthy();
   });
 
+  it("requires a fresh approval for an exact replacement before adding it to the order", async () => {
+    const knownCandidate: Candidate = { ...candidate, stock: { kind: "known", amount: 100 } };
+    const changed = fixture();
+    changed.plan.lines[0] = { ...changed.plan.lines[0], productId: candidate.productId, productName: candidate.name, unitPrice: 12, lineTotal: 12 };
+    changed.plan.totalExVat = 12;
+    changed.plan.itemReviews![0] = { ...changed.plan.itemReviews![0], fingerprint: "exact-replacement-fp", requiresApproval: true };
+    changed.plan.needs[0].candidates = [knownCandidate];
+    vi.spyOn(api, "choose").mockResolvedValue(changed);
+    const approved = structuredClone(changed);
+    approved.plan.itemReviews![0].approvedAt = "2026-11-14T10:00:00Z";
+    approved.plan.itemReviews![0].approvedBy = "Aino";
+    vi.spyOn(api, "approveItem").mockResolvedValue(approved);
+    vi.spyOn(api, "basketPlan").mockResolvedValue(approved);
+    const initial = fixture(true);
+    initial.plan.needs[0].candidates = [knownCandidate];
+    const { onAdded } = show(initial);
+    expect((screen.getByRole("button", { name: "Add to order" }) as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "View details" }));
+    fireEvent.click(screen.getByRole("button", { name: "Suggest replacements" }));
+    fireEvent.click(screen.getByRole("button", { name: "Use replacement" }));
+    await screen.findByRole("button", { name: "Approve milk" });
+    expect(screen.queryByTitle("Approved by Aino")).toBeNull();
+    const add = screen.getByRole("button", { name: "Add to order" }) as HTMLButtonElement;
+    expect(add.disabled).toBe(true);
+    fireEvent.click(add);
+    expect(api.basketPlan).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Approve milk" }));
+    await waitFor(() => expect(add.disabled).toBe(false));
+    expect(api.approveItem).toHaveBeenCalledExactlyOnceWith("plan", "need", "exact-replacement-fp");
+    fireEvent.click(add);
+    await waitFor(() => expect(onAdded).toHaveBeenCalledOnce());
+    expect(api.basketPlan).toHaveBeenCalledExactlyOnceWith("plan");
+  });
+
   it("shows changed supplier terms after an add conflict and allows review and retry", async () => {
     const changed = fixture();
     changed.plan.lines[0].unitPrice = 25;
