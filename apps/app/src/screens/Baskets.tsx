@@ -149,7 +149,7 @@ export function BasketPage() {
       <div className="basket-context small muted">Delivery {day(ev.serviceDate)}<OrderBy deadline={data.orderBy} detail /></div>
 
       {submitError && <div className="callout red" role="alert">{submitError}</div>}
-      {review && <div className="callout green small" role="status">Submitted to finance. This order is ready for approval.</div>}
+      {me.role === "chef" && review && <div className="callout green small" role="status">Submitted to finance. This order is ready for approval.</div>}
 
       <AddToBasket eventId={ev.id} deliveryDate={ev.serviceDate} onAdded={reload} />
 
