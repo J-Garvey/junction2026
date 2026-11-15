@@ -41,7 +41,7 @@
 .basket-context { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px 24px; }
 .bqty { font-family: var(--mono); font-size: 13px; color: var(--ink); white-space: nowrap; min-width: 72px; }
 .staged-lines { margin-bottom: 10px; }
-.add-review-date { display: flex; align-items: center; justify-content: flex-end; gap: 10px; color: var(--ink); }
+.add-review-date { display: flex; align-items: center; gap: 10px; color: var(--ink); }
 .add-review-date span, .add-review-total { display: flex; flex-direction: column; gap: 2px; }
 .add-review-date small, .add-review-total small { color: var(--mute); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 .add-review-section { margin-top: 22px; }
