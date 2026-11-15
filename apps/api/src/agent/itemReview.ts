@@ -17,7 +17,9 @@ export function refreshItemReviews(plan: StoredPlan): void {
     const rules = [...(need?.rules ?? []), ...lines.flatMap((line) => line.rules)];
     const hard = [...plan.inputRules, ...rules].find((r) => r.outcome !== "order" && (r.outcome === "block" || !r.overridable));
     const quantityRequired = lines.some((line) => !!line.productId && line.quantity <= 0 && !!line.salesUnit);
-    const reason = hard?.message ?? (!need || !lines.length || lines.some((line) => !line.productId) ? "Refine or discard this item to find a matching product."
+    const reason = hard?.message ?? (lines.some((line) => line.rules.some((r) => r.ruleId === "ALG-03") && !line.allergenDataAcknowledgement)
+      ? "The chef must explicitly continue with allergen data not confirmed or pick another product."
+      : !need || !lines.length || lines.some((line) => !line.productId) ? "Refine or discard this item to find a matching product."
       : lines.some((line) => !line.availableDate || !line.closingTime || (parseAimoTime(line.closingTime)?.getTime() ?? 0) <= now().getTime()) ? "Delivery or the order cutoff needs checking."
       : lines.some((line) => line.unitPrice === null) ? "A price is required before approving this item."
       : quantityRequired ? "Enter the number of sales units to order, then check the quantity."
