@@ -174,6 +174,11 @@ export function buildCorpus() {
     ['10 l milk and 12 bread both vegan','finding_global_suffix',{lineCount:2,globalClaims:['VEGAN']}],
     ['10 l lactose-free milk 469363 and 5 kg salmon 469672','finding_quote_line_refs',{lineCount:2,uniqueQuoteLineIds:true}],
   ])add(input,family,expected,{plan:true,modelSample:true,tags:['published_finding_replay']});
+  for(let count=1;count<=60;count++){
+    const ps=['rice','milk','bread','eggs','tofu','salmon','potatoes','butter','pasta','carrots','coffee','sugar'];
+    const lines=Array.from({length:count},(_,j)=>({product:ps[j%ps.length],amount:j%4+1,unit:ps[j%ps.length]==='milk'?'l':'kg'}));
+    add(lines.map(l=>`${l.amount} ${l.unit} ${l.product}`).join('; ')+', all products must be gluten-free by 2026-11-16',`every_length_${count}`,{lineCount:count,lines,globalClaims:['FREE_FROM_GLUTEN'],neededBy:'2026-11-16'},{plan:[2,5,10,30,60].includes(count),modelSample:[4,15,45,59].includes(count),tags:['all_lengths_1_to_60',`items_${count}`]});
+  }
   return cases;
 }
 if(process.argv[1]&&resolve(process.argv[1])===resolve(import.meta.filename)) {
