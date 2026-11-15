@@ -9,6 +9,7 @@ import { config } from "./config.js";
 import { registerBrand } from "./util.js";
 import { relevance, type Match } from "./search.js";
 import { allergenConflicts } from "./rules/allergens.js";
+import { passesMandateOrigin, type OriginPolicy } from "./rules/origin.js";
 
 type Raw = Record<string, any>;
 
@@ -128,16 +129,16 @@ export function failsAllergens(p: Product, avoid: string[]): string | null {
  * With text, ranked by what the product is (search.ts): "cheese" returns cheeses, not
  * cheesecake. Same input, same list, same order.
  */
-export function searchProducts(q: ProductSearchQuery): Product[] {
-  return searchMatches(q).map((m) => m.product);
+export function searchProducts(q: ProductSearchQuery, mandate?: OriginPolicy): Product[] {
+  return searchMatches(q, mandate).map((m) => m.product);
 }
 
 /** The same search with each product's relevance tier, for the gateway and tests. */
-export function searchMatches(q: ProductSearchQuery): Match[] {
+export function searchMatches(q: ProductSearchQuery, mandate?: OriginPolicy): Match[] {
   loadCatalog();
   const limit = q.limit ?? 50;
   const text = q.q?.trim();
-  const key = text ? JSON.stringify([text.toLowerCase().normalize("NFC"), q.category ?? null, [...(q.claims ?? [])].sort(), [...(q.excludeAllergens ?? [])].sort(), q.origin ?? null, [...(q.labels ?? [])].sort()]) : null;
+  const key = text ? JSON.stringify([text.toLowerCase().normalize("NFC"), q.category ?? null, [...(q.claims ?? [])].sort(), [...(q.excludeAllergens ?? [])].sort(), q.origin ?? null, [...(q.labels ?? [])].sort(), mandate?.categoryOriginRequirements ?? []]) : null;
   const cached = key ? searchCache.get(key) : null;
   if (cached && cached.limit >= limit) {
     searchCache.delete(key!);
@@ -146,6 +147,7 @@ export function searchMatches(q: ProductSearchQuery): Match[] {
   }
   const pool: Product[] = [];
   for (const p of orderedProducts) {
+    if (!passesMandateOrigin(p, mandate)) continue;
     if (q.category && !p.category.startsWith(q.category)) continue;
     if (q.claims?.length && !q.claims.every((c) => p.claims.includes(c))) continue;
     if (q.excludeAllergens?.length && failsAllergens(p, q.excludeAllergens)) continue;
