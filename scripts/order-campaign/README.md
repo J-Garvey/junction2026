@@ -5,6 +5,67 @@ does not connect WhatsApp Web or contact the live supplier. Independent expected
 semantics are authored in `generate.mjs`; the production parser is never used to
 create the oracle. Responses are observations, not automatic pass verdicts.
 
+## Fixed development latency benchmark (P1)
+
+`benchmark.mjs` prepares an independent, seeded **development-only** workload and
+summarizes evidence produced by the existing host and `run.mjs`. It never opens
+the campaign holdout. Run only in your own worktree, port and external directory:
+
+```powershell
+node scripts/order-campaign/benchmark.mjs prepare C:/path/P1/fallback-v1
+$env:CAMPAIGN_DIR='C:/path/P1/fallback-v1'
+$env:CAMPAIGN_PORT='8911'
+$env:CAMPAIGN_MODEL='fallback'
+$env:CAMPAIGN_PROFILE='1'
+pnpm.cmd --filter @aimo/api exec tsx src/scripts/order-campaign/host.ts
+# A separate terminal, same committed worktree:
+node scripts/order-campaign/run.mjs --manifest=C:/path/P1/fallback-v1/workload.jsonl --dir=C:/path/P1/fallback-v1 --port=8911 --phase=p1-baseline --limit=302 --profile
+node scripts/order-campaign/benchmark.mjs summarize C:/path/P1/fallback-v1
+pnpm.cmd --filter @aimo/api latency:check --out C:/path/P1/latency-scripted.json
+pnpm.cmd --filter @aimo/api exec tsx src/scripts/order-campaign/benchmark.ts C:/path/P1/fallback-v1/workload.jsonl C:/path/P1/local.json
+```
+
+Preparation refuses to overwrite the frozen workload. Seed 20261115 selects
+30 lists per band (1–10, 11–29, 30–59, 60–99, 100), with both band endpoints,
+then repeats those exact inputs in the same process. Each has web API and
+synthetic WhatsApp simulator executions. Two explicit text-limit probes follow.
+The runner does not shorten any payload. Metadata includes workload, source,
+catalog and fixture hashes. Keep real-model and fake-browser evidence in
+different directories. `CAMPAIGN_MODEL=real` uses the existing configuration;
+first detect key presence without printing values, then run a bounded manifest.
+
+No cold-cache p95 is claimed. The host loads the catalog at startup; only the
+first request starts with untouched process caches, and SQLite reset preserves
+search/model caches. Pass 2 measures repeat traffic, not guaranteed cache hits.
+The local benchmark labels the one catalog-load search separately from 29 new
+queries and 30 exact repeats. `latency:check` retains its own scripted-model
+label; its small scenario counts do not establish p95s.
+
+Summaries stratify by band, pass, shape, channel and observed outcome. A 4xx
+rejection or incomplete line count cannot become a successful parse latency.
+Simulator statuses are workflow observations; an auditor must inspect complete
+plans and snapshots for semantics. Summaries suppress p95 claims below 30 valid
+samples in each resulting stratum, and retain observed quantiles with warnings.
+
+HTTP evidence records headers, first body byte, body completion and completion
+after JSON parsing. These routes do not stream useful content: **TTFU is not
+separately measurable**, so first byte is never called useful output. Useful
+web work sums parse and plan HTTP durations; simulator work is one message HTTP
+duration. Full case envelopes also include resets, snapshots and telemetry.
+Run totals separately record flushed journal/observation serialization + disk
+cost. Support HTTP totals and SQL snapshot costs overlap those envelopes.
+
+Opt-in `/campaign/profile` returns payload-free request timing, process CPU/RSS,
+and process-lifetime event-loop delay; it is absent unless profiling is enabled.
+`resJsonSyncMs` measures Express JSON serialization plus synchronous send, not a
+pure serialization microbenchmark. Profiles stay in memory until the runner's
+final capture. Internal gateway and overlapping parent requests cannot be added
+as independent CPU costs. `plan.timings` supplies search/lookup/rank stages when
+a plan completes; a failed plan has no invented stage timings. Model telemetry
+records actual calls, statuses, elapsed time and usage. No real-model success,
+retry count, cache-hit count or semantic accuracy is inferred from a key or
+fallback response. Inspect raw evidence; aggregates are not audit verdicts.
+
 ## External immutable manifests (campaign v2)
 
 Use the existing host and `run.mjs` directly. `campaign-v2-run.mjs` is a manifest

@@ -5,6 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { randomUUID, createHash } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { appendEvidence, sanitize } from '../../../../../scripts/order-campaign/evidence.mjs';
+import { installProfile } from './profile.js';
 
 const port = Number(process.env.CAMPAIGN_PORT || 8891);
 if (!Number.isInteger(port) || port < 1024 || port > 65535) throw Error('CAMPAIGN_PORT must be 1024..65535');
@@ -68,6 +69,7 @@ const { createApp } = await import('../../server.js');
 const { getDb, kvGet } = await import('../../db.js');
 const { setClock } = await import('../../clock.js');
 const app = express();
+const stopProfile = process.env.CAMPAIGN_PROFILE === '1' ? installProfile(app) : () => {};
 app.use((req, _res, next) => context.run({ attempt: String(req.headers['x-campaign-attempt'] ?? 'support') }, next));
 app.use('/api/whatsapp/web', (_req, res) => res.status(403).json({ error: 'campaign_real_transport_disabled', fixture: true }));
 app.post('/campaign/fixture-remove-default-event', (_req, res) => {
@@ -76,7 +78,7 @@ app.post('/campaign/fixture-remove-default-event', (_req, res) => {
 });
 const fixtureHash = createHash('sha256').update(readFileSync(resolve(config.fixturesDir, 'base.json'))).digest('hex');
 const repo = resolve(config.dataDir, '..');
-const harnessHashes = Object.fromEntries(['apps/api/src/scripts/order-campaign/host.ts', 'scripts/order-campaign/run.mjs', 'scripts/order-campaign/campaign-v2-run.mjs', 'scripts/order-campaign/evidence.mjs'].map(path => [path, createHash('sha256').update(readFileSync(resolve(repo, path))).digest('hex')]));
+const harnessHashes = Object.fromEntries(['apps/api/src/scripts/order-campaign/host.ts', 'apps/api/src/scripts/order-campaign/profile.ts', 'scripts/order-campaign/run.mjs', 'scripts/order-campaign/campaign-v2-run.mjs', 'scripts/order-campaign/evidence.mjs'].map(path => [path, createHash('sha256').update(readFileSync(resolve(repo, path))).digest('hex')]));
 const metadata = { pid: process.pid, instanceId, sha, dirty, harnessHashes, repoRoot: repo, worktree: process.cwd(), mode: realModel ? 'real-model-enabled' : 'model-disabled', modelConfigured: !!config.openai.apiKey, model: config.openai.model, modelTimeoutMs: config.openai.timeoutMs, port, artifacts, runtime, dbPath, authDir, fixtureHash, supplierGuard: true, fixtureOnly: true, loopbackOnly: true, realTransportDisabled: true, autoResume: false, config: { gatewayUrl: config.gatewayUrl, aimoMode: config.aimoMode, testMode: config.testMode, node: process.version } };
 app.get('/campaign/status', (_req, res) => res.json({ ...metadata, telemetryCount: telemetry.length, clock: kvGet('clock') }));
 app.get('/campaign/telemetry', (req, res) => {
@@ -101,5 +103,5 @@ const server = app.listen(port, '127.0.0.1', () => {
   writeFileSync(resolve(runtime, 'server.json'), JSON.stringify(metadata, null, 2));
   console.log(JSON.stringify(metadata));
 });
-const shutdown = () => server.close(() => process.exit(0));
+const shutdown = () => { stopProfile(); server.close(() => process.exit(0)); };
 process.once('SIGTERM', shutdown); process.once('SIGINT', shutdown);

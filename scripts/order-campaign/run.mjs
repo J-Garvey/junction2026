@@ -32,7 +32,8 @@ writeFileSync(lock,JSON.stringify({pid:process.pid,runId,port,manifestSha256:man
 process.once('exit',()=>{closeSync(lock);try{unlinkSync(lockPath);}catch(e){if(e.code!=='ENOENT')throw e;}});
 let token='',executed=0,setupCalls=0,errors=0,plans=0,httpCalls=0,rawEvents=0,activeAttempt='support';
 const httpStatuses={};
-const journal=(row)=>{appendEvidence(rawPath,{runId,phase,at:new Date().toISOString(),seq:rawEvents++,...row},secrets);};
+const evidenceCosts={journalMs:0,observationMs:0};
+const journal=(row)=>{const start=performance.now();appendEvidence(rawPath,{runId,phase,at:new Date().toISOString(),seq:rawEvents++,...row},secrets);evidenceCosts.journalMs+=performance.now()-start;};
 // Copy frozen semantics before contacting the host; never modify the input file.
 writeFileSync(resolve(dir,`manifest-${runId}.jsonl`),corpus.map(row=>JSON.stringify(sanitize(row,secrets))).join('\n')+'\n',{flag:'wx'});
 journal({kind:'run-start',manifest:{path:manifest.path,sha256:manifest.sha256,records:corpus.length},selected:cases,config:{port,base,args,node:process.version},runnerSha,runnerHash});
@@ -49,7 +50,7 @@ const http=async(path,body,attempt='support',auth=token,options={})=>{
  const callId=`${runId}:${++httpCalls}`,method=options.method||(body===undefined?'GET':'POST');
  journal({kind:'http-request',callId,attempt,role:attempt.startsWith('support')?'support':'execution',method,path,body:body??null,headers:options.headers||{}});
  const begin=performance.now();let result;
- try{const response=await fetch(base+path,{method,headers:{'Content-Type':'application/json',...(auth?{Authorization:`Bearer ${auth}`}:{}) ,'X-Campaign-Attempt':attempt,...options.headers},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(meta.mode==='real-model-enabled'?180000:45000),redirect:'error'});const txt=await response.text();let json;try{json=JSON.parse(txt)}catch{json={raw:txt}}if(json?.token)secrets.push(json.token);result={status:response.status,response:json,rawText:txt,responseBytes:Buffer.byteLength(txt),elapsedMs:Math.round(performance.now()-begin)};}catch(e){result={status:null,response:null,error:{name:e.name,message:e.message},elapsedMs:Math.round(performance.now()-begin)}}
+ try{const response=await fetch(base+path,{method,headers:{'Content-Type':'application/json',...(auth?{Authorization:`Bearer ${auth}`}:{}) ,'X-Campaign-Attempt':attempt,...options.headers},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(meta.mode==='real-model-enabled'?180000:45000),redirect:'error'});const headersMs=performance.now()-begin;let firstByteMs=null;const chunks=[];if(response.body)for await(const chunk of response.body){firstByteMs??=performance.now()-begin;chunks.push(Buffer.from(chunk));}const bodyCompleteMs=performance.now()-begin;const txt=Buffer.concat(chunks).toString('utf8');let json;try{json=JSON.parse(txt)}catch{json={raw:txt}}if(json?.token)secrets.push(json.token);result={status:response.status,response:json,rawText:txt,responseBytes:Buffer.byteLength(txt),headersMs,firstByteMs,bodyCompleteMs,elapsedMs:performance.now()-begin};}catch(e){result={status:null,response:null,error:{name:e.name,message:e.message},elapsedMs:performance.now()-begin}}
  httpStatuses[result.status??'transport-error']=(httpStatuses[result.status??'transport-error']||0)+1;
  const out={callId,method,path,body:body===undefined?null:body,...result};journal({kind:'http-response',attempt,...out});return out;
 };
@@ -80,7 +81,7 @@ function status(extra={}){
 }
 const currentRows=[];
 function record(row){
- appendEvidence(resolve(dir,'requests.jsonl'),{...row,manifestSha256:manifest.sha256,hostInstanceId:meta.instanceId,hostDirty:meta.dirty,verdict:'not_evaluated'},secrets);currentRows.push(row);executed++;if(!row.unsupported&&(row.status===null||row.status>=500))errors++;if(executed%10===0)status();
+ const start=performance.now();appendEvidence(resolve(dir,'requests.jsonl'),{...row,manifestSha256:manifest.sha256,hostInstanceId:meta.instanceId,hostDirty:meta.dirty,verdict:'not_evaluated'},secrets);evidenceCosts.observationMs+=performance.now()-start;currentRows.push(row);executed++;if(!row.unsupported&&(row.status===null||row.status>=500))errors++;if(executed%10===0)status();
 }
 status({selected:cases.length});
 journal({kind:'host-config',metadata:meta});
@@ -165,9 +166,10 @@ for(const c of cases){
 }
 activeAttempt='run-final';
 const runFinalState=await support('/campaign/state');journal({kind:'run-final-state',state:runFinalState});
+if(args.profile){const profile=await support('/campaign/profile');writeFileSync(resolve(dir,`profile-${runId}.json`),JSON.stringify(profile));}
 const manifestUnchanged=createHash('sha256').update(readFileSync(manifest.path)).digest('hex')===manifest.sha256;
 const counters={caseObservations:executed,parseToPlanCalls:plans,observedServerOrTransportErrors:errors,supportCalls:setupCalls,httpCalls,executionCalls:httpCalls-setupCalls,httpStatuses,unsupported:currentRows.filter(r=>r.unsupported).length,caseErrors:currentRows.filter(r=>r.error).length,supplierBlocks:currentRows.flatMap(r=>r.telemetry||[]).filter(t=>t.kind==='supplier_blocked').length,modelHttpCalls:currentRows.flatMap(r=>r.telemetry||[]).filter(t=>t.kind==='model').length};
-journal({kind:'run-complete',counters,manifestUnchanged,elapsedMs:Date.now()-runStarted});
+journal({kind:'run-complete',counters,manifestUnchanged,evidenceCosts:{...evidenceCosts},elapsedMs:Date.now()-runStarted});
 status({state:'batch-complete',selected:cases.length});
 writeFileSync(resolve(dir,`generator-${runId}.json`),JSON.stringify(sanitize({runId,phase,sha:meta.sha,host:meta,manifest:{path:manifest.path,sha256:manifest.sha256,unchanged:manifestUnchanged},mode:meta.mode,executed,plans,errors,setupCalls,counters,rawEvents,elapsedMs:Date.now()-runStarted,unsupported:counters.unsupported,perChannel:Object.fromEntries([...new Set(currentRows.map(r=>r.channel))].map(channel=>[channel,currentRows.filter(r=>r.channel===channel).length])),caseIds:cases.map(c=>c.caseId),initialState:runInitialState,finalState:runFinalState},secrets),null,2));
 console.log(JSON.stringify({runId,sha:meta.sha,executed,plans,errors,setupCalls}));
