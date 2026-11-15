@@ -1,5 +1,5 @@
 /** Shared item review used for new items and saved pending requests. */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { SingleRequest, Unit } from "@aimo/contracts";
 import { api, ApiError, type PlanResp } from "../api";
 import { useApp } from "../ctx";
@@ -46,6 +46,13 @@ export function RequestReviewDialog({ initialReview, deliveryDate, onClose, onCh
       setBusy(null);
     }
   }
+  // A saved request is rechecked as soon as it opens, so it reads like a fresh item review.
+  const autoReviewed = useRef(false);
+  useEffect(() => {
+    if (autoReviewed.current || !editable || review.plan.itemReviews) return;
+    autoReviewed.current = true;
+    startReview();
+  }, []);
 
   async function reloadDecision() {
     setDialogError(null);
@@ -175,31 +182,19 @@ export function RequestReviewDialog({ initialReview, deliveryDate, onClose, onCh
   const plan = review?.plan ?? null;
   const approvedCount = plan?.itemReviews?.filter((item) => item.approvedAt && item.canApprove).length ?? 0;
   const canAdd = editable && !!plan?.proposal && !!request?.lines.length && approvedCount === request.lines.length && !plan.error && !plan.tooLate;
-  const reviewReasons = [...new Set([
-    ...(plan?.itemReviews?.flatMap((item) => item.reason ? [item.reason] : []) ?? []),
-    ...(plan?.inputRules.filter((rule) => rule.outcome !== "order").map((rule) => rule.message) ?? []),
-    ...(plan?.error ? [plan.error] : []),
-  ])];
-
   if (!request) return null;
   return (
     <OrderItemDialog
-      eyebrow={initialReview.plan.reviewing ? "Add to order" : "Request details"}
-      title={plan?.title ?? "Review the item"}
-      description="Check what was understood and whether it can arrive with this order."
-      fields={[
-        { label: "Next step", value: !inScope ? "Waiting for the order builder" : plan?.basketedAt ? "Submit order for review" : canAdd ? "Add to order" : editable ? "Review items, then add to order" : "Resolve the decision below" },
-        { label: "Total ex VAT", value: eur(plan?.totalExVat) },
-        { label: "Requested by", value: plan?.createdBy.name ?? "Not supplied" },
-        { label: "Needed by", value: day(plan?.neededBy) },
-        { label: "Review reason", value: reviewReasons.join(" ") || "Confirm selected products, quantities and delivery before adding to the order." },
-      ]}
+      eyebrow="Add to order"
+      title={request.lines.length === 1 ? "Review the item" : "Review the order"}
+      description={initialReview.plan.reviewing || plan?.createdBy.personId === me.id
+        ? "Check what was understood and whether it can arrive with this order."
+        : `Requested by ${plan?.createdBy.name}. Check what was understood and whether it can arrive with this order.`}
       onClose={() => { if (!busy) onClose(); }}
     >
-      <div className="add-review-date"><Icon n="cal" s={18} /><span><small>Order delivery</small><b>{plan?.deliveryDate ? day(plan.deliveryDate) : "Not confirmed"}</b></span></div>
+      <div className="add-review-date"><Icon n="cal" s={18} /><span><small>Delivery date</small><b>{day(plan?.deliveryDate ?? deliveryDate)}</b></span></div>
 
       {!editable && <div className="callout blue" role="status">{inScope ? "This request is awaiting the decision below or has already been added." : "This request is outside your outlet scope. The order builder must review it."}</div>}
-      {editable && !plan?.itemReviews && <div className="callout yellow stack" role="status"><span>Recheck the saved request before approving its products and quantities.</span><button type="button" className="btn sm" disabled={!!busy} onClick={startReview}>{busy === "check" ? "Checking..." : "Review items"}</button></div>}
       {review.questions.filter((q) => q.state === "open" || q.state === "waiting").map((q) => <QuestionCard key={q.id} q={q} onAnswered={reloadDecision} />)}
       <div className="item-dialog-section add-review-section">
         <h3>Products</h3>
@@ -239,9 +234,9 @@ export function RequestReviewDialog({ initialReview, deliveryDate, onClose, onCh
         </div>
       </div>
 
-      {busy === "check" && !plan && <div className="add-review-loading">Checking products, stock and delivery…</div>}
-      {dialogError && <div className="callout red" role="alert">{dialogError} <button type="button" className="btn sm" disabled={!!busy} onClick={reloadDecision}>Refresh details</button></div>}
-      {busy && <div className="small muted" role="status">{busy === "replace" ? "Checking replacement, stock and price..." : "Saving and checking current terms..."}</div>}
+      {busy === "check" && !plan?.itemReviews && <div className="add-review-loading">Checking products, stock and delivery…</div>}
+      {dialogError && <div className="callout red" role="alert">{dialogError} <button type="button" className="btn sm" disabled={!!busy} onClick={editable && !plan?.itemReviews ? startReview : reloadDecision}>Refresh details</button></div>}
+      {busy && !(busy === "check" && !plan?.itemReviews) && <div className="small muted" role="status">{busy === "replace" ? "Checking replacement, stock and price..." : "Saving and checking current terms..."}</div>}
 
       {plan && editable && !editTarget && (
         <>
