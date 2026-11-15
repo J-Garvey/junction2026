@@ -14,7 +14,7 @@ const { seedReset, OUTSIDE_AGENT_TOKEN } = await import("../src/seed.js");
 const { setClock } = await import("../src/clock.js");
 const { resolveToken, getPerson } = await import("../src/identity.js");
 const { getProduct } = await import("../src/catalog.js");
-const { createQuote, createApproval, acknowledgeAllergenData, placeOrder, amendOrder } = await import("../src/gateway/service.js");
+const { createQuote, createApproval, createBuilderConsent, acknowledgeAllergenData, placeOrder, amendOrder } = await import("../src/gateway/service.js");
 const { auditView, verifyChain } = await import("../src/audit.js");
 const { getDb } = await import("../src/db.js");
 const { loadFixture } = await import("../src/aimo/lookup.js");
@@ -31,6 +31,8 @@ const finance = () => ({ ...chef(), person: getPerson("p-sanna")! });
 const terms = (): QuoteCreateBody => ({ siteId: "site-aurora", eventId: "evt-wedding", deliveryDate: "2026-11-16", lines: [{ productId: potato.id, outletId: "banquet", quantity: 3, requires: allergy, allergenScope: "synthetic-digest-for-one-guest" }] });
 const acknowledge = (q: Awaited<ReturnType<typeof createQuote>>) => acknowledgeAllergenData(chef(), { quoteId: q.id, fingerprint: q.fingerprint, productIds: [potato.id] });
 const stock = { continueWith: ["460541"], decidedBy: "Aino" };
+const stockConsent = (q: Awaited<ReturnType<typeof createQuote>>) => ({ ...stock,
+  builderConsentId: createBuilderConsent(chef(), { quoteId: q.id, fingerprint: q.fingerprint, productIds: q.unconfirmedStock }).id });
 
 let server: Server;
 let base = "";
@@ -74,7 +76,7 @@ describe("gateway chef continuation", () => {
     const headChefBar = acknowledgeAllergenData(chef(), { ...request, outletId: "bar" });
     await expect(placeOrder(identity(), q.id, "head-chef-bar-only", undefined, undefined, { ...stock, allergenAcknowledgements: [headChefBar.token] })).rejects.toMatchObject({ body: { error: "allergen_data_unconfirmed" } });
     const banquet = acknowledgeAllergenData(chef(), { ...request, outletId: "banquet" });
-    const result = await placeOrder(identity(), q.id, "two-outlet-consent", undefined, undefined, { ...stock, allergenAcknowledgements: [bar.token, banquet.token] });
+    const result = await placeOrder(identity(), q.id, "two-outlet-consent", undefined, undefined, { ...stockConsent(q), allergenAcknowledgements: [bar.token, banquet.token] });
     expect(result.order.lines.find((l) => l.outletId === "bar")?.allergenDataAcknowledgement?.by).toBe("Mikko");
     expect(result.order.lines.find((l) => l.outletId === "banquet")?.allergenDataAcknowledgement?.by).toBe("Aino");
   });
@@ -105,13 +107,13 @@ describe("gateway chef continuation", () => {
     await expect(placeOrder(identity(), fresh.id, `policy-${kind}`, undefined, undefined, { ...stock, allergenAcknowledgements: [a.token] })).rejects.toMatchObject({ body: { error: "allergen_data_unconfirmed" } });
     expect(() => acknowledge(q)).toThrow(/policy changed/i);
     const accepted = acknowledge(fresh);
-    expect((await placeOrder(identity(), fresh.id, `policy-fresh-${kind}`, undefined, undefined, { ...stock, allergenAcknowledgements: [accepted.token] })).order.lines[0].allergenDataAcknowledgement).toBeTruthy();
+    expect((await placeOrder(identity(), fresh.id, `policy-fresh-${kind}`, undefined, undefined, { ...stockConsent(fresh), allergenAcknowledgements: [accepted.token] })).order.lines[0].allergenDataAcknowledgement).toBeTruthy();
   });
 
   it("invalidates an amendment acknowledgement when the policy changes after chef review", async () => {
     const q = await createQuote(identity(), terms());
     const a = acknowledge(q);
-    const { order } = await placeOrder(identity(), q.id, "policy-original", undefined, undefined, { ...stock, allergenAcknowledgements: [a.token] });
+    const { order } = await placeOrder(identity(), q.id, "policy-original", undefined, undefined, { ...stockConsent(q), allergenAcknowledgements: [a.token] });
     const changes = [{ ...terms().lines[0], quantity: 4 }];
     const reviewed = await amendOrder(identity(), order.id, { changes, quoteOnly: true });
     const consent = acknowledge(reviewed.quote);
@@ -126,7 +128,7 @@ describe("gateway chef continuation", () => {
     await expect(placeOrder(identity(), q.id, "no-chef", undefined, undefined, stock)).rejects.toMatchObject({ body: { error: "allergen_data_unconfirmed" } });
     const a = acknowledge(q);
     await expect(placeOrder(identity(), q.id, "no-stock", undefined, undefined, { allergenAcknowledgements: [a.token] })).rejects.toMatchObject({ body: { error: "stock_unconfirmed" } });
-    const body = { ...stock, allergenAcknowledgements: [a.token] };
+    const body = { ...stockConsent(q), allergenAcknowledgements: [a.token] };
     const result = await placeOrder(identity(), q.id, "d35-order", undefined, undefined, body);
     expect(result.order.lines[0]).toMatchObject({ productId: "460541", stock: { kind: "unknown" }, riskAccepted: { by: "Aino" }, allergenDataAcknowledgement: { personId: "p-aino", fingerprint: q.fingerprint } });
     expect(result.order.lines[0].rules.some((r) => r.ruleId === "ALG-03")).toBe(true);
@@ -211,12 +213,12 @@ describe("gateway chef continuation", () => {
   it("requires a fresh chef decision when an amendment changes quantities or dietary scope", async () => {
     const q = await createQuote(identity(), terms());
     const a = acknowledge(q);
-    const { order } = await placeOrder(identity(), q.id, "original-amend", undefined, undefined, { ...stock, allergenAcknowledgements: [a.token] });
+    const { order } = await placeOrder(identity(), q.id, "original-amend", undefined, undefined, { ...stockConsent(q), allergenAcknowledgements: [a.token] });
     const changes = [{ ...terms().lines[0], quantity: 4, allergenScope: "synthetic-changed-guest-scope" }];
     const reviewed = await amendOrder(identity(), order.id, { changes, quoteOnly: true });
     await expect(amendOrder(identity(), order.id, { changes, allergenAcknowledgements: [a.token], continueWithUnconfirmedStock: [potato.id] })).rejects.toMatchObject({ body: { error: "allergen_data_unconfirmed" } });
     const fresh = acknowledge(reviewed.quote);
-    const changed = await amendOrder(identity(), order.id, { changes, allergenAcknowledgements: [fresh.token], continueWithUnconfirmedStock: [potato.id], decidedBy: "Aino" });
+    const changed = await amendOrder(identity(), order.id, { changes, allergenAcknowledgements: [fresh.token], continueWithUnconfirmedStock: [potato.id], builderConsentId: stockConsent(reviewed.quote).builderConsentId });
     expect(changed.order.lines[0]).toMatchObject({ quantity: 4, allergenDataAcknowledgement: { fingerprint: reviewed.quote.fingerprint } });
   });
 });

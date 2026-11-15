@@ -78,7 +78,7 @@ export function buildOpenApi() {
       "/allergen-acknowledgements": { post: {
         operationId: "acknowledgeAllergenData", summary: "Chef only: continue with allergen data not confirmed on exact quote terms (D35). Does not establish safety or accept stock risk.",
         requestBody: { required: true, ...json(ref("AllergenAcknowledgementBody")) },
-        responses: { "201": { description: "Signed chef acknowledgement; retained as a concern on the order", ...json(ref("AllergenAcknowledgement")) }, "403": { description: "Requires the chef's own session and outlet scope" }, ...refusals },
+        responses: { ...refusals, "201": { description: "Signed chef acknowledgement; retained as a concern on the order", ...json(ref("AllergenAcknowledgement")) }, "403": { description: "Requires the chef's own session and outlet scope" } },
       } },
       "/products": {
         get: {

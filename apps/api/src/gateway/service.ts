@@ -17,7 +17,6 @@ import { audit, GATEWAY, type Actor } from "../audit.js";
 import { newId, round2, sha256, stableStringify, parseAimoTime, eur, isCalendarDate } from "../util.js";
 import { signJwt, verifyJwt, jcs, checkoutHash } from "./keys.js";
 import type { Identity } from "../identity.js";
-import { storedPolicy } from "../rules/policy.js";
 import { actorOf, getPerson } from "../identity.js";
 
 export class GatewayRefusal extends Error {
