@@ -14,7 +14,7 @@ This gateway owns quotes, approvals, orders, amendments and the audit log. Manda
 
 Stated assumptions about the upstream mock (see GROUND_TRUTH.md):
 - \`requestedDate\` and \`customer\` are ignored upstream; every available line says Monday 2026-11-16.
-- Stock 999999 on Terminal products and ~9,999,999,999 base units on some Stock products are **unknown**, never "available". The builder explicitly chooses whether to continue (D31); finance approval cannot make this decision. A newly unknown line requires a new quote. Amendment decisions can bind to the reviewed \`stockQuoteId\` and are checked against current terms.
+- Stock 999999 on Terminal products and ~9,999,999,999 base units on some Stock products are **unknown**, never "available". The builder explicitly chooses whether to continue (D31); finance approval cannot make this decision. A newly unknown line requires a new quote. Orders and amendments require a server-issued \`builderConsentId\` from POST /builder-consents with an authenticated chef credential. Consent binds to the exact quote and, for amendments, order version. Free-text \`decidedBy\` is ignored.
 - Empty \`scheduleLines\` means not deliverable, even with a price. \`error: true\` on price means no price.
 - A cut-off already past is refused (\`cutoff_passed\`) even though the mock still shows a Monday date.
 - Requested dates never move supplier dates or cutoffs. Quotes, commit and amendments independently select original supplier schedules on or before \`deliveryDate\`, constrained by the hotel's \`deliveryDays\` and \`holidays\`. No eligible schedule blocks with \`DLV-06\`; human approval cannot invent delivery evidence. Earlier availability can meet a later need, retaining its original ordering deadline. Explicit saved fixture overlays may model other schedules and are labelled as fixtures.
@@ -29,13 +29,19 @@ Stated assumptions about the upstream mock (see GROUND_TRUTH.md):
 
 **AP2 v0.2 alignment.** A quote's \`jws\` is the merchant-signed \`checkout_jwt\` and \`checkoutHash\` is its \`checkout_hash\` (base64url SHA-256). An approval is a closed Checkout Mandate (\`vct: "mandate.checkout.1"\`) bound to that hash; its \`grants\` list is our extension. An order's \`jws\` carries a Checkout Receipt (\`status\`, \`reference\` = the quote's checkout_hash, \`order_id\`). No Payment Mandates: B2B foodservice is invoiced on account. The standing mandate (spend cap, sites, tolerances) has no AP2 field and is our own object. Deviation: AP2 has the user sign the closed mandate on a trusted surface; here the gateway signs it as the record of the approver's authenticated decision.
 
+**Read authorization.** Hotel sessions read their own hotel's quotes, orders, Peppol exports and audit history. Agent tokens need \`quote:read\`, \`order:read\`, \`audit:read\` or \`mandate:read\`; existing \`quote\` and \`order\` grants include the respective reads, and \`quote\` includes mandate lookup. No scopes means no object reads. Agent audit is shared trade history for the token's hotel, never private conversations. Valio tokens have server-issued \`hotelIds\` assignments (missing/empty grants no access). They read only allowlisted trade facts, including through quote/order detail and Peppol; mandate values, dietary context, personal names and signatures are withheld. Valio cannot use the private hotel console. Read filters only narrow authorized results; empty/repeated filters are invalid (422). Cross-hotel or missing grants return 403. Unknown IDs return 404. Audit chain status verifies the stored original log on the server; filtered/redacted views retain original hash links and cannot be independently rehashed as a contiguous log.
+
 **Discovery.** \`/.well-known/api-catalog\` (RFC 9727) links this spec.
 
 Refusals are HTTP 409 with a machine-readable \`error\`: \`mandate_violation\`, \`quote_stale\`, \`quote_consumed\`, \`cutoff_passed\`, \`hard_rule\`. Each quote can create one order. A retry with the same \`Idempotency-Key\` returns that order; the same key with a different body gives 422, and a new key for an already ordered quote gives 409 \`quote_consumed\`. Request a new quote for another order.
 `.trim();
 
 export function buildOpenApi() {
+  const sharedLine = C.QuoteLine.pick({ productId: true, productName: true, outletId: true, quantity: true, salesUnit: true, unitPrice: true, lineTotal: true, availableDate: true, closingTime: true, stock: true }).extend({ removed: z.boolean().optional() });
+  const sharedBase = { id: true, hotelId: true, siteId: true, deliveryDate: true, totalExVat: true, totalVat: true } as const;
   const components = {
+    SharedQuote: schema(C.Quote.pick({ ...sharedBase, expiresAt: true }).extend({ currency: z.literal("EUR"), lines: z.array(sharedLine) })),
+    SharedOrder: schema(C.Order.pick({ ...sharedBase, quoteId: true, version: true, state: true, placedAt: true, approvalId: true }).extend({ currency: z.literal("EUR"), lines: z.array(sharedLine) })),
     Product: schema(C.Product),
     LookupLine: schema(C.LookupLine),
     LookupBody: schema(C.LookupBody),
@@ -46,6 +52,7 @@ export function buildOpenApi() {
     AllergenAcknowledgementBody: schema(C.AllergenAcknowledgementBody),
     AllergenAcknowledgement: schema(C.AllergenAcknowledgement),
     OrderCreateBody: schema(C.OrderCreateBody),
+    BuilderConsentBody: schema(C.BuilderConsentBody),
     Order: schema(C.Order),
     AmendmentBody: schema(C.AmendmentBody),
     Mandate: schema(C.Mandate),
@@ -56,7 +63,8 @@ export function buildOpenApi() {
   const json = (s: object) => ({ content: { "application/json": { schema: s } } });
   const refusals = {
     "401": { description: "No or unknown token" },
-    "403": { description: "Caller is outside the permitted hotel/outlet scope, or the record is private to the hotel", ...json(ref("Refusal")) },
+    "403": { description: "Missing scope or resource outside the credential hotel assignments" },
+    "404": { description: "Unknown object" },
     "409": { description: "Refused: mandate_violation, quote_stale, quote_consumed, cutoff_passed or hard_rule", ...json(ref("Refusal")) },
     "422": { description: "Invalid body", ...json(ref("Refusal")) },
     "503": { description: "Upstream mock unavailable; nothing was ordered", ...json(ref("Refusal")) },
@@ -70,7 +78,7 @@ export function buildOpenApi() {
       "/allergen-acknowledgements": { post: {
         operationId: "acknowledgeAllergenData", summary: "Chef only: continue with allergen data not confirmed on exact quote terms (D35). Does not establish safety or accept stock risk.",
         requestBody: { required: true, ...json(ref("AllergenAcknowledgementBody")) },
-        responses: { "201": { description: "Signed chef acknowledgement; retained as a concern on the order", ...json(ref("AllergenAcknowledgement")) }, ...refusals, "403": { description: "Requires the chef's own session and outlet scope", ...json(ref("Refusal")) } },
+        responses: { ...refusals, "201": { description: "Signed chef acknowledgement; retained as a concern on the order", ...json(ref("AllergenAcknowledgement")) }, "403": { description: "Requires the chef's own session and outlet scope" } },
       } },
       "/products": {
         get: {
@@ -125,7 +133,12 @@ export function buildOpenApi() {
           responses: { "201": { description: "Quote, with rule outcomes and the approvals the mandate needs", ...json(ref("Quote")) }, ...refusals },
         },
       },
-      "/quotes/{id}": { get: { operationId: "getQuote", summary: "Full hotel quote. Supplier viewers use /audit for shared status.", parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }], responses: { "200": { description: "Quote", ...json(ref("Quote")) }, ...refusals } } },
+      "/quotes/{id}": { get: { operationId: "getQuote", parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }], responses: { "200": { description: "Hotel quote, or allowlisted trade view for Valio", ...json({ anyOf: [ref("Quote"), ref("SharedQuote")] }) } } } },
+      "/builder-consents": { post: { operationId: "consentToUnconfirmedStock",
+        summary: "Authenticated chef consent for exact quote, products, scope, terms, policy and expiry. Finance and agent tokens are refused.",
+        requestBody: { required: true, ...json(ref("BuilderConsentBody")) },
+        responses: { ...refusals, "201": { description: "Server-owned consent record; attach its id as builderConsentId to order/amendment" }, "403": { description: "Chef authentication or scope required" } },
+      } },
       "/approvals": {
         post: {
           operationId: "approve",
@@ -144,7 +157,7 @@ export function buildOpenApi() {
         },
         get: { operationId: "listOrders", parameters: [{ name: "eventId", in: "query", schema: { type: "string" } }], responses: { "200": { description: "Orders", ...json({ type: "object", properties: { orders: { type: "array", items: ref("Order") } } }) } } },
       },
-      "/orders/{id}": { get: { operationId: "getOrder", summary: "Full hotel order. Supplier viewers use /audit for shared status.", parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }], responses: { "200": { description: "Order", ...json(ref("Order")) }, ...refusals } } },
+      "/orders/{id}": { get: { operationId: "getOrder", parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }], responses: { "200": { description: "Hotel order, or allowlisted trade view for Valio", ...json({ anyOf: [ref("Order"), ref("SharedOrder")] }) } } } },
       "/orders/{id}/peppol": {
         get: {
           operationId: "getOrderPeppol",
@@ -166,7 +179,7 @@ export function buildOpenApi() {
       "/audit": {
         get: {
           operationId: "getAudit",
-          summary: "The one shared audit log. Valio Aimo tokens see only entries tagged shared, without recipe or guest details.",
+          summary: "Scoped audit history. Valio sees allowlisted shared trade fields for its assigned hotels; agents need audit:read and see shared trade entries for their hotel.",
           parameters: [
             { name: "eventId", in: "query", schema: { type: "string" } },
             { name: "orderId", in: "query", schema: { type: "string" } },

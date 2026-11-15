@@ -30,6 +30,8 @@ import { seedHotelWorkspace } from "../seed-workspace.js";
 import { gw, GatewayError } from "../agent/gatewayClient.js";
 import { dataMode, lookup, UpstreamError } from "../aimo/lookup.js";
 import { inspectDelivery } from "./productInspection.js";
+import { hotelFor } from "../ownership.js";
+import { readFilter } from "../gateway/routes.js";
 import { config } from "../config.js";
 import { modelConfigured, modelName } from "../agent/openai.js";
 import { basketReview, submitBasketForReview, invalidateBasketReview, BasketReviewError } from "../agent/baskets.js";
@@ -80,9 +82,12 @@ export function appRouter(): Router {
   r.get("/people", (_req, res) => res.json({ people: allPeople(), outlets: OUTLETS }));
   r.post("/session", (req, res) => {
     const { personId } = z.object({ personId: z.string() }).parse(req.body);
+    const existing = resolveToken(tokenFrom(req));
+    if (!config.testMode && (existing?.kind !== "person" || existing.person.id !== personId))
+      return res.status(403).json({ error: "Authenticated person session required; demo persona switching is disabled" });
     const p = getPerson(personId);
     if (!p) return res.status(404).json({ error: "No such person" });
-    const token = issueToken({ kind: "person", personId: p.id, testSession: true });
+    const token = issueToken({ kind: "person", personId: p.id, testSession: config.testMode });
     sessionCookie(res, token);
     res.json({ person: p, token });
   });
@@ -110,16 +115,37 @@ export function appRouter(): Router {
 
   r.use(person);
   r.use(measureProcessing);
+  // These app workflows are backed by the single Demo Hotel agent. Keep their
+  // plans, baskets and policy out of another hotel's session. The explicit
+  // multi-hotel readers below forward the caller credential or filter ownership.
+  r.use((req, res, next) => {
+    const scopedRead = req.method === "GET" && (/^\/orders(?:\/|$)/.test(req.path) || req.path === "/audit" || req.path === "/me" || /^\/products(?:\/|$)/.test(req.path));
+    if (P(req).hotelId !== HOTEL_ID && !scopedRead)
+      return res.status(403).json({ error: "forbidden", message: "This app workflow belongs to Demo Hotel; use the gateway for your hotel" });
+    const object = req.path.match(/^\/(events|baskets|plans|questions)\/([^/]+)/);
+    if (object) {
+      const [, kind, encodedKey] = object;
+      const key = decodeURIComponent(encodedKey);
+      const record = kind === "plans" ? getPlan(key) : kind === "questions" ? getQuestion(key) : getEvent(key);
+      const owner = kind === "plans" ? hotelFor({ details: { planId: key } }) : kind === "questions" ? hotelFor({ questionId: key }) : hotelFor({ eventId: key });
+      if (record && owner !== P(req).hotelId)
+        return res.status(403).json({ error: "forbidden", message: "Resource belongs to another hotel or has unknown ownership" });
+    }
+    next();
+  });
+
+  const ownEvents = (req: Request) => listEvents().filter(e => hotelFor({ eventId: e.id }) === P(req).hotelId);
+  const ownPlans = (req: Request) => listPlans().filter(pl => hotelFor({ details: { planId: pl.id } }) === P(req).hotelId);
 
   r.get("/me", (req, res) => res.json({ person: P(req) }));
 
   // UI-01: home opens on the decisions waiting for this person, then their events.
   r.get("/home", (req, res) => {
     const p = P(req);
-    const mine = questionsFor(p);
-    const events = listEvents().map((e) => ({ id: e.id, name: e.name, serviceDate: e.serviceDate, guests: e.guests, coverage: coverageSummary(e.id), version: e.version, outlets: [...new Set(e.dishes.map((d) => d.outletId))] }));
-    const plans = listPlans().filter((pl) => pl.kind === "single" && !pl.reviewing).slice(0, 10).map((pl) => ({ id: pl.id, title: pl.title, status: pl.status, summary: pl.summary, createdAt: pl.createdAt, createdBy: pl.createdBy.name }));
-    res.json({ questions: mine, events, plans, warnings: warnings().filter((w) => w.state === "open") });
+    const mine = questionsFor(p).filter(q => hotelFor({ questionId: q.id }) === p.hotelId);
+    const events = ownEvents(req).map((e) => ({ id: e.id, name: e.name, serviceDate: e.serviceDate, guests: e.guests, coverage: coverageSummary(e.id), version: e.version, outlets: [...new Set(e.dishes.map((d) => d.outletId))] }));
+    const plans = ownPlans(req).filter((pl) => pl.kind === "single" && !pl.reviewing).slice(0, 10).map((pl) => ({ id: pl.id, title: pl.title, status: pl.status, summary: pl.summary, createdAt: pl.createdAt, createdBy: pl.createdBy.name }));
+    res.json({ questions: mine, events, plans, warnings: warnings().filter((w) => w.state === "open" && hotelFor({ eventId: w.eventId }) === p.hotelId) });
   });
 
   const messageBody = z.object({ text: z.string().trim().min(1).max(2000) });
@@ -180,8 +206,8 @@ export function appRouter(): Router {
     await quoteAndDecide(plan, T(req));
     return getPlan(plan.id)!;
   }
-  r.get("/plans", (_req, res) =>
-    res.json({ plans: listPlans().filter((pl) => pl.kind === "single").map((pl) => ({ id: pl.id, title: pl.title, status: pl.status, summary: pl.summary, createdAt: pl.createdAt, createdBy: pl.createdBy.name, totalExVat: pl.totalExVat })) }),
+  r.get("/plans", (req, res) =>
+    res.json({ plans: ownPlans(req).filter((pl) => pl.kind === "single").map((pl) => ({ id: pl.id, title: pl.title, status: pl.status, summary: pl.summary, createdAt: pl.createdAt, createdBy: pl.createdBy.name, totalExVat: pl.totalExVat })) }),
   );
   r.get("/plans/:id", (req, res) => {
     const plan = getPlan(String(req.params.id));
@@ -256,6 +282,9 @@ export function appRouter(): Router {
     const p = P(req);
     const unconfirmed = plan.lines.filter((line) => line.productId && line.rules.some((rule) => rule.ruleId === "STK-01")).map((line) => line.productId!);
     if ((continueWithWarnings || plan.itemReviews) && unconfirmed.length) {
+      if (p.role !== "chef") return res.status(403).json({ error: "Only the chef can continue with unconfirmed stock" });
+      const reviewed = await gw.getQuote(plan.quoteId!);
+      if (reviewed.unconfirmedStock.length) plan.overrides.builderConsentId = (await gw.consent(T(req), reviewed, reviewed.unconfirmedStock)).id;
       plan.overrides.stockContinued = [...new Set([...(plan.overrides.stockContinued ?? []), ...unconfirmed])];
       const stockApprovers = plan.itemReviews?.filter((item) => plan.lines.some((line) => line.needIds.includes(item.needId) && unconfirmed.includes(line.productId!))).map((item) => item.approvedBy!);
       plan.overrides.stockDecidedBy = stockApprovers?.length ? [...new Set(stockApprovers)].join(", ") : p.name;
@@ -311,7 +340,7 @@ export function appRouter(): Router {
     const line = plan.lines.find((line) => line.productId === productId && line.needIds.includes(need?.id ?? ""));
     if (!item || !need || !line?.salesUnit) return res.status(404).json({ error: "No such product on this item" });
     if (item.fingerprint !== fingerprint) return res.status(409).json({ error: "This item changed. Review its current terms again.", plan });
-    if (line.packContent && line.packContent.unit === need.amount.unit)
+    if (line.packContent && line.packContent.unit === need.amount.unit && (need.amount.unit !== "pcs" || line.packContent.verified))
       return res.status(409).json({ error: "Edit the requested quantity for this product instead" });
     plan.overrides.salesQuantities = [...(plan.overrides.salesQuantities ?? []).filter((q) => q.needId !== need.id), { needId: need.id, productId, quantity, scope: quantityScope(need) }];
     plan.overrides.chosen = [...(plan.overrides.chosen ?? []).filter((choice) => !choice.startsWith(`${need.id}:`)), `${need.id}:${productId}`];
@@ -414,10 +443,10 @@ export function appRouter(): Router {
     const { orders } = await gw.orders();
     const p = P(req);
     // Apply the same stale finance-review cleanup as the detail page, using local snapshots only.
-    for (const event of listEvents()) basketReview(event.id, orders.filter((order) => order.eventId === event.id));
+    for (const event of ownEvents(req)) basketReview(event.id, orders.filter((order) => order.eventId === event.id));
     const open = pendingQuestions(allQuestions(), now());
     res.json({
-      baskets: listEvents().map((e) => {
+      baskets: ownEvents(req).map((e) => {
         const mine = orders.filter((o) => o.eventId === e.id && o.state !== "rejected");
         const staged = basketPlans(e.id).filter((pl) => pl.basketedAt && !pl.orderIds.length);
         const totalExVat = staged.some((pl) => pl.totalExVat === null)
@@ -464,7 +493,7 @@ export function appRouter(): Router {
     const id = String(req.params.id);
     const event = getEvent(id);
     if (!event) return res.status(404).json({ error: "No such order" });
-    const review = await submitBasketForReview(id, P(req));
+    const review = await submitBasketForReview(id, P(req), T(req));
     res.json({ review, basket: await basketView(id, req) });
   });
 
@@ -475,7 +504,7 @@ export function appRouter(): Router {
     if (!inEventScope(req, event)) return res.status(403).json({ error: "This order is outside your hotel or outlet scope" });
     next();
   });
-  r.get("/events", (_req, res) => res.json({ events: listEvents().map((e) => ({ ...e, coverage: coverageSummary(e.id) })) }));
+  r.get("/events", (req, res) => res.json({ events: ownEvents(req).map((e) => ({ ...e, coverage: coverageSummary(e.id) })) }));
   r.get("/events/:id", (req, res) => res.json(eventView(String(req.params.id))));
   r.post("/events/:id/viability", async (req, res) => res.json({ plan: await runViability(String(req.params.id), P(req)) }));
   r.post("/events/:id/order", async (req, res) => res.json({ plan: await orderEvent(String(req.params.id), P(req)) }));
@@ -530,13 +559,14 @@ export function appRouter(): Router {
   r.post("/events/:id/final-check", async (req, res) => res.json({ finalCheck: await finalCheck(String(req.params.id)) }));
   r.post("/events/:id/cutoff", (req, res) => res.json({ flags: runCutoff(String(req.params.id)) }));
 
-  r.get("/orders", async (req, res) => res.json(await gw.orders(req.query.eventId ? String(req.query.eventId) : undefined)));
-  r.get("/orders/:id", async (req, res) => res.json(await gw.getOrder(String(req.params.id))));
+  r.get("/orders", async (req, res) => res.json(await gw.orders(readFilter(req.query.eventId), T(req))));
+  r.get("/orders/:id", async (req, res) => res.json(await gw.getOrder(String(req.params.id), T(req))));
 
   r.get("/audit", (req, res) => {
     const viewer = req.query.viewer === "valio" ? "valio" : "hotel";
-    const eventId = req.query.eventId ? String(req.query.eventId) : undefined;
-    res.json({ viewer, chain: verifyChain(), entries: auditView(viewer, { eventId }), decisions: eventId ? decisionCount(eventId) : null });
+    const eventId = readFilter(req.query.eventId);
+    const orderId = readFilter(req.query.orderId);
+    res.json({ viewer, chain: verifyChain(), entries: auditView(viewer, { hotelId: P(req).hotelId, eventId, orderId }), decisions: eventId ? decisionCount(eventId, P(req).hotelId) : null });
   });
 
   const rulesPayload = (req: Request) => {

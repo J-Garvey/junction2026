@@ -5,15 +5,16 @@
  */
 import type { Request } from "express";
 import { getDb, getJson, allJson } from "./db.js";
+import { config } from "./config.js";
 import { randomBytes } from "node:crypto";
 
 export type Person = { id: string; name: string; role: "chef" | "approver"; outlets: string[]; hotelScope: boolean; hotelId: string; title: string };
 export type Identity =
   | { kind: "person"; token: string; hotelId: string; person: Person; testSession: boolean }
   | { kind: "agent"; token: string; hotelId: string; name: string; scopes: string[] }
-  | { kind: "valio"; token: string; name: string };
+  | { kind: "valio"; token: string; name: string; hotelIds: string[] };
 
-type TokenRow = { kind: Identity["kind"]; personId?: string; hotelId?: string; name?: string; scopes?: string[]; testSession?: boolean };
+type TokenRow = { kind: Identity["kind"]; personId?: string; hotelId?: string; name?: string; scopes?: string[]; hotelIds?: string[]; testSession?: boolean };
 
 export function issueToken(row: TokenRow): string {
   const token = `${row.kind}_${randomBytes(18).toString("hex")}`;
@@ -37,12 +38,13 @@ export function resolveToken(token: string | undefined | null): Identity | null 
   const row = getJson<TokenRow>("tokens", token, "token");
   if (!row) return null;
   if (row.kind === "person") {
+    if (!config.testMode && row.testSession !== false) return null;
     const person = row.personId ? getPerson(row.personId) : null;
     if (!person) return null;
     return { kind: "person", token, hotelId: person.hotelId, person, testSession: row.testSession ?? true };
   }
   if (row.kind === "agent") return { kind: "agent", token, hotelId: row.hotelId!, name: row.name ?? "agent", scopes: row.scopes ?? [] };
-  return { kind: "valio", token, name: row.name ?? "Valio Aimo" };
+  return { kind: "valio", token, name: row.name ?? "Valio Aimo", hotelIds: row.hotelIds ?? [] };
 }
 
 export function tokenFrom(req: Request): string | null {

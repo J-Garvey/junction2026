@@ -104,6 +104,7 @@ export function App() {
         <button type="button" className="btn" onClick={() => window.location.reload()}>Reload app</button>
       </div>
     );
+  if ((!ctx || needPick) && status && !status.testMode) return <div className="picker"><Lockup /><p>Sign in with your personal hotel credential. Demo persona switching is disabled.</p></div>;
   if (!ctx || needPick) return <PersonPicker people={people} current={me} status={status} onChange={refresh} onPick={pick} onCancel={me ? () => setNeedPick(false) : undefined} />;
 
   return (
@@ -307,7 +308,8 @@ function PersonPicker({
   return (
     <div className="picker">
       <Lockup s={30} />
-      <h1>Who are you?</h1>
+      <h1>Demo persona</h1>
+      <p className="muted">Local test mode: viewing as a simulated hotel person.</p>
       <div className="pickgrid">
         {people.map((p) => (
           <button key={p.id} type="button" className={`pickcard ${current?.id === p.id ? "on" : ""}`} onClick={() => onPick(p.id)}>

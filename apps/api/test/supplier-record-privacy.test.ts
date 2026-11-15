@@ -30,29 +30,34 @@ async function call(path: string, token: string, body?: unknown, extra: Record<s
   return { status: response.status, body: await response.json() as any };
 }
 
-it("keeps full hotel quote/order records private and directs supplier viewers to the shared audit", async () => {
+it("keeps hotel policy and identity out of supplier trade projections", async () => {
   await call("/api/reset", "", {});
   await call("/api/clock", "", { time: "2026-11-14T10:00:00Z" });
   const person = (await call("/api/session", "", { personId: "p-aino" })).body.token;
   const agent = "agent_demo_hotel_aurora";
   const valio = "valio_demo_viewer";
-  const quote = await call("/gateway/v1/quotes", agent, { siteId: "site-aurora", deliveryDate: "2026-11-16", lines: [{ productId: "464306", outletId: "banquet", quantity: 5 }] });
+  const quote = await call("/gateway/v1/quotes", agent, { siteId: "site-aurora", deliveryDate: "2026-11-16", lines: [{ productId: "469672", outletId: "banquet", quantity: 80 }] });
   expect(quote.status).toBe(201);
-  const order = await call("/gateway/v1/orders", person, { quoteId: quote.body.id, continueWithUnconfirmedStock: ["464306"], decidedBy: "Someone else" }, { "idempotency-key": "supplier-privacy" });
+  expect(quote.body.mandateCheck.approvalsNeeded).toContain("spend_cap");
+  const finance = (await call("/api/session", "", { personId: "p-sanna" })).body.token;
+  const approval = await call("/gateway/v1/approvals", finance, { quoteId: quote.body.id, fingerprint: quote.body.fingerprint, grants: ["spend_cap"] });
+  expect(approval.status).toBe(201);
+  const order = await call("/gateway/v1/orders", person, { quoteId: quote.body.id, approvalId: approval.body.id }, { "idempotency-key": "supplier-privacy" });
   expect(order.status).toBe(201);
   for (const path of [`/gateway/v1/quotes/${quote.body.id}`, `/gateway/v1/orders/${order.body.id}`]) {
     const supplier = await call(path, valio);
-    expect(supplier.status, path).toBe(403);
-    expect(supplier.body.message).toContain("/audit");
+    expect(supplier.status, path).toBe(200);
+    expect(supplier.body.totalExVat).toBe(quote.body.totalExVat);
+    expect(JSON.stringify(supplier.body)).not.toMatch(/spend_cap|spendCap|mandateCheck|approvedBy|placedBy|riskAccepted|allergen/);
+    expect(supplier.body.jws).toBeUndefined();
     for (const token of [agent, person]) {
       const hotel = await call(path, token);
       expect(hotel.status).toBe(200);
       expect(hotel.body.jws).toBeTruthy();
     }
   }
-  // Refusal happens before record lookup; missing IDs reveal no extra information.
-  expect((await call("/gateway/v1/quotes/not-a-quote", valio)).status).toBe(403);
-  expect((await call("/gateway/v1/orders/not-an-order", valio)).status).toBe(403);
+  expect((await call("/gateway/v1/quotes/not-a-quote", valio)).status).toBe(404);
+  expect((await call("/gateway/v1/orders/not-an-order", valio)).status).toBe(404);
   expect((await call("/gateway/v1/mandate", valio)).status).toBe(403);
   expect((await call("/gateway/v1/orders", valio)).status).toBe(403);
   expect((await call("/gateway/v1/audit", valio)).status).toBe(200);

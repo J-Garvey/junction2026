@@ -14,6 +14,7 @@ export type Action = "SEARCH" | "PRODUCT" | "LOOKUP" | "QUOTE" | "APPROVAL" | "O
 
 export type FeedEntry = {
   id: string;
+  hotelId: string | null;
   at: string;
   agent: string;
   callerKind: "agent" | "person" | "valio" | "unknown";
@@ -110,7 +111,7 @@ export function feedTap(req: Request, res: Response, next: NextFunction) {
         c.amount = quote?.amount ?? null;
         if (body?.error === "mandate_violation" && !req.body?.approvalId) c.reason = `${c.reason} No approval attached.`;
       }
-      const e: FeedEntry = { id: newId("call"), at: new Date().toISOString(), agent, callerKind, method: req.method, path: `/gateway/v1${path}`, status: res.statusCode, ms: Date.now() - started, ...c };
+      const e: FeedEntry = { id: newId("call"), hotelId: id && id.kind !== "valio" ? id.hotelId : null, at: new Date().toISOString(), agent, callerKind, method: req.method, path: `/gateway/v1${path}`, status: res.statusCode, ms: Date.now() - started, ...c };
       entries.push(e);
       if (entries.length > MAX) entries.shift();
       feedBus.emit("entry", e);

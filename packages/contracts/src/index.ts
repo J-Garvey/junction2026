@@ -305,6 +305,7 @@ export const Quote = z.object({
   usesFixtures: z.boolean(),
   unconfirmedStock: z.array(z.string()).default([]).describe("D31: product IDs whose stock Valio Aimo can't confirm. An order must list them in continueWithUnconfirmedStock"),
   stockPolicy: z.string().optional().describe("Fingerprint of the hotel policy used for the stock decision; changes require a new review"),
+  allergenPolicy: z.string().optional().describe("Digest of the mandate and rule policy reviewed for missing allergen data; policy changes require fresh chef consent"),
   jws: z.string().optional().describe("AP2 v0.2 merchant checkout_jwt: compact JWS, typ aimo-quote+jwt, alg ES256, signed by Valio Aimo. Verify with /.well-known/jwks.json"),
   checkoutHash: z.string().optional().describe("AP2 checkout_hash: base64url(SHA-256(jws))"),
 });
@@ -336,6 +337,11 @@ export type Approval = z.infer<typeof Approval>;
 
 // ---------- orders (ORDER-PLACE, VA-03) ----------
 
+export const BuilderConsentBody = z.object({
+  quoteId: z.string(),
+  fingerprint: z.string(),
+  productIds: z.array(z.string()).min(1),
+});
 export const AllergenAcknowledgementBody = z.object({
   quoteId: z.string(),
   fingerprint: z.string(),
@@ -355,7 +361,8 @@ export const OrderCreateBody = z.object({
   quoteId: z.string(),
   approvalId: z.string().optional(),
   continueWithUnconfirmedStock: z.array(z.string()).optional().describe("D31: product IDs whose stock Valio Aimo can't confirm and the hotel chose to order anyway"),
-  decidedBy: z.string().optional().describe("Agent-claimed builder attribution, recorded as unverified. Person tokens always use the authenticated person's name."),
+  builderConsentId: z.string().optional().describe("Server-issued chef consent for this exact quote; POST /builder-consents with the chef credential"),
+  decidedBy: z.string().optional().describe("Deprecated, ignored: identity is taken only from authenticated chef consent"),
   allergenAcknowledgements: z.array(z.string()).optional().describe("Gateway-issued chef acknowledgements for missing allergen data, bound to these exact terms. Not safety confirmation or stock acceptance."),
 });
 
@@ -404,7 +411,8 @@ export const AmendmentBody = z.object({
   approvalId: z.string().optional(),
   stockQuoteId: z.string().optional().describe("Amendment quote the builder reviewed when continuing with unconfirmed stock; changes require a fresh decision"),
   continueWithUnconfirmedStock: z.array(z.string()).optional(),
-  decidedBy: z.string().optional().describe("Agent-claimed builder attribution, recorded as unverified. Person tokens always use the authenticated person's name."),
+  builderConsentId: z.string().optional(),
+  decidedBy: z.string().optional().describe("Deprecated, ignored"),
   allergenAcknowledgements: z.array(z.string()).optional(),
   quoteOnly: z.boolean().optional().describe("Return rechecked amendment terms without changing the order, so the chef can review them"),
 });
@@ -452,6 +460,7 @@ export const AuditAction = z.enum([
 export type AuditAction = z.infer<typeof AuditAction>;
 
 export const AuditEntry = z.object({
+  hotelId: z.string().nullable().optional().describe("Server-resolved owner; absent on legacy entries"),
   seq: z.number().int(),
   id: z.string(),
   simTime: z.string(),
