@@ -58,18 +58,21 @@ h4 { font-size: 13px; font-weight: 700; text-transform: uppercase; color: var(--
 .order-switcher-trigger { width: 100%; }
 .order-switcher-trigger b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; }
 .order-switcher-trigger:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
-.order-switcher-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 40; width: 250px; padding: 6px; border: 1px solid var(--hairline); border-radius: 6px; background: var(--card); box-shadow: 0 8px 24px rgba(35, 37, 29, 0.18); }
-.order-switcher-list { max-height: min(360px, 55vh); overflow-y: auto; scrollbar-width: none; }
+.order-switcher-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 40; width: min(320px, calc(100vw - 32px)); padding: 8px; border: 1px solid var(--hairline); border-radius: 8px; background: var(--card); box-shadow: 0 12px 32px rgba(35, 37, 29, 0.18); }
+.order-switcher-list { max-height: min(360px, 55vh); display: flex; flex-direction: column; gap: 2px; overflow-y: auto; scrollbar-width: none; }
 .order-switcher-list::-webkit-scrollbar { display: none; }
-.order-switcher-menu a { width: 100%; min-height: 40px; display: flex; align-items: center; padding: 6px 8px; gap: 8px; border-radius: 4px; text-decoration: none; }
-.order-switcher-menu a:hover { background: var(--soft); }
+.order-switcher-menu a { width: 100%; min-height: 54px; display: flex; align-items: center; padding: 8px 10px; gap: 10px; border-radius: 6px; color: var(--body); line-height: 1.25; text-decoration: none; }
+.order-switcher-menu a:hover { background: var(--soft); text-decoration: none; }
 .order-switcher-menu a:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; background: var(--soft); }
-.order-switcher-menu a.selected { color: var(--ink); background: var(--soft); box-shadow: none; }
-.order-switcher-order { min-width: 0; flex: 1; display: flex; flex-direction: column; line-height: 1.3; }
-.order-switcher-order b { overflow: hidden; color: var(--ink); text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
-.order-switcher-order span { color: var(--mute); font-size: 11px; }
+.order-switcher-menu a.selected { color: var(--ink); background: var(--yellow-soft); box-shadow: none; }
+.order-switcher-menu a.selected:hover { background: #f8d994; }
+.order-switcher-order { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.order-switcher-order b { overflow: hidden; color: var(--ink); text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; text-decoration: none; }
+.order-switcher-order span { color: var(--mute); font-size: 12px; text-decoration: none; }
 .order-switcher-count { min-width: 20px; padding: 1px 6px; border-radius: 10px; background: var(--yellow-soft); color: var(--ink); font-size: 11px; font-weight: 700; text-align: center; }
-.order-switcher-all { margin-top: 4px; border-top: 1px solid var(--hairline-soft); color: var(--body); }
+.order-switcher-check { width: 24px; height: 24px; flex: 0 0 24px; display: grid; place-items: center; border-radius: 50%; color: var(--ink); background: var(--primary); }
+.order-switcher-menu a.order-switcher-all { min-height: 44px; margin-top: 8px; padding-top: 9px; border-top: 1px solid var(--hairline-soft); border-radius: 0 0 6px 6px; color: var(--ink); font-size: 13px; font-weight: 600; }
+.order-switcher-all span { flex: 1; }
 .side-brand { padding: 4px 8px 14px; }
 .viewing { padding: 4px 8px 10px; }
 .side a { display: flex; align-items: center; gap: 9px; padding: 6px 8px; border-radius: 6px; font-size: 14px; font-weight: 500; color: var(--body); text-decoration: none; }

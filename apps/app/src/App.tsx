@@ -206,18 +206,26 @@ function OrderSwitcher({ currentId }: { currentId?: string }) {
         <div className="order-switcher-menu" role="menu" aria-label="Switch order">
           <div className="order-switcher-list">
             {orders.map((order) => (
-              <Link key={order.id} to={`/baskets/${order.id}`} role="menuitem" className={order.id === currentId ? "selected" : ""} onClick={() => setOpen(false)}>
+              <Link
+                key={order.id}
+                to={`/baskets/${order.id}`}
+                role="menuitem"
+                className={order.id === currentId ? "selected" : ""}
+                aria-current={order.id === currentId ? "page" : undefined}
+                onClick={() => setOpen(false)}
+              >
                 <span className="order-switcher-order">
                   <b>{order.name}</b>
                   <span>Delivery {day(order.deliveryDate)}</span>
                 </span>
                 {order.waiting > 0 && <span className="order-switcher-count">{order.waiting}</span>}
-                {order.id === currentId && <Icon n="check" s={16} />}
+                {order.id === currentId && <span className="order-switcher-check"><Icon n="check" s={14} w={2.2} /></span>}
               </Link>
             ))}
           </div>
           <Link to="/" role="menuitem" className="order-switcher-all" onClick={() => setOpen(false)}>
-            View all
+            <span>View all orders</span>
+            <Icon n="chev" s={14} />
           </Link>
         </div>
       )}
