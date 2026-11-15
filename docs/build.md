@@ -50,6 +50,8 @@ Code: `apps/api/src/live/` (agent loop, gateway feed, `/api/live` routes with on
 
 On an order page, **Submit order for review** sends the current basket to the finance approval queue (`POST /api/baskets/{id}/submit-review`). Repeated submissions return the same pending review. Finance can approve or return it to the order builder; approval signs the combined quote and places staged items through the gateway, which rechecks the terms at commit. Items already ordered are shown for context and are never placed again. Adding items replaces the pending review, so the updated order must be submitted again. Empty orders and unresolved product or delivery issues cannot be submitted. An approval inside the mandate carries an empty list of policy exceptions.
 
+The add-to-order modal lets the builder **approve each item** independently, including a choice to continue with visibly unconfirmed stock. Every retained item must be approved before **Add to order** is enabled. A missing pack conversion asks for an explicit whole sales-unit quantity, then shows its checked price before approval; it never invents a piece-to-weight conversion. Editing or replacing a row invalidates its approval when the terms change, while unrelated approvals remain. Adding rechecks supplier terms and asks again if they changed. Diet failures, unavailable delivery and expired cutoffs stay blocked. Final finance approval still applies to the complete order.
+
 ## How it fits together
 
 ```text

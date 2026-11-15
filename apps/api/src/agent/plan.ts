@@ -18,6 +18,7 @@ import { toBase, quantitySanity, checkSingle } from "./parse.js";
 import { buildQuestions, expireOpenQuestions, openQuestionsForPlan } from "./questions.js";
 import { recallSubstitute } from "./memory.js";
 import { basketSnapshot } from "../whatsapp/snapshot.js";
+import { quantityScope, refreshItemReviews } from "./itemReview.js";
 
 export const HOTEL_ID = "hotel-aurora";
 
@@ -33,6 +34,7 @@ export type Overrides = {
   stockBlind?: boolean; // a change to a placed order rescales the same products; stock is the final check's job
   accepted?: boolean; // single request: the person approved adding the proposed products to the quote
   chosen?: string[]; // "needId:productId" the person picked from the alternatives
+  salesQuantities?: { needId: string; productId: string; scope: string; quantity: number }[];
 };
 export type StoredPlan = Plan & {
   overrides: Overrides; event?: EventSpec | null; questionsAnswered: number;
@@ -47,6 +49,7 @@ export function mandate(): Mandate {
 }
 
 export function savePlan(p: StoredPlan) {
+  refreshItemReviews(p);
   getDb()
     .prepare("INSERT INTO plans (id, event_id, json, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET json = excluded.json, event_id = excluded.event_id")
     .run(p.id, p.eventId, JSON.stringify(p), p.createdAt);
@@ -197,7 +200,7 @@ function buildLines(needs: Need[], urgent: boolean, ov: Overrides, m: Mandate): 
   for (const need of needs) {
     // Identical urgent needs share one whole-pack rounding and stock allocation.
     // Distinct specifications retain their own lines and their own decisions.
-    const key = urgent && need.candidates.length ? JSON.stringify([need.outletId, need.amount.unit, need.query, need.productType, need.pinnedProductId, need.constraints, need.candidates.map((c) => c.productId)]) : need.id;
+    const key = urgent && need.candidates.length && !ov.salesQuantities?.some((q) => q.needId === need.id) ? JSON.stringify([need.outletId, need.amount.unit, need.query, need.productType, need.pinnedProductId, need.constraints, need.candidates.map((c) => c.productId)]) : need.id;
     groups.set(key, [...(groups.get(key) ?? []), need]);
   }
   for (const group of groups.values()) {
@@ -210,7 +213,16 @@ function buildLines(needs: Need[], urgent: boolean, ov: Overrides, m: Mandate): 
       });
       continue;
     }
-    if (!urgent) {
+    const manual = ov.salesQuantities?.find((q) => q.needId === n.id && q.productId === n.candidates[0].productId && q.scope === quantityScope(n));
+    if (manual) {
+      const line = makeLine(n.candidates[0], group, n.amount.value, manual.quantity, n.amount.unit, "primary", m);
+      line.rules.push({ ...fire("QTY-03", { product: line.productName, content: "unknown", salesQuantity: manual.quantity, salesUnit: line.salesUnit }),
+        message: `Pack content is not confirmed. You chose ${manual.quantity} ${line.salesUnit}; its conversion to the requested ${n.amount.value} ${n.amount.unit} remains unknown.` });
+      lines.push(line);
+      continue;
+    }
+    // Keep an unconvertible product visible so the buyer can specify sales units.
+    if (!urgent || !n.candidates[0].packContent || n.candidates[0].packContent.unit !== n.amount.unit) {
       const c = n.candidates[0];
       const k = `${lineKey(c.productId, n.outletId)}|${n.amount.unit}`;
       const e = combined.get(k) ?? { c, needs: [], value: 0, unit: n.amount.unit };
@@ -415,6 +427,8 @@ export async function quoteAndDecide(plan: StoredPlan, personToken?: string): Pr
   plan.stage = "order";
   plan.error = null;
   plan.proposal = false;
+  plan.totalExVat = null;
+  plan.totalVat = null;
   if (plan.kind === "single") {
     plan.inputRules = checkSingle(plan.request!);
     if (plan.inputRules.length) {
