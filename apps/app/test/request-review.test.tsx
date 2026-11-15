@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { SingleRequest, type Candidate, type Need, type Plan, type PlanLine, type ProductDetails, type Question } from "@aimo/contracts";
 import { api, ApiError, type BasketResp, type Person, type PlanResp } from "../src/api";
@@ -213,6 +214,36 @@ describe("saved request review controls", () => {
     expect(api.correctBasketRequest).not.toHaveBeenCalled();
   });
 
+  it("carries fresh description-parsing evidence into a request edit", async () => {
+    const initial = fixture();
+    initial.plan.request!.parseAuditId = "old-parsing";
+    const parsed = structuredClone(initial.plan.request!);
+    parsed.parseAuditId = "new-parsing";
+    parsed.lines[0].query = "cream";
+    vi.spyOn(api, "message").mockResolvedValue({ route: "new_request", request: parsed, note: null });
+    vi.spyOn(api, "requote").mockResolvedValue(initial);
+    show(initial);
+    fireEvent.click(screen.getByRole("button", { name: "Edit description for milk" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Description for milk" }), { target: { value: "cream" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check item" }));
+    await waitFor(() => expect(api.requote).toHaveBeenCalledOnce());
+    expect(vi.mocked(api.requote).mock.calls[0][1]).toMatchObject({ parseAuditId: "new-parsing", lines: [{ id: "need", query: "cream" }] });
+  });
+
+  it("does not count old parsing again when only a quantity changes", async () => {
+    const initial = fixture();
+    initial.plan.request!.parseAuditId = "old-parsing";
+    vi.spyOn(api, "message");
+    vi.spyOn(api, "requote").mockResolvedValue(initial);
+    show(initial);
+    fireEvent.click(screen.getByRole("button", { name: "Edit quantity for milk" }));
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Quantity for milk" }), { target: { value: "20" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check item" }));
+    await waitFor(() => expect(api.requote).toHaveBeenCalledOnce());
+    expect(vi.mocked(api.requote).mock.calls[0][1].parseAuditId).toBeUndefined();
+    expect(api.message).not.toHaveBeenCalled();
+  });
+
   it("keeps products in compact rows and approves only the selected item", async () => {
     const multiple = fixture();
     const request = multiple.plan.request!;
@@ -317,6 +348,20 @@ describe("saved request review controls", () => {
     expect(screen.getByText("Order cutoff (Helsinki)")).toBeTruthy();
     await screen.findByText(/Dietary suitability is unknown/);
     expect(api.product).toHaveBeenCalledWith("469363");
+  });
+
+  it.each(["Explain quantity for Selected milk", "Explain line amount for Selected milk"])("opens the existing saved details from the numeric control: %s", async (name) => {
+    const exact = fixture();
+    exact.plan.itemReviews![0].requiresApproval = false;
+    show(exact);
+    const trigger = screen.getByRole("button", { name });
+    trigger.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByText("Whole-pack rounding")).toBeTruthy();
+    expect(document.body.textContent).toContain("20,00 € / KI × 1 KI = 20,00 €");
+    await waitFor(() => expect(api.product).toHaveBeenCalledExactlyOnceWith("469363"));
+    expect(screen.getByRole("button", { name: "Hide details" })).toBeTruthy();
   });
 
   it("loads full product details on demand even without dietary requirements", async () => {

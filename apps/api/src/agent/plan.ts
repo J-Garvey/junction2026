@@ -423,6 +423,8 @@ export function verdictSummary(p: Plan): string {
 /** Scene 2 and every request: quote at the gateway, then ask or order. */
 export async function quoteAndDecide(plan: StoredPlan, personToken?: string): Promise<StoredPlan> {
   const t0 = performance.now();
+  // A validation-only result must not inherit product-check timings from an earlier run.
+  plan.timings = null;
   plan.stage = "order";
   plan.error = null;
   plan.proposal = false;

@@ -8,6 +8,7 @@ import { CoverageLine, Fixture, Status } from "../ui/Status";
 import { OthersWaiting, QuestionCard } from "../ui/QuestionCard";
 import { CutoffBoard, DiffView, DishView, LinesList, MoneyView, Section, sortGapsFirst, lineStatus, isGap } from "../ui/PlanView";
 import { Outcome } from "./Request";
+import { ProcessingTime } from "../ui/ProcessingTime";
 import { day, plural, when } from "../format";
 import { Icon } from "../ui/icons";
 
@@ -142,6 +143,8 @@ export function EventPage() {
         </div>
       </div>
 
+      <ProcessingTime processing={ev.processing} />
+
       <div className="scenebar">
         <SceneCard n="1" title="Viability" time={sc?.["1"]?.time} on={status?.clock.scene === "1"}>
           <button type="button" className="btn sm" disabled={!!busy} onClick={() => act("via", () => api.viability(ev.id), "1")}>
@@ -250,7 +253,7 @@ export function EventPage() {
             {v === "dish" ? (
               <DishView plan={plan} warnings={warnings} onRemove={removeLine} />
             ) : (
-              <MoneyView plan={plan} warnings={warnings} cap={rules?.mandate.spendCapEur ?? null} vat={order?.totalVat ?? null} onRemove={removeLine} />
+              <MoneyView plan={plan} warnings={warnings} cap={rules?.mandate.spendCapEur ?? null} vatOrder={order} onRemove={removeLine} />
             )}
           </Section>
         </>

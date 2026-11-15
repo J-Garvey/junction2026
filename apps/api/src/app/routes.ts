@@ -13,7 +13,7 @@ import { kvGet, kvSet } from "../db.js";
 import { FIXED, rulesView } from "../rules/catalogue.js";
 import { PARAMS, policyParams, storedPolicy } from "../rules/policy.js";
 import { defaultRuleParams, editRules, resetRules, RuleEditError } from "../rules/editor.js";
-import { getProduct, getProductDetails, catalogSize } from "../catalog.js";
+import { getProduct, getProductDetails, catalogSize, searchProducts } from "../catalog.js";
 import { interpretMessage } from "../agent/message.js";
 import { logSearch } from "../searchlog.js";
 import { matchesCurrentShortlists, shortlist } from "../agent/match.js";
@@ -23,16 +23,19 @@ import { newPlan, quoteAndDecide, getPlan, listPlans, mandate, savePlan, emptyOv
 import { questionsFor, allQuestions, getQuestion, canAnswer } from "../agent/questions.js";
 import { answer } from "../agent/answers.js";
 import { addDietGroup, changeEvent, changeGuests, coverageSummary, EditConflict, eventView, finalCheck, getEvent, listEvents, orderEvent, removeNeed, runCutoff, runViability, saveEvent, warnings, personActor, type StoredEvent } from "../agent/events.js";
-import { newId } from "../util.js";
+import { isCalendarDate, newId } from "../util.js";
 import { MenuBody, menuRequest, saveMenu, scaleMenu } from "../agent/menu.js";
 import { listRemembered } from "../agent/memory.js";
 import { seedReset, OUTLETS, OUTSIDE_AGENT_TOKEN, VALIO_VIEWER_TOKEN } from "../seed.js";
+import { seedHotelWorkspace } from "../seed-workspace.js";
 import { gw, GatewayError } from "../agent/gatewayClient.js";
-import { dataMode } from "../aimo/lookup.js";
+import { dataMode, lookup, UpstreamError } from "../aimo/lookup.js";
+import { inspectDelivery } from "./productInspection.js";
 import { config } from "../config.js";
 import { modelConfigured, modelName } from "../agent/openai.js";
 import { basketReview, submitBasketForReview, invalidateBasketReview, BasketReviewError, basketChangeToken, correctBasketRequest, changeBasket, assertBasketIdle } from "../agent/baskets.js";
 import { approvalLevels, basketStatus, pendingQuestions } from "../agent/basketSummary.js";
+import { measureProcessing, processingClock } from "./processing.js";
 
 type Authed = Request & { person: Person; token: string };
 
@@ -66,6 +69,7 @@ export function appRouter(): Router {
     res.json({
       clock: { ...clockState(), now: now().toISOString(), scenes: SCENES },
       dataMode: dataMode(),
+      seedProfile: kvGet("seedProfile"),
       model: { provider: "openai", model: modelName(), configured: modelConfigured() },
       catalogue: catalogSize(),
       testMode: config.testMode,
@@ -82,9 +86,11 @@ export function appRouter(): Router {
     res.json({ person: p, token });
   });
 
-  r.post("/reset", (_req, res) => {
+  r.post("/reset", async (req, res) => {
     if (!config.testMode) return res.status(403).json({ error: "Test mode only" });
-    seedReset();
+    const { profile } = z.object({ profile: z.enum(["story", "hotel"]).default("story") }).parse(req.body ?? {});
+    if (profile === "hotel") await seedHotelWorkspace();
+    else seedReset();
     res.json({ ok: true });
   });
 
@@ -102,6 +108,7 @@ export function appRouter(): Router {
   });
 
   r.use(person);
+  r.use(measureProcessing);
 
   r.get("/me", (req, res) => res.json({ person: P(req) }));
 
@@ -130,17 +137,20 @@ export function appRouter(): Router {
 
   // Chat box: route the message (MESSAGE-ROUTE), then parse a new request into chips (REQUEST-PARSE).
   r.post("/messages", async (req, res) => {
+    const started = processingClock.now();
     const { text } = messageBody.parse(req.body);
     const { route, parsed } = await interpretMessage(text);
     if (route.route === "event_change") {
       const m = text.match(/(\d{1,5})\s*guests?/i);
-      return res.json({ route: "event_change", guests: m ? Number(m[1]) : null, events: listEvents().map((e) => ({ id: e.id, name: e.name, guests: e.guests, version: e.version })), judgement: route.judgement });
+      const guests = m ? Number(m[1]) : null;
+      const parsedEntry = audit({ actor: personActor(P(req)), action: "request_parsed", summary: "Interpreted an event change", details: { route: "event_change", guests, processingMs: Math.round(processingClock.now() - started) }, visibility: "hotel" });
+      return res.json({ route: "event_change", parseAuditId: parsedEntry.id, guests, events: listEvents().map((e) => ({ id: e.id, name: e.name, guests: e.guests, version: e.version })), judgement: route.judgement });
     }
     if (route.route === "neither") return res.json({ route: "neither", message: "I can take a new request or a change to an event." });
     if (!parsed) throw new Error("Missing request interpretation");
     logSearch({ source: "request_parse", query: text, interpreted: { route: route.route, parsedBy: parsed.request.parsedBy, note: parsed.note, neededBy: parsed.request.neededBy, neededByText: parsed.request.neededByText, lines: parsed.request.lines } });
-    audit({ actor: personActor(P(req)), action: "request_parsed", summary: `Parsed "${text.slice(0, 80)}" into ${parsed.request.lines.length} line(s) (${parsed.request.parsedBy})`, details: { request: parsed.request }, visibility: "hotel", judgements: route.judgement ? [route.judgement] : [] });
-    res.json({ route: route.route === "unsure" ? "new_request_unsure" : "new_request", request: { ...parsed.request, siteId: mandate().sites[0].id, outletId: P(req).outlets[0] ?? "banquet" }, note: parsed.note });
+    const parsedEntry = audit({ actor: personActor(P(req)), action: "request_parsed", summary: `Parsed "${text.slice(0, 80)}" into ${parsed.request.lines.length} line(s) (${parsed.request.parsedBy})`, details: { request: parsed.request, processingMs: Math.round(processingClock.now() - started) }, visibility: "hotel", judgements: route.judgement ? [route.judgement] : [] });
+    res.json({ route: route.route === "unsure" ? "new_request_unsure" : "new_request", request: { ...parsed.request, parseAuditId: parsedEntry.id, siteId: mandate().sites[0].id, outletId: P(req).outlets[0] ?? "banquet" }, note: parsed.note });
   });
 
   // UI-04 confirmed chips → a plan → quote → questions or an order.
@@ -541,6 +551,31 @@ export function appRouter(): Router {
     } catch (e) {
       if (e instanceof RuleEditError) return res.status(403).json({ error: e.message });
       throw e;
+    }
+  });
+  // Catalogue inspection is account-scoped and read-only, separate from request planning.
+  const canInspectProducts = (req: Request) => P(req).hotelId === HOTEL_ID && (P(req).hotelScope || P(req).outlets.length > 0);
+  r.get("/products", (req, res) => {
+    if (!canInspectProducts(req)) return res.status(403).json({ error: "Outside your hotel scope" });
+    const { q } = z.object({ q: z.string().trim().max(200).default("") }).parse(req.query);
+    const exact = q ? getProduct(q) : null;
+    res.json({ products: exact ? [exact] : q ? searchProducts({ q, limit: 50 }) : [], sites: mandate().sites.map(({ id, name }) => ({ id, name })), source: "Local catalogue" });
+  });
+  r.get("/products/:id/supplier", async (req, res) => {
+    if (!canInspectProducts(req)) return res.status(403).json({ error: "Outside your hotel scope" });
+    const { siteId, requestedDate } = z.object({ siteId: z.string().min(1), requestedDate: z.string().refine(isCalendarDate, "Use a valid YYYY-MM-DD date") }).parse(req.query);
+    const site = mandate().sites.find((candidate) => candidate.id === siteId);
+    if (!site) return res.status(403).json({ error: "Outside your delivery site scope" });
+    const product = getProductDetails(String(req.params.id));
+    if (!product) return res.status(404).json({ error: "Not in catalogue" });
+    try {
+      const { lines, fallback } = await lookup([product.id], requestedDate);
+      const evaluatedAt = now();
+      res.setHeader("Cache-Control", "no-store");
+      res.json({ product, lookup: lines[0], site: { id: site.id, name: site.name }, requestedDate, evaluatedAt: evaluatedAt.toISOString(), fallback, delivery: inspectDelivery(product, lines[0], requestedDate, evaluatedAt) });
+    } catch (error) {
+      if (error instanceof UpstreamError) return res.status(503).json({ error: "upstream_unavailable", message: "Supplier terms could not be checked. Try again." });
+      throw error;
     }
   });
   r.get("/products/:id", (req, res) => {

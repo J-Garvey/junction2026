@@ -18,10 +18,13 @@ For development, `pnpm dev` runs the API with `tsx watch` and the Vite app on po
 |---|---|
 | `pnpm test` | 59 tests: the live console with a scripted model, rule units, the three PRD test cases end to end (the wedding twice from a fresh reset), and signature checks |
 | `pnpm seed` | Fresh database: one hotel, four people, the mandate, the event, clock at scene 1 |
+| `pnpm seed:demo` | Populated hotel workspace: seven bookings, a signed order, pending finance/stock decisions, a returned review, an allergen block and draft menus. See [demo seed data](demo-seed-data.md) |
 | `pnpm agent:demo` | An outside agent that uses only `/openapi.json` and its token: search, quote, order, retry, and the refusals |
 | `pnpm fixtures:record` | Saves real mock responses for the seed pool to `data/fixtures/aimo/base.json`. `-- --add-missing` records only products not yet saved and merges them in |
 
 ### Settings
+
+For a populated walkthrough, use **Demo settings → Load hotel workspace**. It replaces the demo database with fictional hotel activity at 11 Nov, 10:00 Helsinki, while keeping the wedding ready to start. **Reset demo** retains the original scene-1 wedding-only reset. See [the preset contents and recording instructions](demo-seed-data.md).
 
 The server reads the environment, then the untracked `.env.local`, then the tracked `.env`. Keep new keys in `.env.local` (owner-only). The same secrets are in the GitHub repository's Actions secrets (`AIMO_API_KEY`, `AIMO_PORTAL_PASSWORD`, `OPENAI_API_KEY`, `CONTEXT_DEV_API_KEY`, `PREVIEW_PASSWORD`), with `OPENAI_MODEL` and `OPENAI_REASONING_EFFORT` as Actions variables.
 
@@ -90,6 +93,10 @@ The home request input and add-to-order input prepare searches after a 600 ms ty
 
 Run `pnpm --filter @aimo/api latency:check` for an isolated HTTP and catalogue benchmark with a scripted model and no supplier calls. Add `--live-model` to measure the configured OpenAI model, `--search-only` for catalogue work alone, or `--out <path>` to save measurements and result hashes. The report distinguishes the first request from repeated requests and records model call counts, code revision and whether tracked files were modified. These small local samples are diagnostic, not a production latency guarantee.
 
+### Stage processing totals
+
+Request results, item review and event results show one saved `processing` total with the milestone actually reached: chef input, a blocked result, review, approval, an applied change or a completed check. The server measures each submitted call with `performance.now()`, from authenticated dispatch until the computed result has been saved, before response serialization. A request includes the preceding submitted message's parsing time when its `parseAuditId` resolves to that person's saved audit evidence; direct requests and older snapshots omit missing parsing measurements. Quote creation is included. A resumed decision adds only its processing call, excluding time spent reviewing chips or waiting for chef/finance decisions. An explicit request edit or event-stage action starts its own total. Reading a saved result or moving the fixture clock cannot restart it. Browser transport/rendering and speculative preparation are outside this server-processing measurement. Existing `Plan.timings` and gateway-call measurements keep their separate scopes.
+
 ## Open standards
 
 | Standard | Where |
@@ -126,6 +133,8 @@ Where the build differs from the demo plan, by rule:
 ## The milk request (PRD test case 2)
 
 The automatic pick prioritises price: 1,000 L of Valio Eila (464306), with unconfirmed stock visibly disclosed. The chef decides whether to continue (D31); keeping only the confirmed 435 L from 469363 and 462775 remains an alternative and requires partial-fill approval.
+
+**Selection funnel** opens under each searched need in the event's dish view, under the request's candidate table, and through **View details** in item review. For the 40 L lactose-free milk line, each stage uses the saved bounded shortlist and actual ranking exclusions; opening it lists product IDs, names, rule IDs and reasons. A product removed at both cutoff and type checks counts once, with both saved reasons visible. Product-type evidence preserves uncertain verdicts, probabilities, thresholds and recorded sources. The final ranking lists every retained candidate and marks products selected in the plan separately from alternatives. Ranking does not confirm stock or approval. Recipe-pinned lines such as the seeded salmon do not claim a search funnel. Older snapshots without a trace show only saved evidence and explain that the original shortlist cannot be reconstructed.
 
 ## Answers the build had to choose
 

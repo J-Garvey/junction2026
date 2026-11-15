@@ -74,7 +74,7 @@ describe("core page navigation without top tabs", () => {
     mount();
     const profile = await screen.findByRole("button", { name: "Signed in as Mikko" });
     profile.focus();
-    await user.keyboard("{Enter}{ArrowDown}{ArrowDown}");
+    await user.keyboard("{Enter}{ArrowDown}{ArrowDown}{ArrowDown}");
     expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: "Waiting" }));
     await user.keyboard("{Enter}");
     await screen.findByRole("heading", { name: "Waiting for you" });

@@ -174,6 +174,22 @@ export const FiredRule = z.object({
 });
 export type FiredRule = z.infer<typeof FiredRule>;
 
+/** Read-only supplier evidence for a single catalogue product; never a quote. */
+export const ProductInspection = z.object({
+  product: ProductDetails,
+  lookup: LookupLine,
+  site: z.object({ id: z.string(), name: z.string() }),
+  requestedDate: z.string(),
+  evaluatedAt: z.string(),
+  fallback: z.string().nullable(),
+  delivery: z.object({
+    state: z.enum(["not_available", "sales_blocked", "cutoff_passed", "stock_unconfirmed", "scheduled", "unknown", "after_requested_date", "out_of_stock"]),
+    message: z.string(),
+    rules: z.array(FiredRule),
+  }),
+});
+export type ProductInspection = z.infer<typeof ProductInspection>;
+
 export const ModelJudgement = z.object({
   fn: z.string(),
   question: z.string(),
@@ -497,6 +513,8 @@ export type SingleLine = z.infer<typeof SingleLine>;
 
 export const SingleRequest = z.object({
   kind: z.literal("single"),
+  /** Reference to server-saved parsing evidence; never a client-supplied duration. */
+  parseAuditId: z.string().optional(),
   originalText: z.string(),
   siteId: z.string().nullable(),
   outletId: z.string(),
