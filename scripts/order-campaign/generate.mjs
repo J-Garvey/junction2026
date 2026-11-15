@@ -153,6 +153,17 @@ export function buildCorpus() {
     const global=n<125?'all products must be gluten-free':'all products must be Finnish';
     add(lines.map(l=>`${l.amount} ${l.unit} ${l.product} ${l.productId}`).join('; ')+`, ${global} by 2026-11-16`,'fixture_combinations',{lineCount:3,lines,neededBy:'2026-11-16',...(n<125?{globalClaims:['FREE_FROM_GLUTEN']}:{globalOrigin:'fi'})},{plan:true,tags:['fixture_focused','full_planning','product_combinations']});
   }
+  for(const [input,family,scenario,expected,sequence] of [
+    ['add 2 kg salmon 469672','no_eligible',{drafts:[],noSeedEvent:true},{disposition:'clarify_no_order',mustNotMutate:true}],
+    ['add 3 kg salmon 469672','one_eligible',{drafts:['Darragh'],noSeedEvent:true},{scope:['Darragh'],operation:'add',amount:3,unit:'kg'}],
+    ['add 4 kg salmon 469672','several_eligible',{drafts:['Darragh','Pavit'],noSeedEvent:true},{disposition:'clarify_order',mustNotMutate:true}],
+    ['add 5 kg salmon 469672 to {DarraghId}','order_id',{drafts:['Darragh','Pavit'],noSeedEvent:true},{scope:['Darragh'],operation:'add',amount:5,unit:'kg'}],
+    ['add 6 kg salmon 469672 to Darragh','restricted_scope',{drafts:['Darragh','Pavit'],noSeedEvent:true,actorAfterSeed:'p-mikko'},{disposition:'deny_or_clarify',mustNotMutate:true}],
+    ['add 1 kg salmon 469672 to Darragh then replay after reconnect','reconnect_replay',{drafts:['Darragh'],noSeedEvent:true},{rejectPriorDelivery:true},['add 1 kg salmon 469672 to Darragh','confirm change']],
+    ['10 houses for Conference','nonsense_named',{drafts:['Conference'],noSeedEvent:true},{mustNotMutate:true,disposition:'clarify_or_unmatched'}],
+    ['add another 1 kg salmon to Darragh','additive_confirm',{drafts:['Darragh'],noSeedEvent:true},{scope:['Darragh'],operation:'increment',initialKg:2,finalKg:3},['add another 1 kg salmon to Darragh','confirm change']],
+    ['add 1 additional kilo of salmon to Darragh','additive_kilo',{drafts:['Darragh'],noSeedEvent:true},{scope:['Darragh'],operation:'increment',initialKg:2,finalKg:3},['add 1 additional kilo of salmon to Darragh','confirm change']],
+  ])add(input,family,expected,{channel:'whatsapp',scenario,sequence,...(family==='reconnect_replay'?{special:'reconnect_replay'}:{})});
   return cases;
 }
 if(process.argv[1]&&resolve(process.argv[1])===resolve(import.meta.filename)) {

@@ -35,7 +35,12 @@ globalThis.fetch=async(input:any,init?:any)=>{
 };
 const express=(await import('express')).default;
 const {createApp}=await import('../../server.js');
+const {getDb}=await import('../../db.js');
 const app=express();app.use((req,res,next)=>context.run({attempt:String(req.headers['x-campaign-attempt']??'support')},next));
+app.post('/campaign/fixture-remove-default-event',(_req,res)=>{
+  getDb().prepare('DELETE FROM events WHERE id = ?').run('evt-wedding');
+  res.json({fixture:true,removed:'evt-wedding',reason:'explicit no/one/several draft-order scenario'});
+});
 app.get('/campaign/status',(_req,res)=>res.json({sha,mode:realModel?'real-model-enabled':'model-disabled',modelConfigured:!!config.openai.apiKey,model:config.openai.model,supplierGuard:true,telemetryCount:telemetry.length}));
 app.get('/campaign/telemetry',(req,res)=>res.json({events:telemetry.slice(Number(req.query.since??0)),count:telemetry.length}));
 app.use(createApp());

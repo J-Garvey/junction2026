@@ -22,18 +22,20 @@ const http=async(path,body,attempt='support',auth=token)=>{
  return {method:body===undefined?'GET':'POST',path,body:body===undefined?null:body,...result};
 };
 const support=async(path,body)=>{setupCalls++;const r=await http(path,body);if(r.status<200||r.status>=300||r.status===null)throw Error(`support ${path} HTTP ${r.status}`);return r.response};
-async function reset(person='p-aino',names=[]){
+async function reset(person='p-aino',names=[],fixture={}){
  await support('/api/reset',{});token=(await support('/api/session',{personId:person})).token;
  await support('/api/clock',{time:'2026-11-14T10:00:00Z'});
+ if(fixture.noSeedEvent)await support('/campaign/fixture-remove-default-event',{});
  const drafts=[];
  for(const name of names){const basket=(await support('/api/baskets',{name,deliveryDate:'2026-11-16',guests:100})).basket;drafts.push(basket);}
  if(names.length){
    // Seed a real saved draft line via production HTTP, with the known fixture SKU.
    const parsed=await support('/api/messages',{text:'2 kg salmon 469672'});
    for(const draft of drafts){const r=await support('/api/requests',{request:{...parsed.request,neededBy:'2026-11-16'},eventId:draft.id,reviewing:true});if(r.plan?.proposal)await support(`/api/plans/${r.plan.id}/basket`,{continueWithWarnings:true});}
-   await support('/api/whatsapp/connect',{displayName:'Synthetic campaign'});
  }
- return {clock:'2026-11-14T10:00:00Z',person,drafts,seededLines:names.length?[{productId:'469672',quantityKg:2,via:'production parse/plan/basket endpoints'}]:[]};
+ if(fixture.chat)await support('/api/whatsapp/connect',{displayName:'Synthetic campaign'});
+ if(fixture.actorAfterSeed)token=(await support('/api/session',{personId:fixture.actorAfterSeed})).token;
+ return {clock:'2026-11-14T10:00:00Z',person,effectivePerson:fixture.actorAfterSeed||person,removedDefaultEvent:!!fixture.noSeedEvent,drafts,seededLines:names.length?[{productId:'469672',quantityKg:2,via:'production parse/plan/basket endpoints'}]:[]};
 }
 function status(extra={}){
  const all=[...previous,...currentRows];
@@ -52,13 +54,14 @@ for(const c of cases){
  const attemptId=`${c.caseId}:${runId}:${randomUUID().slice(0,8)}`;
  let scenario=initial,related=[],snapshots={},body,path;
  try{
-   if(c.channel==='whatsapp')scenario=await reset(c.scenario?.person||'p-aino',c.scenario?.drafts||['Darragh','Pavit','Conference']);
+   if(c.channel==='whatsapp')scenario=await reset(c.scenario?.person||'p-aino',c.scenario?.drafts||['Darragh','Pavit','Conference'],{...c.scenario,chat:true});
    const before=await support('/campaign/telemetry');const cursor=before.count;
    if(c.channel==='whatsapp'){
      snapshots.before=await support('/api/baskets');snapshots.draftDetailsBefore=[];
      for(const d of scenario.drafts)snapshots.draftDetailsBefore.push(await support(`/api/baskets/${d.id}`));
      if(c.scenario?.selectActive)related.push({...await http('/api/whatsapp/messages',{id:`${attemptId}:select`,text:c.scenario.selectActive,groupId:'demo-hotel-orders'},attemptId),purpose:'select-active-order'});
-     const sequence=c.sequence||[c.input];let main;
+     if(c.scenario?.actorAfterSeed)await support('/api/whatsapp/connect',{displayName:'Synthetic restricted actor'});
+     const sequence=(c.sequence||[c.input]).map(text=>text.replaceAll('{DarraghId}',scenario.drafts.find(d=>d.name==='Darragh')?.id||'missing-order'));let main;
      for(const [i,text] of sequence.entries()){
        body={id:`${attemptId}:${i}`,text,groupId:'demo-hotel-orders'};
        const r=await http('/api/whatsapp/messages',body,attemptId);related.push(r);main??=r;
