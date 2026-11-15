@@ -88,7 +88,8 @@
           "amount": 10,
           "unit": "l",
           "avoidAllergens": [
-            "AN"
+            "AN",
+            "AP"
           ]
         }
       ]
@@ -267,7 +268,8 @@
           "unit": "pcs"
         }
       ]
-    }
+    },
+    "inspectCatalog": true
   },
   {
     "caseId": "AUD-alternative",
@@ -1499,6 +1501,125 @@
           "quantityUnspecified": true
         }
       ]
+    }
+  },
+  {
+    "caseId": "AUD-wa-sequence-replay",
+    "family": "confirmation-replay",
+    "channel": "whatsapp_coordinator",
+    "input": "add 1 kg salmon 469672 to Darragh",
+    "seed": true,
+    "sequence": [
+      "add 1 kg salmon 469672 to Darragh",
+      {
+        "text": "confirm change",
+        "id": "change"
+      },
+      {
+        "text": "confirm change",
+        "id": "change"
+      },
+      {
+        "text": "add 4 kg salmon 469672 to Pavit",
+        "id": "change"
+      },
+      "confirm order",
+      {
+        "text": "confirm order",
+        "id": "checkout"
+      },
+      {
+        "text": "confirm order",
+        "id": "checkout"
+      }
+    ],
+    "expected": {
+      "noUnauthorizedMutation": true
+    }
+  },
+  {
+    "caseId": "AUD-wa-stale",
+    "family": "stale-confirmation",
+    "channel": "whatsapp_coordinator",
+    "input": "add 1 kg salmon 469672 to Darragh",
+    "seed": true,
+    "sequence": [
+      "add 1 kg salmon 469672 to Darragh",
+      "show Pavit",
+      "confirm change"
+    ],
+    "expected": {
+      "noUnauthorizedMutation": true
+    }
+  },
+  {
+    "caseId": "AUD-wa-two-scope",
+    "family": "multi-order",
+    "channel": "whatsapp_coordinator",
+    "input": "add 1 kg salmon 469672 to Darragh and Pavit",
+    "seed": true,
+    "sequence": [
+      "add 1 kg salmon 469672 to Darragh and Pavit",
+      "confirm change"
+    ],
+    "expected": {
+      "noUnauthorizedMutation": true
+    }
+  },
+  {
+    "caseId": "AUD-wa-all-scope",
+    "family": "all-orders",
+    "channel": "whatsapp_coordinator",
+    "input": "add 1 kg salmon 469672 to all orders",
+    "seed": true,
+    "sequence": [
+      "add 1 kg salmon 469672 to all orders",
+      "confirm change"
+    ],
+    "expected": {
+      "noUnauthorizedMutation": true
+    }
+  },
+  {
+    "caseId": "AUD-wa-house-block",
+    "family": "nonsense",
+    "channel": "whatsapp_coordinator",
+    "input": "add 10 houses to Darragh",
+    "seed": false,
+    "sequence": [
+      "add 10 houses to Darragh",
+      "confirm change"
+    ],
+    "expected": {
+      "noUnauthorizedMutation": true
+    }
+  },
+  {
+    "caseId": "AUD-wa-stock-unknown",
+    "family": "unknown-stock",
+    "channel": "whatsapp_coordinator",
+    "input": "add 10 l lactose-free milk 464306 to Darragh",
+    "seed": false,
+    "sequence": [
+      "add 10 l lactose-free milk 464306 to Darragh",
+      "confirm change"
+    ],
+    "expected": {
+      "noUnauthorizedMutation": true
+    }
+  },
+  {
+    "caseId": "AUD-wa-replacement",
+    "family": "substitution",
+    "channel": "whatsapp_coordinator",
+    "input": "add 1 kg salmon 469672 instead of milk to Darragh",
+    "seed": true,
+    "sequence": [
+      "add 1 kg salmon 469672 instead of milk to Darragh",
+      "confirm change"
+    ],
+    "expected": {
+      "noUnauthorizedMutation": true
     }
   }
 ]

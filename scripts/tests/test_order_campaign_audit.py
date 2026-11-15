@@ -67,6 +67,24 @@ class EvidenceBoundaries(unittest.TestCase):
         self.assertEqual(verdict, "pass")
         self.assertTrue(any("not certified" in s for s in limitations))
 
+    def test_unsafe_line_arithmetic_is_detected(self):
+        row = {"response": {"lines": [{"quantity": 10, "unitPrice": 14.11, "lineTotal": 70.55}]}}
+        self.assertTrue(any(f["rule"] == "line_total" for f in audit.audit(row, {})[1]))
+
+    def test_duplicate_plan_line_identity_is_detected(self):
+        row = {"response": {"plan": {"needs": [], "lines": [{"id": "same"}, {"id": "same"}]}}}
+        self.assertTrue(any(f["rule"] == "duplicate_plan_line_ids" for f in audit.audit(row, {})[1]))
+
+    def test_invalid_negative_can_safely_require_input(self):
+        unresolved = line()
+        unresolved["quantity"] = None
+        row = {"expected": {"lines": [{"amount": -5, "unit": "kg"}]}, "response": {"request": {"lines": [unresolved]}}}
+        self.assertEqual(audit.audit(row, {})[0], "pass")
+
+    def test_explicit_length_rejection_is_not_semantic_success(self):
+        row = {"status": 422, "response": {"error": "invalid", "message": "too long"}}
+        self.assertEqual(audit.audit(row, {})[0], "inconclusive")
+
 
 if __name__ == "__main__":
     unittest.main()

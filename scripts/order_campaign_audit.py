@@ -142,6 +142,8 @@ def audit(row, catalog, fixture=None):
         return "inconclusive", [], [], ["execution/model/service error; semantic result unavailable"]
     if not isinstance(response, dict):
         return "unreviewed", [], [], ["response shape unsupported by oracle"]
+    if isinstance(http_status, int) and http_status >= 400:
+        return "inconclusive", [], ["request explicitly rejected"], [f"HTTP {http_status}: {response.get('message', response.get('error'))}; no semantic parse or downstream capability certified"]
     interpretation = response.get("interpretation")
     if isinstance(interpretation, dict) and expected.get("intent"):
         checks.append("independently specified interpreter intent")
@@ -185,6 +187,12 @@ def audit(row, catalog, fixture=None):
             if exp.get("product") and not set(product_tokens(exp["product"])).issubset(product_tokens(got.get("query"))):
                 failures.append({"rule": "product_words_lost", "line": i, "expected": exp["product"], "observed": got.get("query")})
             for key in ("amount", "unit"):
+                if not got.get("quantity") and exp.get("amount", 1) <= 0:
+                    checks.append("invalid quantity safely left unresolved")
+                    continue
+                if not got.get("quantity") and key in exp:
+                    limitations.append("explicit quantity unresolved; safe clarification may be appropriate, exact parse not certified")
+                    continue
                 if key in exp and not same((got.get("quantity") or {}).get(key), exp[key]):
                     failures.append({"rule": f"quantity_{key}", "line": i, "expected": exp[key], "observed": got.get("quantity")})
             if exp.get("quantityUnspecified") and got.get("quantity"):
@@ -287,7 +295,8 @@ def audit(row, catalog, fixture=None):
         limitations.append("parse evidence only: no assertion about product selections, checkout, stock or replay")
     if not checks:
         return "unreviewed", failures, checks, limitations + ["no supported independent semantic oracle for this row"]
-    return ("fail" if failures else "pass"), failures, sorted(set(checks)), sorted(set(limitations))
+    disposition = "fail" if failures else "inconclusive" if any("quantity unresolved" in s for s in limitations) else "pass"
+    return disposition, failures, sorted(set(checks)), sorted(set(limitations))
 
 
 def atomic_json(path, value):
@@ -332,10 +341,15 @@ def main():
     automatic = [r for r in ledger if r["method"] == "independent_rules"]
     manual = [r for r in ledger if r["method"] == "manual_semantic"]
     counts = collections.Counter(r["verdict"] for r in automatic)
+    findings = {r["findingId"]: r for _, r in rows(args.campaign / "findings.jsonl")}
+    generator_path = args.campaign / "generator-status.json"
+    generator = json.loads(generator_path.read_text(encoding="utf-8-sig")) if generator_path.exists() else {}
     atomic_json(args.campaign / "audit-status.json", dict(
-        timestamp=dt.datetime.now(dt.timezone.utc).isoformat(), state="auditing", oracleVersion=VERSION,
+        timestamp=dt.datetime.now(dt.timezone.utc).isoformat(), state="auditing", role="independent_auditor", oracleVersion=VERSION,
         auditedRows=len(automatic), verdicts=dict(counts), methods=dict(collections.Counter(r["method"] for r in ledger)),
         manualVerdicts=dict(collections.Counter(r["verdict"] for r in manual)), oracleRevision=ORACLE_REVISION,
+        findingStates={k: v["state"] for k, v in findings.items()}, worktree=str(ROOT),
+        generatorState={k: generator.get(k) for k in ("state", "phase", "uniqueExecuted", "executedRows", "sha", "modelMode")},
         limitation="Rule passes certify listed checks only. All automatic failures are provisional until reproduced in findings.jsonl. Revisions supersede older oracle records by evidence path+line+method. Manual samples are finite and separately counted. Generator still active."))
     print(json.dumps({"rows": len(automatic), "verdicts": counts, "manualReviews": len(manual)}))
 
