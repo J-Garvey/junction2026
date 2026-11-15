@@ -15,6 +15,10 @@
     <nav aria-label="Presentation controls">
       <label class="sr-only" for="slide-picker">Jump to a slide</label>
       <select id="slide-picker" disabled><option>Loading slides…</option></select>
+      <div class="view-toggle" role="group" aria-label="Slide view">
+        <button id="single-view" type="button" aria-pressed="true" title="Single slide (G to toggle)" disabled>Single</button>
+        <button id="grid-view" type="button" aria-pressed="false" title="Grid view (G to toggle)" disabled>Grid <kbd>G</kbd></button>
+      </div>
       <button id="notes-toggle" type="button" aria-pressed="true" title="Toggle script (N)">Script <kbd>N</kbd></button>
       <button id="fullscreen" type="button" title="Full screen (F)" aria-label="Enter full screen">Full screen <kbd>F</kbd></button>
     </nav>
@@ -24,13 +28,16 @@
       <div><p id="section" class="eyebrow">Wedding demo</p><h1 id="slide-title">Loading the walkthrough…</h1></div>
       <p id="counter" class="counter" aria-live="polite"></p>
     </div>
-    <figure class="screen"><img id="screenshot" alt="" decoding="async"><p id="image-error" hidden>This screenshot could not load. Try refreshing the page.</p></figure>
-    <section id="speaker-notes" class="speaker-notes" aria-label="Suggested speaker script">
-      <p class="eyebrow">Suggested script</p>
-      <p id="script"></p>
-      <p id="action" class="action"></p>
-      <details id="recording-note" hidden><summary>Recording note</summary><p id="note"></p></details>
-    </section>
+    <div id="single-slide">
+      <figure class="screen"><img id="screenshot" alt="" decoding="async"><p id="image-error" hidden>This screenshot could not load. Try refreshing the page.</p></figure>
+      <section id="speaker-notes" class="speaker-notes" aria-label="Suggested speaker script">
+        <p class="eyebrow">Suggested script</p>
+        <p id="script"></p>
+        <p id="action" class="action"></p>
+        <details id="recording-note" hidden><summary>Recording note</summary><p id="note"></p></details>
+      </section>
+    </div>
+    <ol id="slide-grid" class="slide-grid" aria-label="All slides in order; choose a slide to open it" hidden></ol>
     <p id="load-error" role="alert" hidden>The walkthrough could not load. Please refresh to try again.</p>
   </main>
   <footer>

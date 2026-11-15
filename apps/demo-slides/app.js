@@ -4,8 +4,11 @@
   let slides = [];
   let current = 0;
   let notesVisible = true;
+  let gridMode = false;
+  const gridCards = [];
   const screenshot = el('screenshot');
   const picker = el('slide-picker');
+  const grid = el('slide-grid');
   const readHash = () => {
     const match = location.hash.match(/^#slide=(\d+)$/);
     return match ? Number(match[1]) - 1 : 0;
@@ -37,10 +40,77 @@
     el('progress').style.width = `${((current + 1) / slides.length) * 100}%`;
     document.title = `${current + 1}. ${slide.title} · Aimo demo`;
     if (updateHash) history.replaceState(null, '', `#slide=${current + 1}`);
+    updateGridSelection();
     for (const adjacent of [current - 1, current + 1]) {
       if (slides[adjacent]) { const preload = new Image(); preload.src = slides[adjacent].image; }
     }
   }
+  function updateGridSelection() {
+    gridCards.forEach((card, index) => {
+      if (index === current) card.setAttribute('aria-current', 'step');
+      else card.removeAttribute('aria-current');
+    });
+    if (gridMode && gridCards[current]) {
+      if (grid.contains(document.activeElement)) gridCards[current].focus({ preventScroll: true });
+      gridCards[current].scrollIntoView({ block: 'nearest' });
+    }
+  }
+  function buildGrid() {
+    if (gridCards.length) return;
+    slides.forEach((slide, index) => {
+      const item = document.createElement('li');
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'grid-card';
+      card.title = `Open slide ${index + 1} in single view`;
+      const image = document.createElement('img');
+      image.src = slide.image;
+      image.alt = `${index + 1}. ${slide.title}`;
+      image.loading = 'lazy';
+      image.decoding = 'async';
+      const heading = document.createElement('span');
+      heading.className = 'grid-title';
+      heading.textContent = `${String(index + 1).padStart(2, '0')} · ${slide.title}`;
+      const notes = document.createElement('span');
+      notes.className = 'grid-notes';
+      const script = document.createElement('span');
+      script.className = 'grid-script';
+      script.textContent = slide.script || '';
+      const action = document.createElement('span');
+      action.className = 'action';
+      if (slide.action) {
+        const label = document.createElement('strong');
+        label.textContent = 'On screen';
+        action.append(label, document.createTextNode(slide.action));
+      }
+      notes.append(script, action);
+      card.append(image, heading, notes);
+      card.addEventListener('click', () => {
+        show(index);
+        setView(false);
+      });
+      item.append(card);
+      grid.append(item);
+      gridCards.push(card);
+    });
+  }
+  function setView(useGrid) {
+    if (!slides.length) return;
+    gridMode = useGrid;
+    if (gridMode) buildGrid();
+    el('single-slide').hidden = gridMode;
+    grid.hidden = !gridMode;
+    el('single-view').setAttribute('aria-pressed', String(!gridMode));
+    el('grid-view').setAttribute('aria-pressed', String(gridMode));
+    document.body.classList.toggle('grid-view', gridMode);
+    const hiddenView = gridMode ? el('single-slide') : grid;
+    if (hiddenView.contains(document.activeElement)) {
+      el(gridMode ? 'grid-view' : 'single-view').focus({ preventScroll: true });
+    }
+    updateGridSelection();
+    if (!gridMode) window.scrollTo(0, 0);
+  }
+  const toggleView = () => setView(!gridMode);
   function toggleNotes() {
     notesVisible = !notesVisible;
     el('speaker-notes').hidden = !notesVisible;
@@ -57,6 +127,8 @@
   el('next').addEventListener('click', () => show(current + 1));
   picker.addEventListener('change', () => show(Number(picker.value)));
   el('notes-toggle').addEventListener('click', toggleNotes);
+  el('single-view').addEventListener('click', () => setView(false));
+  el('grid-view').addEventListener('click', () => setView(true));
   el('fullscreen').addEventListener('click', toggleFullscreen);
   screenshot.addEventListener('error', () => { el('image-error').hidden = false; });
   screenshot.addEventListener('load', () => { el('image-error').hidden = true; });
@@ -73,7 +145,8 @@
       ' ': () => show(current + (event.shiftKey ? -1 : 1)),
       ArrowLeft: () => show(current - 1), PageUp: () => show(current - 1),
       Home: () => show(0), End: () => show(slides.length - 1),
-      f: toggleFullscreen, F: toggleFullscreen, n: toggleNotes, N: toggleNotes
+      f: toggleFullscreen, F: toggleFullscreen, n: toggleNotes, N: toggleNotes,
+      g: toggleView, G: toggleView
     };
     if (actions[event.key]) { event.preventDefault(); actions[event.key](); }
   });
@@ -100,6 +173,8 @@
       group.append(option);
     });
     picker.disabled = false;
+    el('single-view').disabled = false;
+    el('grid-view').disabled = false;
     show(readHash());
     el('presentation').setAttribute('aria-busy', 'false');
   }).catch(() => {
