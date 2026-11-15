@@ -239,7 +239,15 @@ def confirmation_checks(row):
 def audit(row, catalog, fixture=None):
     failures, checks, limitations = [], [], []
     response = row.get("response", row.get("output", {}))
-    expected = row.get("auditExpected", row.get("expected", {})) or {}
+    expected = dict(row.get("auditExpected", row.get("expected", {})) or {})
+    # The corpus can state an all-line qualifier separately from its per-item
+    # table. This independent finite seed vocabulary is not a text parser.
+    qualifier = {"vegan": ("globalClaims", ["VEGAN"]),
+                 "gluten-free": ("globalClaims", ["FREE_FROM_GLUTEN"]),
+                 "nut-free": ("globalAvoidAllergens", ["AN", "AP"])}.get(expected.get("globalQualifier"))
+    if qualifier:
+        field, values = qualifier
+        expected[field] = sorted(set(expected.get(field, [])) | set(values))
     request = parsed_request(response)
     stage = row.get("stage", "unknown")
     http_status = row.get("status", 200)

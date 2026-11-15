@@ -120,6 +120,12 @@ class EvidenceBoundaries(unittest.TestCase):
         row = {"expected": {"oracle": "independent", "globalAvoidAllergens": ["AN"], "lines": [{"product": "milk", "avoidAllergens": ["AM"]}]}, "response": {"request": {"lines": [actual]}}}
         self.assertEqual(audit.audit(row, {})[0], "pass")
 
+    def test_explicit_corpus_qualifier_is_part_of_independent_expected_intent(self):
+        actual = line()
+        actual["constraints"]["claims"] = ["VEGAN", "FREE_FROM_LACTOSE"]
+        row = {"expected": {"oracle": "independent", "globalQualifier": "vegan", "lines": [{"product": "milk", "claims": ["FREE_FROM_LACTOSE"]}]}, "response": {"request": {"lines": [actual]}}}
+        self.assertEqual(audit.audit(row, {})[0], "pass")
+
     def test_explicit_sku_can_establish_identity_without_name_in_query(self):
         actual = line()
         actual.update(query="469363", productId="469363")
