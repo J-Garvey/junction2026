@@ -1,0 +1,6 @@
+.product-search { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
+.product-search label { display: flex; flex-direction: column; gap: 5px; font-size: 13px; }
+.product-search input, .product-search select { max-width: 100%; padding: 9px 12px; border: 1px solid var(--hairline); border-radius: 6px; background: var(--card); }
+.product-results { list-style: none; padding: 0; }
+.product-results li { border-bottom: 1px solid var(--hairline-soft); }
+.product-results a { display: flex; flex-direction: column; gap: 3px; padding: 12px 4px; }
