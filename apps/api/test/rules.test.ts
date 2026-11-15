@@ -1,10 +1,12 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, afterEach } from "vitest";
+import type { LookupLine, Need, Product } from "@aimo/contracts";
 process.env.AIMO_DB = ":memory:";
 process.env.OPENAI_API_KEY = "";
 const { getProduct } = await import("../src/catalog.js");
 const { dietRules, stockCheck, cutoffRule, earliestDelivery, packContent, mandateRules } = await import("../src/rules/checks.js");
 const { resolveOutcome, fire, RULES } = await import("../src/rules/catalogue.js");
-const { packRound } = await import("../src/agent/match.js");
+const { packRound, rankNeed } = await import("../src/agent/match.js");
+const { setClock } = await import("../src/clock.js");
 const { rulesParse, quantitySanity, toBase } = await import("../src/agent/parse.js");
 const { MANDATE } = await import("../src/seed.js");
 const { audit, verifyChain, SYSTEM } = await import("../src/audit.js");
@@ -72,6 +74,73 @@ describe("STOCK-CHECK and CUTOFF-CHECK", () => {
     // Sun 17:00 cut-off passed: Tuesday's cut-off is Mon 17:00, still ahead.
     expect(earliestDelivery(look(), new Date("2026-11-15T16:00:00Z"), days, [])).toBe("2026-11-17");
     expect(earliestDelivery(look(), new Date("2026-11-15T16:00:00Z"), days, ["2026-11-17"])).toBe("2026-11-18");
+  });
+});
+
+describe("late delivery options", () => {
+  afterEach(() => setClock({ scene: "live" }));
+  function need(): Need {
+    return {
+      id: "milk", label: "milk", text: "40 l milk", dishId: null, dishName: null, ingredientId: null,
+      groupId: "regular", groupLabel: "regular", guests: null, perPortion: null, outletId: "kitchen",
+      amount: { value: 40, unit: "l" }, constraints: { claims: [], avoidAllergens: [], labels: [] },
+      pinnedProductId: null, productType: null, category: null, query: "milk", neededBy: "2026-11-17", frozen: false,
+      candidates: [], candidateCount: 0, excluded: [], rules: [], judgements: [], substituteFor: null,
+    };
+  }
+  function option(id: string, date: string): { product: Product; lookup: LookupLine } {
+    const lookup = look({ closingTime: "2026-11-18T17:00:00+0200", scheduleLines: [{ availableAmount: 7, availableDate: date, salesUnit: "KI" }] });
+    lookup.productId = id;
+    lookup.price = { ...lookup.price!, value: 12, comparisonPrice: 2 };
+    return { product: { ...getProduct("469363")!, id, packContent: { value: 6, unit: "l" } }, lookup };
+  }
+  async function rank(n: Need, options: ReturnType<typeof option>[]) {
+    setClock({ time: "2026-11-14T10:00:00Z" });
+    await rankNeed(n, options.map((o) => o.product), new Map(options.map((o) => [o.product.id, o.lookup])));
+  }
+  it("keeps only the earliest two full-pack options and leaves the late order blocked", async () => {
+    const n = need();
+    await rank(n, [option("1", "2026-11-23"), option("2", "2026-11-19"), option("3", "2026-11-20")]);
+    expect(n.lateDeliveryOptions?.map((c) => [c.productId, c.availableDate, c.quantity, c.deliveryEstimated])).toEqual([
+      ["2", "2026-11-19", 7, false], ["3", "2026-11-20", 7, false],
+    ]);
+    expect(n.candidates).toEqual([]);
+    expect(n.rules.map((r) => r.ruleId)).toContain("DLV-06");
+  });
+  it("omits insufficient or unknown stock, dietary failures and incompatible packs", async () => {
+    const n = need();
+    n.constraints.avoidAllergens = ["AF"];
+    const short = option("short", "2026-11-19");
+    short.lookup.stock = { kind: "known", amount: 6.9 };
+    const unknown = option("unknown", "2026-11-19");
+    unknown.lookup.stock = { kind: "unknown", reason: "terminal_sentinel" };
+    const diet = option("diet", "2026-11-19");
+    diet.product.contains = ["AF"];
+    const wrongUnit = option("weight", "2026-11-19");
+    wrongUnit.lookup.price!.comparisonUnit = "KG";
+    wrongUnit.product.packContent = { value: 6, unit: "kg" };
+    await rank(n, [short, unknown, diet, wrongUnit, option("enough", "2026-11-20")]);
+    expect(n.lateDeliveryOptions?.map((c) => c.productId)).toEqual(["enough"]);
+  });
+  it("labels dates inferred after a passed cutoff as estimates", async () => {
+    const n = need();
+    n.neededBy = "2026-11-15";
+    const expired = option("expired", "2026-11-16");
+    expired.lookup.closingTime = "2026-11-13T17:00:00+0200";
+    await rank(n, [expired]);
+    expect(n.lateDeliveryOptions?.[0]).toMatchObject({ availableDate: "2026-11-17", deliveryEstimated: true, quantity: 7 });
+    expect(n.candidates).toEqual([]);
+  });
+  it("clears suggestions when a new delivery date can be met", async () => {
+    const n = need();
+    const options = [option("enough", "2026-11-19")];
+    await rank(n, options);
+    expect(n.lateDeliveryOptions).toHaveLength(1);
+    n.rules = [];
+    n.neededBy = "2026-11-20";
+    await rank(n, options);
+    expect(n.lateDeliveryOptions).toEqual([]);
+    expect(n.candidates).toHaveLength(1);
   });
 });
 

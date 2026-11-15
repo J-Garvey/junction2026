@@ -54,6 +54,8 @@ export interface Need {
   substituteFor: string | null;
   /** Set when nothing arrives by the needed-by date (DLV-06): the earliest date something can. */
   earliestDelivery?: string | null;
+  /** Display-only full-quantity options, earliest delivery first. Never allocated to the late order. */
+  lateDeliveryOptions?: (Candidate & { quantity: number; deliveryEstimated: boolean })[];
 }
 
 export interface PlanLine {

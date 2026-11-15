@@ -141,12 +141,12 @@ describe("Test case 2: the brief's milk request (D31, D32)", () => {
 });
 
 describe("Not in time (DLV-06)", () => {
-  async function tooLate(time: string, neededBy: string) {
+  async function tooLate(time: string, neededBy: string, quantity = 1000) {
     const { anna } = await fresh();
     await anna.call("POST", "/clock", { time });
     await anna.call("POST", "/data-mode", { mode: "fixture", overlay: null });
     const m = await anna.call("POST", "/messages", { text: "I need 1,000 litres of lactose-free milk by Monday" });
-    return anna.call("POST", "/requests", { request: { ...m.request, neededBy } });
+    return anna.call("POST", "/requests", { request: { ...m.request, neededBy, lines: m.request.lines.map((line: any) => ({ ...line, quantity: { amount: quantity, unit: "l" } })) } });
   }
   it("needed before anything arrives: one message with the earliest date, no basket or questions", async () => {
     const r = await tooLate("2026-11-14T10:00:00Z", "2026-11-15");
@@ -155,6 +155,22 @@ describe("Not in time (DLV-06)", () => {
     expect(r.plan.summary).toMatch(/No products available for delivery in time/);
     expect(r.questions).toHaveLength(0);
     expect(r.plan.needs[0].rules.map((x: any) => x.ruleId)).toContain("DLV-06");
+    expect(r.plan.needs[0].lateDeliveryOptions).toEqual([]); // No confirmed 1,000 L option.
+  });
+  it("returns full-quantity later options for display without creating a quote or order", async () => {
+    const r = await tooLate("2026-11-14T10:00:00Z", "2026-11-15", 40);
+    expect(r.plan.status).toBe("blocked");
+    expect(r.plan.quoteId).toBeNull();
+    expect(r.plan.orderIds).toEqual([]);
+    const options = r.plan.needs[0].lateDeliveryOptions;
+    expect(options.length).toBeGreaterThan(0);
+    expect(options.length).toBeLessThanOrEqual(2);
+    for (const c of options) {
+      expect(c.availableDate > "2026-11-15").toBe(true);
+      expect(c.stock.kind).toBe("known");
+      expect(c.stock.amount).toBeGreaterThanOrEqual(c.quantity);
+      expect(c.quantity * c.packContent.value).toBeGreaterThanOrEqual(40);
+    }
   });
   it("cut-off passed for Monday: the earliest date moves to the next delivery day", async () => {
     const r = await tooLate("2026-11-15T16:00:00Z", "2026-11-16");

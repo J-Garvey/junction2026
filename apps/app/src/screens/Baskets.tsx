@@ -411,6 +411,9 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
   }
 
   const plan = review?.plan ?? null;
+  const lateOptions = plan?.needs.flatMap((need) => (need.lateDeliveryOptions ?? []).map((candidate) => ({ need, candidate })))
+    .sort((a, b) => a.candidate.availableDate!.localeCompare(b.candidate.availableDate!) || a.candidate.productId.localeCompare(b.candidate.productId))
+    .slice(0, 2) ?? [];
   const notFoundRules = plan?.needs.flatMap((need) => need.rules).filter((rule) => rule.ruleId === "REQ-04" || rule.ruleId === "DIET-04") ?? [];
   const productNotFound = notFoundRules.some((rule) => rule.ruleId === "REQ-04");
   const noMatch = notFoundRules.length > 0;
@@ -543,7 +546,26 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
                 )}
               </div>
 
-              {!noIssues && alternatives.length > 0 && (
+              {tooLate && lateOptions.length > 0 && (
+                <div className="item-dialog-section add-review-section">
+                  <h3>Available after your delivery date</h3>
+                  <div className="replacement-list">
+                    {lateOptions.map(({ need, candidate }) => (
+                      <div key={`${need.id}:${candidate.productId}`} className="replacement-row late-delivery-row">
+                        <span>
+                          <b>{candidate.name}</b>
+                          <small>{qty(candidate.quantity)} {candidate.salesUnit ?? "sales units"} · covers {qty(need.amount.value)} {need.amount.unit}{candidate.source === "fixture" ? " · Fixture" : ""}</small>
+                          {candidate.deliveryEstimated && <small>Cutoff passed · delivery and stock need rechecking.</small>}
+                        </span>
+                        <span className="late-delivery-date"><b>{candidate.deliveryEstimated ? "Estimated delivery" : "Delivery"} {day(candidate.availableDate!)}</b><small>After requested {day(tooLate.neededBy)}</small></span>
+                        <span>{eur(candidate.unitPrice === null ? null : candidate.unitPrice * candidate.quantity)}<small>ex VAT</small></span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {!tooLate && !noIssues && alternatives.length > 0 && (
                 <div className="item-dialog-section add-review-section">
                   <h3>Suggested replacements</h3>
                   <div className="replacement-list">

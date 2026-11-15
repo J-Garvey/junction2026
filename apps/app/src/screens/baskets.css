@@ -44,6 +44,8 @@ a.btile:hover { text-decoration: none; border-color: var(--ink); box-shadow: 0 1
 .replacement-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 16px; padding: 13px 15px; border-bottom: 1px solid var(--hairline-soft); color: var(--ink); }
 .replacement-row:last-child { border-bottom: 0; }
 .replacement-row small { display: block; margin-top: 3px; color: var(--mute); }
+.late-delivery-date { color: var(--ink); }
+.late-delivery-date small { color: var(--body); font-weight: 600; }
 .add-review-actions { display: flex; align-items: center; gap: 10px; margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--hairline-soft); }
 .add-review-total { margin-left: auto; text-align: right; color: var(--ink); }
 
@@ -51,6 +53,7 @@ a.btile:hover { text-decoration: none; border-color: var(--ink); box-shadow: 0 1
   .add-review-product { grid-template-columns: minmax(0, 1fr) auto; }
   .replacement-row { grid-template-columns: minmax(0, 1fr) auto; }
   .replacement-row .btn { grid-column: 1 / -1; }
+  .late-delivery-row .late-delivery-date { grid-row: 2; grid-column: 1 / -1; }
   .add-review-actions { flex-wrap: wrap; }
   .add-review-total { width: 100%; margin-left: 0; text-align: left; }
 }
