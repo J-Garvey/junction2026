@@ -16,6 +16,7 @@ import { EventPage, Events } from "./screens/Event";
 import { Orders } from "./screens/Orders";
 import { Audit } from "./screens/Audit";
 import { Rules } from "./screens/Rules";
+import { Products, SupplierProduct } from "./screens/Products";
 import { WhatsApp, WhatsAppSimulator } from "./screens/WhatsApp";
 import { WhatsAppWebConnection } from "./screens/WhatsAppWebConnection";
 import "./shell-navigation.css";
@@ -122,6 +123,8 @@ export function App() {
               <Route path="/events" element={<Events />} />
               <Route path="/events/:id" element={<EventPage />} />
               <Route path="/orders" element={<Orders />} />
+              <Route path="/products" element={<Products />} />
+              <Route path="/products/:id" element={<SupplierProduct />} />
               <Route path="/whatsapp" element={<WhatsApp />} />
               <Route path="/whatsapp/simulator" element={<WhatsAppSimulator />} />
               <Route path="/audit" element={<Audit />} />
@@ -265,6 +268,7 @@ function AccountMenu({ me, onSwitch }: { me: Person; onSwitch: () => void }) {
               <span className="small muted">{me.title}</span>
             </span>
           </div>
+          <NavLink to="/products" role="menuitem" onClick={() => setOpen(false)}><Icon n="list" s={17} /> Products</NavLink>
           <NavLink to="/audit" role="menuitem" onClick={() => setOpen(false)}><Icon n="list" s={17} /> Audit log</NavLink>
           <NavLink to="/rules" role="menuitem" onClick={() => setOpen(false)}><Icon n="shield" s={17} /> Rules</NavLink>
           <button type="button" className="account-action" role="menuitem" onClick={() => { setOpen(false); onSwitch(); }}><Icon n="users" s={17} /> Switch user</button>
@@ -386,6 +390,17 @@ function DemoSettings({ status, onChange, onOpenWhatsApp, person }: { status: St
       </div>}
       <div className="demofoot">
         {err && <span className="small" style={{ color: "var(--red)" }}>{err}</span>}
+        <span className="small muted">{status.seedProfile?.label}</span>
+        <button
+          type="button"
+          className="btn sm"
+          disabled={!!busy}
+          onClick={() => {
+            if (confirm("Load the hotel workspace? This replaces orders, questions and the audit log with fictional demo activity.")) run("hotel", () => api.reset("hotel"));
+          }}
+        >
+          {busy === "hotel" ? "Loading hotel…" : "Load hotel workspace"}
+        </button>
         <button
           type="button"
           className="btn sm ghost"

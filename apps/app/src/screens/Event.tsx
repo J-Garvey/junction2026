@@ -250,7 +250,7 @@ export function EventPage() {
             {v === "dish" ? (
               <DishView plan={plan} warnings={warnings} onRemove={removeLine} />
             ) : (
-              <MoneyView plan={plan} warnings={warnings} cap={rules?.mandate.spendCapEur ?? null} vat={order?.totalVat ?? null} onRemove={removeLine} />
+              <MoneyView plan={plan} warnings={warnings} cap={rules?.mandate.spendCapEur ?? null} vatOrder={order} onRemove={removeLine} />
             )}
           </Section>
         </>

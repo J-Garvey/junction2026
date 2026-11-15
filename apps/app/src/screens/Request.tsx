@@ -11,6 +11,8 @@ import { QuestionCard } from "../ui/QuestionCard";
 import { CarbonEstimate } from "../ui/CarbonEstimate";
 import { Status, planStatusKind, PLAN_STATUS_TEXT, Fixture } from "../ui/Status";
 import { claimLabel, day, eur, qty, when, helsinkiDate, addDays } from "../format";
+import { LineCalculation, TotalCalculation } from "../ui/CalculationEvidence";
+import { Pop } from "../ui/Popover";
 
 const UNITS: Unit[] = ["l", "dl", "ml", "kg", "g", "pcs"];
 const CLAIMS = ["FREE_FROM_LACTOSE", "FREE_FROM_GLUTEN", "FREE_FROM_MILK", "FREE_FROM_EGG"];
@@ -329,16 +331,16 @@ function Proposal({ plan, onDone }: { plan: Plan; onDone: (r: PlanResp) => void 
                 {l.productName}
               </div>
               <div className="small muted">
-                {qty(l.quantity)} {l.salesUnit ?? ""} · {stockText(l.stock, l.salesUnit)} · arrives {day(l.availableDate)}
+                <Pop ariaLabel={`Explain quantity for ${l.productName}`} label={`${qty(l.quantity)} ${l.salesUnit ?? ""}`}><LineCalculation line={l} /></Pop> · {stockText(l.stock, l.salesUnit)} · arrives {day(l.availableDate)}
               </div>
               <CarbonEstimate line={l} />
             </div>
-            <b className="num">{eur(l.lineTotal)}</b>
+            <b className="num"><Pop ariaLabel={`Explain line amount for ${l.productName}`} label={eur(l.lineTotal)}><LineCalculation line={l} /></Pop></b>
           </div>
         ))}
         <div className="totalrow">
           <span className="muted">Ex VAT</span>
-          <b className="price">{eur(plan.totalExVat)}</b>
+          <b className="price"><TotalCalculation title="request total" total={plan.totalExVat} lines={plan.lines} /></b>
         </div>
         {err && <div className="callout red small">{err}</div>}
         <div className="row">
@@ -442,7 +444,7 @@ export function RequestPlan() {
             <div className="totalrow">
               <span className="muted">Ex VAT</span>
               <b className="price" style={{ fontSize: 22 }}>
-                {eur(plan.totalExVat)}
+                <TotalCalculation title="request total" total={plan.totalExVat} lines={plan.lines} />
               </b>
             </div>
           </>
@@ -460,7 +462,7 @@ export function RequestPlan() {
       <Section title="Options">
         <div className="stack">
           {plan.needs.map((n) => (
-            <Candidates key={n.id} need={n} />
+            <Candidates key={n.id} need={n} lines={plan.lines} />
           ))}
         </div>
       </Section>

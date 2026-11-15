@@ -18,10 +18,13 @@ For development, `pnpm dev` runs the API with `tsx watch` and the Vite app on po
 |---|---|
 | `pnpm test` | 59 tests: the live console with a scripted model, rule units, the three PRD test cases end to end (the wedding twice from a fresh reset), and signature checks |
 | `pnpm seed` | Fresh database: one hotel, four people, the mandate, the event, clock at scene 1 |
+| `pnpm seed:demo` | Populated hotel workspace: seven bookings, a signed order, pending finance/stock decisions, a returned review, an allergen block and draft menus. See [demo seed data](demo-seed-data.md) |
 | `pnpm agent:demo` | An outside agent that uses only `/openapi.json` and its token: search, quote, order, retry, and the refusals |
 | `pnpm fixtures:record` | Saves real mock responses for the seed pool to `data/fixtures/aimo/base.json`. `-- --add-missing` records only products not yet saved and merges them in |
 
 ### Settings
+
+For a populated walkthrough, use **Demo settings → Load hotel workspace**. It replaces the demo database with fictional hotel activity at 11 Nov, 10:00 Helsinki, while keeping the wedding ready to start. **Reset demo** retains the original scene-1 wedding-only reset. See [the preset contents and recording instructions](demo-seed-data.md).
 
 The server reads the environment, then the untracked `.env.local`, then the tracked `.env`. Keep new keys in `.env.local` (owner-only). The same secrets are in the GitHub repository's Actions secrets (`AIMO_API_KEY`, `AIMO_PORTAL_PASSWORD`, `OPENAI_API_KEY`, `CONTEXT_DEV_API_KEY`, `PREVIEW_PASSWORD`), with `OPENAI_MODEL` and `OPENAI_REASONING_EFFORT` as Actions variables.
 
@@ -80,6 +83,7 @@ packages/contracts   Zod schemas: the gateway contract and /openapi.json come fr
 - **The hotel agent has no back door (Q08.2).** It calls the gateway over HTTP at `/gateway/v1` with its own agent token, like any outside agent. Both run in one Node service on the devbox.
 - **Approvals need a person.** `POST /approvals` accepts only an Approver's session token. An agent token gets 403. Each approval is signed (HMAC) and bound to the quote's fingerprint: site, lines, quantities, prices, total and delivery dates.
 - **The gateway enforces the mandate and the hard rules itself.** It refuses an order with `mandate_violation`, `hard_rule`, `cutoff_passed` or `quote_stale`. It rechecks price, stock and cut-off at commit. The same `Idempotency-Key` returns the same order.
+- **Demo Hotel's Finnish-origin fish rule is signed account policy.** The mandate's optional `categoryOriginRequirements` lists exact catalogue codes; search, ranking, quotes, commit and amendments enforce it alongside request constraints. Unknown origin fails `ORG-01`. The Rules page shows the scope; [category-origin-policy.md](category-origin-policy.md) documents the saved evidence, mixed category contents and compatibility with older mandates.
 - **Proposals use the current automatic shortlist; staged baskets validate their selected products directly.** Submitting and approving a basket preserve an accepted matching SKU even when a name such as "monster" now requires clarification for automatic picking, or the SKU falls outside the search result limit. Missing products, broken request links, conflicting product identities and dietary failures still block submission. Supplier terms are quoted again and rechecked at order commit.
 - **One audit log, hash-chained.** Valio Aimo's view (`viewer=valio`, or the `valio_demo_viewer` token) shows only entries tagged `shared`, without dish, guest or preference details.
 - **OpenAI sits only at the edges.** Literal product lists such as `40 l lactose-free milk`, `10 kg chicken burger` and `milk` are routed and parsed locally. The local path accepts only understood product/form vocabulary, quantities, supported diet claims and an optional date suffix; allergy instructions, unfamiliar wording and other language go through the model. It also answers bounded yes/no questions such as "is this plain drinking milk?". It never decides a hard rule. A probability of 0.90 or more counts as a fact, 0.10 or less rejects, and anything between asks a person. Answers are stored and reused. Verified data wins: the hand-checked classification of the 35 lactose-free milks (research/03) overrides the model.
@@ -125,6 +129,8 @@ Where the build differs from the demo plan, by rule:
 ## The milk request (PRD test case 2)
 
 The automatic pick prioritises price: 1,000 L of Valio Eila (464306), with unconfirmed stock visibly disclosed. The chef decides whether to continue (D31); keeping only the confirmed 435 L from 469363 and 462775 remains an alternative and requires partial-fill approval.
+
+**Selection funnel** opens under each searched need in the event's dish view, under the request's candidate table, and through **View details** in item review. For the 40 L lactose-free milk line, each stage uses the saved bounded shortlist and actual ranking exclusions; opening it lists product IDs, names, rule IDs and reasons. A product removed at both cutoff and type checks counts once, with both saved reasons visible. Product-type evidence preserves uncertain verdicts, probabilities, thresholds and recorded sources. The final ranking lists every retained candidate and marks products selected in the plan separately from alternatives. Ranking does not confirm stock or approval. Recipe-pinned lines such as the seeded salmon do not claim a search funnel. Older snapshots without a trace show only saved evidence and explain that the original shortlist cannot be reconstructed.
 
 ## Answers the build had to choose
 

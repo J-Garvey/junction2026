@@ -21,6 +21,7 @@ Stated assumptions about the upstream mock (see GROUND_TRUTH.md):
 - Simulated orders do not reduce upstream stock (Q08.8).
 - Prices are \`catalogPrice.value\` per sales unit, ex VAT. Orders are only created from a quote, at its fixed prices.
 - Every lookup value says whether it came from the live mock or a saved fixture.
+- The signed standing mandate's \`categoryOriginRequirements\` applies to exact catalogue category codes, in addition to every line's \`requires\`. Search filters these before the result limit; quotes, order commit and amendments block nonmatching or unknown catalogue origins with \`ORG-01\`. A recipe exception or approval cannot waive a standing origin requirement. Older mandates without this field have no category origin restriction. Demo Hotel's exact fish category scope is documented in \`docs/category-origin-policy.md\`.
 
 **Signatures.** Quotes, orders, approvals and the standing mandate carry a compact JWS (RFC 7515) signed with ES256 (ECDSA P-256), typed \`aimo-quote+jwt\`, \`aimo-order+jwt\`, \`aimo-approval+jwt\` and \`aimo-mandate+jwt\` (RFC 8725 §3.11). The payload is a JWT claim set (RFC 7519) in JCS order (RFC 8785). Verify with the public keys at \`/.well-known/jwks.json\` (RFC 7517; kid is the RFC 7638 thumbprint). No shared secret is needed.
 
