@@ -4,6 +4,7 @@ import type { WhatsAppMessage, WhatsAppSession, WhatsAppGroupConfig } from "@aim
 import { useApp } from "../ctx";
 import { Icon } from "../ui/icons";
 import { whatsappApi } from "../whatsapp-api";
+import { ApiError } from "../api";
 import { WhatsAppWebConnection } from "./WhatsAppWebConnection";
 import "./whatsapp.css";
 
@@ -111,14 +112,21 @@ function WhatsAppChat() {
       setSession(value);
       setPending(null);
       refresh();
-      // A retry may return an earlier cached response; load the latest history
-      // without discarding a successful response if this follow-up is offline.
+      // Another window may send while this response is in flight. Refresh the
+      // latest history, retaining the response if this follow-up is offline.
       try {
         const latest = await whatsappApi.session();
         if (mounted.current) setSession(latest);
       } catch { /* The completed message is already visible. */ }
     } catch (e) {
-      if (mounted.current) setPending({ ...message, error: errorText(e) });
+      if (e instanceof ApiError && e.body?.code === "stale_message_context") {
+        try {
+          const latest = await whatsappApi.session();
+          if (mounted.current) { setSession(latest); setPending(null); setNotice(errorText(e)); }
+        } catch {
+          if (mounted.current) setPending({ ...message, error: errorText(e) });
+        }
+      } else if (mounted.current) setPending({ ...message, error: errorText(e) });
     } finally {
       working.current = false;
       if (mounted.current) composer.current?.focus();

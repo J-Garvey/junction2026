@@ -276,6 +276,23 @@ describe("synthetic WhatsApp person transport", () => {
     expect((await call("/messages", { id: "failed", text: "different" })).status).toBe(409);
   });
 
+  it("never retries a failed confirmation against a different newer proposal", async () => {
+    await connect();
+    const proposal = (fingerprint: string) => ({ conversation: { activeOrderId: "evt-wedding", pending: { kind: "add_items" as const, orderId: "evt-wedding", fingerprint } }, reply: { text: fingerprint, status: "proposal" as const, actions: [] } });
+    script = async () => proposal("one-kilo");
+    await call("/messages", { id: "one-kilo", text: "add 1 kg salmon" });
+    script = async () => { throw new Error("Synthetic lookup outage"); };
+    expect((await call("/messages", { id: "failed-confirmation", text: "confirm change" })).status).toBe(502);
+    script = async () => proposal("three-kilos");
+    const newer = await call("/messages", { id: "three-kilos", text: "add 3 kg salmon" });
+    const calls = handler.mock.calls.length;
+    const retry = await call("/messages", { id: "failed-confirmation", text: "confirm change" });
+    expect(retry.status).toBe(409);
+    expect(retry.body.code).toBe("stale_message_context");
+    expect(handler).toHaveBeenCalledTimes(calls);
+    expect((await call("/session")).body).toEqual(newer.body);
+  });
+
   it("persists results for a new router and refuses uncertain deliveries left by an interrupted server", async () => {
     await connect();
     const completed = await call("/messages", { id: "persisted", text: "hello" });

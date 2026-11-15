@@ -8,9 +8,10 @@ import { DEMO_GROUPS, groupConfig, groupSelection, selectGroup } from "./groups.
 import { nowIso } from "../clock.js";
 import { kvGet, kvSet } from "../db.js";
 import { resolveToken, tokenFrom, type Person } from "../identity.js";
+import { sha256, stableStringify } from "../util.js";
 
-/** Completed deliveries are deduplicated. A rejected handler can be retried with the same
- * messageId, so any mutation before throwing must also use that idempotency key. */
+/** Completed deliveries are deduplicated. A rejected handler can be retried in
+ * its original context, so mutations before throwing must also be idempotent. */
 export type WhatsAppHandler = (arg: {
   person: Person;
   token: string;
@@ -25,6 +26,7 @@ interface Delivery {
   text: string;
   connectionId: string;
   status: "processing" | "failed" | "complete";
+  contextFingerprint?: string;
   result?: WhatsAppSession;
 }
 interface StoredSession {
@@ -33,7 +35,7 @@ interface StoredSession {
   session: WhatsAppSession;
   deliveries: Delivery[];
 }
-type MessageResult = { status: number; body: WhatsAppMessageResult | { error: string } };
+type MessageResult = { status: number; body: WhatsAppMessageResult | { error: string; code?: "stale_message_context" } };
 type MessageFlight = { text: string; result: Promise<MessageResult> };
 const result = (status: number, body: MessageResult["body"]): MessageResult => ({ status, body });
 const inFlight = new Map<string, Map<string, MessageFlight>>();
@@ -189,8 +191,12 @@ export function whatsappRouter(handler: WhatsAppHandler): Router {
       // A persisted in-flight record after a server restart has an uncertain
       // outcome. Do not invoke the handler again and risk repeating a purchase.
       if (delivery?.status === "processing") return result(409, { error: "This message has an unknown outcome. Check the order before starting a new message." });
+      const contextFingerprint = sha256(stableStringify(stored.session.conversation));
+      if (delivery?.status === "failed" && delivery.contextFingerprint !== contextFingerprint) {
+        return result(409, { error: "The chat changed after this message failed. Review the latest basket and send a new request.", code: "stale_message_context" });
+      }
       if (!delivery) {
-        delivery = { id, text, connectionId: stored.connectionId, status: "processing" };
+        delivery = { id, text, connectionId: stored.connectionId, status: "processing", contextFingerprint };
         stored.deliveries.push(delivery);
       }
       delivery.status = "processing";
