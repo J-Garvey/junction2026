@@ -2,7 +2,7 @@
  * Synthetic channel input edge. The parser can read products; only these rules
  * select an order or a command. No order, proposal or conversation is mutated.
  */
-import type { WhatsAppInterpretContext, WhatsAppInterpretation, WhatsAppOrderRef } from "@aimo/contracts";
+import type { WhatsAppInterpretContext, WhatsAppInterpretation, WhatsAppLine, WhatsAppOrderRef } from "@aimo/contracts";
 import { parseRequest, resolveDate } from "../agent/parse.js";
 import { ALLERGEN_NAMES } from "../rules/checks.js";
 
@@ -191,6 +191,82 @@ function allergenRequirements(text: string): string[] {
   return [...new Set(codes)];
 }
 
+/** "2", "#2", "line 2" select the numbered line from the last summary. null = out of range. */
+function lineNumber(raw: string, context: WhatsAppInterpretContext): WhatsAppLine | null | undefined {
+  const match = normal(raw).match(/^(?:(?:line|item|number|no)\s+)?(\d{1,3})$/);
+  if (!match) return undefined;
+  return context.lines[Number(match[1]) - 1] ?? null;
+}
+
+/** One line by number, line ID, product ID or a unique product name. */
+function pickLine(raw: string, context: WhatsAppInterpretContext): { line: WhatsAppLine } | { question: string } {
+  const numbered = lineNumber(raw, context);
+  if (numbered === null) return { question: `There is no line ${normal(raw)}. Say 'summary' to see the numbered lines.` };
+  if (numbered) return { line: numbered };
+  const ref = normal(raw).replace(/^(?:(?:the|product|sku|item|line)\s+)+/, "").trim();
+  let matches = context.lines.filter((line) => normal(line.id) === ref || (line.productId !== null && normal(line.productId) === ref));
+  if (!matches.length && ref) matches = context.lines.filter((line) => phrase(normal(line.name), ref));
+  if (matches.length === 1) return { line: matches[0] };
+  if (!matches.length) return { question: `Which line do you mean by "${raw}"? Say 'summary' to see the numbered lines.` };
+  return { question: `Which line do you mean? ${matches.map((line) => `${context.lines.indexOf(line) + 1}. ${line.name}`).join("; ")}. Reply with the line number.` };
+}
+
+const activeOrder = (context: WhatsAppInterpretContext) => context.orders.find((order) => order.id === context.activeOrderId)
+  ?? (!context.activeOrderId && context.orders.length === 1 ? context.orders[0] : null);
+
+const HELP = /^(?:help|menu|commands|options|\?|what can (?:you|i) do|how does (?:this|it) work)$/;
+const CHANGE = /^(?:change|set|make|update|adjust|edit)\s+(?:the\s+)?(?:(?:quantity|qty|amount)\s+(?:of|for)\s+)?(.+?)\s+(?:to|=)\s+(\d+(?:[.,]\d+)?)\s*(\p{L}*)$/u;
+const APPROVE = /^(?:approve|sign off)(?:\s+(?:the|this|my))?(?:\s+(?:order|basket|review|it))?$/;
+const REFUSE = /^(?:refuse|reject|decline|return)(?:\s+(?:the|this|my))?(?:\s+(?:order|basket|review|it))?(?:(?:\s*[:,\-–—]\s*|\s+(?:because|as|with note|note)\s+)([\s\S]*))?$/i;
+const NEW_ORDER = /^(?:please\s+)?(?:new|create|start)\s+(?:a\s+)?(?:new\s+)?(?:order|basket)\b\s*(?:(?:called|named|for)\s+|:\s*)?([\s\S]*)$/i;
+
+/** Commands on the active order that must not be read as order references or products. */
+function directCommand(text: string, context: WhatsAppInterpretContext): WhatsAppInterpretation | null {
+  const cmd = command(text);
+  if (HELP.test(cmd)) return result("help", { orderId: activeOrder(context)?.id ?? null });
+  const created = text.replace(/[.!]+$/, "").match(NEW_ORDER);
+  if (created) {
+    const rest = created[1].trim();
+    const last = [...rest.matchAll(DATE)].at(-1);
+    const deliveryDate = last ? resolveDate(last[0]).date : null;
+    const name = (last ? rest.slice(0, last.index) + rest.slice(last.index! + last[0].length) : rest)
+      .replace(/\b(?:on|for|delivery|delivered|by|dated)\s*$/i, "").replace(/^["'\s]+|["'\s,]+$/g, "").trim();
+    if (!name || !deliveryDate) return ask("What should the order be called, and when is delivery? For example: 'new order Emma's wedding on 17 Nov'.");
+    if (name.length > 120) return ask("Please use an order name of at most 120 characters.");
+    return result("new_order", { newOrder: { name, deliveryDate } });
+  }
+  const change = cmd.match(CHANGE);
+  if (change) {
+    const order = activeOrder(context);
+    if (!order) return ask("Which order should I change?", { choices: context.orders });
+    // context.lines belongs only to the active order; the service hydrates and re-runs.
+    if (order.id !== context.activeOrderId) return result("change_quantity", { orderId: order.id });
+    const amount = Number(change[2].replace(",", "."));
+    if (!Number.isInteger(amount)) return ask("Quantities are whole packs. How many should I order?", { orderId: order.id });
+    const picked = pickLine(change[1], context);
+    if ("question" in picked) return ask(picked.question, { orderId: order.id });
+    const { line } = picked;
+    const unit = change[3] ? normal(change[3]) : "";
+    if (unit && line.unit && unit !== normal(line.unit) && !/^(?:x|pcs?|packs?|units?)$/.test(unit)) {
+      return ask(`${line.name} is ordered in ${line.unit}. How many ${line.unit} should I order? For example: 'change ${context.lines.indexOf(line) + 1} to 10'.`, { orderId: order.id });
+    }
+    if (amount === line.quantity) return ask(`${line.name} is already ${amount}${line.unit ? ` ${line.unit}` : ""}.`, { orderId: order.id });
+    if (amount === 0) return result("remove_items", { orderId: order.id, lineIds: [line.id] });
+    return result("change_quantity", { orderId: order.id, lineIds: [line.id], quantity: amount });
+  }
+  if (APPROVE.test(cmd)) {
+    const order = activeOrder(context);
+    return order ? result("approve", { orderId: order.id }) : ask("Which order would you like to approve?", { choices: context.orders });
+  }
+  const refused = text.replace(/[.!]+$/, "").match(REFUSE);
+  if (refused) {
+    const order = activeOrder(context);
+    if (!order) return ask("Which order would you like to refuse?", { choices: context.orders });
+    return result("refuse", { orderId: order.id, note: refused[1]?.trim() || undefined });
+  }
+  return null;
+}
+
 function removeItems(body: string, orderId: string, context: WhatsAppInterpretContext): WhatsAppInterpretation {
   const target = body.replace(/^(?:(?:please|can you|could you)\s+)?(?:remove|delete|drop)\s*/i, "").trim();
   if (!target) return ask("Which products should I remove?", { orderId });
@@ -199,6 +275,9 @@ function removeItems(body: string, orderId: string, context: WhatsAppInterpretCo
   if (orderId !== context.activeOrderId) return result("remove_items", { orderId });
   const selected = new Set<string>();
   for (const raw of target.split(/\s*(?:,|\band\b|&)\s*/i)) {
+    const numbered = lineNumber(raw, context);
+    if (numbered === null) return ask(`There is no line ${normal(raw)}. Say 'summary' to see the numbered lines.`, { orderId });
+    if (numbered) { selected.add(numbered.id); continue; }
     const all = /\ball\b/i.test(raw);
     const ref = normal(raw).replace(/^(?:(?:all|the|of|product|sku|item|line)\s+)+/, "").trim();
     const byLine = context.lines.filter((line) => normal(line.id) === ref);
@@ -235,7 +314,7 @@ export async function interpretWhatsApp(text: string, context: WhatsAppInterpret
     return ask("Please send one unconditional change for one order. For a replacement, remove the original line and add the replacement separately.");
   }
   const pendingCommand = command(text);
-  const accepting = /^(?:confirm|accept|apply|approve)\s+(?:the\s+)?(?:change|changes|addition|removal)$/.test(pendingCommand);
+  const accepting = /^(?:confirm|accept|apply|approve)\s+(?:the\s+)?(?:change|changes|addition|removal|amendment|approval|refusal)$/.test(pendingCommand);
   const cancelling = /^(?:cancel|discard)(?:\s+(?:the\s+)?(?:pending\s+)?(?:change|changes|proposal|that|it))?$|^(?:never\s?mind|forget (?:that|it))$/.test(pendingCommand);
   if (accepting || cancelling) {
     const pending = context.pending;
@@ -243,6 +322,8 @@ export async function interpretWhatsApp(text: string, context: WhatsAppInterpret
     if (!context.orders.some((order) => order.id === pending.orderId)) return ask("The pending change's order is no longer available. Please select an order.", { choices: context.orders });
     return result(accepting ? "accept_change" : "cancel", { orderId: pending.orderId });
   }
+  const direct = directCommand(text, context);
+  if (direct) return direct;
   const resolution = resolveOrder(text, context);
   const body = command(resolution.body);
   const add = ADD.test(body);

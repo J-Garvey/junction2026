@@ -269,3 +269,32 @@ describe("WhatsApp confirmation safety", () => {
     expect(ctx).toEqual(before);
   });
 });
+
+describe("WhatsApp edit commands", () => {
+  it("reads numbered and named quantity changes on the active order", async () => {
+    expect(await interpretWhatsApp("change 2 to 15", context())).toMatchObject({ intent: "change_quantity", orderId: wedding.id, lineIds: [butter.id], quantity: 15 });
+    expect(await interpretWhatsApp("Set butter to 4 l", context())).toMatchObject({ intent: "change_quantity", lineIds: [butter.id], quantity: 4 });
+    expect(await interpretWhatsApp("change milk to 0", context())).toMatchObject({ intent: "remove_items", lineIds: [milk.id] });
+    expect(await interpretWhatsApp("change 2 to 15 kg", context())).toMatchObject({ intent: "clarify" });
+    expect(await interpretWhatsApp("change 2 to 1.5", context())).toMatchObject({ intent: "clarify" });
+    expect(await interpretWhatsApp("change 3 to 5", context())).toMatchObject({ intent: "clarify" });
+    expect(await interpretWhatsApp("change valio to 5", context())).toMatchObject({ intent: "clarify" });
+    expect(await interpretWhatsApp("change 2 to 5", context({ activeOrderId: null }))).toMatchObject({ intent: "clarify" });
+  });
+
+  it("removes numbered lines", async () => {
+    expect(await interpretWhatsApp("remove 1 and 2", context())).toMatchObject({ intent: "remove_items", lineIds: [milk.id, butter.id] });
+    expect(await interpretWhatsApp("remove line 7", context())).toMatchObject({ intent: "clarify" });
+  });
+
+  it("reads approvals, refusals with notes, new orders and help", async () => {
+    expect(await interpretWhatsApp("approve", context())).toMatchObject({ intent: "approve", orderId: wedding.id });
+    expect(await interpretWhatsApp("Refuse: Too much salmon", context())).toMatchObject({ intent: "refuse", note: "Too much salmon" });
+    expect(await interpretWhatsApp("reject the order because over budget", context())).toMatchObject({ intent: "refuse", note: "over budget" });
+    expect(await interpretWhatsApp("don't approve", context())).toMatchObject({ intent: "clarify" });
+    expect(await interpretWhatsApp("confirm approval", context({ pending: { kind: "answer_question", orderId: wedding.id, fingerprint: "x", questionId: "q", optionId: "approve" } }))).toMatchObject({ intent: "accept_change" });
+    expect(await interpretWhatsApp("new order Emma's wedding on 17 Nov", context())).toMatchObject({ intent: "new_order", newOrder: { name: "Emma's wedding", deliveryDate: "2026-11-17" } });
+    expect(await interpretWhatsApp("new order", context())).toMatchObject({ intent: "clarify" });
+    expect(await interpretWhatsApp("help", context())).toMatchObject({ intent: "help" });
+  });
+});
