@@ -11,7 +11,7 @@ import { lookup, UpstreamError } from "../aimo/lookup.js";
 import { fire, resolveOutcome, FIXED } from "../rules/catalogue.js";
 import { cutoffRule, dietRules, mandateRules, priceValidityRule, stockCheck, supplyRules } from "../rules/checks.js";
 import { audit, GATEWAY, type Actor } from "../audit.js";
-import { newId, round2, sha256, stableStringify, parseAimoTime, eur } from "../util.js";
+import { newId, round2, sha256, stableStringify, parseAimoTime, eur, isCalendarDate } from "../util.js";
 import { signJwt, verifyJwt, jcs, checkoutHash } from "./keys.js";
 import type { Identity } from "../identity.js";
 import { actorOf } from "../identity.js";
@@ -183,6 +183,8 @@ function requireHotel(id: Identity): string {
 
 export async function createQuote(id: Identity, body: QuoteCreateBody, actor?: Actor): Promise<Quote> {
   const hotelId = requireHotel(id);
+  if (!isCalendarDate(body.deliveryDate))
+    throw new GatewayRefusal(400, { error: "invalid", message: "Choose a valid delivery date (YYYY-MM-DD)." });
   const mandate = getMandate(hotelId);
   if (!mandate.sites.some((s) => s.id === body.siteId))
     throw new GatewayRefusal(403, { error: "forbidden", message: `Site ${body.siteId} is not one of this hotel's delivery sites`, rules: [fire("DLV-05", { site: body.siteId })] });

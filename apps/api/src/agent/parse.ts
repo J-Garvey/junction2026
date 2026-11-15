@@ -8,7 +8,7 @@
 import type { Amount, SingleLine, SingleRequest, Unit, FiredRule } from "@aimo/contracts";
 import { now } from "../clock.js";
 import { fire } from "../rules/catalogue.js";
-import { isoDate } from "../util.js";
+import { isoDate, isCalendarDate } from "../util.js";
 import { structured, ModelUnavailable } from "./openai.js";
 import { headIndex, isLiteralProductQuery, queryTerms, QUERY_FORMS } from "../search.js";
 import { z } from "zod";
@@ -113,7 +113,7 @@ const DAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", 
 export function resolveDate(text: string, from: Date = now()): { date: string | null; text: string | null } {
   const t = text.toLowerCase();
   const iso = t.match(/\b(20\d\d-\d\d-\d\d)\b/);
-  if (iso) return { date: iso[1], text: iso[1] };
+  if (iso) return { date: isCalendarDate(iso[1]) ? iso[1] : null, text: iso[1] };
   if (/\btomorrow\b/.test(t)) {
     const d = new Date(from.getTime() + 86_400_000);
     return { date: isoDate(d), text: "tomorrow" };
@@ -133,6 +133,8 @@ export function resolveDate(text: string, from: Date = now()): { date: string | 
   if (dm) {
     const month = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"].indexOf(dm[2]);
     const y = from.getUTCFullYear();
+    const candidate = `${y}-${String(month + 1).padStart(2, "0")}-${dm[1].padStart(2, "0")}`;
+    if (!isCalendarDate(candidate)) return { date: null, text: dm[0] };
     let d = new Date(Date.UTC(y, month, Number(dm[1])));
     if (d.getTime() < from.getTime() - 86_400_000) d = new Date(Date.UTC(y + 1, month, Number(dm[1])));
     return { date: isoDate(d), text: dm[0] };
@@ -332,7 +334,7 @@ export async function parseRequest(text: string): Promise<{ request: Omit<Single
 export function checkSingle(r: SingleRequest): FiredRule[] {
   const out: FiredRule[] = [];
   const today = isoDate(now());
-  if (!r.neededBy || r.neededBy <= today) out.push(fire("REQ-03", { need: r.lines.map((l) => l.query).join(", ") || "this" }));
+  if (!r.neededBy || !isCalendarDate(r.neededBy) || r.neededBy <= today) out.push(fire("REQ-03", { need: r.lines.map((l) => l.query).join(", ") || "this" }));
   if (!r.lines.length) out.push(fire("REQ-02", { need: "what" }));
   for (const l of r.lines) if (!l.quantity || !(l.quantity.amount > 0)) out.push(fire("REQ-02", { need: l.query, lineId: l.id }));
   return out;
