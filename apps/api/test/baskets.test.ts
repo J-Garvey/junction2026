@@ -356,11 +356,78 @@ describe("order baskets", () => {
     const { id } = await readyBasket();
     const first = (await call("POST", `/baskets/${id}/submit-review`)).review;
     await signIn("p-sanna");
-    expect((await call("POST", `/questions/${first.id}/answer`, { optionId: "reject" })).error).toBeUndefined();
+    expect((await call("POST", `/questions/${first.id}/answer`, { optionId: "reject", note: "Reduce the salmon quantity." })).error).toBeUndefined();
     await signIn("p-aino");
     const next = await call("POST", `/baskets/${id}/submit-review`);
     expect(next.status).toBe(200);
     expect(next.review.id).not.toBe(first.id);
+    expect((await call("GET", `/orders?eventId=${id}`)).orders).toHaveLength(0);
+  });
+
+  it("requires a nonempty refusal note, saves it atomically, and delivers it to the builder and hotel audit", async () => {
+    const { id, planId } = await readyBasket();
+    const review = (await call("POST", `/baskets/${id}/submit-review`)).review;
+    expect((await call("POST", `/questions/${review.id}/answer`, { optionId: "reject", note: "Chef cannot decide" })).status).toBe(409);
+    await signIn("p-sanna");
+    for (const note of [undefined, "", " \n\t "]) {
+      const result = await call("POST", `/questions/${review.id}/answer`, { optionId: "reject", note });
+      expect(result).toMatchObject({ status: 409, question: { state: "open", answer: null }, reason: expect.stringContaining("refusal note") });
+    }
+    expect((await call("POST", `/questions/${review.id}/answer`, { optionId: "reject", note: "x".repeat(2001) })).status).toBe(422);
+    const note = "Reduce the salmon quantity.\nKeep the lactose-free items.";
+    const results = await Promise.all([
+      call("POST", `/questions/${review.id}/answer`, { optionId: "reject", note: `  ${note}  ` }),
+      call("POST", `/questions/${review.id}/answer`, { optionId: "reject", note: "A duplicate must not overwrite the first note" }),
+    ]);
+    expect(results.map((result) => result.status).sort()).toEqual([200, 409]);
+    expect(results.find((result) => result.status === 200).question).toMatchObject({ state: "answered", answer: "reject", answerNote: note, answeredBy: { name: "Sanna" } });
+    await signIn("p-aino");
+    const basket = await call("GET", `/baskets/${id}`);
+    expect(basket.review).toBeNull();
+    expect(basket.questions.find((q: any) => q.id === review.id)).toMatchObject({ answerNote: note, answer: "reject", facts: { lines: review.facts.lines, total: review.facts.total } });
+    expect(basket.requests.find((plan: any) => plan.id === planId)).toMatchObject({ orderIds: [], basketedAt: expect.any(String) });
+    const audit = await call("GET", `/audit?viewer=hotel&eventId=${id}`);
+    const decisions = audit.entries.filter((entry: any) => entry.action === "question_answered" && entry.questionId === review.id);
+    expect(decisions).toHaveLength(1);
+    expect(decisions[0]).toMatchObject({ summary: expect.stringContaining(note), visibility: "hotel", details: { option: "reject", note } });
+    expect((await call("GET", `/orders?eventId=${id}`)).orders).toHaveLength(0);
+  });
+
+  it("keeps role, outlet and hotel permissions on refusals", async () => {
+    const { id } = await readyBasket();
+    const review = (await call("POST", `/baskets/${id}/submit-review`)).review;
+    const { recordAnswer, getQuestion } = await import("../src/agent/questions.js");
+    const { getPerson } = await import("../src/identity.js");
+    const manager = getPerson("p-sanna")!;
+    for (const person of [getPerson("p-aino")!, { ...manager, hotelScope: false }, { ...manager, hotelId: "another-hotel" }]) {
+      expect(recordAnswer(review.id, person, "reject", "Please revise").ok).toBe(false);
+      expect(getQuestion(review.id)).toMatchObject({ state: "open", answer: null });
+    }
+  });
+
+  it("returns a review of placed items without cancelling or changing the supplier order", async () => {
+    const { id } = await readyBasket();
+    const first = (await call("POST", `/baskets/${id}/submit-review`)).review;
+    await signIn("p-sanna");
+    expect((await call("POST", `/questions/${first.id}/answer`, { optionId: "approve" })).error).toBeUndefined();
+    const before = (await call("GET", `/orders?eventId=${id}`)).orders;
+    const review = (await call("POST", `/baskets/${id}/submit-review`)).review;
+    expect(review.quoteId).toBeNull();
+    expect((await call("POST", `/questions/${review.id}/answer`, { optionId: "reject", note: "Check the catering plan before adding more." })).status).toBe(200);
+    expect((await call("GET", `/orders?eventId=${id}`)).orders).toEqual(before);
+  });
+
+  it("does not accept refusal on a replaced or expired review, even before a basket refresh", async () => {
+    const { id, add } = await readyBasket();
+    const replaced = (await call("POST", `/baskets/${id}/submit-review`)).review;
+    await add();
+    const current = (await call("POST", `/baskets/${id}/submit-review`)).review;
+    await signIn("p-sanna");
+    expect((await call("POST", `/questions/${replaced.id}/answer`, { optionId: "reject", note: "Too late" })).status).toBe(409);
+    // This review expires with the 24-hour quote, before the supplier's 17:00 Helsinki cutoff.
+    expect(current.deadline).toBe("2026-11-15T10:00:00.000Z");
+    await call("POST", "/clock", { time: current.deadline });
+    expect(await call("POST", `/questions/${current.id}/answer`, { optionId: "reject", note: "Too late" })).toMatchObject({ status: 409, question: { state: "expired", answer: null }, reason: expect.stringContaining("expired") });
     expect((await call("GET", `/orders?eventId=${id}`)).orders).toHaveLength(0);
   });
 

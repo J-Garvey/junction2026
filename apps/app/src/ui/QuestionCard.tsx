@@ -7,6 +7,7 @@ import { answerers, canAnswer, namesOf, useApp, waitingForText } from "../ctx";
 import { countdown, eur, when, qty } from "../format";
 import { Icon } from "./icons";
 import { OrderItemDialog } from "./OrderItemDialog";
+import { ManagerApprovalPanel } from "./ManagerApprovalPanel";
 
 type Row = { field: string; original: string; substitute: string; differs: boolean };
 type ApprovalLine = { lineId: string; productId: string; product: string; quantity: number; unit: string | null; lineTotal: number | null };
@@ -26,7 +27,13 @@ export function OthersWaiting({ others }: { others: { who: string; n: number }[]
   );
 }
 
-export function QuestionCard({ q: initial, compact, onAnswered }: { q: Question; compact?: boolean; onAnswered?: (q: Question) => void }) {
+type QuestionCardProps = { q: Question; compact?: boolean; orderContext?: boolean; onAnswered?: (q: Question, error?: string) => void };
+
+export function QuestionCard(props: QuestionCardProps) {
+  return props.q.type === "order_review" ? <ManagerApprovalPanel {...props} /> : <DecisionCard {...props} />;
+}
+
+function DecisionCard({ q: initial, compact, onAnswered }: QuestionCardProps) {
   const { me, people, now, refresh } = useApp();
   const [q, setQ] = useState(initial);
   const [busy, setBusy] = useState<string | null>(null);

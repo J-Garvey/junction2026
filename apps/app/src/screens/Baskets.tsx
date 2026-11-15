@@ -11,9 +11,10 @@ import { OrderItemDialog } from "../ui/OrderItemDialog";
 import { ProductReviewItem } from "../ui/ProductReviewItem";
 import { BasketCard } from "../ui/BasketCard";
 import { OrderBy } from "../ui/OrderBy";
+import { OrderReviewHistory } from "../ui/OrderReviewHistory";
 import { stockText } from "../ui/Popover";
 import { tooLateText } from "../ui/TooLate";
-import { addDays, claimLabel, day, eur, helsinkiDate, plural, qty } from "../format";
+import { addDays, claimLabel, day, eur, helsinkiDate, plural, qty, when } from "../format";
 import "./baskets.css";
 
 const UNITS: Unit[] = ["l", "dl", "ml", "kg", "g", "pcs"];
@@ -102,10 +103,12 @@ export function BasketPage() {
   const { data, error, reload } = useLoad(() => api.basket(id!), [id]);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [reviewFeedback, setReviewFeedback] = useState<{ message: string; error: boolean } | null>(null);
 
   async function submitForReview() {
     setSubmitting(true);
     setSubmitError(null);
+    setReviewFeedback(null);
     try {
       await api.submitBasketForReview(id!);
       refresh();
@@ -120,6 +123,8 @@ export function BasketPage() {
   if (error && !data) return <div className="callout red">{error}</div>;
   if (!data) return <div className="muted">Loading…</div>;
   const { event: ev, questions, requests, orders, review } = data;
+  const latestReview = questions.find((q) => q.type === "order_review");
+  const returned = latestReview?.state === "answered" && latestReview.answer === "reject" ? latestReview : null;
   const live = orders.filter((o) => o.state !== "rejected");
   const staged = requests.filter((r) => r.basketedAt && !r.orderIds.length);
   const { mine: waitingQs, others } = splitMine(questions.filter((q) => q.state === "open" || q.state === "waiting"), me, people);
@@ -148,6 +153,8 @@ export function BasketPage() {
       <div className="basket-context small muted">Delivery {day(ev.serviceDate)}<OrderBy deadline={data.orderBy} detail /></div>
 
       {submitError && <div className="callout red" role="alert">{submitError}</div>}
+      {reviewFeedback && <div className={`callout ${reviewFeedback.error ? "red" : "green"} small`} role={reviewFeedback.error ? "alert" : "status"}>{reviewFeedback.message}</div>}
+      {returned && <div className="callout yellow small" role="status"><strong>Changes requested</strong><p className="decision-note">{returned.answerNote ?? "Returned to the order builder for changes."}</p><span className="muted">{returned.answeredBy?.name} · {when(returned.answeredAt)}</span></div>}
       {me.role === "chef" && review && <div className="callout green small" role="status">Submitted to finance. This order is ready for approval.</div>}
 
       <AddToBasket eventId={ev.id} deliveryDate={ev.serviceDate} onAdded={reload} />
@@ -156,12 +163,15 @@ export function BasketPage() {
         <section>
           <div className="sechead">
             <h2>Decisions before processing</h2>
-            {waitingQs.length > 0 && <span className="countb">{waitingQs.length}</span>}
           </div>
           {waitingQs.length > 0 && (
             <div className="qlist">
               {waitingQs.map((q) => (
-                <QuestionCard key={q.id} q={q} compact onAnswered={reload} />
+                <QuestionCard key={q.id} q={q} compact orderContext onAnswered={(answered, error) => {
+                  setReviewFeedback(error ? { message: error, error: true } : { message: answered.answer === "reject" ? "Refusal note sent to the order builder." : "Decision recorded.", error: false });
+                  refresh();
+                  reload();
+                }} />
               ))}
             </div>
           )}
@@ -184,6 +194,7 @@ export function BasketPage() {
         <StagedLines plans={staged} submitted={!!review} />
         <OrderedLines orders={live} showEmpty={!staged.length} />
       </section>
+      <OrderReviewHistory questions={questions} />
     </div>
   );
 }

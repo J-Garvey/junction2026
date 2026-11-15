@@ -27,6 +27,7 @@ export function OrderBy({ deadline, detail = false }: { deadline: OrderDeadline;
       <strong title={deadline.reason ?? "Supplier cutoff in Helsinki time; terms are rechecked when ordering."}>
         {deadline.at ? <><time dateTime={deadline.at}>{day(deadline.at)}, {clockTime(deadline.at)}</time> Helsinki{deadline.state === "expired" && " · Expired"}</> : deadline.state === "unavailable" ? "Unavailable" : "Unknown"}
       </strong>
+      {detail && <span className="muted">Supplier ordering cutoff; stock and delivery terms are rechecked when ordering.</span>}
       {deadline.reason && (detail || deadline.unconfirmedStockItems > 0 || deadline.state === "unknown") && <span className="muted">{deadline.reason}</span>}
     </div>
   );
