@@ -195,6 +195,37 @@ describe("synthetic WhatsApp order flow", () => {
     }
   });
 
+  it("clarifies an instead-of replacement without staging an accidental addition (AUD-WA-001)", async () => {
+    const darragh = await basket("Darragh");
+    const pavit = await basket("Pavit");
+    await stage(darragh, "2 kg salmon 469672");
+    await stage(pavit, "2 kg salmon 469672");
+    await send(darragh);
+    const response = await send("add 1 kg salmon 469672 instead of milk to Darragh");
+    expect(response.status).toBe("clarification");
+    expect((await send("confirm change")).status).toBe("clarification");
+    for (const id of [darragh, pavit]) {
+      const requests = (await call(`/baskets/${id}`)).requests;
+      expect(requests).toHaveLength(1);
+      expect(requests[0].lines[0].quantity).toBe(2);
+    }
+    expect((await call("/orders")).orders).toHaveLength(0);
+  });
+
+  it("keeps an old message retry consistent with the proposal a later confirmation will apply", async () => {
+    const id = await basket();
+    await send(id);
+    expect((await send("add 1 kg salmon 469672", "older-proposal")).status).toBe("proposal");
+    expect((await send("add 3 kg salmon 469672", "newer-proposal")).status).toBe("proposal");
+    const replay = await call("/whatsapp/messages", { id: "older-proposal", text: "add 1 kg salmon 469672", groupId: "demo-hotel-orders" });
+    const displayedPlan = getPlan(replay.conversation.pending.planId)!;
+    expect((await send("confirm change")).status).toBe("updated");
+    const requests = (await call(`/baskets/${id}`)).requests;
+    expect(requests).toHaveLength(1);
+    expect(requests[0].lines[0].quantity).toBe(displayedPlan.lines[0].quantity);
+    expect(requests[0].lines[0].quantity).toBe(3);
+  });
+
   it("keeps a confirmed addition additive and placed orders immutable", async () => {
     const id = await basket("Darragh");
     await stage(id, "10 kg salmon 469672");

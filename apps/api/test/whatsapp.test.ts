@@ -126,7 +126,7 @@ describe("synthetic WhatsApp person transport", () => {
     expect((await call("/session")).body).toEqual(first.body);
   });
 
-  it("serializes distinct messages for a person and preserves completed responses on retry", async () => {
+  it("serializes distinct messages and returns current context on an older completed retry", async () => {
     await connect();
     const entered = latch();
     const release = latch();
@@ -142,7 +142,7 @@ describe("synthetic WhatsApp person transport", () => {
     expect(a.body.conversation.activeOrderId).toBe("/first");
     expect(b.body.conversation.activeOrderId).toBe("/first/second");
     expect(b.body.messages).toHaveLength(4);
-    expect((await call("/messages", { id: "one", text: "first" })).body).toEqual(a.body);
+    expect((await call("/messages", { id: "one", text: "first" })).body).toEqual(b.body);
     expect((await call("/session")).body).toEqual(b.body);
     expect(handler).toHaveBeenCalledTimes(2);
   });

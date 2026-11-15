@@ -9,7 +9,7 @@ import { nowIso } from "../clock.js";
 import { kvGet, kvSet } from "../db.js";
 import { resolveToken, tokenFrom, type Person } from "../identity.js";
 
-/** Completed replies are cached. A rejected handler can be retried with the same
+/** Completed deliveries are deduplicated. A rejected handler can be retried with the same
  * messageId, so any mutation before throwing must also use that idempotency key. */
 export type WhatsAppHandler = (arg: {
   person: Person;
@@ -182,7 +182,10 @@ export function whatsappRouter(handler: WhatsAppHandler): Router {
       let delivery = stored.deliveries.find((d) => d.id === id);
       if (delivery && delivery.text !== text) return result(409, { error: "This message id was already used with different text" });
       if (delivery && delivery.connectionId !== stored.connectionId) return result(409, { error: "This message belongs to an earlier chat. Start a new message." });
-      if (delivery?.status === "complete") return result(200, delivery.result!);
+      // The simulator replaces its displayed session with this response. An
+      // older cached preview could show one proposal while "confirm change"
+      // accepts a newer one. Return current context without repeating delivery.
+      if (delivery?.status === "complete") return result(200, stored.session);
       // A persisted in-flight record after a server restart has an uncertain
       // outcome. Do not invoke the handler again and risk repeating a purchase.
       if (delivery?.status === "processing") return result(409, { error: "This message has an unknown outcome. Check the order before starting a new message." });
