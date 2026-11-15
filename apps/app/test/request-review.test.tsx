@@ -386,7 +386,7 @@ describe("saved request review controls", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Approve milk" }));
     await waitFor(() => expect((screen.getByRole("button", { name: "Add to order" }) as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(screen.getByRole("button", { name: "Add to order" }));
-    await screen.findByText("Awaiting final order");
+    await screen.findByText("Ready to order");
     expect(screen.getByText("Added to the order. Submit the final order for finance review.")).toBeTruthy();
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.queryByRole("button", { name: /^10 l milk/ })).toBeNull();

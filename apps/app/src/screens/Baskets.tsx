@@ -274,7 +274,7 @@ function StagedLines({ plans, submitted }: { plans: BasketPlan[]; submitted: boo
             <span className="trunc">{line.productName}</span>
             <CarbonEstimate line={line} />
           </span>
-          <span className="stamp ask">{submitted ? "Awaiting finance approval" : "Awaiting final order"}</span>
+          <span className="stamp ask">{submitted ? "Awaiting finance approval" : "Ready to order"}</span>
           <span className="small"><Pop ariaLabel={`Explain line amount for ${line.productName}`} label={eur(line.lineTotal)}><LineCalculation line={line} /></Pop></span>
         </div>
       ))}
