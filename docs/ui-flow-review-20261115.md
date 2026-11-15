@@ -34,5 +34,12 @@ The review uses the current Aimo Copilot application and synthetic hotel data. T
 | --- | --- | --- | --- |
 | R04-01 | P2 | As Jonas on Rules, edit the spend cap or blocked products, open Switch user, then Cancel. The unsaved policy draft silently disappears. | F01: preserve the draft when canceling the picker |
 | R04-02 | P2 | Change reliability from 80 to 85 and add blocked product 469363, select Changed, then save. Saved non-default parameters disappear and the filter incorrectly says no rules changed. | F02: compare effective parameter values against defaults |
+| R02-01 | P2 | Select milk 464401 as a replacement, then change demand from 10 L to 20 L. The selected product silently reverts to 464306. | F03: retain valid buyer choices across quantity edits |
+| R02-02 | P2 | Enter 2 KI for a request of 30 pcs of 468445. After checking, no control can correct the sales quantity to 1 KI. | F04: keep checked sales quantities editable |
+| R08-01 | P1 | Approve an order as Sanna, then read the shared audit as the synthetic supplier viewer. Actor fields and summaries disclose personal staff identities. | F05: project permitted supplier audit fields |
+| R08-02 | P2 | Open Receipts for a committed order with the fixture server unavailable. The read error falsely says nothing has been ordered. | F06: report network uncertainty accurately |
+| R08-03 | P2 | Filter the audit by order ID or quote ID after approval. Related placement, quote, and approval records cannot be followed through stored references. | F07: expose and search permitted record references |
+| R09-01 | P1 | Open item review and Shift+Tab from its first control. Focus escapes to the background; Escape loses the initiating control. | F08: contain modal focus and restore it on dismissal |
+| R09-02 | P2 | Open the profile or order menu, use arrow keys, then Escape from an item. Menus lack their advertised keyboard behavior and lose focus. | F09: implement menu keyboard navigation and focus return |
 
-R04 reproduced both issues in the browser against isolated fixtures. Its build passed, and 12 existing rule-policy tests passed. Implementation and remaining reviews are pending.
+R02, R04, R08, and R09 reproduced these issues against isolated fixtures. Reviewer builds and focused suites passed; existing tests did not catch the reported defects. Implementation and remaining reviews are pending. The integration branch was updated with main through `b927349` before the next implementation assignments.
