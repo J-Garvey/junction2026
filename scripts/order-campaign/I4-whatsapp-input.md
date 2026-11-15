@@ -58,6 +58,12 @@ metadata. Original minimized evidence stays in `E2/E2-F01-minimized.json` and
 there is no real-model, real-browser, supplier or WhatsApp evidence, holdout
 access, or performance claim. Bridge restoration is not an OS-process restart.
 
+Verification: all 67 tests in the three focused suites pass. The broader eight
+WhatsApp suites pass 217/218; the sole failure is the unchanged butter case
+below (`attempt-03-whatsapp-regression/vitest.json`). API typecheck and
+`git diff --check` pass. PR122's merge into the campaign branch is incorporated;
+its original additions are not duplicated in the final PR diff.
+
 The existing offline `add 2 kg butter` finance-review case still returns 502.
 `butter-fixture-diagnosis.json` and its local diagnostic script show that the
 real interpreter produces a butter request and its production shortlist has
