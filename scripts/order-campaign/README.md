@@ -53,11 +53,13 @@ database, create Darragh/Pavit/Conference drafts and seed an actual saved 2 kg
 salmon line through production HTTP endpoints before each independent case.
 
 Every 100 cases `batch.mjs` fetches `origin`, records its SHA and fix-manifest
-sizes, and stops if main advanced. With a **clean committed task branch**, run:
+sizes, and safely refreshes its **clean committed task branch** if main advanced.
+It restarts only the owned host and replays published findings before continuing.
+For a standalone refresh, run:
 
 ```powershell
 node scripts/order-campaign/refresh.mjs refresh --hold
-# Separate terminal: replay known finding IDs, then resume from reported start.
+# Separate terminal: replay desired IDs or resume the next batch.
 ```
 
 Refresh checks ownership before stopping its recorded PID, merges only into this
