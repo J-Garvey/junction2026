@@ -1,5 +1,6 @@
 /** UI-03, CH-06: one question, answerable with one tap. */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useLocation } from "react-router";
 import type { Question } from "@aimo/contracts";
 import { api, ApiError } from "../api";
 import { answerers, canAnswer, namesOf, useApp, waitingForText } from "../ctx";
@@ -33,6 +34,14 @@ export function QuestionCard({ q: initial, compact, onAnswered }: { q: Question;
   const [showSame, setShowSame] = useState(false);
   const [selectedLine, setSelectedLine] = useState<ApprovalLine | null>(null);
   const [open, setOpen] = useState(!compact && !(typeof window !== "undefined" && window.matchMedia("(max-width: 760px)").matches));
+  const card = useRef<HTMLElement>(null);
+  const { hash } = useLocation();
+  useEffect(() => {
+    if (hash !== `#question-${encodeURIComponent(q.id)}`) return;
+    setOpen(true);
+    const frame = requestAnimationFrame(() => { card.current?.scrollIntoView({ block: "start" }); card.current?.focus({ preventScroll: true }); });
+    return () => cancelAnimationFrame(frame);
+  }, [hash, q.id]);
   void compact;
   useEffect(() => setQ(initial), [initial]);
 
@@ -67,7 +76,7 @@ export function QuestionCard({ q: initial, compact, onAnswered }: { q: Question;
   const answerLabel = q.options.find((o) => o.id === q.answer)?.label ?? q.answer;
 
   return (
-    <article className={`qcard ${q.state}`} aria-label={q.title}>
+    <article ref={card} id={`question-${q.id}`} tabIndex={-1} style={{ scrollMarginTop: 80 }} className={`qcard ${q.state}`} aria-label={q.title}>
       <header className="qhead">
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="row" style={{ gap: 6, flexWrap: "wrap", marginBottom: 4 }}>

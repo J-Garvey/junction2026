@@ -155,7 +155,6 @@ export function BasketPage() {
       <div className="bhead">
         <h1>{ev.name}</h1>
         <div className="row small" style={{ gap: 12, marginLeft: "auto", flexWrap: "wrap" }}>
-          {ev.dishes.length > 0 && <Link to={`/events/${ev.id}`}>Menu and guests</Link>}
           <button
             type="button"
             className="btn primary"

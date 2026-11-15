@@ -11,7 +11,7 @@ import { lookup, UpstreamError } from "../aimo/lookup.js";
 import { fire, resolveOutcome, FIXED } from "../rules/catalogue.js";
 import { cutoffRule, dietRules, mandateRules, priceValidityRule, stockCheck, supplyRules } from "../rules/checks.js";
 import { audit, GATEWAY, type Actor } from "../audit.js";
-import { newId, round2, sha256, stableStringify, parseAimoTime, eur } from "../util.js";
+import { newId, round2, sha256, stableStringify, parseAimoTime, eur, isCalendarDate } from "../util.js";
 import { signJwt, verifyJwt, jcs, checkoutHash } from "./keys.js";
 import type { Identity } from "../identity.js";
 import { actorOf } from "../identity.js";
@@ -38,7 +38,7 @@ const quoteClaims = (q: Quote) => ({
   currency: "EUR",
   total_ex_vat: q.totalExVat,
   approvals_needed: q.mandateCheck.approvalsNeeded,
-  lines: q.lines.map((l) => ({ product_id: l.productId, outlet: l.outletId, quantity: l.quantity, sales_unit: l.salesUnit, unit_price: l.unitPrice, cutoff: l.closingTime, stock: l.stock.kind, source: l.source })),
+  lines: q.lines.map((l) => ({ product_id: l.productId, outlet: l.outletId, quantity: l.quantity, sales_unit: l.salesUnit, unit_price: l.unitPrice, cutoff: l.closingTime, stock: l.stock.kind, source: l.source, requires: l.requires ?? null })),
 });
 const orderClaims = (o: Order) => ({
   // AP2 v0.2 Checkout Receipt fields: status, reference (the quote's checkout_hash), order_id.
@@ -82,7 +82,7 @@ export function fingerprintOf(q: Pick<Quote, "siteId" | "deliveryDate" | "lines"
       siteId: q.siteId,
       deliveryDate: q.deliveryDate,
       total: q.totalExVat,
-      lines: q.lines.map((l) => [l.productId, l.outletId, l.quantity, l.unitPrice, l.availableDate, l.closingTime]),
+      lines: q.lines.map((l) => [l.productId, l.outletId, l.quantity, l.unitPrice, l.availableDate, l.closingTime, l.requires ?? null]),
     }),
   );
 }
@@ -93,6 +93,8 @@ function buildQuote({ hotelId, body, lookups, amendsOrderId, fixedPrices }: Buil
   const mandate = getMandate(hotelId);
   const at = now();
   const urgent = isUrgent(body.deliveryDate, at);
+  const quantities = new Map<string, number>();
+  for (const line of body.lines) quantities.set(line.productId, (quantities.get(line.productId) ?? 0) + line.quantity);
   const lines: QuoteLine[] = body.lines.map((li, i) => {
     const p = getProduct(li.productId);
     const l = lookups.get(li.productId)!;
@@ -103,7 +105,7 @@ function buildQuote({ hotelId, body, lookups, amendsOrderId, fixedPrices }: Buil
     const cut = cutoffRule({ name }, l, at);
     if (cut) rules.push(cut);
     if (p && li.requires) rules.push(...dietRules(p, li.requires, "this line").filter((r) => r.outcome === "block"));
-    if (l.deliverable) rules.push(...stockCheck({ name }, l, li.quantity, urgent, l.salesUnit ?? "units").rules.filter((r) => r.ruleId !== "STK-05"));
+    if (l.deliverable) rules.push(...stockCheck({ name }, l, quantities.get(li.productId)!, urgent, l.salesUnit ?? "units").rules.filter((r) => r.ruleId !== "STK-05"));
     const pv = priceValidityRule({ name }, l, body.deliveryDate);
     if (pv) rules.push(pv);
     const unitPrice = fixedPrices?.get(`${li.productId}|${li.outletId}`) ?? l.price?.value ?? null;
@@ -126,6 +128,7 @@ function buildQuote({ hotelId, body, lookups, amendsOrderId, fixedPrices }: Buil
       source: l.source,
       rules,
       outcome: resolveOutcome(rules),
+      ...(li.requires ? { requires: li.requires } : {}),
     };
   });
   const totalExVat = round2(lines.reduce((s, l) => s + (l.lineTotal ?? 0), 0));
@@ -180,6 +183,8 @@ function requireHotel(id: Identity): string {
 
 export async function createQuote(id: Identity, body: QuoteCreateBody, actor?: Actor): Promise<Quote> {
   const hotelId = requireHotel(id);
+  if (!isCalendarDate(body.deliveryDate))
+    throw new GatewayRefusal(400, { error: "invalid", message: "Choose a valid delivery date (YYYY-MM-DD)." });
   const mandate = getMandate(hotelId);
   if (!mandate.sites.some((s) => s.id === body.siteId))
     throw new GatewayRefusal(403, { error: "forbidden", message: `Site ${body.siteId} is not one of this hotel's delivery sites`, rules: [fire("DLV-05", { site: body.siteId })] });
@@ -257,11 +262,13 @@ export function createApproval(id: Identity, body: ApprovalBody): Approval {
 /** QUOTE-RECHECK (Q08.7): any price change, stock now short, cut-off passed or date moved. */
 function recheck(q: Quote, fresh: Map<string, LookupLine>, at: Date): Record<string, unknown>[] {
   const changes: Record<string, unknown>[] = [];
+  const quantities = new Map<string, number>();
+  for (const line of q.lines) quantities.set(line.productId, (quantities.get(line.productId) ?? 0) + line.quantity);
   for (const l of q.lines) {
     const f = fresh.get(l.productId)!;
     if ((f.price?.value ?? null) !== l.unitPrice) changes.push({ productId: l.productId, field: "price", was: l.unitPrice, now: f.price?.value ?? null });
     if (f.availableDate !== l.availableDate) changes.push({ productId: l.productId, field: "availableDate", was: l.availableDate, now: f.availableDate });
-    if (q.urgent && f.stock.kind === "known" && f.stock.amount < l.quantity) changes.push({ productId: l.productId, field: "stock", was: l.stock, now: f.stock });
+    if (q.urgent && f.stock.kind === "known" && f.stock.amount < quantities.get(l.productId)!) changes.push({ productId: l.productId, field: "stock", was: l.stock, now: f.stock });
     const c = parseAimoTime(f.closingTime);
     if (c && c.getTime() <= at.getTime()) changes.push({ productId: l.productId, field: "cutoff", now: f.closingTime, passed: true });
   }
@@ -301,12 +308,16 @@ export async function placeOrder(id: Identity, quoteId: string, idemKey: string,
   const at = now();
   // Hard rules first: no approval can push a blocked line through (AP-04).
   const hard = q.lines.flatMap((l) => l.rules).filter((r) => r.outcome === "block");
+  for (const line of q.lines) {
+    const product = getProduct(line.productId);
+    if (product && line.requires) hard.push(...dietRules(product, line.requires, "this line").filter((r) => r.outcome === "block"));
+  }
   if (hard.length) refuse(409, { error: hard.some((r) => r.ruleId === "CUT-01") ? "cutoff_passed" : "hard_rule", message: hard.map((r) => r.message).join(" "), rules: hard });
   if (new Date(q.expiresAt).getTime() <= at.getTime()) refuse(409, { error: "quote_stale", message: "The quote has expired; request a new one" });
   const { map } = await lookupMap(q.lines.map((l) => l.productId), q.deliveryDate);
   const changes = recheck(q, map, at);
   if (changes.length) {
-    const nq = await createQuote(id, { siteId: q.siteId, deliveryDate: q.deliveryDate, eventId: q.eventId ?? undefined, lines: q.lines.map((l) => ({ productId: l.productId, quantity: l.quantity, outletId: l.outletId, ref: l.ref ?? undefined })) }, by);
+    const nq = await createQuote(id, { siteId: q.siteId, deliveryDate: q.deliveryDate, eventId: q.eventId ?? undefined, lines: q.lines.map((l) => ({ productId: l.productId, quantity: l.quantity, outletId: l.outletId, ref: l.ref ?? undefined, requires: l.requires })) }, by);
     const cutoff = changes.some((c) => c.field === "cutoff");
     refuse(409, { error: cutoff ? "cutoff_passed" : "quote_stale", message: cutoff ? "A cut-off passed since the quote" : "Terms changed since the quote", changes, newQuoteId: nq.id });
   }
@@ -414,7 +425,7 @@ export async function amendOrder(id: Identity, orderId: string, body: AmendmentB
   for (const [k, l] of current) if (next.get(k) === l.quantity && l.unitPrice !== null) fixedPrices.set(k, l.unitPrice);
   const lines = [...next].map(([k, qty]) => {
     const [productId, outletId] = k.split("|");
-    return { productId, outletId, quantity: qty, ref: current.get(k)?.ref ?? undefined };
+    return { productId, outletId, quantity: qty, ref: current.get(k)?.ref ?? undefined, requires: current.get(k)?.requires };
   });
   if (!lines.length) throw new GatewayRefusal(422, { error: "invalid", message: "An amendment can't remove every line; cancel the order instead" });
   const { map } = await lookupMap(lines.map((l) => l.productId), o.deliveryDate);

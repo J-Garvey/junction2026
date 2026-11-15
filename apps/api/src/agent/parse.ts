@@ -8,10 +8,11 @@
 import type { Amount, SingleLine, SingleRequest, Unit, FiredRule } from "@aimo/contracts";
 import { now } from "../clock.js";
 import { fire } from "../rules/catalogue.js";
-import { isoDate } from "../util.js";
+import { isoDate, isCalendarDate } from "../util.js";
 import { structured, ModelUnavailable } from "./openai.js";
 import { headIndex, isLiteralProductQuery, queryTerms, QUERY_FORMS } from "../search.js";
 import { z } from "zod";
+import { ALLERGEN_NAMES } from "../rules/checks.js";
 
 /** Known product words: the type asked for and a category hint (CATEGORY-HINT, deterministic tier). */
 export const PRODUCT_WORDS: { re: RegExp; word: string; type: string | null; category: string | null }[] = [
@@ -62,24 +63,38 @@ const UNIT_AMOUNT = new RegExp(`(?<![\\d.,])(${NUMBER})\\s*(?:(?:additional|more
 const BARE_COUNT = /(?:\bx\s*)?(?<![\d.,/-])([+-]?(?:\d{1,5}(?:[.,]\d+)?|[.,]\d+))(?![\d.,/%-])(?!\s*%)(?!\s*(?:\.|st|nd|rd|th)?\s*(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec))(?:\s*x\b)?/;
 // The request contract cannot enforce fat percentages; preserve them and ask before matching.
 const UNSUPPORTED_SPEC = /\d+(?:[.,]\d+)?\s*%/;
+/** These need a unit/pack decision; never buy the denominator, range end or pack size. */
+const UNSUPPORTED_QUANTITY = /\d+(?:[.,]\d+)?\s*\/\s*\d|\d+(?:[.,]\d+)?\s*[-–—]\s*\d|\d+(?:[.,]\d+)?\s*[x×]\s*\d+(?:[.,]\d+)?\s*(?:kg|g|l|ml|dl)\b|(?:^|\s)[-−]\s*\d|\b\d+(?:[.,]\d+)?\s*(?:packs?|cases?|cartons?|boxes|bottles?|dozens?|pallets?)\b/;
+const unclearQuantity = (text: string) => UNSUPPORTED_QUANTITY.test(text.replace(/\b20\d\d-\d\d-\d\d\b/g, ""));
 
 /** Consume complete groups only, without joining separate lines or decimal commas. */
 const normalizeNumbers = (text: string) => text.replace(/\b\d{1,3}(?:[, \u00a0]\d{3})+(?!\d)/g, (s) => s.replace(/[, \u00a0]/g, ""));
 const LIST_SEPARATOR = /\s*(?:,(?!\d)|\band\b|\+|;|\r?\n)\s*/i;
 const DATE_WORD = "(?:mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?|today|tomorrow|20\\d\\d-\\d\\d-\\d\\d)";
+const ALLERGEN_WORDS: [string, string[]][] = [
+  ["(?:tree[- ]?)?nuts?", ["AN", "AP"]], ["peanuts?", ["AP"]], ["almonds?", ["SA"]],
+  ["milk|dairy", ["AM"]], ["eggs?", ["AE"]], ["soy|soya", ["AY"]], ["sesame", ["AS"]],
+  ["fish", ["AF"]], ["shellfish", ["UN", "AC", "UM"]], ["wheat", ["UW"]], ["gluten", ["AW"]],
+];
+const ALLERGEN_WORD = ALLERGEN_WORDS.map(([word]) => `(?:${word})`).join("|");
+const AVOID_LIST = new RegExp(`\\b(?:without|no)\\s+((?:${ALLERGEN_WORD})(?:\\s+(?:and|or)\\s+(?:${ALLERGEN_WORD}))+)(?![\\p{L}])`, "gu");
+const onlyRestrictionJoiners = (rest: string) => !rest.replace(/\band\b|,/g, "").trim();
+const ALLERGEN_CODES = [...Object.keys(ALLERGEN_NAMES), "SO", "PO", "BF", "CM", "ABD", "ADQ", "NP", "NC", "NE", "NK", "NM", "NW", "BP"];
 
 /** Only explicit countries are facts; a brand or missing origin proves nothing. */
 function restrictions(text: string) {
-  let rest = text;
+  let rest = text.replace(/\uE000/g, "and");
   const claims = CLAIM_WORDS.filter(([re]) => re.test(text)).map(([, claim]) => claim);
   rest = rest.replace(/\b(?:lactose[- ]?free|laktoositon|gluten[- ]?free|gluteeniton|vegan|milk[- ]?free|maidoton)\b/g, " ");
   const avoidAllergens: string[] = [];
-  const allergens: [string, string[]][] = [
-    ["(?:tree[- ]?)?nuts?", ["AN", "AP"]], ["peanuts?", ["AP"]], ["almonds?", ["SA"]],
-    ["milk|dairy", ["AM"]], ["eggs?", ["AE"]], ["soy|soya", ["AY"]], ["sesame", ["AS"]],
-    ["fish", ["AF"]], ["shellfish", ["UN", "AC", "UM"]], ["wheat", ["UW"]], ["gluten", ["AW"]],
-  ];
-  for (const [word, codes] of allergens) {
+  rest = rest.replace(AVOID_LIST, (_match, list: string) => {
+    for (const item of list.split(/\s+(?:and|or)\s+/)) {
+      const codes = ALLERGEN_WORDS.find(([word]) => new RegExp(`^(?:${word})$`).test(item))?.[1];
+      if (codes) avoidAllergens.push(...codes);
+    }
+    return " ";
+  });
+  for (const [word, codes] of ALLERGEN_WORDS) {
     rest = rest.replace(new RegExp(`\\b(?:${word})[- ]free\\b|\\b(?:without|no)\\s+(?:${word})\\b`, "g"), () => {
       avoidAllergens.push(...codes);
       return " ";
@@ -98,7 +113,7 @@ const DAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", 
 export function resolveDate(text: string, from: Date = now()): { date: string | null; text: string | null } {
   const t = text.toLowerCase();
   const iso = t.match(/\b(20\d\d-\d\d-\d\d)\b/);
-  if (iso) return { date: iso[1], text: iso[1] };
+  if (iso) return { date: isCalendarDate(iso[1]) ? iso[1] : null, text: iso[1] };
   if (/\btomorrow\b/.test(t)) {
     const d = new Date(from.getTime() + 86_400_000);
     return { date: isoDate(d), text: "tomorrow" };
@@ -114,12 +129,15 @@ export function resolveDate(text: string, from: Date = now()): { date: string | 
       return { date: isoDate(new Date(d.toLocaleString("en-US", { timeZone: "Europe/Helsinki" }))), text: DAYS[i][0].toUpperCase() + DAYS[i].slice(1) };
     }
   }
-  const dm = t.match(/\b(\d{1,2})\s*(?:\.|st|nd|rd|th)?\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b/);
+  const dm = t.match(/\b(\d{1,2})\s*(?:\.|st|nd|rd|th)?\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b(?:\s+(20\d\d)\b)?/);
   if (dm) {
     const month = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"].indexOf(dm[2]);
-    const y = from.getUTCFullYear();
+    const y = dm[3] ? Number(dm[3]) : from.getUTCFullYear();
+    const candidate = `${y}-${String(month + 1).padStart(2, "0")}-${dm[1].padStart(2, "0")}`;
+    if (!isCalendarDate(candidate)) return { date: null, text: dm[0] };
     let d = new Date(Date.UTC(y, month, Number(dm[1])));
-    if (d.getTime() < from.getTime() - 86_400_000) d = new Date(Date.UTC(y + 1, month, Number(dm[1])));
+    if (!dm[3] && d.getTime() < from.getTime() - 86_400_000) d = new Date(Date.UTC(y + 1, month, Number(dm[1])));
+    if (d.getUTCMonth() !== month || d.getUTCDate() !== Number(dm[1])) return { date: null, text: dm[0] };
     return { date: isoDate(d), text: dm[0] };
   }
   return { date: null, text: null };
@@ -132,21 +150,22 @@ const lineId = () => `ln${Date.now().toString(36)}${(lineSeq++).toString(36)}`;
 export function rulesParse(text: string): Omit<SingleRequest, "siteId" | "outletId"> {
   const date = resolveDate(text);
   // "1,000 litres" and "1 000 l" are thousands, not two items; "1,5 l" stays a decimal.
-  let clean = normalizeNumbers(text.toLowerCase());
+  let clean = normalizeNumbers(text.toLowerCase()).replace(new RegExp(`\\b(?:by|before|on|for)\\s+${DATE_WORD}\\b`, "gi"), "").trim();
   let global = restrictions("");
   const globalPrefix = clean.match(/^(?:all(?:\s+(?:items|products))?|everything)(?:\s+(?:must|should))?(?:\s+be)?\s+([^:]+):\s*/);
   if (globalPrefix) {
     const parsed = restrictions(globalPrefix[1]);
-    if (!parsed.rest.trim() && (parsed.claims.length || parsed.avoidAllergens.length || parsed.origin)) {
+    if (onlyRestrictionJoiners(parsed.rest) && (parsed.claims.length || parsed.avoidAllergens.length || parsed.origin)) {
       global = parsed;
       clean = clean.slice(globalPrefix[0].length);
     }
   }
-  const globalText = clean.match(/(?:[,;]\s*|\s+)(?:all(?:\s+(?:items|products))?|both(?:\s+(?:items|products))?|everything)(?:\s+(?:must|should))?(?:\s+be)?\s+(.+)$/);
+  const globalText = clean.match(/(?:[,;]\s*|\s+)(?:all(?:\s+(?:items|products))?|both(?:\s+(?:items|products))?|everything)(?:\s+(?:must|should))?(?:\s+be)?\s+(.+)$/)
+    ?? clean.match(/[,;]\s*([^,;]+?)\s+products\s+only$/);
   if (globalText) {
     const parsed = restrictions(globalText[1]);
     const scopeClear = !/\bboth\b/.test(globalText[0]) || clean.slice(0, globalText.index).split(LIST_SEPARATOR).length === 2;
-    if (scopeClear && !parsed.rest.trim() && (parsed.claims.length || parsed.avoidAllergens.length || parsed.origin)) {
+    if (scopeClear && onlyRestrictionJoiners(parsed.rest) && (parsed.claims.length || parsed.avoidAllergens.length || parsed.origin)) {
       global = {
         ...parsed,
         claims: [...new Set([...global.claims, ...parsed.claims])],
@@ -158,7 +177,8 @@ export function rulesParse(text: string): Omit<SingleRequest, "siteId" | "outlet
     }
   }
   const parts = clean
-    .replace(new RegExp(`\\b(?:by|before|on|for)\\s+${DATE_WORD}\\b`, "gi"), "")
+    // Keep the conjunction inside "without milk and nuts" within its item's scope.
+    .replace(AVOID_LIST, (phrase) => phrase.replace(/\band\b/g, "\uE000"))
     .split(LIST_SEPARATOR)
     .filter((s) => s.trim());
   const lines: SingleLine[] = [];
@@ -172,7 +192,7 @@ export function rulesParse(text: string): Omit<SingleRequest, "siteId" | "outlet
       : { amount: count ? Number(count[1].replace(",", ".")) : 1, unit: "pcs" };
     const local = restrictions(s);
     const conflictingOrigin = local.conflictingOrigin || global.conflictingOrigin || Boolean(local.origin && global.origin && local.origin !== global.origin);
-    const quantity = parsedQuantity.amount >= 0 && Number.isFinite(parsedQuantity.amount) && !conflictingOrigin && !UNSUPPORTED_SPEC.test(s) ? parsedQuantity : null;
+    const quantity = parsedQuantity.amount >= 0 && Number.isFinite(parsedQuantity.amount) && !conflictingOrigin && !UNSUPPORTED_SPEC.test(s) && !unclearQuantity(s) ? parsedQuantity : null;
     const claims = [...new Set([...global.claims, ...local.claims])];
     const pid = s.match(/\b(4\d{5})\b/);
     const leftover = local.rest
@@ -182,7 +202,7 @@ export function rulesParse(text: string): Omit<SingleRequest, "siteId" | "outlet
       .replace(/\s+/g, " ")
       .trim();
     const pw = productWord(leftover || s);
-    if (!pw && !pid && !leftover) continue;
+    if (!pw && !pid && !leftover && !claims.length && !local.avoidAllergens.length && !local.origin) continue;
     lines.push({
       id: lineId(),
       text: raw.trim(),
@@ -191,7 +211,7 @@ export function rulesParse(text: string): Omit<SingleRequest, "siteId" | "outlet
       productType: pw?.type ?? null,
       category: pw?.category ?? null,
       productId: pid?.[1] ?? null,
-      quantity,
+      quantity: !pw && !pid && !leftover ? null : quantity,
       constraints: {
         claims,
         avoidAllergens: [...new Set([...global.avoidAllergens, ...local.avoidAllergens])],
@@ -223,7 +243,7 @@ const PARSE_SCHEMA = {
           amount: { type: ["number", "null"] },
           unit: { type: ["string", "null"], enum: ["g", "kg", "ml", "dl", "l", "pcs", null] },
           claims: { type: "array", items: { type: "string", enum: ["FREE_FROM_LACTOSE", "FREE_FROM_GLUTEN", "VEGAN", "FREE_FROM_MILK"] } },
-          avoidAllergens: { type: "array", items: { type: "string" }, description: "GS1 allergen codes to avoid, only if stated" },
+          avoidAllergens: { type: "array", items: { type: "string", enum: ALLERGEN_CODES }, description: "GS1 allergen codes to avoid, only if stated" },
           origin: { type: ["string", "null"], description: "Required ISO alpha-2 country of origin, lowercase (Finnish = fi); null if none. Never infer origin from a brand." },
         },
       },
@@ -238,7 +258,7 @@ const MODEL_RESULT = z.object({
     productId: z.string().regex(/^\d{6}$/).nullable(), amount: z.number().nullable(),
     unit: z.enum(["g", "kg", "ml", "dl", "l", "pcs"]).nullable(),
     claims: z.array(z.enum(["FREE_FROM_LACTOSE", "FREE_FROM_GLUTEN", "VEGAN", "FREE_FROM_MILK"])),
-    avoidAllergens: z.array(z.string().regex(/^[A-Z]{2,3}$/)),
+    avoidAllergens: z.array(z.enum(ALLERGEN_CODES)),
     origin: z.string().regex(/^[a-z]{2}$/).nullable().optional(),
   })),
 });
@@ -300,7 +320,7 @@ export async function parseRequest(text: string): Promise<{ request: Omit<Single
         category: pw?.category ?? null,
         productId: l.productId && /^\d{6}$/.test(l.productId) ? l.productId : null,
         // A count without a unit is pieces; an unclear or invalid amount needs clarification.
-        quantity: typeof l.amount === "number" && l.amount >= 0 && !UNSUPPORTED_SPEC.test(`${l.text} ${l.productWord}`) ? { amount: l.amount, unit: l.unit ?? "pcs" } : null,
+        quantity: typeof l.amount === "number" && l.amount >= 0 && !UNSUPPORTED_SPEC.test(`${l.text} ${l.productWord}`) && !unclearQuantity(l.text) ? { amount: l.amount, unit: l.unit ?? "pcs" } : null,
         constraints: { claims: l.claims, avoidAllergens: l.avoidAllergens, labels: [], ...(l.origin ? { origin: l.origin } : {}) },
       };
     });
@@ -315,7 +335,7 @@ export async function parseRequest(text: string): Promise<{ request: Omit<Single
 export function checkSingle(r: SingleRequest): FiredRule[] {
   const out: FiredRule[] = [];
   const today = isoDate(now());
-  if (!r.neededBy || r.neededBy <= today) out.push(fire("REQ-03", { need: r.lines.map((l) => l.query).join(", ") || "this" }));
+  if (!r.neededBy || !isCalendarDate(r.neededBy) || r.neededBy <= today) out.push(fire("REQ-03", { need: r.lines.map((l) => l.query).join(", ") || "this" }));
   if (!r.lines.length) out.push(fire("REQ-02", { need: "what" }));
   for (const l of r.lines) if (!l.quantity || !(l.quantity.amount > 0)) out.push(fire("REQ-02", { need: l.query, lineId: l.id }));
   return out;

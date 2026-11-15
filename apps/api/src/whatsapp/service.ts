@@ -12,6 +12,7 @@ import { sha256, stableStringify, round2 } from "../util.js";
 import { interpretWhatsApp } from "./interpreter.js";
 import { formatWhatsAppReply } from "./formatter.js";
 import { basketSnapshot } from "./snapshot.js";
+import { config } from "../config.js";
 
 const ref = (id: string): WhatsAppOrderRef => {
   const e = getEvent(id)!;
@@ -57,7 +58,7 @@ async function locked<T>(id: string, action: () => Promise<T>): Promise<T> {
 export async function handleWhatsAppMessage(input: { person: Person; token: string; conversation: WhatsAppConversation; text: string; messageId: string; channel?: "web" | "simulator" }) {
   const { person, text } = input;
   const conversation = structuredClone(input.conversation);
-  const respond = (facts: WhatsAppReplyFacts) => ({ conversation, reply: formatWhatsAppReply(facts, input.channel) });
+  const respond = (facts: WhatsAppReplyFacts) => ({ conversation, reply: formatWhatsAppReply(facts, input.channel, config.publicAppUrl) });
   const placed = person.hotelScope ? [] : (await gw.orders()).orders.filter((o) => o.state !== "rejected");
   const choices = listEvents().filter((e) => person.hotelId === "hotel-aurora" && mandate().sites.some((s) => s.id === e.siteId) && (person.hotelScope || (e.dishes.every((d) => person.outlets.includes(d.outletId))
     && staged(e.id).every((p) => p.lines.filter((l) => !l.removed).every((l) => person.outlets.includes(l.outletId)))
@@ -81,7 +82,7 @@ export async function handleWhatsAppMessage(input: { person: Person; token: stri
     // the person's latest request needed clarification instead of a new preview.
     const hadPending = Boolean(conversation.pending);
     conversation.pending = null;
-    return respond({ status: "clarification", headline: interpretation.question ?? "Which order would you like to work on?", detail: [interpretation.choices.map((o) => `${o.name} (${o.id}), ${o.deliveryDate}`).join("; "), hadPending ? "The previous confirmation was cancelled. Send the request again to review it." : ""].filter(Boolean).join(" "), actions: interpretation.choices.slice(0, 3).map((o) => ({ label: o.name, text: o.id })) });
+    return respond({ status: "clarification", headline: interpretation.question ?? "Which order would you like to work on?", detail: hadPending ? "The previous confirmation was cancelled. Send the request again to review it." : undefined, orderChoices: interpretation.choices, actions: interpretation.choices.map((o) => ({ label: o.name, text: o.id })) });
   }
   const id = interpretation.orderId;
   conversation.activeOrderId = id;
@@ -89,7 +90,7 @@ export async function handleWhatsAppMessage(input: { person: Person; token: stri
     const order = ref(id);
     const current = await contents(id);
     const summary = (extra: Partial<WhatsAppReplyFacts> = {}) => respond({ status: "summary", headline: "Your current order basket", order, lines: current.displayed, totalExVat: current.totalExVat, actions: [{ label: "Review final order", text: "confirm order" }], ...extra });
-    const blocked = (headline: string, detail?: string) => respond({ status: "blocked", headline, detail, order });
+    const blocked = (headline: string, detail?: string, appLink?: WhatsAppReplyFacts["appLink"]) => respond({ status: "blocked", headline, detail, order, appLink });
     // Another person may have changed the basket while this message was being
     // interpreted or waiting for its lock. Check current scope before any reply.
     if (!mandate().sites.some((s) => s.id === current.e.siteId) || (!person.hotelScope
@@ -113,22 +114,23 @@ export async function handleWhatsAppMessage(input: { person: Person; token: stri
       if (request.neededBy !== current.e.serviceDate) return blocked("The requested delivery date differs from this basket.", "Choose a basket with the right delivery date in the app.");
       const plan = newPlan("single", { personId: person.id, name: person.name }, request.outletId, { eventId: id, request, reviewing: true, title: request.lines.map((l) => l.text).join(", ") });
       await quoteAndDecide(plan, input.token);
-      if (hard(plan) || !plan.proposal) return respond({ status: "blocked", headline: plan.summary || "This request needs more details in the app.", order, lines: plan.lines.map(chatLine), warnings: warnings(plan) });
+      if (hard(plan) || !plan.proposal) return respond({ status: "blocked", headline: plan.summary || "This request needs more details.", order, lines: plan.lines.map(chatLine), warnings: warnings(plan), appLink: { label: "Review this request", path: `/requests/${encodeURIComponent(plan.id)}` } });
       conversation.pending = { kind: "add_items", orderId: id, planId: plan.id, fingerprint: pendingFingerprint(id, plan) };
-      return respond({ status: "proposal", headline: "Add these items to your basket?", order, lines: plan.lines.map(chatLine), totalExVat: plan.totalExVat, warnings: warnings(plan), actions: [{ label: "Confirm change", text: "confirm change" }, { label: "Cancel", text: "cancel" }] });
+      return respond({ status: "proposal", headline: "Add these items to your basket?", order, change: "add", lines: plan.lines.map(chatLine), totalExVat: plan.totalExVat, warnings: warnings(plan), actions: [{ label: "Confirm change", text: "confirm change" }, { label: "Cancel", text: "cancel" }] });
     }
     if (interpretation.intent === "remove_items") {
       conversation.pending = null;
       const selected = current.displayed.filter((l) => interpretation.lineIds.includes(l.id));
       if (!selected.length || selected.length !== interpretation.lineIds.length) return blocked("I could not identify those items. Name one exact product to remove.");
       conversation.pending = { kind: "remove_items", orderId: id, lineIds: selected.map((l) => l.id), fingerprint: pendingFingerprint(id) };
-      return respond({ status: "proposal", headline: "Remove these entire lines from your basket?", order, lines: selected, actions: [{ label: "Confirm removal", text: "confirm change" }, { label: "Cancel", text: "cancel" }] });
+      return respond({ status: "proposal", headline: "Remove these items from your basket?", order, change: "remove", lines: selected, actions: [{ label: "Confirm removal", text: "confirm change" }, { label: "Cancel", text: "cancel" }] });
     }
     const pending = conversation.pending;
     if (interpretation.intent === "accept_change") {
       if (!pending || pending.orderId !== id || pending.kind === "confirm_order") return blocked("There is no basket change waiting for confirmation.");
       const plan = pending.planId ? getPlan(pending.planId) : null;
       if (pending.fingerprint !== pendingFingerprint(id, plan ?? undefined)) { conversation.pending = null; return blocked("The basket changed since you reviewed it.", "Send the change again to review the latest basket."); }
+      const changedLines = pending.kind === "add_items" && plan ? plan.lines.map(chatLine) : current.displayed.filter((line) => pending.lineIds?.includes(line.id));
       if (pending.kind === "add_items" && plan) {
         const previous = pending.fingerprint;
         await quoteAndDecide(plan, input.token);
@@ -139,7 +141,7 @@ export async function handleWhatsAppMessage(input: { person: Person; token: stri
           conversation.pending = null;
           plan.reviewing = false;
           savePlan(plan);
-          return blocked("Stock is not confirmed.", "The proposal is available in this basket in the app. Review the stock decision there before adding these items. A chat confirmation cannot confirm stock.");
+          return blocked("Stock is not confirmed.", "Review the stock decision before adding these items. A chat confirmation cannot confirm stock.", { label: "Review stock decision", path: `/requests/${encodeURIComponent(plan.id)}` });
         }
         tx(() => {
           plan.reviewing = false; plan.basketedAt = nowIso(); plan.proposal = false;
@@ -164,7 +166,7 @@ export async function handleWhatsAppMessage(input: { person: Person; token: stri
       }
       conversation.pending = null;
       const updated = await contents(id);
-      return respond({ status: "updated", headline: "Your basket has been updated", order: ref(id), lines: updated.displayed, totalExVat: updated.totalExVat, actions: [{ label: "Review final order", text: "confirm order" }] });
+      return respond({ status: "updated", change: pending.kind === "add_items" ? "add" : "remove", headline: pending.kind === "add_items" ? "Added to your basket" : "Removed from your basket", order: ref(id), lines: changedLines, totalExVat: updated.totalExVat, actions: [{ label: "Review final order", text: "confirm order" }] });
     }
     if (interpretation.intent !== "confirm_order") return blocked("Please describe a basket change or ask for an order summary.");
     const checkoutKey = `whatsapp-checkout:${id}`;
@@ -172,13 +174,13 @@ export async function handleWhatsAppMessage(input: { person: Person; token: stri
     const existing = existingId ? getPlan(existingId) : null;
     if (existing && existing.status === "waiting" && existing.basketCheckout?.snapshot === basketSnapshot(id)) {
       conversation.pending = null;
-      return summary({ status: "approval_required", headline: "This exact basket is already awaiting approval", detail: "Open Waiting in the app to answer the existing approval card.", actions: [] });
+      return summary({ status: "approval_required", headline: "This order is already awaiting manager approval", detail: "Your financial approver can review the exact quote below.", lines: [], actions: [], appLink: { label: "Review approval", path: `/baskets/${encodeURIComponent(id)}${existing.questionIds[0] ? `#question-${encodeURIComponent(existing.questionIds[0])}` : ""}` } });
     }
     if (!current.lines.length) return blocked("This basket is empty. Add items before confirming it.");
     const snapshot = basketSnapshot(id);
     if (!pending || pending.kind !== "confirm_order" || pending.orderId !== id || pending.fingerprint !== snapshot) {
       conversation.pending = { kind: "confirm_order", orderId: id, fingerprint: snapshot };
-      return summary({ status: "proposal", headline: "Review the entire basket before submission", detail: "Confirm this exact basket to run the gateway checks. Any required financial approval stays in the app.", actions: [{ label: "Confirm final order", text: "confirm order" }, { label: "Cancel", text: "cancel" }] });
+      return summary({ status: "proposal", change: "submit", headline: "Confirm this final order?", detail: "I’ll run the final checks and request manager approval if needed.", actions: [{ label: "Confirm final order", text: "confirm order" }, { label: "Cancel", text: "cancel" }] });
     }
     conversation.pending = null;
     if (current.plans.some(hard)) return blocked("Resolve the basket's product or delivery issues in the app before ordering.");
@@ -239,12 +241,12 @@ export async function handleWhatsAppMessage(input: { person: Person; token: stri
       saveQuestion(question);
       plan.questionIds = [question.id]; plan.summary = "Waiting for approval of the complete basket";
       savePlan(plan);
-      return summary({ status: "approval_required", headline: plan.summary, detail: "The financial approver can review the exact quote in Waiting in the app.", actions: [] });
+      return summary({ status: "approval_required", headline: "Manager approval needed", detail: "Your financial approver can review the exact quote below.", lines: [], warnings: [...new Set([...quote.mandateCheck.rules, ...softApprovals].filter((rule) => rule.outcome !== "order").map((rule) => rule.message))], actions: [], appLink: { label: "Review approval", path: `/baskets/${encodeURIComponent(id)}#question-${encodeURIComponent(question.id)}` } });
     }
     savePlan(plan);
     await placeFromPlan(plan, undefined);
     if (plan.status !== "ordered") return blocked(plan.summary, plan.error ?? undefined);
     audit({ actor: personActor(person), action: "request_received", eventId: id, summary: `${person.name} confirmed the complete basket through simulated WhatsApp`, details: { kind: "confirmation", planId: plan.id }, visibility: "hotel" });
-    return respond({ status: "ordered", headline: "Your mock order is placed", order, lines: plan.lines.map(chatLine), totalExVat: plan.totalExVat, orderIds: plan.orderIds, actions: [] });
+    return respond({ status: "ordered", headline: "Mock order placed", order, lines: plan.lines.map(chatLine), totalExVat: plan.totalExVat, orderIds: plan.orderIds, actions: [] });
   });
 }

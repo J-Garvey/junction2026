@@ -191,7 +191,17 @@ function buildLines(needs: Need[], urgent: boolean, ov: Overrides, m: Mandate): 
   const lines: PlanLine[] = [];
   let shortfall: Plan["shortfall"] = null;
   const combined = new Map<string, { c: Candidate; needs: Need[]; value: number; unit: BaseUnit }>();
-  for (const n of needs) {
+  // Supplier stock belongs to the product across the whole basket, not to each need.
+  const allocatedStock = new Map<string, number>();
+  const groups = new Map<string, Need[]>();
+  for (const need of needs) {
+    // Identical urgent needs share one whole-pack rounding and stock allocation.
+    // Distinct specifications retain their own lines and their own decisions.
+    const key = urgent && need.candidates.length ? JSON.stringify([need.outletId, need.amount.unit, need.query, need.productType, need.pinnedProductId, need.constraints, need.candidates.map((c) => c.productId)]) : need.id;
+    groups.set(key, [...(groups.get(key) ?? []), need]);
+  }
+  for (const group of groups.values()) {
+    const n = group.length === 1 ? group[0] : { ...group[0], amount: { ...group[0].amount, value: group.reduce((sum, need) => sum + need.amount.value, 0) }, rules: group.flatMap((need) => need.rules) };
     if (!n.candidates.length) {
       lines.push({
         id: `red:${n.id}`, needIds: [n.id], productId: null, productName: n.label, outletId: n.outletId, needAmount: n.amount, quantity: 0, packContent: null, overshoot: null,
@@ -215,7 +225,7 @@ function buildLines(needs: Need[], urgent: boolean, ov: Overrides, m: Mandate): 
     const best = candidates[0];
     if (best.stock.kind === "unknown" && !ov.useConfirmed && best.packContent && best.packContent.unit === n.amount.unit) {
       const packs = Math.ceil(n.amount.value / best.packContent.value - 1e-9);
-      lines.push(makeLine(best, [n], n.amount.value, packs, n.amount.unit, "primary", m));
+      lines.push(makeLine(best, group, n.amount.value, packs, n.amount.unit, "primary", m));
       continue;
     }
     // Otherwise fill from confirmed stock in rank order, then the best unconfirmed product for the rest.
@@ -225,10 +235,11 @@ function buildLines(needs: Need[], urgent: boolean, ov: Overrides, m: Mandate): 
       if (remaining <= 1e-9) break;
       if (c.stock.kind !== "known" || !c.packContent || c.packContent.unit !== n.amount.unit || c.stock.amount <= 0) continue;
       const want = Math.ceil(remaining / c.packContent.value - 1e-9);
-      const take = Math.min(want, Math.floor(c.stock.amount));
+      const take = Math.min(want, Math.max(0, Math.floor(c.stock.amount) - (allocatedStock.get(c.productId) ?? 0)));
       if (take <= 0) continue;
+      allocatedStock.set(c.productId, (allocatedStock.get(c.productId) ?? 0) + take);
       const got = take * c.packContent.value;
-      lines.push(makeLine(c, [n], got >= remaining ? remaining : got, take, n.amount.unit, got >= remaining - 1e-9 ? "primary" : "partial", m));
+      lines.push(makeLine(c, group, got >= remaining ? remaining : got, take, n.amount.unit, got >= remaining - 1e-9 ? "primary" : "partial", m));
       covered += Math.min(got, remaining);
       remaining -= got;
     }
@@ -237,7 +248,7 @@ function buildLines(needs: Need[], urgent: boolean, ov: Overrides, m: Mandate): 
       const unknown = candidates.find((c) => c.stock.kind === "unknown" && c.packContent && c.packContent.unit === n.amount.unit);
       if (unknown && !ov.keepShort && !ov.useConfirmed) {
         const packs = Math.ceil(remaining / unknown.packContent!.value - 1e-9);
-        lines.push(makeLine(unknown, [n], remaining, packs, n.amount.unit, "unknown_fill", m));
+        lines.push(makeLine(unknown, group, remaining, packs, n.amount.unit, "unknown_fill", m));
       }
       if (covered > 0 || unknown) lines.forEach((l) => l.needIds.includes(n.id) && l.rules.push(fire("STK-02", { covered: `${round2(covered)} ${n.amount.unit}`, need: `${n.amount.value} ${n.amount.unit}`, short: `${round2(remaining)} ${n.amount.unit}` })));
       if (!lines.some((l) => l.needIds.includes(n.id)))
@@ -253,7 +264,6 @@ function buildLines(needs: Need[], urgent: boolean, ov: Overrides, m: Mandate): 
     const pm = packRound(e.c.name, e.value, e.unit, e.c, m.preAnswers);
     const l = makeLine(e.c, e.needs, e.value, pm.quantity, e.unit, "primary", m);
     l.overshoot = pm.overshoot;
-    l.rules.push(...pm.rules);
     lines.push(l);
   }
   // Recompute verdicts after all rules are attached.
@@ -263,6 +273,8 @@ function buildLines(needs: Need[], urgent: boolean, ov: Overrides, m: Mandate): 
 
 function makeLine(c: Candidate, needs: Need[], needValue: number, quantity: number, unit: BaseUnit, allocation: PlanLine["allocation"], m: Mandate): PlanLine {
   const rules: FiredRule[] = [];
+  const rounded = packRound(c.name, needValue, unit, c, m.preAnswers);
+  if (rounded.quantity === quantity) rules.push(...rounded.rules);
   for (const n of needs) {
     rules.push(...n.rules.filter((r) => r.outcome !== "block" || r.facts.productId === c.productId));
     rules.push(...candidateRules(c, n));
@@ -281,7 +293,7 @@ function makeLine(c: Candidate, needs: Need[], needValue: number, quantity: numb
   const massKg = c.packContent && c.packContent.unit !== "pcs" ? c.packContent.value * quantity : null;
   const lineTotal = c.unitPrice === null ? null : round2(c.unitPrice * quantity);
   return {
-    id: `${c.productId}|${needs[0].outletId}|${allocation}`,
+    id: `${c.productId}|${needs[0].outletId}|${allocation}|${needs.map((n) => n.id).join(",")}`,
     needIds: needs.map((n) => n.id),
     productId: c.productId,
     productName: c.name,
@@ -289,7 +301,7 @@ function makeLine(c: Candidate, needs: Need[], needValue: number, quantity: numb
     needAmount: { value: round2(needValue), unit },
     quantity,
     packContent: c.packContent,
-    overshoot: null,
+    overshoot: rounded.quantity === quantity ? rounded.overshoot : null,
     unitPrice: c.unitPrice,
     lineTotal,
     salesUnit: c.salesUnit,
@@ -456,7 +468,12 @@ export async function quoteAndDecide(plan: StoredPlan, personToken?: string): Pr
   }
   const requiresFor = (l: PlanLine): Constraints => {
     const ns = plan.needs.filter((n) => l.needIds.includes(n.id));
-    return { claims: [...new Set(ns.flatMap((n) => n.constraints.claims))], avoidAllergens: [...new Set(ns.flatMap((n) => n.constraints.avoidAllergens))], labels: [] };
+    return {
+      claims: [...new Set(ns.flatMap((n) => n.constraints.claims))],
+      avoidAllergens: [...new Set(ns.flatMap((n) => n.constraints.avoidAllergens))],
+      labels: [...new Set(ns.flatMap((n) => n.constraints.labels))],
+      ...(ns.find((n) => n.constraints.origin) ? { origin: ns.find((n) => n.constraints.origin)!.constraints.origin } : {}),
+    };
   };
   let quote: Quote;
   const tQuote = performance.now();
