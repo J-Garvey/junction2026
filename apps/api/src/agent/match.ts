@@ -4,7 +4,7 @@
  * work out whole packs. Deterministic apart from the stored model judgements.
  */
 import type { Candidate, FiredRule, LookupLine, Need, PlanLine, Product, StatusLabel, Verdict, BaseUnit, ModelJudgement } from "@aimo/contracts";
-import { getProduct, searchProducts } from "../catalog.js";
+import { getProduct, searchMatches, searchProducts } from "../catalog.js";
 import { fire, FIXED, RULE_INDEX } from "../rules/catalogue.js";
 import { cutoffRule, dietRules, earliestDelivery, packContent, priceValidityRule, reliabilityRules, supplyRules, blocks } from "../rules/checks.js";
 import { typeCheck } from "./judge.js";
@@ -29,10 +29,10 @@ export function shortlist(need: Need): Product[] {
     return out.slice(0, FIXED.searchLimit);
   }
   const base = { category: need.category ?? undefined, claims: claims.filter((c) => c !== "FREE_FROM_MILK"), limit: FIXED.searchLimit };
-  let list = searchProducts({ ...base, q: need.query });
-  const fellBack = !list.length && !!need.category;
-  if (fellBack) list = searchProducts(base);
-  logSearch({ source: "shortlist", query: { need: need.label, text: need.text, q: need.query, ...base }, interpreted: { count: list.length, fellBackToCategory: fellBack, top: brief(list) } });
+  // Mention-only search results are useful for browsing, but cannot establish what to
+  // buy. A failed text match must not turn into an unrelated category-wide pick.
+  const list = searchMatches({ ...base, q: need.query }).filter((m) => m.tier < 3).map((m) => m.product);
+  logSearch({ source: "shortlist", query: { need: need.label, text: need.text, q: need.query, ...base }, interpreted: { count: list.length, fellBackToCategory: false, top: brief(list) } });
   return list;
 }
 

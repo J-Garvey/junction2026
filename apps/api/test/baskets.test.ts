@@ -7,6 +7,7 @@ process.env.AIMO_MODE = "fixture";
 process.env.PREVIEW_PASSWORD = "";
 const { createApp } = await import("../src/server.js");
 const { config } = await import("../src/config.js");
+const { getPlan, savePlan } = await import("../src/agent/plan.js");
 
 let BASE = "";
 let server: Server;
@@ -96,6 +97,41 @@ describe("order baskets", () => {
     });
     expect(noMatch.plan.summary).toBe("No matching product found. Refine the search and try again.");
     expect(noMatch.plan.needs[0].rules.map((rule: any) => rule.ruleId)).toContain("DIET-04");
+  });
+
+  it("does not propose the screenshot's NoChicken product for a chicken burger request", async () => {
+    await call("POST", "/clock", { time: "2026-11-14T10:00:00Z" });
+    const basket = await call("POST", "/baskets", { name: "Chicken burgers", deliveryDate: "2026-11-16" });
+    const m = await call("POST", "/messages", { text: "10 pcs chicken burger by Monday" });
+    expect(m.request.lines[0].query).toBe("chicken burger");
+    const r = await call("POST", "/requests", { request: m.request, eventId: basket.basket.id, reviewing: true });
+    expect(r.status).toBe(200);
+    expect(r.plan.needs[0].candidates.length).toBeGreaterThan(0);
+    expect(r.plan.needs[0].candidates.map((p: any) => p.productId)).not.toContain("469770");
+    expect(r.plan.lines.some((l: any) => /NoChicken|vegetarian/i.test(l.productName))).toBe(false);
+    expect(r.plan.orderIds).toEqual([]);
+
+    // A proposal saved by the old matcher (or still open during an upgrade) must
+    // not let the stale NoChicken selection through when the chef clicks Add.
+    const stale = getPlan(r.plan.id)!;
+    stale.lines[0].productId = "469770";
+    savePlan(stale);
+    const staged = await call("POST", `/plans/${stale.id}/basket`, { continueWithWarnings: true });
+    expect(staged.status).toBe(409);
+    expect(staged.error).toBe("The product matches changed. Review this request again before adding it.");
+    expect(getPlan(stale.id)!.basketedAt).toBeFalsy();
+  });
+
+  it("leaves a missing qualified product unresolved and refuses to add it to a basket", async () => {
+    const basket = await call("POST", "/baskets", { name: "Missing brand", deliveryDate: "2026-11-16" });
+    const m = await call("POST", "/messages", { text: "10 l unlistedbrand milk by Monday" });
+    expect(m.request.lines[0]).toMatchObject({ query: "unlistedbrand milk", category: "10400" });
+    const r = await call("POST", "/requests", { request: m.request, eventId: basket.basket.id, reviewing: true });
+    expect(r.plan.summary).toBe("No matching product found. Refine the search and try again.");
+    expect(r.plan.needs[0].candidates).toEqual([]);
+    expect(r.plan.lines.every((l: any) => l.productId === null)).toBe(true);
+    expect((await call("POST", `/plans/${r.plan.id}/basket`, { continueWithWarnings: true })).status).toBe(409);
+    expect(r.plan.orderIds).toEqual([]);
   });
 
   it("lets the chef add unconfirmed stock after explicitly accepting the warning", async () => {

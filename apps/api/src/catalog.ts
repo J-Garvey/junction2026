@@ -115,7 +115,7 @@ export function searchMatches(q: ProductSearchQuery): Match[] {
     if (!q.q?.trim() && pool.length >= limit) break;
   }
   if (!q.q?.trim()) return pool.map((product) => ({ product, tier: 0, role: null, term: "" }));
-  return relevance(q.q, pool, [...products!.values()], q.category).slice(0, limit);
+  return relevance(q.q, pool, [...products!.values()], q.category, q.claims).slice(0, limit);
 }
 
 /** Every product whose name mentions the text, whatever it is (fixture recording wants them all). */

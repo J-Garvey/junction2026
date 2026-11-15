@@ -113,7 +113,7 @@ The PRD left these open. Each choice follows the chunk's recommended answer unle
 | Q01.2 Request fields | As recommended. Events carry dishes, ingredients with amount per portion, and disjoint diet groups. An ingredient can name a recipe-approved product per diet group (`variants`). |
 | Q01.5 Ambiguity | Known broad words ("cream", "bread", "cheese", "fish") always ask. Other words go to the model; unreachable means ask. |
 | Q01.6 Parser failure | Falls back to a built-in parser for the same grammar and tells the user to check the chips. |
-| Q02.1 Shortlist | A recipe-approved product is used when it passes every hard rule. Otherwise the line searches its category plus claims, capped at 50. |
+| Q02.1 Shortlist | A recipe-approved product is used when it passes every hard rule. Otherwise the line searches its text, category and claims, capped at 50. Unmatched qualifiers remain unmatched; there is no category-only fallback. Mention-only results cannot be automatic picks. Meat and dairy requests exclude plant analogues unless explicitly requested by text or claim. These identity exclusions never establish dietary or allergen safety. |
 | Q02.3 Diet table | Claim first. Without the claim, a diet passes "by declaration" (DIET-05) only when the product has allergen data and none of the relevant codes (lactose: AM, ML; gluten: AW, UW, GB, NR, GO, GS, GK). Vegan needs the claim. |
 | Q02.4 Reliability | Three bands as recommended. |
 | SF-06 ranking (D33, supersedes D32) | Preserve priced explicit buyer/recipe choices. Automatic picks: sufficient confirmed stock, partial confirmed stock, unknown stock, zero stock; then price per kg or L, reliability and product ID. Missing prices always last and blocked from ordering. |
