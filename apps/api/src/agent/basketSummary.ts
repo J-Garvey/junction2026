@@ -14,60 +14,74 @@ export interface DeadlineItem {
 const validDate = (date: string | null): date is string => !!date && isCalendarDate(date);
 const helsinkiDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Helsinki", year: "numeric", month: "2-digit", day: "2-digit" });
 
-/** Latest proven full-quantity option per item, then the earliest cutoff across items.
+/** Latest full-quantity option per item, then the earliest cutoff across dated items.
  * Schedule amounts are alternatives, never assumed to be additive inventory.
  * Earlier supplier availability is valid for delivery by the intended date; its cutoff is never shifted.
+ * Unknown stock can supply timing evidence, but never confirms availability or fulfillment.
  */
 export function orderDeadline(items: DeadlineItem[], deliveryDate: string, at: Date): OrderDeadline {
   const usesFixtures = items.some((item) => item.source === "fixture");
-  const result = (state: OrderDeadline["state"], reason: string): OrderDeadline => ({ state, at: null, reason, usesFixtures });
+  let excludedItems = 0;
+  let unconfirmedStockItems = 0;
+  const result = (state: OrderDeadline["state"], reason: string): OrderDeadline => ({ state, at: null, reason, usesFixtures, excludedItems, unconfirmedStockItems });
   if (!validDate(deliveryDate)) return result("unknown", "The order delivery date is missing or invalid.");
   if (!items.length) return result("unknown", "Add items to establish an ordering deadline.");
   const groups = new Map<string, DeadlineItem[]>();
-  for (const item of items) {
-    if (!item.productId || !item.salesUnit || !Number.isInteger(item.quantity) || item.quantity <= 0 || !validDate(item.deliveryDate))
-      return result("unknown", "An item is missing its product, sales quantity or intended delivery date.");
-    if (item.deliveryDate > deliveryDate) return result("unavailable", "Some items are scheduled after the order delivery date.");
-    const key = `${item.productId}:${item.salesUnit}`;
+  let unavailable: string | null = null;
+  for (const [index, item] of items.entries()) {
+    if (validDate(item.deliveryDate) && item.deliveryDate > deliveryDate)
+      unavailable = "Some items are scheduled after the order delivery date.";
+    const key = item.productId && item.salesUnit ? `${item.productId}:${item.salesUnit}` : `unresolved:${index}`;
     groups.set(key, [...(groups.get(key) ?? []), item]);
   }
   const cutoffs: number[] = [];
-  let unknown = false;
   for (const group of groups.values()) {
     const quantity = group.reduce((sum, item) => sum + item.quantity, 0);
-    const neededBy = group.map((item) => item.deliveryDate!).sort()[0];
+    const neededBy = group.map((item) => item.deliveryDate).filter(validDate).sort()[0] ?? deliveryDate;
     // Each saved snapshot must support the combined quantity. Never pick an older,
     // more optimistic snapshot over a conflicting one in another basket request.
     for (const item of group) {
       const evidence = item.availabilityEvidence;
-      if (!evidence) { unknown = true; continue; }
-      if (evidence.salesBlock || !evidence.schedules.length)
-        return result("unavailable", "A supplier has blocked an item or offered no delivery schedules.");
+      if (!evidence) { excludedItems++; continue; }
+      if (evidence.salesBlock || !evidence.schedules.length) {
+        unavailable = "A supplier has blocked an item or offered no delivery schedules.";
+        continue;
+      }
       const feasible: number[] = [];
+      const unconfirmedStock: number[] = [];
       let incomplete = false;
       for (const schedule of evidence.schedules) {
         if (schedule.salesBlock) continue;
+        // Known incompatibilities still count even if another field is missing.
+        if (validDate(schedule.availableDate) && schedule.availableDate > neededBy) continue;
+        if (schedule.salesUnit && item.salesUnit && schedule.salesUnit !== item.salesUnit) continue;
+        const stockKnown = schedule.stock.kind === "known" && Number.isFinite(schedule.stock.amount) && schedule.stock.amount >= 0;
+        if (stockKnown && schedule.stock.kind === "known" && schedule.stock.amount < quantity) continue;
         if (!validDate(schedule.availableDate) || !schedule.salesUnit) { incomplete = true; continue; }
-        if (schedule.availableDate > neededBy || schedule.salesUnit !== item.salesUnit) continue;
-        if (schedule.stock.kind !== "known") { incomplete = true; continue; }
-        if (!Number.isFinite(schedule.stock.amount) || schedule.stock.amount < 0) { incomplete = true; continue; }
-        if (schedule.stock.amount < quantity) continue;
         // Explicit offsets avoid interpreting a supplier's local time in the server's timezone.
         const cutoff = schedule.closingTime && validDate(schedule.closingTime.slice(0, 10)) && /(?:Z|[+-]\d{2}:?\d{2})$/i.test(schedule.closingTime)
           ? parseAimoTime(schedule.closingTime) : null;
         if (!cutoff) { incomplete = true; continue; }
         const cutoffDate = helsinkiDate.format(cutoff);
-        if (cutoffDate > neededBy) { incomplete = true; continue; }
-        feasible.push(cutoff.getTime());
+        if (cutoffDate > neededBy) continue;
+        (stockKnown ? feasible : unconfirmedStock).push(cutoff.getTime());
       }
-      if (feasible.length) cutoffs.push(Math.max(...feasible));
-      else if (incomplete) unknown = true;
-      else return result("unavailable", "No supplier schedule covers the full quantity in its sales unit by the delivery date.");
+      // Prefer the existing proven full-quantity options. Only use stock-unknown
+      // timing when no proven option exists, and keep that uncertainty explicit.
+      const options = feasible.length ? feasible : unconfirmedStock;
+      const completeItem = item.productId && item.salesUnit && Number.isInteger(item.quantity) && item.quantity > 0 && validDate(item.deliveryDate);
+      if (options.length && completeItem) {
+        cutoffs.push(Math.max(...options));
+        if (!feasible.length) unconfirmedStockItems++;
+      } else if (options.length || incomplete) excludedItems++;
+      else unavailable = "No supplier schedule covers the full quantity in its sales unit by the delivery date.";
     }
   }
-  if (unknown || !cutoffs.length) return result("unknown", "Supplier stock, schedules or cutoffs are not confirmed for every item. Refresh the item terms before ordering.");
+  if (unavailable) return result("unavailable", unavailable);
+  if (!cutoffs.length) return result("unknown", "No ordering deadline can be calculated: delivery dates, schedules or cutoffs are unknown for all items. Their delivery remains unconfirmed. Refresh the item terms before ordering.");
   const deadline = Math.min(...cutoffs);
-  return { state: deadline <= at.getTime() ? "expired" : "known", at: new Date(deadline).toISOString(), reason: null, usesFixtures };
+  const reason = unconfirmedStockItems ? `Stock is unconfirmed for ${unconfirmedStockItems} scheduled ${unconfirmedStockItems === 1 ? "item" : "items"}. The ordering deadline does not confirm stock or delivery; terms are rechecked when ordering.` : null;
+  return { state: deadline <= at.getTime() ? "expired" : "known", at: new Date(deadline).toISOString(), reason, usesFixtures, excludedItems, unconfirmedStockItems };
 }
 
 export function pendingQuestions(questions: Question[], at: Date): Question[] {
@@ -83,13 +97,14 @@ export function approvalLevels(questions: Question[]) {
 export function isConfirmedOrder(order: Order): boolean {
   const lines = order.lines.filter((line) => !line.removed);
   const placedAt = parseAimoTime(order.placedAt);
+  const deadline = placedAt && orderDeadline(lines.map((line) => ({ ...line, deliveryDate: order.deliveryDate })), order.deliveryDate, placedAt);
   return !!placedAt && ["placed", "amended", "checked", "locked"].includes(order.state) && validDate(order.deliveryDate) && !order.flags.length && lines.length > 0
     && lines.every((line) => line.outcome !== "block" && !!line.salesUnit && Number.isInteger(line.quantity) && line.quantity > 0
       && validDate(line.availableDate) && line.availableDate <= order.deliveryDate
       && line.stock.kind === "known" && Number.isFinite(line.stock.amount) && line.stock.amount >= order.lines
         .filter((other) => !other.removed && other.productId === line.productId && other.salesUnit === line.salesUnit)
         .reduce((sum, other) => sum + other.quantity, 0))
-    && orderDeadline(lines.map((line) => ({ ...line, deliveryDate: order.deliveryDate })), order.deliveryDate, placedAt).state === "known";
+    && !!deadline && deadline.state === "known" && !deadline.excludedItems && !deadline.unconfirmedStockItems;
 }
 
 export function basketStatus(deliveryDate: string, orders: Order[], plans: Plan[], questions: Question[], at: Date, hasWarnings = false): BasketStatus {
@@ -99,13 +114,14 @@ export function basketStatus(deliveryDate: string, orders: Order[], plans: Plan[
   const items: DeadlineItem[] = [
     ...live.flatMap((order) => order.lines.filter((line) => !line.removed).map((line) => ({ ...line, deliveryDate: order.deliveryDate }))),
     ...pending.flatMap((plan) => plan.lines.filter((line) => !line.removed).map((line) => ({ ...line, deliveryDate: plan.deliveryDate }))),
+    // Unresolved requests have no line terms yet, but must not hide other items' cutoffs.
+    ...pending.filter((plan) => !plan.lines.some((line) => !line.removed)).flatMap((plan) =>
+      Array.from({ length: Math.max(plan.needs?.length ?? 0, 1) }, () => ({ productId: null, quantity: 0, salesUnit: null, deliveryDate: plan.deliveryDate, source: null }))),
   ];
   const ids = new Set(live.map((order) => order.id));
   const confirmed = validDate(deliveryDate) && live.length > 0 && live.every((order) => order.deliveryDate <= deliveryDate && isConfirmedOrder(order))
     && !pending.length && !pendingQuestions(questions, at).length
     && !hasWarnings && active.every((plan) => plan.status === "ordered" && plan.orderIds.every((id) => ids.has(id)));
-  const orderBy = pending.some((plan) => !plan.lines.some((line) => !line.removed))
-    ? { state: "unknown" as const, at: null, reason: "Some requested items have no supplier terms yet.", usesFixtures: items.some((item) => item.source === "fixture") }
-    : orderDeadline(items, deliveryDate, at);
-  return { orderBy, confirmed: confirmed && (orderBy.state === "known" || orderBy.state === "expired") };
+  const orderBy = orderDeadline(items, deliveryDate, at);
+  return { orderBy, confirmed: confirmed && !orderBy.excludedItems && !orderBy.unconfirmedStockItems && (orderBy.state === "known" || orderBy.state === "expired") };
 }

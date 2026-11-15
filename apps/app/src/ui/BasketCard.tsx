@@ -8,8 +8,8 @@ export function BasketCard({ basket: b, role }: { basket: Basket; role: string }
   const levels = b.approvalLevels.filter((level) => level.count > 0);
   const waiting = levels.reduce((sum, level) => sum + level.count, 0);
   return (
-    <Link to={`/baskets/${b.id}`} className={`btile${b.confirmed ? " confirmed" : ""}`}>
-      <div className="btile-name">{b.name}</div>
+    <div className={`btile${b.confirmed ? " confirmed" : ""}`}>
+      <Link to={`/baskets/${b.id}`} className="btile-name btile-link">{b.name}</Link>
       <div className="btile-context small muted">
         <span><Icon n="cal" s={14} /> Delivery {day(b.deliveryDate)}</span>
         {b.guests > 0 && <span>{plural(b.guests, "guest")}</span>}
@@ -33,6 +33,6 @@ export function BasketCard({ basket: b, role }: { basket: Basket; role: string }
         {b.confirmed ? <span className="stamp order"><Icon n="check" s={14} /> Confirmed</span> : <span>{waiting > 0 ? `${waiting} waiting for approval` : "View order"}</span>}
         <Icon n="chev" s={16} />
       </div>
-    </Link>
+    </div>
   );
 }

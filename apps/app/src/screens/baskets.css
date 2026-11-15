@@ -1,13 +1,25 @@
 /* Order baskets. Tokens from styles.css. */
 .orders-page { max-width: none; }
 .bgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr)); gap: 14px; }
-.btile { background: var(--card); border: 1px solid var(--hairline); border-radius: 6px; padding: 16px; display: flex; flex-direction: column; gap: 10px; min-height: 224px; color: var(--body); text-decoration: none; text-align: left; }
-a.btile:hover { text-decoration: none; border-color: var(--ink); box-shadow: 0 1px 0 var(--hairline); }
-.btile.confirmed, a.btile.confirmed:hover { border-color: var(--green); box-shadow: inset 0 0 0 1px var(--green-soft); }
+.btile { position: relative; background: var(--card); border: 1px solid var(--hairline); border-radius: 6px; padding: 16px; display: flex; flex-direction: column; gap: 10px; min-height: 224px; color: var(--body); text-decoration: none; text-align: left; }
+.btile:has(.btile-link:hover), .btile:has(.btile-link:focus-visible) { border-color: var(--ink); box-shadow: 0 1px 0 var(--hairline); }
+.btile-link:hover { text-decoration: none; }
+.btile-link::after { content: ""; position: absolute; inset: 0; border-radius: 6px; }
+.btile-link:focus-visible::after { outline: 2px solid var(--blue); outline-offset: 2px; }
+.btile.confirmed, .btile.confirmed:hover, .btile.confirmed:focus-within { border-color: var(--green); box-shadow: inset 0 0 0 1px var(--green-soft); }
 .order-deadline { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; overflow-wrap: anywhere; }
 .order-deadline-label { color: var(--mute); display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .order-deadline strong { color: var(--ink); font-weight: 600; }
 .order-deadline.expired strong, .order-deadline.unavailable strong { color: var(--red); }
+.order-deadline-info { z-index: 1; }
+.order-deadline-info[open] { z-index: 31; }
+.order-deadline-info summary { list-style: none; display: inline-flex; justify-content: center; align-items: flex-start; min-width: 24px; min-height: 24px; padding-top: 2px; border-radius: 4px; cursor: pointer; }
+.order-deadline-info summary::-webkit-details-marker { display: none; }
+.order-deadline-info summary:hover { background: var(--soft); }
+.order-deadline-info summary:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+.order-deadline-info sup { display: inline-flex; justify-content: center; align-items: center; width: 13px; height: 13px; border: 1px solid currentColor; border-radius: 50%; font-size: 10px; line-height: 1; }
+.order-deadline-info .popover p { margin: 0; }
+.order-deadline-info .popover p + p { margin-top: 8px; }
 .btile-name { color: var(--ink); font-size: 17px; font-weight: 700; letter-spacing: -0.2px; line-height: 1.3; }
 .btile-context { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; }
 .btile-context span { display: inline-flex; align-items: center; gap: 4px; }
