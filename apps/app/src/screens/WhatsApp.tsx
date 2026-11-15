@@ -225,7 +225,13 @@ function MessageBubble({ message, who, children }: { message: WhatsAppMessage; w
   </div>;
 }
 
-/** Only *bold* is interpreted. React escapes every text fragment, including HTML. */
+/** Render the same simple emphasis and links as WhatsApp. React escapes all text. */
 function ChatText({ text }: { text: string }) {
-  return <>{text.split(/(\*[^*\n]+\*)/g).map((part, index) => part.startsWith("*") && part.endsWith("*") && part.length > 2 ? <strong key={index}>{part.slice(1, -1)}</strong> : part)}</>;
+  return <>{text.split(/(https?:\/\/[^\s<>]+|\*[^*\n]+\*|_[^_\n]+_|`[^`\n]+`)/g).map((part, index) => {
+    if (/^https?:\/\//.test(part)) return <a key={index} href={part} target="_blank" rel="noreferrer">{part}</a>;
+    if (part.startsWith("*") && part.endsWith("*") && part.length > 2) return <strong key={index}>{part.slice(1, -1)}</strong>;
+    if (part.startsWith("_") && part.endsWith("_") && part.length > 2) return <em key={index}>{part.slice(1, -1)}</em>;
+    if (part.startsWith("`") && part.endsWith("`") && part.length > 2) return <code key={index}>{part.slice(1, -1)}</code>;
+    return part;
+  })}</>;
 }

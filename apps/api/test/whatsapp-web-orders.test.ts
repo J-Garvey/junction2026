@@ -55,8 +55,8 @@ it("handles selected real-group events through the existing interpreter, basket 
     };
     await send(basket.id);
     const proposal = await send("add 10 kg salmon 469672");
-    expect(proposal).toContain("Proposed basket change");
-    expect(proposal).toContain("reply ```confirm change```");
+    expect(proposal).toContain("*Add these items to your basket?*");
+    expect(proposal).toContain("Reply *confirm change* or *cancel*.");
     expect(proposal).not.toContain("FAKE WhatsApp");
     await send("confirm change", "unselected@g.us");
     expect((await call(`/baskets/${basket.id}`)).requests).toHaveLength(0);
@@ -67,7 +67,7 @@ it("handles selected real-group events through the existing interpreter, basket 
     expect((await call("/orders")).orders).toHaveLength(0);
     const receipt = await send("confirm order", group, "final-order");
     expect(receipt).toContain("Mock order placed");
-    expect(receipt).toContain("Simulated receipt");
+    expect(receipt).toContain("Demo receipt");
     const calls = sendText.mock.calls.length;
     await send("confirm order", group, "final-order");
     expect(sendText.mock.calls).toHaveLength(calls);

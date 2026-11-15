@@ -38,8 +38,8 @@ describe("WhatsApp order resolution", () => {
     const reply = await interpretWhatsApp(text, context());
     expect(reply).toMatchObject({ intent: "clarify", orderId: null, request: null, lineIds: [] });
     expect(reply.choices.map((order) => order.id)).toEqual([conference.id, dinner.id]);
-    expect(reply.question).toContain(conference.name);
-    expect(reply.question).toContain(dinner.id);
+    expect(reply.question).toBe("Which order do you mean?");
+    expect(reply.question).not.toContain(dinner.id);
   });
 
   it("uses both name and date to disambiguate", async () => {
