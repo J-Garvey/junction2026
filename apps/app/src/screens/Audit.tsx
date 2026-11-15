@@ -7,6 +7,8 @@ import { Fixture } from "../ui/Status";
 import { when, fi } from "../format";
 
 type Viewer = "hotel" | "valio";
+// Show the current gateway brand without rewriting historical signed entries.
+const actorName = (entry: AuditEntry) => entry.actor.kind === "gateway" ? "Potato Agent Gateway" : entry.actor.name;
 const TRAIL_KEYS = ["orderId", "quoteId", "approvalId"] as const;
 const HOTEL_KEYS = ["eventId", "questionId", "planId"] as const;
 const REFERENCE_LABEL = { orderId: "Order", quoteId: "Quote", approvalId: "Approval", eventId: "Event", questionId: "Question", planId: "Request" };
@@ -46,7 +48,7 @@ function filterEntries(entries: AuditEntry[], viewer: Viewer, query: string) {
       changed = true;
     }
   }
-  return rows.filter(({ entry: e, refs }) => related.has(e) || [e.id, e.summary, e.action, e.actor.name, e.actor.id, ...e.ruleIds, ...refs.map((ref) => ref.id)].some((value) => value.toLowerCase().includes(needle)));
+  return rows.filter(({ entry: e, refs }) => related.has(e) || [e.id, e.summary, e.action, e.actor.name, actorName(e), e.actor.id, ...e.ruleIds, ...refs.map((ref) => ref.id)].some((value) => value.toLowerCase().includes(needle)));
 }
 
 export function Audit() {
@@ -110,7 +112,7 @@ function AuditLog({ viewer, eventId }: { viewer: Viewer; eventId?: string }) {
 
                 </td>
                 <td className="small">
-                  <b>{e.actor.name}</b>
+                  <b>{actorName(e)}</b>
 
                 </td>
                 <td>

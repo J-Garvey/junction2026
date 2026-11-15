@@ -3,6 +3,7 @@
  * gateway's public API. Right: what Valio Aimo sees at its front door, live.
  */
 import { useEffect, useRef, useState } from "react";
+import { Mark } from "../ui/icons";
 import "./live.css";
 
 type CallStep = { kind: "call"; n: number; method: string; path: string; summary: string; tone: "ok" | "warn" | "err" | "run"; ms: number | null };
@@ -118,9 +119,9 @@ export function Live() {
     <div className="lv">
       <header className="lv-top">
         <div className="lv-brand">
-          <b>Valio Aimo</b>
+          <div className="lv-wordmark"><Mark s={32} /><b>Potato</b></div>
           <span className="lv-sep" />
-          <span>Aimo Agent Gateway</span>
+          <span>Agent Gateway</span>
         </div>
         <div className="lv-tools">
           <span className="lv-live">
@@ -218,7 +219,7 @@ export function Live() {
         <section className="lv-right">
           <div className="lv-rh">
             <div className="lv-h">
-              <h1>Valio Aimo gateway</h1>
+              <h1>Potato gateway</h1>
               <p>Incoming external agent requests</p>
             </div>
             <div className="lv-rules">

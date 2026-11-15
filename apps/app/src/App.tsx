@@ -213,9 +213,9 @@ function TopBar({ status, me, onSwitch }: { status: StatusResp | null; me: Perso
   return (
     <div className="topbar">
       <div className="order-switcher-slot">
-        <Link to="/" className="app-brand" aria-label="Aimo Copilot home">
+        <Link to="/" className="app-brand" aria-label="Potato home">
           <Mark s={22} />
-          <b>Aimo Copilot</b>
+          <b>Potato</b>
         </Link>
         <OrderSwitcher currentId={basketId ? decodeURIComponent(basketId) : undefined} />
       </div>
