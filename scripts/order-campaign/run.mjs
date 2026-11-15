@@ -37,7 +37,11 @@ async function reset(person='p-aino',names=[]){
 function status(extra={}){
  const all=[...previous,...currentRows];
  const s={role:'generator',state:'running',updatedAt:new Date().toISOString(),runId,phase,sha:meta.sha,modelMode:meta.mode,generated:corpus.length,uniqueExecuted:new Set(all.map(r=>r.caseId)).size,executedRows:all.length,runExecuted:executed,runPlanned:plans,runErrors:errors,runSetupCalls:setupCalls,port:8891,supplierGuard:'intercepts all missing-fixture supplier calls with HTTP 503; no upstream supplier traffic',...extra};
- writeFileSync(resolve(dir,'generator-status.tmp.json'),JSON.stringify(s,null,2));renameSync(resolve(dir,'generator-status.tmp.json'),resolve(dir,'generator-status.json'));
+ const tmp=resolve(dir,`generator-status.${process.pid}.tmp.json`);
+ writeFileSync(tmp,JSON.stringify(s,null,2));
+ // Windows readers can transiently prevent replacement. Status publication
+ // must never turn one completed HTTP observation into a second execution row.
+ try{renameSync(tmp,resolve(dir,'generator-status.json'));}catch(e){if(!['EPERM','EBUSY','EACCES'].includes(e.code))throw e;}
 }
 const currentRows=[];
 function record(row){appendFileSync(resolve(dir,'requests.jsonl'),JSON.stringify(row)+'\n');currentRows.push(row);executed++;if(row.status===null||row.status>=500)errors++;if(executed%10===0)status();}

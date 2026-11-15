@@ -8,7 +8,11 @@ const run=(file,a=[])=>new Promise((resolve,reject)=>{const p=spawn(process.exec
 const first=Number(args.start||0),last=Number(args.end||3748),size=100;
 for(let start=first;start<last;start+=size){
  git('fetch','origin');const main=git('rev-parse','origin/main');
- let meta=await(await fetch('http://127.0.0.1:8891/campaign/status')).json();
+ let meta;
+ for(let retry=0;retry<4;retry++){
+   try{meta=await(await fetch('http://127.0.0.1:8891/campaign/status')).json();break;}
+   catch(error){if(retry===3)throw error;await new Promise(r=>setTimeout(r,250*(retry+1)));}
+ }
  let behind=false;try{git('merge-base','--is-ancestor',main,'HEAD')}catch{behind=true;}
  appendFileSync(resolve(dir,'generator-refresh.jsonl'),JSON.stringify({at:new Date().toISOString(),action:'batch-fetch',start,main,hostSha:meta.sha,behind,fixManifestBytes:['fixes-main.jsonl','fixes-whatsapp.jsonl'].map(p=>({path:p,length:existsSync(resolve(dir,p))?readFileSync(resolve(dir,p)).length:0}))})+'\n');
  if(behind){console.log(JSON.stringify({state:'refresh-required',start,main}));process.exitCode=3;break;}
