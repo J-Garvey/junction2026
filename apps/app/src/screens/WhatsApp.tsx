@@ -4,12 +4,18 @@ import type { WhatsAppMessage, WhatsAppSession, WhatsAppGroupConfig } from "@aim
 import { useApp } from "../ctx";
 import { Icon } from "../ui/icons";
 import { whatsappApi } from "../whatsapp-api";
+import { WhatsAppWebConnection } from "./WhatsAppWebConnection";
 import "./whatsapp.css";
 
 type PendingMessage = { id: string; text: string; groupId: string | null; error: string | null };
 const errorText = (error: unknown) => error instanceof Error ? error.message : "The chat could not complete this request.";
 
 export function WhatsApp() {
+  const { me } = useApp();
+  return <div className="page stack-l"><div><h1>Connect WhatsApp</h1><p>Pair WhatsApp Web, then choose the only group the agent may respond in.</p></div><WhatsAppWebConnection key={me.id} person={me} /><Link className="small" to="/whatsapp/simulator">Open offline simulator</Link></div>;
+}
+
+export function WhatsAppSimulator() {
   const { me } = useApp();
   // Drop history, drafts, retries and outstanding UI callbacks on person switch.
   return <WhatsAppChat key={me.id} />;

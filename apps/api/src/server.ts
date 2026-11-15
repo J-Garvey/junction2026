@@ -16,6 +16,8 @@ import { feedTap } from "./live/feed.js";
 import { liveRouter } from "./live/routes.js";
 import { whatsappRouter } from "./whatsapp/routes.js";
 import { handleWhatsAppMessage } from "./whatsapp/service.js";
+import { WhatsAppWebBridge } from "./whatsapp/web.js";
+import { whatsappWebRouter } from "./whatsapp/web-routes.js";
 
 export function createApp() {
   getDb();
@@ -57,6 +59,9 @@ export function createApp() {
   });
   app.use("/gateway/v1", feedTap, gatewayRouter());
   app.use("/api/live", liveRouter());
+  const whatsappWeb = new WhatsAppWebBridge(handleWhatsAppMessage);
+  app.locals.whatsappWeb = whatsappWeb;
+  app.use("/api/whatsapp/web", whatsappWebRouter(whatsappWeb));
   app.use("/api/whatsapp", whatsappRouter(handleWhatsAppMessage));
   app.use("/api", appRouter());
   app.use(gatewayErrors);
@@ -75,5 +80,14 @@ export function createApp() {
 
 if (process.argv[1] && resolve(process.argv[1]).endsWith("server.ts")) {
   const app = createApp();
-  app.listen(config.port, "127.0.0.1", () => console.log(`Aimo Copilot on http://127.0.0.1:${config.port}  (gateway /gateway/v1, spec /openapi.json)`));
+  const server = app.listen(config.port, "127.0.0.1", () => console.log(`Aimo Copilot on http://127.0.0.1:${config.port}  (gateway /gateway/v1, spec /openapi.json)`));
+  let stopping = false;
+  const shutdown = async () => {
+    if (stopping) return;
+    stopping = true;
+    await (app.locals.whatsappWeb as WhatsAppWebBridge).close();
+    server.close(() => process.exit(0));
+  };
+  process.once("SIGINT", () => { void shutdown(); });
+  process.once("SIGTERM", () => { void shutdown(); });
 }

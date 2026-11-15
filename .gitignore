@@ -10,3 +10,5 @@ dist/
 *.db
 *.db-*
 apps/api/var/
+.wwebjs_auth/
+.wwebjs_cache/

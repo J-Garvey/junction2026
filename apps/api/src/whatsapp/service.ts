@@ -54,10 +54,10 @@ async function locked<T>(id: string, action: () => Promise<T>): Promise<T> {
   try { return await action(); } finally { release(); if (basketLocks.get(id) === queued) basketLocks.delete(id); }
 }
 
-export async function handleWhatsAppMessage(input: { person: Person; token: string; conversation: WhatsAppConversation; text: string; messageId: string }) {
+export async function handleWhatsAppMessage(input: { person: Person; token: string; conversation: WhatsAppConversation; text: string; messageId: string; channel?: "web" | "simulator" }) {
   const { person, text } = input;
   const conversation = structuredClone(input.conversation);
-  const respond = (facts: WhatsAppReplyFacts) => ({ conversation, reply: formatWhatsAppReply(facts) });
+  const respond = (facts: WhatsAppReplyFacts) => ({ conversation, reply: formatWhatsAppReply(facts, input.channel) });
   const choices = listEvents().filter((e) => person.hotelId === "hotel-aurora" && mandate().sites.some((s) => s.id === e.siteId) && (person.hotelScope || (e.dishes.every((d) => person.outlets.includes(d.outletId)) && staged(e.id).every((p) => p.lines.every((l) => person.outlets.includes(l.outletId)))))).map((e) => ref(e.id));
   if (!choices.some((e) => e.id === conversation.activeOrderId)) { conversation.activeOrderId = null; conversation.pending = null; }
   const initial = conversation.activeOrderId ? await contents(conversation.activeOrderId) : null;

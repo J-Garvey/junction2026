@@ -1,0 +1,12 @@
+.wa-web { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; padding: 18px; border: 1px solid var(--hairline); border-radius: 8px; background: var(--card); width: 100%; }
+.wa-web p { margin: 0; }
+.wa-web-head { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; width: 100%; color: var(--green); }
+.wa-web-head > div { flex: 1; }
+.wa-web-head h2 { font-size: 17px; }
+.wa-web-head p { color: var(--mute); font-size: 13px; }
+.wa-web-pairing { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; }
+.wa-web-qr { width: 280px; max-width: 100%; height: auto; border-radius: 6px; background: #fff; }
+.wa-web-group { width: 100%; display: flex; flex-direction: column; gap: 6px; color: var(--ink); font-weight: 600; }
+.wa-web-group select { width: 100%; min-height: 42px; padding: 8px; border: 1px solid var(--hairline); border-radius: 6px; background: var(--card); font-weight: 400; }
+.wa-web-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.wa-web .callout { width: 100%; }

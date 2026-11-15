@@ -17,6 +17,7 @@ export type WhatsAppHandler = (arg: {
   conversation: WhatsAppConversation;
   text: string;
   messageId: string;
+  channel?: "web" | "simulator";
 }) => Promise<{ conversation: WhatsAppConversation; reply: WhatsAppReply }>;
 
 interface Delivery {

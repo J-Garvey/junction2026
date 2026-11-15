@@ -2,8 +2,7 @@
  * and the person picker with the demo settings (test clock and reset). */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, Route, Routes, useLocation, useNavigate } from "react-router";
-import type { WarningRecord, WhatsAppGroupConfig } from "@aimo/contracts";
-import { whatsappApi } from "./whatsapp-api";
+import type { WarningRecord } from "@aimo/contracts";
 import { api, authHooks, type Outlet, type Person, type StatusResp, type SceneKey } from "./api";
 import { Ctx, type AppCtx, useLoad } from "./ctx";
 import { Icon, Lockup, Mark, type IconName } from "./ui/icons";
@@ -16,7 +15,8 @@ import { EventPage, Events } from "./screens/Event";
 import { Orders } from "./screens/Orders";
 import { Audit } from "./screens/Audit";
 import { Rules } from "./screens/Rules";
-import { WhatsApp } from "./screens/WhatsApp";
+import { WhatsApp, WhatsAppSimulator } from "./screens/WhatsApp";
+import { WhatsAppWebConnection } from "./screens/WhatsAppWebConnection";
 
 const NAV: [string, IconName, string][] = [
   ["/", "home", "Home"],
@@ -131,6 +131,7 @@ export function App() {
               <Route path="/events/:id" element={<EventPage />} />
               <Route path="/orders" element={<Orders />} />
               <Route path="/whatsapp" element={<WhatsApp />} />
+              <Route path="/whatsapp/simulator" element={<WhatsAppSimulator />} />
               <Route path="/audit" element={<Audit />} />
               <Route path="/rules" element={<Rules />} />
               <Route path="*" element={<div className="muted">Page not found.</div>} />
@@ -397,22 +398,16 @@ function PersonPicker({
           <Icon n="clock" s={14} /> Demo settings
         </button>
       </div>
-      {settings && <DemoSettings status={status} onChange={onChange} onOpenWhatsApp={openWhatsApp} />}
-      {whatsAppPending && <p className="callout" role="status">Choose a demo person above to open WhatsApp, then select “Connect demo chat”.</p>}
+      {settings && <DemoSettings status={status} onChange={onChange} onOpenWhatsApp={openWhatsApp} person={current} />}
+      {whatsAppPending && <p className="callout" role="status">Choose a demo person above to open WhatsApp, then select “Connect WhatsApp Web”.</p>}
     </div>
   );
 }
 
-/** Demo controls: move the clock, open the simulated WhatsApp connection, and reset. */
-function DemoSettings({ status, onChange, onOpenWhatsApp }: { status: StatusResp | null; onChange: () => void; onOpenWhatsApp: () => void }) {
+/** Demo controls: move the clock, link WhatsApp Web, and reset. */
+function DemoSettings({ status, onChange, onOpenWhatsApp, person }: { status: StatusResp | null; onChange: () => void; onOpenWhatsApp: () => void; person: Person | null }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [whatsAppGroups, setWhatsAppGroups] = useState<WhatsAppGroupConfig | null>(null);
-  useEffect(() => {
-    let active = true;
-    whatsappApi.config().then((value) => { if (active) setWhatsAppGroups(value); }).catch((e: Error) => { if (active) setErr(e.message); });
-    return () => { active = false; };
-  }, []);
   if (!status) return <div className="demoset muted">Loading demo settings…</div>;
   const dm = typeof status.dataMode === "string" ? status.dataMode : status.dataMode.mode;
   const overlay = typeof status.dataMode === "string" ? null : status.dataMode.overlay;
@@ -453,26 +448,15 @@ function DemoSettings({ status, onChange, onOpenWhatsApp }: { status: StatusResp
           <span className="small muted">Live clock and live mock data</span>
         </button>
       </div>
-      <div className="democonnection">
+      {person ? <WhatsAppWebConnection key={person.id} person={person} /> : <div className="democonnection">
         <div>
-          <b>WhatsApp</b>
-          <p className="small muted">Simulated login and ordering chat.</p>
+          <b>WhatsApp Web</b>
+          <p className="small muted">Link your regular WhatsApp account, then select one real group.</p>
         </div>
         <button type="button" className="btn sm" disabled={!!busy} onClick={onOpenWhatsApp}>
-          <Icon n="chat" s={16} /> Open WhatsApp demo
+          <Icon n="chat" s={16} /> Link WhatsApp Web
         </button>
-        <label className="demogroup">
-          <b className="small">Respond only in this group</b>
-          <select aria-label="WhatsApp group" value={whatsAppGroups?.selectedGroupId ?? ""} disabled={!!busy || !whatsAppGroups || status.testMode === false} onChange={(event) => {
-            const groupId = event.target.value;
-            void run("whatsapp-group", async () => { setWhatsAppGroups(await whatsappApi.selectGroup(groupId)); });
-          }}>
-            {!whatsAppGroups && <option value="">Loading groups…</option>}
-            {whatsAppGroups?.groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
-          </select>
-          <span className="small muted">Other groups and direct messages are ignored. Changing groups clears chat context.</span>
-        </label>
-      </div>
+      </div>}
       <div className="demofoot">
         {err && <span className="small" style={{ color: "var(--red)" }}>{err}</span>}
         <button

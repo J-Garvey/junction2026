@@ -13,6 +13,14 @@ const facts = (overrides: Partial<WhatsAppReplyFacts> = {}): WhatsAppReplyFacts 
 });
 
 describe("WhatsApp reply formatter", () => {
+  it("gives text reply commands for a real WhatsApp group while retaining demo order labels", () => {
+    const reply = formatWhatsAppReply(facts({ status: "proposal", actions: [{ label: "Confirm change", text: "confirm change" }, { label: "Cancel", text: "cancel" }] }), "web");
+    expect(reply.text).toContain("Aimo Copilot · demo orders");
+    expect(reply.text).not.toContain("FAKE WhatsApp");
+    expect(reply.text).toContain("Confirm change: ```confirm change```");
+    expect(reply.text).toContain("Next: reply ```confirm change```.");
+    expect(reply.text).toContain("Proposal only · not ordered.");
+  });
   it("shows a concise labelled basket with sales units, date and ex-VAT totals", () => {
     const reply = formatWhatsAppReply(facts());
     expect(reply).toEqual({

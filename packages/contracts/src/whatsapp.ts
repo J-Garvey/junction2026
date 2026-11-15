@@ -87,3 +87,16 @@ export interface WhatsAppGroupConfig {
 
 /** Ignored messages return transport feedback only, never a reply or chat history. */
 export type WhatsAppMessageResult = WhatsAppSession | { ignored: "other_group" | "direct_message" };
+
+export interface WhatsAppWebStatus {
+  phase: "disconnected" | "starting" | "qr" | "authenticated" | "ready" | "error";
+  qrDataUrl: string | null;
+  accountName: string | null;
+  ownerName: string | null;
+  groups: { id: string; name: string }[];
+  selectedGroupId: string | null;
+  busy: boolean;
+  lastError: string | null;
+  lastMessageAt: string | null;
+  handledMessages: number;
+}
