@@ -33,7 +33,7 @@ describe("manager order review", () => {
   it("shows one concise accent panel with a truthfully labelled review countdown", () => {
     const { container } = mount();
     expect(screen.getByRole("heading", { name: "Waiting for approval" })).toBeTruthy();
-    expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual(["Approve order", "Refuse order"]);
+    expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual(["Order", "Refuse order"]);
     expect(screen.getByText("Review expires in 24 h 0 min")).toBeTruthy();
     expect(screen.getByText(/Review valid until/)).toBeTruthy();
     for (const repeated of ["Details", "Jonas", "Aino submitted", "Review order:", "1,419.84", "Lactose-free milk", "Return to order builder", "Order by"]) expect(container.textContent).not.toContain(repeated);
@@ -49,7 +49,7 @@ describe("manager order review", () => {
     const { container } = mount({ ...question, deadline: null });
     expect(container.textContent).not.toContain("Review expires");
     expect(container.querySelector("time")).toBeNull();
-    expect(screen.getByRole("button", { name: "Approve order" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Order" })).toBeTruthy();
   });
 
   it("keeps older return decisions without claiming they sent a note", () => {
@@ -108,7 +108,7 @@ describe("manager order review", () => {
   it("approves through the same API without requiring a refusal note", async () => {
     const answer = vi.spyOn(api, "answer").mockResolvedValue({ ok: true, question: answered("approve") });
     mount();
-    await userEvent.click(screen.getByRole("button", { name: "Approve order" }));
+    await userEvent.click(screen.getByRole("button", { name: "Order" }));
     expect(answer).toHaveBeenCalledWith(question.id, "approve", undefined);
     expect(onAnswered).toHaveBeenCalledWith(answered("approve"), undefined);
     expect(refresh).toHaveBeenCalled();
@@ -174,7 +174,7 @@ describe("manager order review", () => {
     const error = "Terms changed. Submit the order for a fresh finance review.";
     vi.spyOn(api, "answer").mockResolvedValue({ ok: true, question: answered("approve"), error });
     mount();
-    await userEvent.click(screen.getByRole("button", { name: "Approve order" }));
+    await userEvent.click(screen.getByRole("button", { name: "Order" }));
     expect(screen.getByRole("alert").textContent).toBe(error);
     expect(onAnswered).toHaveBeenCalledWith(answered("approve"), error);
     expect(refresh).toHaveBeenCalled();
@@ -183,7 +183,7 @@ describe("manager order review", () => {
   it("refreshes and closes actions when another manager has already answered", async () => {
     vi.spyOn(api, "answer").mockRejectedValue(new ApiError(409, { question: answered(), reason: "Answered by Jonas" }));
     mount();
-    await userEvent.click(screen.getByRole("button", { name: "Approve order" }));
+    await userEvent.click(screen.getByRole("button", { name: "Order" }));
     expect(screen.queryByRole("button")).toBeNull();
     expect(screen.getByRole("alert").textContent).toBe("Answered by Jonas");
     expect(onAnswered).toHaveBeenCalledWith(answered(), "Answered by Jonas");
@@ -237,7 +237,7 @@ describe("manager order review", () => {
     expect(heading.parentElement?.querySelector(".countb")).toBeNull();
     expect(screen.getByText(/Supplier ordering cutoff;/)).toBeTruthy();
     expect(screen.queryByText("Submitted to finance. This order is ready for approval.")).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "Approve order" }));
+    await userEvent.click(screen.getByRole("button", { name: "Order" }));
     await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
     expect(screen.getByRole("alert").textContent).toBe(error);
     await waitFor(() => expect(screen.queryByRole("heading", { name: "Decisions before processing" })).toBeNull());

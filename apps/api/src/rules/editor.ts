@@ -126,9 +126,13 @@ export function editRules(by: Person, edit: RuleEdit): string[] {
   return changes;
 }
 
+/** Canonical limits shared by reset and the Rules screen's default comparison. */
+export function defaultRuleParams(): Record<string, unknown> {
+  return { spendCapEur: MANDATE.spendCapEur, blockedProducts: MANDATE.blockedProducts, deliveryDays: MANDATE.deliveryDays, holidays: MANDATE.holidays, ...MANDATE.preAnswers, ...DEFAULT_PARAMS };
+}
+
 /** Back to the catalogue defaults and the seeded mandate values. */
 export function resetRules(by: Person): string[] {
-  const back: Record<string, unknown> = { spendCapEur: MANDATE.spendCapEur, blockedProducts: MANDATE.blockedProducts, deliveryDays: MANDATE.deliveryDays, holidays: MANDATE.holidays, ...MANDATE.preAnswers, ...DEFAULT_PARAMS };
   const outcomes = Object.fromEntries([...RULE_INDEX.values()].map((r) => [r.id, r.outcome]));
-  return editRules(by, { outcomes, params: back });
+  return editRules(by, { outcomes, params: defaultRuleParams() });
 }
