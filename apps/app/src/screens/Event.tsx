@@ -127,7 +127,7 @@ export function EventPage() {
         <h1>{ev.name}</h1>
         <div className="row small" style={{ gap: 10, flexWrap: "wrap", marginTop: 2 }}>
           <span>
-            <Icon n="cal" s={14} /> {day(ev.serviceDate)}
+            <Icon n="cal" s={14} /> Service {day(ev.serviceDate)}
           </span>
           <span>
             <Icon n="users" s={14} /> {ev.guests} guests
@@ -137,6 +137,7 @@ export function EventPage() {
               {g.label} {g.count}
             </span>
           ))}
+          {ev.deliveryDate && <span className="muted">Delivery {day(ev.deliveryDate)}</span>}
           {ev.createdBy && <span className="muted">Created by {ev.createdBy}</span>}
           <span className="muted" title={decisionText}>{plural(decisions.decisions, "decision")}</span>
         </div>

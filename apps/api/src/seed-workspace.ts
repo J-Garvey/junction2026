@@ -41,8 +41,9 @@ export async function seedHotelWorkspace() {
       audit({ actor: personActor(getPerson(personId)!), action: "basket_created", summary: `${getPerson(personId)!.name} opened ${e.name} (demo fixture)`, eventId: id, details: {}, visibility: "hotel", usesFixture: true });
     }
     async function request(eventId: string, lines: SingleLine[], personId = "p-aino", reviewing = true) {
+      const spec = HOTEL_BOOKINGS.find((e) => e.id === eventId)!;
       const input: SingleRequest = { kind: "single", originalText: lines.map((l) => l.text).join(", "), siteId: "site-aurora", outletId: personId === "p-mikko" ? "bar" : "banquet",
-        neededBy: "2026-11-16", neededByText: "Monday 16 November", lines, parsedBy: "rules" };
+        neededBy: spec.deliveryDate ?? spec.serviceDate, neededByText: null, lines, parsedBy: "rules" };
       return (await call<{ plan: StoredPlan }>(personId, "/requests", { request: input, eventId, reviewing })).plan;
     }
     async function stage(eventId: string, lines: SingleLine[], personId = "p-aino") {

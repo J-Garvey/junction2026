@@ -52,6 +52,15 @@ const menu = (version: number, extra: Record<string, unknown> = {}) => ({
 });
 
 describe("menu to order", () => {
+  it("keeps the same product separate when dishes belong to different outlets", () => {
+    const ingredient = { id: "milk", text: "Milk", productId: "464306", total: { amount: 1, unit: "l" } };
+    const scaled = scaleMenu({ name: "Two outlets", guests: 10, dietsConfirmed: true, dietGroups: [], dishes: [
+      { id: "kitchen", name: "Kitchen coffee", outletId: "banquet", excludesGroups: [], ingredients: [ingredient] },
+      { id: "bar", name: "Bar coffee", outletId: "bar", excludesGroups: [], ingredients: [ingredient] },
+    ] } as any);
+    expect(scaled.lines.map((l) => [l.outletId, l.total.amount])).toEqual([["banquet", 1], ["bar", 1]]);
+  });
+
   it("scales each ingredient by the guests who eat it and combines the same product across dishes", () => {
     const m = menu(1);
     const s = scaleMenu({ name: "x", ...m } as any);

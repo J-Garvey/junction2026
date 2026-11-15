@@ -113,7 +113,7 @@ export function needsFromSingle(r: SingleRequest, event?: EventSpec | null): Nee
         groupId: "request",
         groupLabel: claims.length ? `${claims.join(", ")} request` : "this request",
         guests: affected?.length ? affected.reduce((sum, g) => sum + g.count, 0) : null,
-        outletId: r.outletId,
+        outletId: l.outletId ?? r.outletId,
         amount: base,
         constraints: l.constraints,
         query: l.query,
@@ -140,7 +140,7 @@ export function needsFromEvent(e: EventSpec, m: Mandate, removed: string[], prob
         if (removed.includes(id)) continue;
         const pinned = pinnedId ? getProduct(pinnedId) : null;
         const frozen = Boolean(ing.frozen ?? pinned?.temperature === 7);
-        const nb = neededBy(e.serviceDate, frozen, m);
+        const nb = e.deliveryDate ? { date: e.deliveryDate, rules: [] } : neededBy(e.serviceDate, frozen, m);
         const amount = ing.total ? toBase(ing.total) : (() => {
           const pp = toBase(ing.perPortion ?? { amount: 0, unit: "pcs" });
           return { value: +(pp.value * g.count).toFixed(4), unit: pp.unit };

@@ -238,6 +238,8 @@ describe("Test case 1: the wedding through four scenes (docs/demo-plan.md)", () 
     const q = (id: string) => a.order.lines.find((l: any) => l.productId === id)?.quantity;
     expect([q("469672"), q("460541"), q("464727"), q("467767"), q("460617"), q("464306"), q("477125")]).toEqual([31, 3, 45, 12, 1, 40, 5]);
     expect(a.order.totalExVat).toBe(2003.37);
+    expect(a.ainoBasket).toMatchObject({ totalExVat: 2003.37, lines: 7, deliveryDate: "2026-11-16", createdBy: "Aino" });
+    expect(a.sannaBasket).toMatchObject({ totalExVat: 2003.37, lines: 7 });
     expect(a.ainoQs).toHaveLength(1);
     expect(a.ainoQs[0]).toMatchObject({ type: "unknown_stock", forRole: "chef" });
     expect(a.ainoQs[0].facts.lines).toHaveLength(4);
@@ -263,6 +265,7 @@ describe("Test case 1: the wedding through four scenes (docs/demo-plan.md)", () 
     const cake = a.allergyQs.find((q: any) => q.facts.productId === "467767");
     expect(cake.body).toMatch(/Contains almond/);
     expect(cake.options[0].id).toBe("replace_0");
+    expect(a.afterFirstChange.event.dishes.flatMap((d: any) => d.ingredients).find((i: any) => i.productId === "473522").text).toBe(cake.facts.replacements[0].name);
     expect(a.missingAllergen.facts.productIds).toContain("460541");
     expect(a.missingAllergenAnswer.error).toBeUndefined();
     expect(cake.facts.replacements.slice(0, 2).map((r: any) => [r.productId, r.costToCover])).toEqual([
@@ -314,6 +317,8 @@ describe("Test case 1: the wedding through four scenes (docs/demo-plan.md)", () 
     expect(qty("469672")).toBe(32);
     expect(o.lines.filter((l: any) => !l.removed && l.stock.kind === "unknown").map((l: any) => l.productId).sort()).toEqual(["460541", "464194", "464306", "473522"]);
     expect(a.view.coverage).toMatchObject({ level: "at_risk", text: "Ready · 4 stock not confirmed · 1 allergen data not confirmed" });
+    expect(a.record.order.lines.find((l: any) => l.productId === "460541").allergenDataUnconfirmed).toBe(true);
+    expect(a.record.order.lines.filter((l: any) => l.allergenDataUnconfirmed)).toHaveLength(1);
     expect(a.view.questions.filter((q: any) => q.forRole === "approver").map((q: any) => q.id)).toEqual(a.afterFirstChange.questions.filter((q: any) => q.forRole === "approver").map((q: any) => q.id));
   });
   it("requires a fresh chef stock decision when an unconfirmed toast quantity actually increases", async () => {
