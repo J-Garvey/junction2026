@@ -13,6 +13,7 @@ const { issueToken } = await import("../src/identity.js");
 const { seedReset, PEOPLE } = await import("../src/seed.js");
 const { normalise, loadFixture } = await import("../src/aimo/lookup.js");
 const { inspectDelivery } = await import("../src/app/productInspection.js");
+const { rulesParse } = await import("../src/agent/parse.js");
 const fixture = loadFixture("base")!;
 const at = new Date("2026-11-10T10:00:00Z");
 const date = "2026-11-16";
@@ -91,6 +92,30 @@ describe("read-only catalogue and supplier endpoints", () => {
   afterAll(() => server.close());
   const get = (path: string, credential = token) => fetch(`${base}/api${path}`, { headers: { Authorization: `Bearer ${credential}` } });
   const supplier = (id: string, query = `siteId=site-aurora&requestedDate=${date}`) => `/products/${id}/supplier?${query}`;
+  const matches = (body: unknown, credential = token) => fetch(`${base}/api/products/matches`, {
+    method: "POST", headers: { Authorization: `Bearer ${credential}`, "content-type": "application/json" }, body: JSON.stringify(body),
+  });
+
+  it.each(["milk", "coffee milk", "egg", "cake", "lactose-free milk"])("browses %s without inventing an amount or creating purchasing state", async (query) => {
+    const line = rulesParse(query).lines[0];
+    expect(line.quantity).toBeNull();
+    const snapshot = () => Object.fromEntries(["plans", "quotes", "approvals", "orders", "questions", "events", "kv", "audit"].map((table) => [table, getDb().prepare(`SELECT * FROM ${table}`).all()]));
+    const before = snapshot();
+    const response = await matches(line);
+    expect(response.status).toBe(200);
+    const body = await response.json() as any;
+    expect(body.products.length).toBeGreaterThan(0);
+    expect(body.products.length).toBeLessThanOrEqual(50);
+    expect(body.products.every((product: any) => line.constraints.claims.every((claim) => product.claims.includes(claim)))).toBe(true);
+    expect(line.quantity).toBeNull();
+    expect(snapshot()).toEqual(before);
+  });
+
+  it("keeps catalogue matches authenticated and validates the parsed item", async () => {
+    expect((await matches(rulesParse("milk").lines[0], "")).status).toBe(401);
+    expect((await matches({ query: "milk" })).status).toBe(422);
+    expect(await (await matches({ ...rulesParse("milk").lines[0], query: "", text: "" })).json()).toMatchObject({ products: [] });
+  });
 
   it("finds and inspects the real salmon without changing any buying or event state", async () => {
     const snapshot = () => Object.fromEntries(["plans", "quotes", "approvals", "orders", "questions", "events", "kv", "audit"].map((table) => [table, getDb().prepare(`SELECT * FROM ${table}`).all()]));
@@ -123,6 +148,7 @@ describe("read-only catalogue and supplier endpoints", () => {
     getDb().prepare("INSERT INTO people (id, json) VALUES (?, ?)").run(other.id, JSON.stringify(other));
     const outsideToken = issueToken({ kind: "person", personId: other.id });
     expect((await get("/products?q=461955", outsideToken)).status).toBe(403);
+    expect((await matches(rulesParse("milk").lines[0], outsideToken)).status).toBe(403);
     expect((await get(supplier("461955"), outsideToken)).status).toBe(403);
     // Product inspection is account-wide; a bar builder can inspect the same supplier catalogue.
     expect((await get(supplier("461955"), issueToken({ kind: "person", personId: "p-mikko" }))).status).toBe(200);

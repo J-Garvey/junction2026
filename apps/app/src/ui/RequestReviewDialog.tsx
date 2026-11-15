@@ -1,6 +1,6 @@
 /** Shared item review used for new items and saved pending requests. */
 import { useEffect, useRef, useState } from "react";
-import type { SingleRequest, Unit } from "@aimo/contracts";
+import type { Product, SingleRequest, Unit } from "@aimo/contracts";
 import { api, ApiError, type BasketResp, type PlanResp } from "../api";
 import { useApp } from "../ctx";
 import { claimLabel, day, eur } from "../format";
@@ -23,7 +23,7 @@ export function RequestReviewDialog({ initialReview, deliveryDate, onClose, onCh
   const { me, refresh } = useApp();
   const [review, setReview] = useState(initialReview);
   const request = review.plan.request;
-  const [editTarget, setEditTarget] = useState<{ lineId: string; field: "quantity" | "description"; amount: string; unit: Unit; description: string } | null>(null);
+  const [editTarget, setEditTarget] = useState<{ lineId: string; field: "quantity" | "description"; amount: string; unit: Unit; description: string; product?: Product } | null>(null);
   const [busy, setBusy] = useState<"check" | "replace" | "remove" | "approve" | "quantity" | "add" | null>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
   // Refresh external changes when no local decision/edit is in progress. Mutations
@@ -82,7 +82,7 @@ export function RequestReviewDialog({ initialReview, deliveryDate, onClose, onCh
 
   function checkChanges() {
     if (!editTarget || !editReady) return;
-    return applyChange(editTarget.lineId, editTarget.amount, editTarget.unit, editTarget.description);
+    return applyChange(editTarget.lineId, editTarget.amount, editTarget.unit, editTarget.description, editTarget.product);
   }
 
   /** A suggestion (a corrected spelling, or a product the person picked) checks the item again. */
@@ -97,7 +97,7 @@ export function RequestReviewDialog({ initialReview, deliveryDate, onClose, onCh
     return applyChange(line.id, String(line.quantity.amount), line.quantity.unit, description);
   }
 
-  async function applyChange(lineId: string, amount: string, unit: Unit, description: string) {
+  async function applyChange(lineId: string, amount: string, unit: Unit, description: string, product?: Product) {
     if (!request || busy) return;
     setBusy("check");
     setDialogError(null);
@@ -105,7 +105,11 @@ export function RequestReviewDialog({ initialReview, deliveryDate, onClose, onCh
       const original = request.lines.find((line) => line.id === lineId)!;
       let parseAuditId: string | undefined;
       let updated = { ...original, quantity: { amount: Number(amount), unit } };
-      if (description.trim() !== original.query) {
+      if (product && description === product.name) {
+        // A deliberate SKU choice retains the buyer's constraints and is checked
+        // through the normal pipeline once the buyer supplies an actual amount.
+        updated = { ...updated, productId: product.id, query: product.name, text: product.name, category: product.category, productType: null };
+      } else if (description.trim() !== original.query) {
         const parsed = await api.message(`${amount} ${unit} ${description.trim()}`);
         if (parsed.route === "event_change" || parsed.route === "neither" || parsed.request.lines.length !== 1) {
           throw new Error("Describe one product for this row, then check it again.");
@@ -239,6 +243,11 @@ export function RequestReviewDialog({ initialReview, deliveryDate, onClose, onCh
               onDiscard={request.lines.length > 1 || plan?.reviewing ? () => discard(line.id) : undefined}
               onChoose={(productId) => choose(line.id, productId)}
               onSearch={editable ? (description) => searchAgain(line, description) : undefined}
+              onSelectProduct={(product) => {
+                if (busy || !editable) return;
+                setDialogError(null);
+                setEditTarget({ lineId: line.id, field: "quantity", amount: "", unit: product.packContent?.unit ?? "pcs", description: product.name, product });
+              }}
             >
               {editTarget?.lineId === line.id && (
                 <form className="add-review-editor" onSubmit={(event) => { event.preventDefault(); checkChanges(); }}>

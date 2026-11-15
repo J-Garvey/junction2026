@@ -5,7 +5,7 @@
  */
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { z } from "zod";
-import { AnswerBody, ClockSetBody, SingleRequest, DietGroup } from "@aimo/contracts";
+import { AnswerBody, ClockSetBody, SingleLine, SingleRequest, DietGroup } from "@aimo/contracts";
 import { allPeople, getPerson, issueToken, resolveToken, tokenFrom, type Person } from "../identity.js";
 import { clockState, setClock, SCENES, now } from "../clock.js";
 import { audit, auditView, verifyChain, decisionCount, SYSTEM } from "../audit.js";
@@ -689,6 +689,16 @@ export function appRouter(): Router {
   });
   // Catalogue inspection is account-scoped and read-only, separate from request planning.
   const canInspectProducts = (req: Request) => P(req).hotelId === HOTEL_ID && (P(req).hotelScope || P(req).outlets.length > 0);
+  // Browsing a parsed item needs no quantity and creates no purchasing state.
+  r.post("/products/matches", (req, res) => {
+    if (!canInspectProducts(req)) return res.status(403).json({ error: "Outside your hotel scope" });
+    const line = SingleLine.parse(req.body);
+    const products = line.query.trim() || line.productId ? shortlist({
+      query: line.query, text: line.text, label: line.query, category: line.category,
+      constraints: line.constraints, pinnedProductId: line.productId,
+    }, { log: false }) : [];
+    res.json({ products, source: "Local catalogue" });
+  });
   r.get("/products", (req, res) => {
     if (!canInspectProducts(req)) return res.status(403).json({ error: "Outside your hotel scope" });
     const { q } = z.object({ q: z.string().trim().max(200).default("") }).parse(req.query);

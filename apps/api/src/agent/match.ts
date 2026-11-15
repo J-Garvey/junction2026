@@ -23,7 +23,7 @@ const MIXED_TYPE_CATEGORIES = ["10400", "10401"];
 export type Pool = Map<string, LookupLine>;
 
 /** Step 1–2 of Q02.1: the shortlist for a need, before lookup. */
-export function shortlist(need: Need, opts: { log?: boolean } = {}): Product[] {
+export function shortlist(need: Pick<Need, "constraints" | "pinnedProductId" | "query" | "category" | "label" | "text">, opts: { log?: boolean } = {}): Product[] {
   const claims = need.constraints.claims ?? [];
   if (need.pinnedProductId) {
     const pinned = getProduct(need.pinnedProductId);

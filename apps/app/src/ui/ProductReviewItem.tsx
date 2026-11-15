@@ -1,6 +1,7 @@
 import { CandidateRanking } from "./CandidateRanking";
 import { type ReactNode, useId, useState } from "react";
-import type { Candidate, ItemReview, Need, PlanLine, SingleLine } from "@aimo/contracts";
+import type { Candidate, ItemReview, Need, PlanLine, Product, SingleLine } from "@aimo/contracts";
+import { CatalogueMatches } from "./CatalogueMatches";
 import { useApp } from "../ctx";
 import { claimLabel, day, eur, parseTime, qty, when } from "../format";
 import { stockText } from "./Popover";
@@ -12,7 +13,7 @@ import { SelectionFunnel } from "./SelectionFunnel";
 import { CarbonEstimate } from "./CarbonEstimate";
 
 /** One compact table group per requested item; supporting evidence opens on demand. */
-export function ProductReviewItem({ line, need, lines, deliveryDate, checked, disabled, review, onApprove, onSalesQuantity, onEdit, onDiscard, onChoose, onSearch, children }: {
+export function ProductReviewItem({ line, need, lines, deliveryDate, checked, disabled, review, onApprove, onSalesQuantity, onEdit, onDiscard, onChoose, onSearch, onSelectProduct, children }: {
   line: SingleLine;
   need?: Need;
   lines: PlanLine[];
@@ -27,6 +28,7 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
   onChoose: (productId: string) => void;
   /** Check this item again with another description: a corrected spelling, or a product the person picked. */
   onSearch?: (description: string) => void;
+  onSelectProduct?: (product: Product) => void;
   children?: ReactNode;
 }) {
   const { now } = useApp();
@@ -34,6 +36,7 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
   const [showReplacements, setShowReplacements] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const exactMatch = review?.requiresApproval === false && review.canApprove;
+  const missingQuantity = !line.quantity || line.quantity.amount <= 0;
   const hasDietRequirements = !!(line.constraints.claims.length || line.constraints.avoidAllergens.length || line.constraints.labels.length || line.constraints.origin);
   const found = lines.filter((product) => product.productId);
   const hasUnconfirmedStock = found.some((product) => product.stock?.kind === "unknown");
@@ -114,7 +117,8 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
 
               {showDetails && need && <SelectionFunnel need={need} lines={lines} />}
 
-              {(unknownProduct || noMatch || tooLate || !found.length) && (
+              {missingQuantity && onSelectProduct && <CatalogueMatches line={line} disabled={disabled} onSelect={onSelectProduct} />}
+              {!missingQuantity && (unknownProduct || noMatch || tooLate || !found.length) && (
                 <div className="callout yellow add-review-item-issue" role="status">
                   <b>{unknownProduct ? "Product not found" : noMatch ? "No matching product" : tooLate ? "Nothing available in time" : "No product selected"}</b>
                   <span>{unknownProduct ? "This product is not in the Valio Aimo catalogue." : noMatch ? "No product matched this item and its requirements." : tooLate ? `Nothing can arrive by ${day(deliveryDate)}.${need?.earliestDelivery ? ` Earliest delivery: ${day(need.earliestDelivery)}.` : " No later delivery date is known yet."}` : "Refine this item's description or quantity and try again."}</span>

@@ -54,10 +54,25 @@ beforeEach(() => {
   vi.spyOn(api, "request").mockResolvedValue({ plan: { id: "quoted" }, questions: [] } as unknown as PlanResp);
   vi.spyOn(api, "message");
   vi.spyOn(api, "prepareMessage");
+  vi.spyOn(api, "matchProducts").mockResolvedValue({ products: [], source: "Local catalogue" });
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("RequestNew product chip identity", () => {
+  it("browses a name-only request before asking for the amount needed to quote", async () => {
+    const initial = request("lactose-free milk");
+    const product = { id: "469363", name: "Catalogue milk", category: "10400" } as Awaited<ReturnType<typeof api.matchProducts>>["products"][number];
+    vi.mocked(api.matchProducts).mockResolvedValue({ products: [product], source: "Local catalogue" });
+    show(initial);
+    fireEvent.click(await screen.findByRole("button", { name: "Choose Catalogue milk" }));
+    fireEvent.click(screen.getByRole("button", { name: "Quote" }));
+    expect(api.request).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert").textContent).toContain("how much Catalogue milk");
+    fireEvent.change(screen.getByRole("spinbutton", { name: /^Quantity/ }), { target: { value: "20" } });
+    const sent = await quote();
+    expect(sent.lines[0]).toMatchObject({ productId: "469363", query: "Catalogue milk", quantity: { amount: 20, unit: "l" }, constraints: initial.lines[0].constraints });
+  });
+
   it("quotes salmon after editing milk and its unit, using salmon catalogue matches", async () => {
     const initial = request();
     expect(initial.lines[0]).toMatchObject({ query: "milk", productType: "plain drinking milk", category: "10400" });

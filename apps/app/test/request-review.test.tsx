@@ -51,7 +51,7 @@ async function searchOrder(result: PlanResp) {
   vi.spyOn(api, "approveItem");
   const context: AppCtx = { me: chef, people: [chef], outlets: [], status: null, now: "2026-11-14T10:00:00Z", tick: 0, refresh: vi.fn(), switchPerson: vi.fn() };
   render(<MemoryRouter initialEntries={["/baskets/event"]}><Ctx.Provider value={context}><Routes><Route path="/baskets/:id" element={<BasketPage />} /></Routes></Ctx.Provider></MemoryRouter>);
-  fireEvent.change(await screen.findByRole("textbox", { name: "Add to this order" }), { target: { value: "10 l milk" } });
+  fireEvent.change(await screen.findByRole("textbox", { name: "Add to this order" }), { target: { value: result.plan.request!.originalText } });
   fireEvent.click(screen.getByRole("button", { name: "Search" }));
 }
 beforeEach(() => {
@@ -325,6 +325,38 @@ describe("saved request review controls", () => {
     await searchOrder(fixture());
     await screen.findByRole("dialog");
     expect(screen.getByRole("button", { name: "Approve milk" })).toBeTruthy();
+    expect(api.basketPlan).not.toHaveBeenCalled();
+  });
+
+  it("shows matches for a name-only search, then checks the chosen product and actual amount", async () => {
+    const result = fixture();
+    const request = result.plan.request!;
+    request.originalText = "lactose-free milk";
+    request.lines[0].quantity = null;
+    result.plan.needs = [];
+    result.plan.lines = [];
+    result.plan.proposal = false;
+    result.plan.status = "needs_input";
+    result.plan.itemReviews![0].canApprove = false;
+    const product = { id: "469363", name: "Catalogue milk", category: "10400", packContent: { unit: "l", value: 10 } } as Awaited<ReturnType<typeof api.matchProducts>>["products"][number];
+    vi.spyOn(api, "matchProducts").mockResolvedValue({ products: [product], source: "Local catalogue" });
+    vi.spyOn(api, "basketPlan");
+    vi.spyOn(api, "requote").mockResolvedValue(fixture());
+    await searchOrder(result);
+    fireEvent.click(await screen.findByRole("button", { name: "Choose Catalogue milk" }));
+    expect(api.matchProducts).toHaveBeenCalledWith(expect.objectContaining({ query: "milk", quantity: null, constraints: request.lines[0].constraints }));
+    const quantity = screen.getByRole("spinbutton", { name: "Quantity for milk" }) as HTMLInputElement;
+    expect(quantity.value).toBe("");
+    expect((screen.getByRole("button", { name: "Check item" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(api.basketPlan).not.toHaveBeenCalled();
+    expect(api.requote).not.toHaveBeenCalled();
+    fireEvent.change(quantity, { target: { value: "20" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check item" }));
+    await waitFor(() => expect(api.requote).toHaveBeenCalledWith("plan", expect.objectContaining({ lines: [expect.objectContaining({
+      productId: "469363", query: "Catalogue milk", category: "10400", productType: null,
+      quantity: { amount: 20, unit: "l" }, constraints: request.lines[0].constraints,
+    })] })));
+    expect(api.message).toHaveBeenCalledOnce();
     expect(api.basketPlan).not.toHaveBeenCalled();
   });
 
