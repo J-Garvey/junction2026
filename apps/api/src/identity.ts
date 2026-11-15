@@ -50,7 +50,11 @@ export function tokenFrom(req: Request): string | null {
   if (h?.startsWith("Bearer ")) return h.slice(7).trim();
   const cookie = req.header("cookie") ?? "";
   const m = cookie.match(/(?:^|;\s*)aimo_session=([^;]+)/);
-  return m ? decodeURIComponent(m[1]) : null;
+  try {
+    return m ? decodeURIComponent(m[1]) : null;
+  } catch {
+    return null;
+  }
 }
 
 export function actorOf(id: Identity) {
