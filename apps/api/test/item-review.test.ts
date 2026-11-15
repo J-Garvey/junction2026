@@ -4,14 +4,19 @@ import type { Server } from "node:http";
 process.env.AIMO_DB = ":memory:";
 process.env.OPENAI_API_KEY = "";
 process.env.AIMO_MODE = "fixture";
+process.env.AIMO_API_KEY = "";
+process.env.CONTEXT_DEV_API_KEY = "";
 process.env.PREVIEW_PASSWORD = "";
 const { createApp } = await import("../src/server.js");
 const { config } = await import("../src/config.js");
 const { loadFixture } = await import("../src/aimo/lookup.js");
+const lookupAdapter = await import("../src/aimo/lookup.js");
+const { isolateFixtureLookups } = await import("./support/fixture-lookups.js");
 
 let base = "";
 let cookie = "";
 let server: Server;
+let restoreLookups: () => void;
 async function call(method: string, path: string, body?: unknown): Promise<any> {
   const response = await fetch(`${base}/api${path}`, { method, headers: { "Content-Type": "application/json", Cookie: cookie }, body: body === undefined ? undefined : JSON.stringify(body) });
   return { status: response.status, ...await response.json() };
@@ -20,18 +25,23 @@ async function signIn(personId: string) {
   cookie = `aimo_session=${(await call("POST", "/session", { personId })).token}`;
 }
 beforeAll(async () => {
+  restoreLookups = isolateFixtureLookups(lookupAdapter);
   server = createApp().listen(0, "127.0.0.1");
+  // Cold catalogue work can pause the shared test event loop under parallel load.
+  server.keepAliveTimeout = 60_000;
   await new Promise((resolve) => server.once("listening", resolve));
   base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
   config.gatewayUrl = `${base}/gateway/v1`;
 });
-afterAll(() => server.close());
+afterAll(() => { restoreLookups(); server.close(); });
 beforeEach(async () => {
   await call("POST", "/reset");
   await signIn("p-aino");
   await call("POST", "/clock", { time: "2026-11-14T10:00:00Z" });
-  // Synthetic stock and price fixture for the screenshot's product, absent from base.json.
+  // Synthetic supplier terms for quantity regressions, not claims about real stock.
   const fixture = loadFixture("base")!;
+  fixture.availability["467139"] = { productId: "467139", salesBlock: false, logisticModel: "Stock", closingTime: "2026-11-15T17:00:00+0200", scheduleLines: [{ salesBlock: false, availableAmount: 100, availableDate: "2026-11-16", salesUnit: "KG" }] };
+  fixture.price["467139"] = { ...fixture.price["469672"], productId: "467139", catalogPrice: { ...fixture.price["469672"].catalogPrice, value: 21.14 }, comparisonPrice: { ...fixture.price["469672"].comparisonPrice, value: 21.14 } };
   fixture.availability["468445"] = { productId: "468445", salesBlock: false, logisticModel: "Stock", closingTime: "2026-11-15T17:00:00+0200", scheduleLines: [{ salesBlock: false, availableAmount: 100, availableDate: "2026-11-16", salesUnit: "KI" }] };
   fixture.price["468445"] = { ...fixture.price["469672"], productId: "468445", catalogPrice: { ...fixture.price["469672"].catalogPrice, value: 28.48 }, comparisonPrice: { ...fixture.price["469672"].comparisonPrice, value: 28.48 } };
 });

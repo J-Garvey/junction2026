@@ -4,23 +4,31 @@ import type { Server } from "node:http";
 process.env.AIMO_DB = ":memory:";
 process.env.OPENAI_API_KEY = "";
 process.env.AIMO_MODE = "fixture";
+process.env.AIMO_API_KEY = "";
+process.env.CONTEXT_DEV_API_KEY = "";
 process.env.PREVIEW_PASSWORD = "";
 const { createApp } = await import("../src/server.js");
 const { config } = await import("../src/config.js");
 const { getPlan, savePlan } = await import("../src/agent/plan.js");
 const { loadFixture } = await import("../src/aimo/lookup.js");
+const lookupAdapter = await import("../src/aimo/lookup.js");
+const { isolateFixtureLookups } = await import("./support/fixture-lookups.js");
 const { matchesCurrentShortlists } = await import("../src/agent/match.js");
 const { getMandate, putMandate } = await import("../src/gateway/service.js");
 
 let BASE = "";
 let server: Server;
+let restoreLookups: () => void;
 beforeAll(async () => {
+  restoreLookups = isolateFixtureLookups(lookupAdapter);
   server = createApp().listen(0, "127.0.0.1");
+  // Cold catalogue work can pause the shared test event loop under parallel load.
+  server.keepAliveTimeout = 60_000;
   await new Promise((r) => server.once("listening", r));
   BASE = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
   config.gatewayUrl = `${BASE}/gateway/v1`;
 });
-afterAll(() => server.close());
+afterAll(() => { restoreLookups(); server.close(); });
 
 let cookie = "";
 async function call(method: string, path: string, body?: unknown): Promise<any> {
@@ -148,6 +156,13 @@ describe("order baskets", () => {
   });
 
   it("does not propose the screenshot's NoChicken product for a chicken burger request", async () => {
+    await call("POST", "/reset");
+    await signIn("p-aino");
+    // A real catalogue chicken burger with explicitly synthetic supplier terms.
+    // Other catalogue candidates remain unavailable; no external key is needed.
+    const fixture = loadFixture("base")!;
+    fixture.availability["461651"] = { productId: "461651", salesBlock: false, logisticModel: "Stock", closingTime: "2026-11-15T17:00:00+0200", scheduleLines: [{ salesBlock: false, availableAmount: 100, availableDate: "2026-11-16", salesUnit: "CS" }] };
+    fixture.price["461651"] = { ...fixture.price["469672"], productId: "461651", catalogPrice: { ...fixture.price["469672"].catalogPrice, value: 26.4 } };
     await call("POST", "/clock", { time: "2026-11-14T10:00:00Z" });
     const basket = await call("POST", "/baskets", { name: "Chicken burgers", deliveryDate: "2026-11-16" });
     const m = await call("POST", "/messages", { text: "10 pcs chicken burger by Monday" });
