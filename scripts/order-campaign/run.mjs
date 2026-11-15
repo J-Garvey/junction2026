@@ -70,9 +70,13 @@ for(const c of cases){
        const same=related.at(-1);related.push({...await http(same.path,same.body,attemptId),purpose:'same-delivery-id-retry'});
        related.push({...await http(same.path,{...same.body,text:'remove salmon'},attemptId),purpose:'changed-content-delivery-replay'});
      }
+     if(c.special==='reconnect_replay'){
+       const prior=related.at(-1);await support('/api/whatsapp/disconnect',{});await support('/api/whatsapp/connect',{});
+       related.push({...await http(prior.path,prior.body,attemptId),purpose:'prior-delivery-after-reconnect'});
+     }
      snapshots.after=await support('/api/baskets');snapshots.orders=await support('/api/orders');snapshots.draftDetailsAfter=[];
      for(const d of scenario.drafts)snapshots.draftDetailsAfter.push(await support(`/api/baskets/${d.id}`));
-     const t=await support('/campaign/telemetry');record({...c,attemptId,timestamp:new Date().toISOString(),phase,runId,scenario,sha:meta.sha,parserMode:meta.mode,modelMode:meta.mode,model:meta.model,supplierInterception:true,http:{method:main.method,path:main.path,body:main.body},status:main.status,response:main.response,elapsedMs:related.reduce((n,r)=>n+r.elapsedMs,0),related,snapshots,telemetry:t.events.slice(cursor)});
+     const t=await support('/campaign/telemetry');record({...c,input:main.body.text,seedInput:c.input,attemptId,timestamp:new Date().toISOString(),phase,runId,scenario,sha:meta.sha,parserMode:meta.mode,modelMode:meta.mode,model:meta.model,supplierInterception:true,http:{method:main.method,path:main.path,body:main.body},status:main.status,response:main.response,elapsedMs:related.reduce((n,r)=>n+r.elapsedMs,0),related,snapshots,telemetry:t.events.slice(cursor)});
    }else{
      const r=await http('/api/messages',{text:c.input},attemptId);
      if(c.plan&&r.response?.request){
