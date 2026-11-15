@@ -252,6 +252,9 @@ function TopBar({ status, me, onSwitch }: { status: StatusResp | null; me: Perso
   return (
     <div className="topbar">
       <div className="order-switcher-slot">
+        <Link to="/" className="home-logo-button" aria-label="Go to homepage" title="Go to homepage">
+          <Mark s={22} />
+        </Link>
         <OrderSwitcher currentId={basketId ? decodeURIComponent(basketId) : undefined} />
       </div>
       {status && !status.chain.ok && <span className="stamp block">Audit chain broken</span>}
