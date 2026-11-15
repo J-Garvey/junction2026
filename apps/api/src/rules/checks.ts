@@ -6,6 +6,7 @@
  */
 import type { Constraints, FiredRule, LookupLine, Mandate, Product, BaseUnit } from "@aimo/contracts";
 import { fire, FIXED } from "./catalogue.js";
+import { mandateOriginRules, type OriginPolicy } from "./origin.js";
 import { parseAimoTime, fmtHelsinki, eur, round2 } from "../util.js";
 
 export const ALLERGEN_NAMES: Record<string, string> = {
@@ -76,6 +77,11 @@ export function dietRules(p: Product, c: Constraints, group: string): FiredRule[
 }
 
 export const blocks = (rules: FiredRule[]) => rules.filter((r) => r.outcome === "block");
+
+/** Effective constraints are conjunctive: neither a request nor a mandate replaces the other. */
+export function productRules(p: Product, c: Constraints | undefined, group: string, mandate?: OriginPolicy): FiredRule[] {
+  return [...(c ? dietRules(p, c, group) : []), ...mandateOriginRules(p, mandate)];
+}
 
 /** Deliverability and price (DLV-01, DLV-02, PRC-01). */
 export function supplyRules(p: { name: string }, l: LookupLine): FiredRule[] {
