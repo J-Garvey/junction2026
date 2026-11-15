@@ -159,6 +159,9 @@ export type PackContent = { value: number; unit: BaseUnit; verified: boolean; so
  * agrees with the name's own weight, so a guessed count is never used silently.
  */
 export function piecesPerPack(p: Product, l: LookupLine | null): PackContent | null {
+  // A count printed on a variable-weight product is not pieces per ordered kg.
+  // Let the builder specify whole sales units instead of inventing that conversion.
+  if (["KG", "L", "ZML"].includes(l?.salesUnit ?? p.catalogueSalesUnit)) return null;
   const m = p.name.match(/(\d+)\s*(?:pcs|kpl|pieces|port\.?)\b/i) ?? p.name.match(/\b(\d+)\s*x\s*\d/i);
   if (!m) return p.catalogueSalesUnit === "ST" ? { value: 1, unit: "pcs", verified: true, source: "sold by the piece", rules: [] } : null;
   const n = Number(m[1]);
