@@ -1,5 +1,5 @@
 /** Final hotel order handoff: one finance decision bound to the submitted basket. */
-import type { Order, Question } from "@aimo/contracts";
+import type { Constraints, Order, Question } from "@aimo/contracts";
 import { audit } from "../audit.js";
 import { now } from "../clock.js";
 import { tx } from "../db.js";
@@ -74,7 +74,7 @@ export async function submitBasketForReview(eventId: string, person: Person): Pr
   const dates = [...new Set(plans.map((p) => p.deliveryDate!))];
   if (dates.length > 1) throw new BasketReviewError(409, "Items must share a delivery date before submitting the order for review");
   const before = snapshot(eventId, orders);
-  const quoteLines = new Map<string, { productId: string; quantity: number; outletId: string; ref: string; requires: { claims: string[]; avoidAllergens: string[]; labels: string[] } }>();
+  const quoteLines = new Map<string, { productId: string; quantity: number; outletId: string; ref: string; requires: Constraints }>();
   for (const plan of plans) for (const line of plan.lines.filter((l) => !l.removed)) {
     const key = `${line.productId}:${line.outletId}`;
     const grouped = quoteLines.get(key) ?? { productId: line.productId!, quantity: 0, outletId: line.outletId, ref: key, requires: { claims: [], avoidAllergens: [], labels: [] } };
@@ -82,6 +82,11 @@ export async function submitBasketForReview(eventId: string, person: Person): Pr
     for (const need of plan.needs.filter((n) => line.needIds.includes(n.id))) {
       for (const field of ["claims", "avoidAllergens", "labels"] as const)
         grouped.requires[field] = [...new Set([...grouped.requires[field], ...need.constraints[field]])];
+      if (need.constraints.origin) {
+        if (grouped.requires.origin && grouped.requires.origin !== need.constraints.origin)
+          throw new BasketReviewError(409, "The order has conflicting origin requirements. Ask the order builder to review the items.");
+        grouped.requires.origin = need.constraints.origin;
+      }
     }
     quoteLines.set(key, grouped);
   }
