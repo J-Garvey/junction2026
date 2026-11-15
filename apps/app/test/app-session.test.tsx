@@ -66,7 +66,6 @@ beforeEach(() => {
     testMode: true, dataMode: "fixture", model: { provider: "openai", model: "fixture", configured: false }, chain: { ok: true, brokenAt: null, entries: 0 },
   });
   vi.spyOn(api, "home").mockResolvedValue(home);
-  vi.spyOn(api, "warnings").mockResolvedValue({ warnings: [] });
   vi.spyOn(api, "baskets").mockResolvedValue({ baskets: [] });
   vi.spyOn(api, "rules").mockResolvedValue(rules());
   vi.spyOn(api, "saveRules").mockResolvedValue(rules());
@@ -79,13 +78,6 @@ afterEach(() => {
 });
 
 describe("person picker session boundaries", () => {
-  it("loads shell warnings without fetching the full inbox on unrelated pages", async () => {
-    mount();
-    await screen.findByRole("spinbutton", { name: "Spend cap per order" });
-    expect(api.warnings).toHaveBeenCalledOnce();
-    expect(api.home).not.toHaveBeenCalled();
-  });
-
   it("keeps persona selection unavailable outside test mode", async () => {
     vi.mocked(api.status).mockResolvedValue({ ...await api.status(), testMode: false });
     vi.mocked(api.me).mockRejectedValue(new Error("Sign in required"));
@@ -175,12 +167,12 @@ describe("person picker session boundaries", () => {
   });
 
   it("clears identity-scoped shell warnings as soon as a session switches", async () => {
-    vi.mocked(api.warnings).mockResolvedValue({ warnings: [warning] });
+    vi.mocked(api.home).mockResolvedValue({ ...home, warnings: [warning] });
     mount();
     await screen.findByText(warning.text);
     await openPicker();
     const nextHome = deferred<HomeResp>();
-    vi.mocked(api.warnings).mockReturnValue(nextHome.promise);
+    vi.mocked(api.home).mockReturnValue(nextHome.promise);
     await userEvent.click(screen.getByRole("button", { name: /Aino Chef$/ }));
     await screen.findByRole("button", { name: "Signed in as Aino" });
     expect(screen.queryByText(warning.text)).toBeNull();
@@ -189,14 +181,14 @@ describe("person picker session boundaries", () => {
 
   it("ignores a previous session's late warning response after unauthorized access and sign-in", async () => {
     const oldHome = deferred<HomeResp>();
-    vi.mocked(api.warnings).mockReturnValueOnce(oldHome.promise);
+    vi.mocked(api.home).mockReturnValueOnce(oldHome.promise);
     mount();
     await screen.findByRole("spinbutton", { name: "Spend cap per order" });
     act(() => authHooks.onUnauthorized());
     await userEvent.click(screen.getByRole("button", { name: /Aino Chef$/ }));
     await screen.findByRole("button", { name: "Signed in as Aino" });
     await act(async () => oldHome.resolve({ ...home, warnings: [warning] }));
-    await waitFor(() => expect(api.warnings).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(api.home).toHaveBeenCalledTimes(2));
     expect(screen.queryByText(warning.text)).toBeNull();
   });
 });

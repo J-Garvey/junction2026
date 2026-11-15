@@ -66,7 +66,7 @@ export function App() {
     let live = true;
     const load = () =>
       api
-        .warnings()
+        .home()
         .then((h) => {
           if (live) setWarnings(h.warnings);
         })
