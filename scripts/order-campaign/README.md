@@ -5,6 +5,127 @@ does not connect WhatsApp Web or contact the live supplier. Independent expected
 semantics are authored in `generate.mjs`; the production parser is never used to
 create the oracle. Responses are observations, not automatic pass verdicts.
 
+## External immutable manifests (campaign v2)
+
+Use the existing host and `run.mjs` directly. `campaign-v2-run.mjs` is a manifest
+adapter imported by that runner, not a second runner or a corpus generator.
+Do not use `batch.mjs` or `refresh.mjs` for the campaign integration branch:
+those legacy helpers track `origin/main` and assume port 8891.
+
+From the isolated, committed task/integration worktree, start a fresh host:
+
+```powershell
+$env:CAMPAIGN_DIR='C:/Users/benfh/junction-trials/api-quality-20261115-c8a4/E1/fallback-final'
+$env:CAMPAIGN_PORT='8901'
+$env:CAMPAIGN_MODEL='fallback'
+pnpm.cmd --filter @aimo/api exec tsx src/scripts/order-campaign/host.ts
+```
+
+The listener binds only `127.0.0.1`. It forces fixture/test mode and the local
+gateway URL, disables context.dev, blocks real WhatsApp Web HTTP routes, never
+calls bridge restore, and permits no remote fetch except the configured model
+when `CAMPAIGN_MODEL=real` is explicitly selected. Supplier fetches always return
+503, including fixture misses; redirects cannot escape the guard. Real-model
+HTTP bodies and usage are sanitized and recorded rather than mocked. Use a
+different artifact directory for fallback, real-model and fake-browser evidence.
+
+Every host gets a new UUID runtime directory, SQLite database and unused auth
+directory beneath `generator-runtime/`. `CAMPAIGN_RUNTIME_DIR` can choose an
+explicit fresh path. Existing DB files/sidecars and nonempty auth directories
+are refused. No saved account/profile is imported. Stop only this host's PID;
+restarts intentionally start fresh. Host metadata includes instance ID, SHA,
+dirty flag, harness hashes, fixture hash, runtime paths, mode and safe config.
+The runner refuses a different SHA, stale runner hash, port or artifact path.
+
+In another terminal, first run the small independent smoke, then a bounded
+development sample (the output JSONL path must not already exist):
+
+```powershell
+node scripts/order-campaign/test/smoke.mjs C:/Users/benfh/junction-trials/api-quality-20261115-c8a4/E1/smoke-final.jsonl
+node scripts/order-campaign/run.mjs --manifest=C:/Users/benfh/junction-trials/api-quality-20261115-c8a4/E1/smoke-final.jsonl --dir=C:/Users/benfh/junction-trials/api-quality-20261115-c8a4/E1/fallback-final --port=8901 --phase=smoke --limit=12
+node scripts/order-campaign/run.mjs --manifest=C:/Users/benfh/junction-trials/api-quality-20261115-c8a4/corpus/development.jsonl --dir=C:/Users/benfh/junction-trials/api-quality-20261115-c8a4/E1/fallback-final --port=8901 --phase=development-small --limit=2
+# Exact replay, with a new run ID and append-only evidence:
+node scripts/order-campaign/run.mjs --manifest=C:/Users/benfh/junction-trials/api-quality-20261115-c8a4/E1/smoke-final.jsonl --dir=C:/Users/benfh/junction-trials/api-quality-20261115-c8a4/E1/fallback-final --port=8901 --phase=retry-replay --ids=smoke-gateway-order-retry --limit=1
+```
+
+E1 executes only the small smoke/sample; the coordinator owns the full 800+200
+execution after integration and independent review. Implementation workers must
+not open holdout content. The runner has no built-in holdout path or discovery.
+
+Each JSONL record needs `caseId`, `input`, and independently authored `expected`.
+It preserves `channel`, `channels`, `plan`, `sequence`, `itemCount`, `split`,
+`primaryCategory`, `scenario` and other metadata. Source bytes are hashed and
+never rewritten. Expected objects are deeply frozen before network requests;
+a sanitized frozen manifest snapshot and selected executions are saved first.
+The original hash is rechecked at completion; a change invalidates the run.
+Expected data is never used to construct a request. `--start` and `--limit`
+select records before channel expansion; `--ids=a,b` selects exact IDs.
+`--channels=main,whatsapp` filters channel executions, while preserving their
+original labels and a separate `executionId`. Duplicate IDs and empty selections
+fail before requests. One `runner.lock` prevents concurrent resets of one host;
+after a forced kill, verify the recorded owner is stopped before removing a
+stale lock. Runs are serialized, including real-model 429 backoff.
+
+Channel contracts and deliberate gaps:
+
+| Manifest channel | Execution |
+| --- | --- |
+| `main`, `api`, `web`, `web-api`, `/api` | Text goes unchanged to `POST /api/messages`; `plan:true` submits the parsed request to `/api/requests` with `reviewing:true`. A missing date uses the documented selected-order fixture date, 2026-11-16. No automatic acceptance. |
+| `whatsapp`, `simulator`, `whatsapp-simulator` | Actual local simulator `/api/whatsapp/connect` and `/api/whatsapp/messages`; never the Web transport. Default external-manifest context is one empty selected `Campaign` basket dated 2026-11-16 with the seed wedding removed. Explicit `scenario.drafts/selectActive/person` overrides that context; `seedLines:true` explicitly enables the legacy saved 2 kg salmon fixture. |
+| `gateway`, `gateway-v1`, `/gateway/v1` | Explicit structured steps only. The gateway has no natural-language endpoint; text is recorded **unsupported**, with no primary request. |
+| Fake-browser/other labels | Recorded **unsupported** here; E2 owns fake-browser execution. |
+
+Natural-language multi-turn sequences on the stateless web API are explicitly
+unsupported; they require simulator context or authored structured HTTP steps.
+No cross-channel equivalence verdict is inferred. No text or line list is
+shortened to fit a route. Actual limits are: web text 1..2000 trimmed characters;
+simulator text 1..8000; search result limit 1..50; gateway lookup 1..5000 IDs;
+gateway quote 1..1000 lines; server JSON parser 1 MiB. Upstream lookup batches
+remain 1000. Oversize web/simulator text and quote/lookup arrays are observed as
+safe rejection paths, not successful semantic parses. The 1 MiB behavior is
+inspected in source, not exercised by this smoke.
+
+A structured `input` object, or an array of structured `sequence` entries,
+uses `path`, optional `method` (`GET`/`POST`), `body`, `saveAs`, `auth`
+(`chef`, `approver`, `agent`, `none`) and optional `headers` containing only
+`Idempotency-Key`. Only paths within the channel's actual `/api/` or
+`/gateway/v1/` contract are allowed; all paths are validated before any step.
+Use `{ "$ref": "quote.id" }` to copy a value from an observed response saved
+as `quote`; references can also supply `fingerprint` and `approval.id`. This
+supports authentic quote/approval/order/retry flows without fabricating IDs,
+inferring sales units, or generating requests from the expected oracle.
+
+`raw-observations.jsonl` is flushed append-only **before** each request and
+immediately after its complete response/error, including support/reset calls,
+exact untruncated bodies and sanitized raw response text. It also contains
+frozen case starts, host config, durations, and persisted run initial/final
+state. `requests.jsonl` adds one observation per channel attempt, including SQL
+snapshots before/after each case with full orders, approvals, quotes, plans,
+questions, events and audit rows. Tokens are omitted/redacted. SQL snapshots
+avoid state-changing basket GETs. Partial attempts remain in the raw journal
+even if later steps or publication fail. Aggregates say `verdict:not_evaluated`.
+Per-run summaries include support/execution counts, HTTP status counts, errors,
+unsupported executions, supplier/model counters and state snapshots. A guarded
+fixture-miss 503 contributes to observed server-error counts; that counter is
+not a semantic test verdict. Model-enabled fallbacks remain identifiable from
+the actual response and provider telemetry; a configured key is not success.
+
+Checks:
+
+```powershell
+node --test scripts/order-campaign/test/*.test.mjs
+pnpm.cmd --filter @aimo/api typecheck
+pnpm.cmd --filter @aimo/api exec vitest run test/e2e.test.ts test/quote-constraints.test.ts test/whatsapp-orders.test.ts
+```
+
+Early E1 evidence lives outside Git under the campaign's `E1/` directory.
+The baseline smoke observed fixed-price ordering and one-order idempotency,
+spend approval, a non-waivable milk-allergen block, an expired cutoff,
+unconfirmed stock refusal, fixture-miss interception and the real-transport
+guard. No real-model, fake-browser or full-campaign coverage is claimed here.
+
+## Legacy generated corpus
+
 Run from the repository root on Windows (Node 22.13+, `pnpm.cmd install`):
 
 ```powershell
@@ -16,8 +137,8 @@ node scripts/order-campaign/run.mjs --dir=C:/path/to/artifacts --phase=initial -
 node scripts/order-campaign/batch.mjs --dir=C:/path/to/artifacts --start=60
 ```
 
-The host owns port **8891**, a SQLite database and an unused WhatsApp auth path
-under `generator-runtime/`. The clock is explicitly 14 November 2026 before the
+The host defaults to port **8891**, a fresh SQLite database and an unused WhatsApp auth path
+under `generator-runtime/<instance-id>/`. The clock is explicitly 14 November 2026 before the
 saved fixtures' cutoffs. Do not run against another instance or share its data.
 The host overrides the preview gate only on this loopback-only synthetic server.
 
@@ -63,7 +184,7 @@ node scripts/order-campaign/refresh.mjs refresh --hold
 ```
 
 Refresh checks ownership before stopping its recorded PID, merges only into this
-checkout, restarts only this host and preserves the database. `--hold` keeps the
+checkout and restarts only this host with a fresh isolated database. `--hold` keeps the
 process alive on Windows tool hosts that clean up detached descendants. Add
 `--real` for a real-model restart. `node scripts/order-campaign/refresh.mjs stop`
 stops the owned host. This harness never alters primary main or other worktrees.
