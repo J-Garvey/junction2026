@@ -23,20 +23,25 @@ export function OrderItemDialog({
 }) {
   const titleId = useId();
   const closeRef = useRef<HTMLButtonElement>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     closeRef.current?.focus();
     const escape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") onCloseRef.current();
     };
     window.addEventListener("keydown", escape);
     return () => {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", escape);
     };
-  }, [onClose]);
+  }, []);
 
   return (
     <div className="item-dialog-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>

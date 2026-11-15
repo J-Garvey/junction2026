@@ -206,6 +206,59 @@ describe("order baskets", () => {
     expect(staged.plan.overrides.stockDecidedBy).toBe("Aino");
   });
 
+  it("reviews mixed items independently, retaining a replacement while another row is refined or discarded", async () => {
+    await call("POST", "/reset");
+    await signIn("p-aino");
+    await call("POST", "/clock", { time: "2026-11-14T10:00:00Z" });
+    const id = (await call("POST", "/baskets", { name: "Mixed products", deliveryDate: "2026-11-30" })).basket.id;
+    const parsed = await call("POST", "/messages", { text: "10 l lactose-free milk, 3 pcs zzzz-no-such-product" });
+    const request = { ...parsed.request, neededBy: "2026-11-30" };
+    const result = await call("POST", "/requests", { request, eventId: id, reviewing: true });
+    expect(result.plan.status).toBe("blocked");
+    expect(result.plan.request.lines).toHaveLength(2);
+    const [milk, missing] = request.lines;
+    const milkNeed = result.plan.needs.find((need: any) => need.id === milk.id);
+    const replacement = milkNeed.candidates[1];
+    expect(replacement).toBeDefined();
+
+    // An unrelated missing item must not prevent choosing a replacement for milk.
+    const chosen = await call("POST", `/plans/${result.plan.id}/choose`, { needId: milk.id, productId: replacement.productId });
+    expect(chosen.status).toBe(200);
+    expect(chosen.plan.needs.find((need: any) => need.id === milk.id).candidates[0].productId).toBe(replacement.productId);
+    expect((await call("POST", `/plans/${result.plan.id}/basket`, { continueWithWarnings: true })).status).toBe(409);
+
+    const salmon = (await call("POST", "/messages", { text: "3 kg salmon" })).request.lines[0];
+    const refined = { ...request, lines: [milk, { ...salmon, id: missing.id }] };
+    const checked = await call("POST", `/plans/${result.plan.id}/requote`, { request: refined });
+    expect(checked.status).toBe(200);
+    expect(checked.plan.request.lines[0]).toEqual(milk);
+    expect(checked.plan.needs.find((need: any) => need.id === milk.id).candidates[0].productId).toBe(replacement.productId);
+    expect(checked.plan.lines.some((line: any) => line.needIds.includes(missing.id) && line.productId)).toBe(true);
+
+    const discarded = await call("POST", `/plans/${result.plan.id}/requote`, { request: { ...refined, lines: [milk] } });
+    expect(discarded.status).toBe(200);
+    expect(discarded.plan.needs.map((need: any) => need.id)).toEqual([milk.id]);
+    expect(discarded.plan.lines.every((line: any) => !line.needIds.includes(missing.id))).toBe(true);
+    expect(discarded.plan.needs[0].candidates[0].productId).toBe(replacement.productId);
+    expect(discarded.plan.totalExVat).toBeCloseTo(discarded.plan.lines.reduce((sum: number, line: any) => sum + line.lineTotal, 0));
+    expect((await call("POST", `/plans/${result.plan.id}/basket`, { continueWithWarnings: true })).status).toBe(200);
+    expect((await call("GET", `/orders?eventId=${id}`)).orders).toEqual([]);
+  });
+
+  it("resets a row's replacement when that row changes", async () => {
+    const parsed = await call("POST", "/messages", { text: "10 l lactose-free milk" });
+    const request = { ...parsed.request, neededBy: "2026-11-30" };
+    const result = await call("POST", "/requests", { request, reviewing: true });
+    const need = result.plan.needs[0];
+    const replacement = need.candidates[1];
+    expect((await call("POST", `/plans/${result.plan.id}/choose`, { needId: need.id, productId: replacement.productId })).status).toBe(200);
+    const changed = { ...request, lines: request.lines.map((line: any) => ({ ...line, quantity: { amount: 20, unit: "l" } })) };
+    const checked = await call("POST", `/plans/${result.plan.id}/requote`, { request: changed });
+    expect(checked.status).toBe(200);
+    expect(getPlan(result.plan.id)!.overrides.chosen).toEqual([]);
+    expect(checked.plan.request.lines[0].quantity.amount).toBe(20);
+  });
+
   it("too late: removed from the quote, or kept in the order for review", async () => {
     await call("POST", "/clock", { time: "2026-11-14T10:00:00Z" });
     const id = (await call("POST", "/baskets", { name: "Tomorrow lunch", deliveryDate: "2026-11-15" })).basket.id;

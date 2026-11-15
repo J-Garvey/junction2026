@@ -149,9 +149,15 @@ export function appRouter(): Router {
     if (plan.kind !== "single" || plan.orderIds.length || plan.overrides.accepted || plan.basketedAt) return res.status(409).json({ error: "This request can no longer be changed" });
     const request = SingleRequest.parse(req.body.request);
     const p = P(req);
+    // Editing or discarding one row retains explicit choices for unchanged rows.
+    // Everything is still rechecked; approvals and stock decisions are reset.
+    const previous = plan.request;
+    const sameScope = previous?.siteId === request.siteId && previous?.outletId === request.outletId && previous?.neededBy === request.neededBy;
+    const unchanged = new Set(sameScope ? request.lines.filter((line) => previous?.lines.some((old) => old.id === line.id && JSON.stringify(old) === JSON.stringify(line))).map((line) => line.id) : []);
+    const chosen = plan.overrides.chosen?.filter((choice) => [...unchanged].some((id) => choice.startsWith(`${id}:`)));
     plan.request = request;
     plan.title = request.lines.map((l) => `${l.quantity ? `${l.quantity.amount} ${l.quantity.unit} ` : ""}${l.constraints.claims.includes("FREE_FROM_LACTOSE") ? "lactose-free " : ""}${l.query}`).join(", ") || request.originalText.slice(0, 60);
-    plan.overrides = emptyOverrides();
+    plan.overrides = { ...emptyOverrides(), chosen };
     audit({ actor: personActor(p), action: "request_received", summary: `${p.name} changed the request: ${plan.title}`, eventId: plan.eventId, details: { kind: "confirmation", planId: plan.id }, visibility: "hotel" });
     savePlan(plan);
     await quoteAndDecide(plan, T(req));
@@ -205,7 +211,8 @@ export function appRouter(): Router {
   r.post("/plans/:id/choose", async (req, res) => {
     const plan = getPlan(String(req.params.id));
     if (!plan) return res.status(404).json({ error: "No such plan" });
-    if (!plan.proposal) return res.status(409).json({ error: "Nothing waiting to be added" });
+    const reviewing = plan.kind === "single" && plan.reviewing && !plan.basketedAt && !plan.orderIds.length && !plan.overrides.accepted;
+    if (!plan.proposal && !reviewing) return res.status(409).json({ error: "Nothing waiting to be added" });
     const { needId, productId } = z.object({ needId: z.string(), productId: z.string() }).parse(req.body);
     const need = plan.needs.find((n) => n.id === needId);
     if (!need?.candidates.some((c) => c.productId === productId)) return res.status(404).json({ error: "Not one of the options" });
