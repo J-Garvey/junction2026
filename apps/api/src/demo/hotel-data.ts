@@ -2,7 +2,7 @@
 import type { EventSpec, SingleLine } from "@aimo/contracts";
 
 export const HOTEL_DEMO_TIME = "2026-11-11T08:00:00.000Z";
-export const HOTEL_DEMO_VERSION = 1;
+export const HOTEL_DEMO_VERSION = 2;
 export const HOTEL_DEMO_IDS = {
   breakfast: "evt-breakfast-monday",
   forum: "evt-nordic-leadership-forum",
@@ -15,7 +15,7 @@ export const HOTEL_DEMO_IDS = {
 type HotelBooking = Omit<EventSpec, "siteId">;
 export const HOTEL_BOOKINGS: HotelBooking[] = [
   {
-    id: HOTEL_DEMO_IDS.breakfast, name: "Monday breakfast · 144 residents", serviceDate: "2026-11-16", guests: 144,
+    id: HOTEL_DEMO_IDS.breakfast, name: "Monday breakfast · 144 residents", serviceDate: "2026-11-16", deliveryDate: "2026-11-16", guests: 144,
     dietsConfirmed: true, dietGroups: [],
     dishes: [{ id: "breakfast", name: "Breakfast bakery and coffee", outletId: "banquet", excludesGroups: [], ingredients: [
       { id: "croissant", text: "Butter croissant", productId: "460768", perPortion: { amount: 1, unit: "pcs" } },
@@ -24,7 +24,7 @@ export const HOTEL_BOOKINGS: HotelBooking[] = [
     ] }],
   },
   {
-    id: HOTEL_DEMO_IDS.forum, name: "Nordic Leadership Forum · 320 delegates", serviceDate: "2026-11-16", guests: 320,
+    id: HOTEL_DEMO_IDS.forum, name: "Nordic Leadership Forum · 320 delegates", serviceDate: "2026-11-16", deliveryDate: "2026-11-16", guests: 320,
     dietsConfirmed: true, dietGroups: [],
     dishes: [
       { id: "lunch", name: "Finnish salmon buffet", outletId: "banquet", excludesGroups: [], ingredients: [
@@ -38,21 +38,21 @@ export const HOTEL_BOOKINGS: HotelBooking[] = [
     ],
   },
   {
-    id: HOTEL_DEMO_IDS.bar, name: "Partner reception · 96 guests", serviceDate: "2026-11-16", guests: 96,
+    id: HOTEL_DEMO_IDS.bar, name: "Partner reception · 96 guests", serviceDate: "2026-11-16", deliveryDate: "2026-11-16", guests: 96,
     dietsConfirmed: true, dietGroups: [],
     dishes: [{ id: "welcome", name: "Alcohol-free welcome toast", outletId: "bar", excludesGroups: [], ingredients: [
       { id: "sparkling", text: "Alcohol-free sparkling", productId: "477125", perPortion: { amount: 125, unit: "ml" } },
     ] }],
   },
   {
-    id: HOTEL_DEMO_IDS.milk, name: "Breakfast coffee service · milk top-up", serviceDate: "2026-11-16", guests: 144,
+    id: HOTEL_DEMO_IDS.milk, name: "Breakfast coffee service · milk top-up", serviceDate: "2026-11-16", deliveryDate: "2026-11-16", guests: 144,
     dietsConfirmed: true, dietGroups: [],
     dishes: [{ id: "coffee", name: "Additional coffee milk", outletId: "banquet", excludesGroups: [], ingredients: [
       { id: "milk", text: "Lactose-free milk", productId: "464306", claims: ["FREE_FROM_LACTOSE"], total: { amount: 40, unit: "l" } },
     ] }],
   },
   {
-    id: HOTEL_DEMO_IDS.allergy, name: "Board dinner · dessert allergy review", serviceDate: "2026-11-16", guests: 24,
+    id: HOTEL_DEMO_IDS.allergy, name: "Board dinner · dessert allergy review", serviceDate: "2026-11-16", deliveryDate: "2026-11-16", guests: 24,
     dietsConfirmed: true,
     dietGroups: [{ id: "tree-nut-free", label: "Tree-nut allergy", count: 1, standing: false, constraints: { claims: [], avoidAllergens: ["AN"], labels: [] } }],
     dishes: [{ id: "dessert", name: "Dessert for the whole table", outletId: "banquet", excludesGroups: [], ingredients: [
@@ -60,7 +60,7 @@ export const HOTEL_BOOKINGS: HotelBooking[] = [
     ] }],
   },
   {
-    id: HOTEL_DEMO_IDS.draft, name: "December planning lunch · provisional", serviceDate: "2026-12-03", guests: 60,
+    id: HOTEL_DEMO_IDS.draft, name: "December planning lunch · provisional", serviceDate: "2026-12-03", deliveryDate: "2026-12-03", guests: 60,
     dietsConfirmed: false, dietGroups: [],
     dishes: [{ id: "lunch", name: "Salmon lunch · dietary counts to follow", outletId: "banquet", excludesGroups: [], ingredients: [
       { id: "salmon", text: "Finnish salmon", productId: "469672", origin: "fi", perPortion: { amount: 170, unit: "g" } },

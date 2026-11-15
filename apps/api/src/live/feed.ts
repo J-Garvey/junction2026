@@ -33,11 +33,13 @@ export type FeedEntry = {
 
 const MAX = 300;
 const entries: FeedEntry[] = [];
+let generation = 0;
 export const feedBus = new EventEmitter();
 feedBus.setMaxListeners(100);
 
 export const feedEntries = () => entries.slice();
 export function clearFeed() {
+  generation++;
   entries.length = 0;
   feedBus.emit("reset");
 }
@@ -98,6 +100,7 @@ export function classify(method: string, path: string, status: number, body: any
 
 /** Express middleware mounted in front of the gateway router. */
 export function feedTap(req: Request, res: Response, next: NextFunction) {
+  const startedGeneration = generation;
   const started = Date.now();
   const path = req.path;
   if (path === "/openapi.json" || path === "/audit") return next();
@@ -106,6 +109,7 @@ export function feedTap(req: Request, res: Response, next: NextFunction) {
   const callerKind = !id ? "unknown" : id.kind;
   const orig = res.json.bind(res);
   res.json = (body: any) => {
+    if (startedGeneration !== generation) return orig(body);
     try {
       const c = classify(req.method, path, res.statusCode, body, req.body?.quoteOnly === true);
       if (c.action === "READ" && res.statusCode < 400) return orig(body);

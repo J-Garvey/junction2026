@@ -279,7 +279,7 @@ function EventMenuEditor({ event, menuInOrder, onSaved, onAdded }: MenuEditorPro
       {review && (
         <RequestReviewDialog
           initialReview={review}
-          deliveryDate={event.serviceDate}
+          deliveryDate={event.deliveryDate ?? event.serviceDate}
           onClose={() => setReview(null)}
           onChanged={() => { if (mounted.current) onAdded(); }}
           onAdded={(basket) => {

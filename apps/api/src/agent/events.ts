@@ -6,6 +6,7 @@
  */
 import { hasUnconfirmedAllergenData, type EventSpec, type Order, type PlanLine, type Question, type WarningRecord, type DietGroup, type Need, type Quote, type AmendmentBody, type StageProcessing } from "@aimo/contracts";
 import { getDb, getJson, allJson } from "../db.js";
+import { SEED_EVENT, WEDDING_AUTHOR } from "../demo/wedding-data.js";
 import { now, nowIso } from "../clock.js";
 import { getProduct, getRaw, searchProducts } from "../catalog.js";
 import { audit, AGENT, decisionCount } from "../audit.js";
@@ -16,7 +17,7 @@ import { typeCheck } from "./judge.js";
 import { newId, round2, fmtHelsinki, parseAimoTime, eur, shortName } from "../util.js";
 import { gw, GatewayError } from "./gatewayClient.js";
 import { makeQuestion, saveQuestion, allQuestions } from "./questions.js";
-import { newPlan, quoteAndDecide, viability, savePlan, getPlan, runPipeline, mandate, type StoredPlan, emptyOverrides } from "./plan.js";
+import { newPlan, quoteAndDecide, viability, savePlan, getPlan, listPlans, runPipeline, mandate, type StoredPlan, emptyOverrides } from "./plan.js";
 import { recallSubstitute } from "./memory.js";
 import { specCompare } from "./sidebyside.js";
 import { pieceCostToCover } from "./match.js";
@@ -45,8 +46,22 @@ export class EditConflict extends Error {
   }
 }
 
-export const getEvent = (id: string) => getJson<StoredEvent>("events", id);
-export const listEvents = () => allJson<StoredEvent>("SELECT json FROM events ORDER BY id");
+/** Restore only known seed metadata on reads; preserve existing activity and the signed audit. */
+function withSeedMetadata(e: StoredEvent): StoredEvent {
+  if (e.id !== SEED_EVENT.id || e.siteId !== SEED_EVENT.siteId || e.serviceDate !== SEED_EVENT.serviceDate
+    || (e.createdBy && e.createdAt && e.deliveryDate)) return e;
+  const reset = getDb().prepare(`SELECT json_extract(json, '$.simTime') AS at FROM audit
+    WHERE json_extract(json, '$.action') = 'seed_reset' AND json_extract(json, '$.usesFixture') = 1
+    AND json_extract(json, '$.summary') LIKE ? ORDER BY seq LIMIT 1`)
+    .get(`Fresh seed:%event "${SEED_EVENT.name}"%`) as { at: string } | undefined;
+  if (!reset) return e;
+  return { ...e, createdBy: e.createdBy ?? WEDDING_AUTHOR, createdAt: e.createdAt ?? reset.at, deliveryDate: e.deliveryDate ?? SEED_EVENT.deliveryDate };
+}
+export const getEvent = (id: string) => {
+  const e = getJson<StoredEvent>("events", id);
+  return e ? withSeedMetadata(e) : null;
+};
+export const listEvents = () => allJson<StoredEvent>("SELECT json FROM events ORDER BY id").map(withSeedMetadata);
 export function saveEvent(e: StoredEvent) {
   getDb().prepare("INSERT INTO events (id, json, version) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET json = excluded.json, version = excluded.version").run(e.id, JSON.stringify(e), e.version);
 }
@@ -577,6 +592,7 @@ export async function answerAllergy(q: Question, p: Person) {
     editEvent(e.id, e.version, p.name, `Replaced ${shortName(w.productName)} with ${shortName(r.name)} for everyone`, (x) => {
       for (const d of x.dishes) for (const i of d.ingredients) if (i.productId === f.productId) {
         i.productId = r.productId;
+        i.text = r.name;
         i.variants = undefined;
       }
     });
@@ -831,8 +847,9 @@ export function coverageSummary(eventId: string): { level: "covered" | "at_risk"
   const e = getEvent(eventId);
   const latestPlanId = (e as (StoredEvent & { latestPlanId?: string }) | null)?.latestPlanId;
   const latestPlan = latestPlanId ? getPlan(latestPlanId) : null;
+  const orders = allJson<Order>("SELECT json FROM orders WHERE event_id = ?", eventId).filter((o) => o.state !== "rejected");
   const concerned = new Set([
-    ...allJson<Order>("SELECT json FROM orders WHERE event_id = ?", eventId).filter((o) => o.state !== "rejected").flatMap((o) => o.lines),
+    ...orders.flatMap((o) => o.lines),
     ...(latestPlan?.lines ?? []),
   ].filter((l) => !l.removed && hasUnconfirmedAllergenData(l)).map((l) => `${l.productId}|${l.outletId}`));
   const allergenConcerns = concerned.size;
@@ -850,9 +867,20 @@ export function coverageSummary(eventId: string): { level: "covered" | "at_risk"
     return { level: "not_covered", text: `Blocked · ${red || 1} line${red === 1 ? "" : "s"}` };
   }
   if (plan && !plan.orderIds.length && plan.status === "rejected") return { level: "not_covered", text: "Rejected" };
-  if (!plan || !plan.orderIds.length) return { level: "none", text: "Not ordered" };
+  // Menu/request orders use the same event without setting the scripted orderPlanId.
+  const pending = listPlans(eventId).filter((p) => p.kind === "single" && !p.reviewing && !p.removedFromBasketAt
+    && p.tooLateChoice !== "removed" && !p.orderIds.length);
+  const blocked = pending.filter((p) => p.status === "blocked");
+  if (blocked.length) {
+    const red = blocked.flatMap((p) => p.lines).filter((l) => l.verdict === "red" && !l.removed).length || blocked.length;
+    return { level: "not_covered", text: `Blocked · ${red} line${red === 1 ? "" : "s"}` };
+  }
+  if (pending.some((p) => p.basketedAt)) return { level: "not_covered", text: "Awaiting order review" };
+  if (pending.length) return { level: "not_covered", text: "Items not ordered" };
+  if (!orders.length) return { level: "none", text: "Not ordered" };
   const fc = e?.finalCheck;
-  const atRisk = fc ? fc.lines.filter((l) => l.result === "covered_at_risk").length : plan.lines.filter((l) => l.riskAccepted).length;
+  const atRisk = fc ? fc.lines.filter((l) => l.result === "covered_at_risk").length
+    : new Set(orders.flatMap((o) => o.lines).filter((l) => !l.removed && l.stock.kind === "unknown").map((l) => `${l.productId}|${l.outletId}`)).size;
   const short = fc ? fc.lines.filter((l) => l.result === "short" || l.result === "price_changed").length : 0;
   if (short) return { level: "not_covered", text: `${short} short${concern}` };
   if (atRisk || allergenConcerns) return { level: "at_risk", text: `Ready${atRisk ? ` · ${atRisk} stock not confirmed` : ""}${concern}` };

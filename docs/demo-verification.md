@@ -17,6 +17,8 @@ Reference: [demo-plan.md](demo-plan.md), updated on main in pull request #205. V
 
 These assertions live in `apps/api/test/e2e.test.ts`. The live-console component regression checks per-call milliseconds and opening the signed receipt. Existing tests cover request chips, selection funnel, rules, fixture labels and role switching.
 
+`seed-workspace.test.ts` also checks that the populated workspace agrees across home, event and order views: the signed breakfast totals €213.28, the forum review totals €2,016.02, and the board dessert remains blocked. Wedding metadata identifies Aino as author and distinguishes Monday delivery from Tuesday service, including for an older saved seed. The menu generation path uses that Monday date and the seven-line €2,003.37 booking total, retaining the bar's toast and outlet permissions. Resetting removes obsolete gateway feed records. The wedding regression checks pending basket totals, current replacement names and the allergen concern in the closing record; focused component tests cover their display.
+
 ## Reproduce
 
 ```sh

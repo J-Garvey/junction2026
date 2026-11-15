@@ -527,6 +527,7 @@ export const EventSpec = z.object({
   name: z.string(),
   siteId: z.string(),
   serviceDate: z.string(),
+  deliveryDate: z.string().optional().describe("Explicit planned delivery date, separate from service; supplier terms are still checked"),
   guests: z.number().int().nonnegative(),
   dietGroups: z.array(DietGroup),
   dishes: z.array(Dish),
@@ -537,6 +538,7 @@ export type EventSpec = z.infer<typeof EventSpec>;
 /** A single free-text request (CH-09) becomes one or more of these lines. */
 export const SingleLine = z.object({
   id: z.string(),
+  outletId: z.string().optional().describe("Menu dish outlet; defaults to the request outlet and must be within the person's scope"),
   text: z.string(),
   query: z.string(),
   productType: z.string().nullable(),

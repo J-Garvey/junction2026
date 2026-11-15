@@ -10,6 +10,7 @@ import { Icon } from "../ui/icons";
 import { OrderItemDialog } from "../ui/OrderItemDialog";
 import { RequestReviewDialog } from "../ui/RequestReviewDialog";
 import { MenuEditor } from "../ui/MenuEditor";
+import { LinesList } from "../ui/PlanView";
 import { BasketCard } from "../ui/BasketCard";
 import { OrderBy } from "../ui/OrderBy";
 import { OrderReviewHistory } from "../ui/OrderReviewHistory";
@@ -154,20 +155,23 @@ export function BasketPage() {
   // the reconciliation read is pending or fails. Keep all submitted terms in history.
   const questions = data.questions.map((q): Question => q.type === "order_review" && q.state === "open" && countdown(q.deadline, now).past ? { ...q, state: "expired" } : q);
   const review = data.review?.state === "open" && !countdown(data.review.deadline, now).past ? data.review : null;
+  const financialReview = review ?? questions.find((q) => q.forRole === "approver" && q.state === "open" && q.quoteId && "total" in q.facts && !countdown(q.deadline, now).past) ?? null;
   const latestReview = questions.find((q) => q.type === "order_review");
   const returned = latestReview?.state === "answered" && latestReview.answer === "reject" ? latestReview : null;
   const live = orders.filter((o) => o.state !== "rejected");
   const staged = requests.filter((r) => r.basketedAt && !r.orderIds.length);
+  const eventPending = data.orderPlan && !data.orderPlan.orderIds.length && data.orderPlan.status !== "rejected" ? data.orderPlan : null;
+  const unplaced = [...staged, ...(eventPending ? [eventPending] : [])];
   const { mine: waitingQs, others } = splitMine(questions.filter((q) => q.state === "open" || q.state === "waiting"), me, people);
   const pending = requests.filter((r) => !r.basketedAt && r.status !== "ordered" && r.status !== "rejected" && !r.orderIds.length);
-  const orderTotal = staged.some((p) => p.totalExVat == null || p.lines.some((line) => !line.removed && line.lineTotal == null))
+  const orderTotal = unplaced.some((p) => p.totalExVat == null || p.lines.some((line) => !line.removed && line.lineTotal == null))
     ? null
-    : live.reduce((sum, order) => sum + order.totalExVat, 0) + staged.reduce((sum, plan) => sum + plan.totalExVat!, 0);
+    : live.reduce((sum, order) => sum + order.totalExVat, 0) + unplaced.reduce((sum, plan) => sum + plan.totalExVat!, 0);
   const isApprover = me.role === "approver";
   const placedTotal = live.reduce((sum, order) => sum + order.totalExVat, 0);
   const pendingTotal = orderTotal === null ? null : orderTotal - placedTotal;
   const placedParts = live.map((order) => ({ label: `Placed order ${order.id} · v${order.version}`, total: order.totalExVat, lines: order.lines }));
-  const currentParts = [...placedParts, ...staged.map((plan) => ({ label: `Staged request ${plan.title}`, total: plan.totalExVat, lines: plan.lines }))];
+  const currentParts = [...placedParts, ...unplaced.map((plan) => ({ label: `Pending order ${plan.title}`, total: plan.totalExVat, lines: plan.lines }))];
 
   return (
     <div className="page stack-l">
@@ -187,7 +191,8 @@ export function BasketPage() {
         </div>}
       </div>
       <div className="basket-context small muted">
-        <span>Delivery {day(ev.serviceDate)}</span>
+        <span>Delivery {day(ev.deliveryDate ?? ev.serviceDate)}</span>
+        {ev.deliveryDate && ev.deliveryDate !== ev.serviceDate && <span>Service {day(ev.serviceDate)}</span>}
         <span>{ev.guests > 0 ? plural(ev.guests, "guest") : "Guest count not entered"}</span>
         <span>{ev.createdBy ? `Created by ${ev.createdBy}` : "Creator not recorded"}</span>
         <OrderBy deadline={data.orderBy} detail />
@@ -204,7 +209,7 @@ export function BasketPage() {
           <Link to={`/orders?eventId=${encodeURIComponent(ev.id)}`}><Icon n="box" s={16} /> Order receipts</Link>
           <Link to="/rules"><Icon n="shield" s={16} /> Hotel rules</Link>
         </nav>
-        <FinanceOrderSummary total={orderTotal} placed={placedTotal} pending={pendingTotal} review={review} currentParts={currentParts} placedParts={placedParts} />
+        <FinanceOrderSummary total={orderTotal} placed={placedTotal} pending={pendingTotal} review={financialReview} currentParts={currentParts} placedParts={placedParts} />
       </>}
 
       {!isApprover && <section className="stack">
@@ -220,9 +225,9 @@ export function BasketPage() {
           </div>
         </div>
         {addMode === "product" ? (
-          <AddToBasket eventId={ev.id} deliveryDate={ev.serviceDate} onAdded={updateBasket} />
+          <AddToBasket eventId={ev.id} deliveryDate={ev.deliveryDate ?? ev.serviceDate} onAdded={updateBasket} />
         ) : (
-          <MenuEditor event={ev} menuInOrder={staged.some((r) => r.title.startsWith("Menu ·")) || live.length > 0} onSaved={reload} onAdded={(basket) => { updateBasket(basket); refresh(); }} />
+          <MenuEditor event={ev} menuInOrder={!!eventPending || staged.some((r) => r.title.startsWith("Menu ·")) || live.length > 0} onSaved={reload} onAdded={(basket) => { updateBasket(basket); refresh(); }} />
         )}
       </section>}
 
@@ -256,10 +261,14 @@ export function BasketPage() {
       <section>
         <div className="sechead">
           <h2>In the order</h2>
-          {(live.length > 0 || staged.length > 0) && <span id="order-calculation" className="small muted"><TotalCalculation title="current order total" total={orderTotal} parts={currentParts} note="Placed supplier orders plus staged requests. Pending proposals and rejected orders are excluded; requests already placed are not added twice." /> ex VAT</span>}
+          {(live.length > 0 || unplaced.length > 0) && <span id="order-calculation" className="small muted"><TotalCalculation title="current order total" total={orderTotal} parts={currentParts} note="Placed supplier orders, staged requests and the pending event order. Unaccepted product proposals and rejected orders are excluded; placed requests are not added twice." /> ex VAT</span>}
         </div>
         <StagedLines eventId={ev.id} plans={staged} submitted={!!review} onChanged={() => { setRequestNote(null); refresh(); reload(); }} onEdit={(plan) => setEditingRequest({ id: plan.id, title: plan.title })} />
-        <OrderedLines orders={live} showEmpty={!staged.length} emptyText={isApprover ? "No items in this order yet. The kitchen is preparing it." : undefined} />
+        {eventPending && <div className="stack">
+          <p className="small muted">Event order · {eventPending.summary} · <Link to={`/events/${ev.id}`}>View event</Link></p>
+          <LinesList plan={eventPending} warnings={data.warnings ?? []} />
+        </div>}
+        <OrderedLines orders={live} showEmpty={!unplaced.length} emptyText={isApprover ? "No items in this order yet. The kitchen is preparing it." : undefined} />
       </section>
       <OrderReviewHistory questions={questions} />
       {editingRequest && <SavedRequestDetails key={editingRequest.id} id={editingRequest.id} title={editingRequest.title} onClose={() => setEditingRequest(null)} onChanged={reload} onAdded={(basket) => { setEditingRequest(null); updateBasket(basket); setRequestNote("Added to the order. Submit the final order for finance review."); refresh(); }} />}

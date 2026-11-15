@@ -347,7 +347,7 @@ function Card({ c, onPick, disabled }: { c: CardStep; onPick: (o: string) => voi
 }
 
 type RecordResp = {
-  order: { id: string; state: string; totalExVat: number; deliveryDate: string; placedAt: string; placedBy: string; approvalId: string | null; lines: { productId: string; name: string; quantity: number; salesUnit: string | null; unitPrice: number | null; lineTotal: number | null; riskAccepted: { by: string } | null }[] };
+  order: { id: string; state: string; totalExVat: number; deliveryDate: string; placedAt: string; placedBy: string; approvalId: string | null; lines: { productId: string; name: string; quantity: number; salesUnit: string | null; unitPrice: number | null; lineTotal: number | null; riskAccepted: { by: string } | null; allergenDataUnconfirmed?: boolean }[] };
   signature: { present: boolean; valid: boolean; alg: string; jwks: string; jws: string | null; claims: Record<string, unknown> | null };
 };
 
@@ -403,6 +403,7 @@ function Record({ id, onClose }: { id: string; onClose: () => void }) {
                   <span>{l.quantity} {l.salesUnit}</span>
                   <span>{eur(l.lineTotal)}</span>
                   {l.riskAccepted && <span className="lv-line-risk">Stock not confirmed · {l.riskAccepted.by} accepted</span>}
+                  {l.allergenDataUnconfirmed && <span className="lv-line-risk">Allergen data not confirmed</span>}
                 </li>
               ))}
             </ul>

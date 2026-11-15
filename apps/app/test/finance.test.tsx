@@ -47,6 +47,28 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("manager and finance workspace", () => {
+  it("includes the scripted event approval once in submitted spend", async () => {
+    const wedding = { ...question, type: "spend_cap" as const, quoteId: "wedding-quote", planId: "event-plan", facts: { total: 2003.37 } };
+    vi.mocked(api.home).mockResolvedValue({ questions: [wedding, { ...wedding, id: "rounding" }], events: [], plans: [], warnings: [] });
+    mount(<FinanceHome />);
+    const metrics = await screen.findByLabelText("Finance overview");
+    expect(metrics.textContent).toContain(eur(2003.37));
+    expect(metrics.textContent).not.toContain(eur(4006.74));
+  });
+
+  it("includes the pending scripted event in the order detail total", async () => {
+    vi.mocked(api.basket).mockResolvedValue({ ...detail, requests: [], orders: [], review: null,
+      questions: [{ ...question, type: "spend_cap", planId: "event-plan", quoteId: "event-quote", facts: { total: 2003.37 }, body: "Wedding is awaiting Sanna's approval" }],
+      orderPlan: { id: "event-plan", title: "Wedding", status: "waiting", summary: "Waiting for review", orderIds: [], totalExVat: 2003.37, lines: [], needs: [] },
+    } as unknown as BasketResp);
+    mountDetail();
+    const summary = await screen.findByRole("region", { name: "Financial summary" });
+    expect(summary.textContent).toContain(eur(2003.37));
+    expect(within(summary).getByText("Wedding is awaiting Sanna's approval")).toBeTruthy();
+    expect(screen.queryByText("No items in this order yet. The kitchen is preparing it.")).toBeNull();
+    expect(screen.getByRole("link", { name: "View event" })).toBeTruthy();
+  });
+
   it("puts the personal approval queue and accurately labelled spend ahead of event orders", async () => {
     mount(<FinanceHome />);
     await screen.findByRole("link", { name: "Review order" });

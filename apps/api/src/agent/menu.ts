@@ -38,6 +38,7 @@ export interface MenuShare {
 
 export interface MenuLine {
   lineId: string;
+  outletId: string;
   text: string;
   productId: string | null;
   query: string;
@@ -99,7 +100,7 @@ export function scaleMenu(e: Pick<StoredEvent, "name" | "guests" | "dietGroups" 
         const productType = ing.productType ?? read?.productType ?? null;
         const category = ing.category ?? read?.category ?? (productId ? getProduct(productId)?.category ?? null : null);
         // Q03.3: identical needs (same product or same spec, same diet rules, same unit) become one line.
-        const key = JSON.stringify([productId ?? query, productType, category, base.unit, constraints]);
+        const key = JSON.stringify([dish.outletId, productId ?? query, productType, category, base.unit, constraints]);
         const share: MenuShare = {
           dishId: dish.id, dishName: dish.name, ingredientId: ing.id, groupId: g.id, groupLabel: g.label,
           guests: ing.total ? null : g.count, perPortion: ing.total ? null : ing.perPortion!, amount: round3(amount),
@@ -111,6 +112,7 @@ export function scaleMenu(e: Pick<StoredEvent, "name" | "guests" | "dietGroups" 
         } else {
           combined.set(key, {
             lineId: newId("menu"),
+            outletId: dish.outletId,
             text: ing.text.trim(),
             productId,
             query,
@@ -141,6 +143,7 @@ export function shareText(line: MenuLine): string {
 export function menuRequest(e: StoredEvent, scale: MenuScale, siteId: string, outletId: string): SingleRequest {
   const lines: SingleLine[] = scale.lines.map((l) => ({
     id: l.lineId,
+    outletId: l.outletId,
     text: `${l.text} · ${shareText(l)}`,
     query: l.query,
     productType: l.productType,
@@ -154,7 +157,7 @@ export function menuRequest(e: StoredEvent, scale: MenuScale, siteId: string, ou
     originalText: `Menu for ${e.name}: ${e.guests} guests, ${e.dishes.length} dish${e.dishes.length === 1 ? "" : "es"}`,
     siteId,
     outletId,
-    neededBy: e.serviceDate,
+    neededBy: e.deliveryDate ?? e.serviceDate,
     neededByText: null,
     lines,
     parsedBy: "rules",

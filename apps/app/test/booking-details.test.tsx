@@ -20,6 +20,15 @@ function page(basket: BasketResp) {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("booking context", () => {
+  it("shows Aino as the wedding author and separates Monday delivery from Tuesday service", async () => {
+    page({ ...reception, event: { ...reception.event, id: "evt-wedding", name: "Emma and Lauri's wedding", guests: 180,
+      createdBy: "Aino", serviceDate: "2026-11-17", deliveryDate: "2026-11-16" } });
+    expect(await screen.findByText("Created by Aino")).toBeTruthy();
+    expect(screen.getByText("Delivery Mon, 16 Nov 2026")).toBeTruthy();
+    expect(screen.getByText("Service Tue, 17 Nov 2026")).toBeTruthy();
+    expect(screen.queryByText("Delivery Tue, 17 Nov 2026")).toBeNull();
+  });
+
   it("keeps the reception's saved guests and creator visible even when supplier stock is unconfirmed", async () => {
     page(reception);
     expect(await screen.findByText("96 guests")).toBeTruthy();

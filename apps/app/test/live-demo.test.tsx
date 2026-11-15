@@ -24,6 +24,7 @@ beforeEach(() => {
     if (input === "/api/live/orders/wedding") return { ok: true, json: async () => ({
       order: { id: "wedding", totalExVat: 1965.17, deliveryDate: "2026-11-16", approvalId: "finance-change", lines: [
         { productId: "473522", name: "Raspberry pastry cake", quantity: 5, salesUnit: "KI", lineTotal: 310.6, riskAccepted: { by: "Aino" } },
+        { productId: "460541", name: "Button potatoes", quantity: 3, salesUnit: "KI", lineTotal: 31.62, riskAccepted: null, allergenDataUnconfirmed: true },
       ] },
       signature: { valid: true, alg: "ES256", jwks: "/.well-known/jwks.json", jws: "signed-fixture" },
     }) };
@@ -44,6 +45,7 @@ describe("the demo's closing console", () => {
     expect(await screen.findByText(/Signature valid · ES256/)).toBeTruthy();
     expect(screen.getByText("Raspberry pastry cake")).toBeTruthy();
     expect(screen.getByText("Stock not confirmed · Aino accepted")).toBeTruthy();
+    expect(screen.getByText("Allergen data not confirmed")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Peppol BIS Order (UBL XML)" }).getAttribute("href")).toBe("/api/live/orders/wedding/peppol");
   });
 });

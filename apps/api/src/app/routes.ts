@@ -53,9 +53,10 @@ function person(req: Request, res: Response, next: NextFunction) {
 
 const P = (req: Request) => (req as Authed).person;
 const T = (req: Request) => (req as Authed).token;
-const inPlanScope = (req: Request, plan: { outletId: string }) => {
+const inPlanScope = (req: Request, plan: { outletId: string; lines?: { outletId?: string }[] }) => {
   const saved = "needs" in plan ? plan as StoredPlan : undefined;
   return allowsOutlets(P(req), HOTEL_ID, [plan.outletId,
+    ...(saved?.request?.lines ?? (!saved ? plan.lines ?? [] : [])).map((line) => line.outletId ?? plan.outletId),
     ...(saved?.needs.map((need) => need.outletId) ?? []),
     ...(saved?.lines.filter((line) => !line.removed).map((line) => line.outletId) ?? []),
   ]);
@@ -238,6 +239,7 @@ export function appRouter(): Router {
 
   /** One path for a typed request and a generated menu order: plan, quote, then review or order. */
   async function startRequest(req: Request, request: SingleRequest, eventId: string | null, reviewing: boolean, itemReview: boolean, title?: string, summary?: string) {
+    if (!inPlanScope(req, request)) throw new BasketReviewError(403, "This item is outside your hotel or outlet scope");
     const p = P(req);
     const plan = newPlan("single", { personId: p.id, name: p.name }, request.outletId, { request, title: title ?? (request.lines.map((l) => `${l.quantity ? `${l.quantity.amount} ${l.quantity.unit} ` : ""}${l.constraints.claims.includes("FREE_FROM_LACTOSE") ? "lactose-free " : ""}${l.query}`).join(", ") || request.originalText.slice(0, 60)) });
     plan.eventId = eventId;
@@ -281,6 +283,7 @@ export function appRouter(): Router {
     if (plan.kind !== "single" || plan.orderIds.length || plan.overrides.accepted || plan.basketedAt) return res.status(409).json({ error: "This request can no longer be changed" });
     const request = SingleRequest.parse(req.body.request);
     const p = P(req);
+    if (!inPlanScope(req, request)) return res.status(403).json({ error: "This item is outside your hotel or outlet scope" });
     if (request.outletId !== plan.outletId || (request.siteId ?? plan.siteId) !== plan.siteId)
       return res.status(403).json({ error: "A correction must stay within the original delivery site and outlet" });
     // A product choice belongs to a stable need, so compatible quantity edits keep it.
@@ -358,7 +361,7 @@ export function appRouter(): Router {
     const plan = getPlan(String(req.params.id));
     if (!plan) return res.status(404).json({ error: "No such plan" });
     const p = P(req);
-    if (p.hotelId !== HOTEL_ID || (!p.hotelScope && !p.outlets.includes(plan.outletId)))
+    if (!inPlanScope(req, plan))
       return res.status(403).json({ error: "This item is outside your hotel or outlet scope" });
     if (!plan.itemReviews || plan.overrides.accepted || plan.basketedAt || plan.orderIds.length)
       return res.status(409).json({ error: "This request is no longer being reviewed" });
@@ -382,7 +385,7 @@ export function appRouter(): Router {
     const plan = getPlan(String(req.params.id));
     if (!plan) return res.status(404).json({ error: "No such plan" });
     const p = P(req);
-    if (p.hotelId !== HOTEL_ID || (!p.hotelScope && !p.outlets.includes(plan.outletId)))
+    if (!inPlanScope(req, plan))
       return res.status(403).json({ error: "This item is outside your hotel or outlet scope" });
     if (!plan.itemReviews || plan.overrides.accepted || plan.basketedAt || plan.orderIds.length)
       return res.status(409).json({ error: "This request is no longer being reviewed" });
@@ -491,7 +494,7 @@ export function appRouter(): Router {
     if (eventPlan) plans.push(eventPlan);
     const needsAttention = warnings(event.id).some((warning) => warning.state === "open")
       || !!event.finalCheck?.lines.some((line) => line.result !== "covered");
-    return basketStatus(event.serviceDate, orders, plans, allQuestions(event.id), now(), needsAttention);
+    return basketStatus(event.deliveryDate ?? event.serviceDate, orders, plans, allQuestions(event.id), now(), needsAttention);
   };
   // Return the same saved basket projection on reads and successful submissions so
   // the builder can update its items and deadline without a second browser request.
@@ -520,14 +523,16 @@ export function appRouter(): Router {
       baskets: events.map((e) => {
         const mine = orders.filter((o) => o.eventId === e.id && o.state !== "rejected");
         const plans = basketPlans(e.id);
-        const staged = plans.filter((pl) => pl.basketedAt && !pl.orderIds.length);
+        const eventPlan = e.orderPlanId ? getPlan(e.orderPlanId) : null;
+        const staged = [...plans.filter((pl) => pl.basketedAt && !pl.orderIds.length),
+          ...(eventPlan && !eventPlan.orderIds.length && eventPlan.status !== "rejected" ? [eventPlan] : [])];
         const totalExVat = staged.some((pl) => pl.totalExVat === null)
           ? null
           : mine.reduce((n, o) => n + o.totalExVat, 0) + staged.reduce((n, pl) => n + pl.totalExVat!, 0);
         return {
           id: e.id,
           name: e.name,
-          deliveryDate: e.serviceDate,
+          deliveryDate: e.deliveryDate ?? e.serviceDate,
           guests: e.guests,
           ...eventCreation(e),
           coverage: coverageSummary(e.id),

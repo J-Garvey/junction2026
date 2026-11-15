@@ -192,6 +192,7 @@ export interface StoredEvent {
   name: string;
   siteId: string;
   serviceDate: string;
+  deliveryDate?: string;
   guests: number;
   dietGroups: DietGroup[];
   dishes: EventDish[];

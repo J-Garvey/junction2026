@@ -92,8 +92,9 @@ One read-only page.
 | Price rise that needs no approval | 5% |
 | Unconfirmed stock | Always ask the person building the order |
 | Delivery days | Monday to Friday |
+| Origin requirement | Finnish catalogue origin for the exact fish categories in the signed mandate |
 
-"Finnish fish only" is on Aino's recipe line for the salmon, not in Sanna's rules. Say "Aino's recipe asks for Finnish salmon".
+The current seed also has a standing Finnish-origin rule for the explicit fish categories documented in [category-origin-policy.md](category-origin-policy.md). Aino's salmon recipe carries its own Finnish-origin requirement too. Say "The hotel requires Finnish origin for these fish categories, and Aino's recipe asks for Finnish salmon"; the category rule does not cover every fish ingredient in the catalogue.
 
 ## The menu
 

@@ -32,7 +32,7 @@ export function basketChangeToken(plan: StoredPlan) {
   // HTTP processing time is saved after the response basket is assembled. It
   // does not change order terms or invalidate the correction just offered.
   const changeState = { ...plan, processing: undefined };
-  return sha256(stableStringify({ plan: changeState, siteId: event?.siteId, deliveryDate: event?.serviceDate, version: event?.version }));
+  return sha256(stableStringify({ plan: changeState, siteId: event?.siteId, deliveryDate: event?.deliveryDate ?? event?.serviceDate, version: event?.version }));
 }
 
 /** Withdraw only an uncommitted request; all product/quantity edits use item review. */
@@ -89,7 +89,7 @@ export function invalidateBasketReview(eventId: string) {
 const snapshot = (eventId: string, orders: Order[]) => {
   const event = getEvent(eventId)!;
   return sha256(stableStringify({
-    siteId: event.siteId, deliveryDate: event.serviceDate, version: event.version,
+    siteId: event.siteId, deliveryDate: event.deliveryDate ?? event.serviceDate, version: event.version,
     plans: stagedPlans(eventId).sort((a, b) => a.id.localeCompare(b.id)).map((p) => ({
       id: p.id, siteId: p.siteId, deliveryDate: p.deliveryDate, lines: p.lines, needs: p.needs, overrides: p.overrides,
     })),
@@ -224,7 +224,7 @@ export async function submitBasketForReview(eventId: string, person: Person, tok
       body: `${person.name} submitted this order to finance for approval · ${eur(total)} ex VAT · ${lines.length} items`,
       facts: {
         kind: "approval", hotelId: HOTEL_ID, snapshot: before, planIds: plans.map((p) => p.id), lines, total,
-        deliveryDate: quote?.deliveryDate ?? event.serviceDate, grants: quote?.mandateCheck.approvalsNeeded ?? [],
+        deliveryDate: quote?.deliveryDate ?? event.deliveryDate ?? event.serviceDate, grants: quote?.mandateCheck.approvalsNeeded ?? [],
         items: [...new Map(rules.map((r) => [r.ruleId, { text: r.message }])).values()],
         builderConsentId: builderConsentId ?? null, continued, decidedBy: plans.find((p) => p.overrides.stockDecidedBy)?.overrides.stockDecidedBy ?? person.name,
         allergenAcknowledgements: allergenAcknowledgements.map((a) => a.token),

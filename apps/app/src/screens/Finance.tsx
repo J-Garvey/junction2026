@@ -26,7 +26,8 @@ export function FinanceHome() {
   const nowTime = parseTime(now)?.getTime() ?? Date.now();
   const decisions = (data?.questions ?? []).filter((q) => q.state === "open" && canAnswer(q, me, people) && deadlineTime(q) > nowTime)
     .sort((a, b) => deadlineTime(a) - deadlineTime(b) || a.createdAt.localeCompare(b.createdAt));
-  const reviews = decisions.filter((q) => q.type === "order_review");
+  const reviews = [...new Map(decisions.filter((q) => q.type === "order_review" || (q.quoteId && "total" in q.facts))
+    .map((q) => [q.quoteId ?? q.planId, q])).values()];
   const placed = (data?.orders ?? []).filter((order) => order.state !== "rejected");
   const baskets = [...(data?.baskets ?? [])].sort((a, b) => b.waiting - a.waiting || a.deliveryDate.localeCompare(b.deliveryDate));
 
@@ -44,8 +45,8 @@ export function FinanceHome() {
       {loading && !data && <div className="muted" role="status">Loading approvals and spend…</div>}
       {data && <>
         <dl className="finance-metrics" aria-label="Finance overview">
-          <div className="finance-metric-accent"><dt>Decisions waiting for you</dt><dd>{decisions.length}<span>{plural(reviews.length, "final order review")}</span></dd></div>
-          <div><dt>Submitted for your approval · ex VAT</dt><dd><TotalCalculation title="submitted approval totals" total={totalOf(reviews.map(reviewTotal))} parts={reviews.map((question) => ({ label: question.title, total: reviewTotal(question), lines: reviewLines(question) }))} note="Submitted review snapshots, including any already placed items. These amounts are not added to placed spend." /><span>Final order review totals, including any already placed items</span></dd></div>
+          <div className="finance-metric-accent"><dt>Decisions waiting for you</dt><dd>{decisions.length}<span>{plural(reviews.length, "order approval")}</span></dd></div>
+          <div><dt>Submitted for your approval · ex VAT</dt><dd><TotalCalculation title="submitted approval totals" total={totalOf(reviews.map(reviewTotal))} parts={reviews.map((question) => ({ label: question.title, total: reviewTotal(question), lines: reviewLines(question) }))} note="Submitted review snapshots, including any already placed items. These amounts are not added to placed spend." /><span>Order approval totals, including any already placed items</span></dd></div>
           <div><dt>Placed order spend · ex VAT</dt><dd><TotalCalculation title="placed order spend" total={placed.reduce((sum, order) => sum + order.totalExVat, 0)} parts={placed.map((order) => ({ label: `Order ${order.id} · v${order.version}`, total: order.totalExVat, lines: order.lines }))} note="All recorded supplier orders except rejected orders. Amended orders use their saved current version." /><span>{plural(placed.length, "supplier order")} · all recorded orders</span></dd></div>
         </dl>
         <section aria-labelledby="finance-decisions">
