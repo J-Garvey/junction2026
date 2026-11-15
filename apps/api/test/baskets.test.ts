@@ -140,6 +140,16 @@ describe("order baskets", () => {
     expect(staged.status).toBe(409);
     expect(staged.error).toBe("The product matches changed. Review this request again before adding it.");
     expect(getPlan(stale.id)!.basketedAt).toBeFalsy();
+
+    // Also reject baskets staged by the old matcher before this safeguard existed.
+    stale.basketedAt = "2026-11-14T10:00:00Z";
+    stale.proposal = false;
+    stale.reviewing = false;
+    savePlan(stale);
+    const submitted = await call("POST", `/baskets/${basket.basket.id}/submit-review`);
+    expect(submitted.status).toBe(409);
+    expect(submitted.message).toBe("The product matches changed. Ask the order builder to review the selected products.");
+    expect((await call("GET", `/orders?eventId=${basket.basket.id}`)).orders).toEqual([]);
   });
 
   it("leaves a missing qualified product unresolved and refuses to add it to a basket", async () => {

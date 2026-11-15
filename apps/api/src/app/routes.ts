@@ -15,7 +15,7 @@ import { getProduct, catalogSize } from "../catalog.js";
 import { parseRequest } from "../agent/parse.js";
 import { logSearch } from "../searchlog.js";
 import { messageRoute } from "../agent/judge.js";
-import { shortlist } from "../agent/match.js";
+import { matchesCurrentShortlists } from "../agent/match.js";
 import { newPlan, quoteAndDecide, getPlan, listPlans, mandate, savePlan, emptyOverrides } from "../agent/plan.js";
 import { questionsFor, allQuestions, getQuestion, canAnswer } from "../agent/questions.js";
 import { answer } from "../agent/answers.js";
@@ -165,8 +165,7 @@ export function appRouter(): Router {
     if (!plan.eventId || !plan.proposal || plan.orderIds.length) return res.status(409).json({ error: "This request is not ready to add to the order" });
     // A previously saved proposal may predate the current matching rules/catalogue.
     // Reject changed matches so the chef reviews the result before anything is staged.
-    const eligible = new Map(plan.needs.map((need) => [need.id, new Set(shortlist(need).map((p) => p.id))]));
-    if (plan.lines.some((line) => line.productId && (!line.needIds.length || line.needIds.some((id) => !eligible.get(id)?.has(line.productId!)))))
+    if (!matchesCurrentShortlists(plan.needs, plan.lines))
       return res.status(409).json({ error: "The product matches changed. Review this request again before adding it." });
     const { continueWithWarnings } = z.object({ continueWithWarnings: z.boolean().default(false) }).parse(req.body ?? {});
     const issueRules = [...plan.inputRules, ...plan.lines.flatMap((line) => line.rules)].filter((rule) => rule.outcome !== "order");

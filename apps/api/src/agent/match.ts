@@ -36,6 +36,14 @@ export function shortlist(need: Need): Product[] {
   return list;
 }
 
+/** Saved proposals and staged baskets must still match under the current rules. */
+export function matchesCurrentShortlists(needs: Need[], lines: PlanLine[]): boolean {
+  const eligible = new Map(needs.map((need) => [need.id, new Set(shortlist(need).map((p) => p.id))]));
+  return lines.filter((line) => !line.removed).every((line) =>
+    line.productId && line.needIds.length > 0 && line.needIds.every((id) => eligible.get(id)?.has(line.productId!)),
+  );
+}
+
 type Scored = { p: Product; l: LookupLine; content: ReturnType<typeof packContent>; pricePerBase: number | null; stockBand: number; judgement: ModelJudgement | null; notes: FiredRule[]; pinned: boolean };
 
 /** RANK: explicit recipe choice, then confirmed stock and price; missing prices last. */
