@@ -91,17 +91,21 @@ export function buildOpenApi() {
             { name: "excludeAllergens", in: "query", description: "Comma-separated GS1 codes", schema: { type: "string" } },
             { name: "origin", in: "query", schema: { type: "string" } },
             { name: "labels", in: "query", schema: { type: "string" } },
-            { name: "limit", in: "query", schema: { type: "integer", maximum: 50 } },
+            { name: "limit", in: "query", description: "Page size (default 50)", schema: { type: "integer", minimum: 1, maximum: 200 } },
+            { name: "offset", in: "query", description: "Matches to skip; pass the previous page's nextOffset to load the next page", schema: { type: "integer", minimum: 0 } },
           ],
           responses: {
             "200": {
               description:
-                "Up to 50 products. Without q, ordered by id. With q, only products that are the thing asked for (\"cheese\" returns cheeses, not cheesecake or cheese snacks), spread across the matching categories; each has a relevance tier (0 named and in a home category, 1 in a home category, 2 named elsewhere, 3 only mentioned, returned when nothing better exists)",
+                "One page of matches (50 by default); `total` counts every match and `nextOffset` loads the next page until it is null. Without q, ordered by id. With q, only products that are the thing asked for (\"cheese\" returns cheeses, not cheesecake or cheese snacks), spread across the matching categories; each has a relevance tier (0 named and in a home category, 1 in a home category, 2 named elsewhere, 3 only mentioned, returned when nothing better exists)",
               ...json({
                 type: "object",
                 properties: {
                   products: { type: "array", items: ref("Product") },
                   relevance: { type: "array", items: { type: "object", properties: { productId: { type: "string" }, tier: { type: "integer", minimum: 0, maximum: 3 }, role: { type: ["string", "null"], enum: ["head", "modifier", "mention", null] } } } },
+                  total: { type: "integer", description: "Every match for this query, across all pages" },
+                  offset: { type: "integer" },
+                  nextOffset: { type: ["integer", "null"], description: "Offset of the next page; null on the last page" },
                 },
               }),
             },

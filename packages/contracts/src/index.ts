@@ -43,7 +43,8 @@ export const ProductSearchQuery = z.object({
   excludeAllergens: z.array(z.string()).optional().describe("Products that contain, may contain or explicitly list these as UNDECLARED, or have no allergen declaration, are excluded; allergen families include their members"),
   origin: z.string().optional(),
   labels: z.array(z.string()).optional(),
-  limit: z.number().int().min(1).max(50).default(50),
+  limit: z.number().int().min(1).max(200).default(50).describe("Page size; page on with offset until nextOffset is null to load every match"),
+  offset: z.number().int().min(0).optional().describe("Skip this many matches (paging); the same query keeps the same order"),
 });
 export type ProductSearchQuery = z.infer<typeof ProductSearchQuery>;
 
@@ -419,8 +420,10 @@ export const AmendmentBody = z.object({
 export type AmendmentBody = z.infer<typeof AmendmentBody>;
 
 export const Refusal = z.object({
-  error: z.enum(["mandate_violation", "stock_unconfirmed", "allergen_data_unconfirmed", "quote_stale", "quote_consumed", "cutoff_passed", "hard_rule", "idempotency_conflict", "not_found", "forbidden", "invalid", "upstream_unavailable"]),
+  error: z.enum(["mandate_violation", "stock_unconfirmed", "allergen_data_unconfirmed", "quote_stale", "quote_consumed", "cutoff_passed", "hard_rule", "idempotency_conflict", "not_found", "forbidden", "invalid", "upstream_unavailable", "upstream_rate_limited"]),
   message: z.string(),
+  /** upstream_rate_limited: seconds to wait before trying again, when Valio Aimo said. */
+  retryAfter: z.number().optional(),
   rules: z.array(FiredRule).optional(),
   approvalsNeeded: z.array(z.string()).optional(),
   changes: z.array(z.record(z.string(), z.unknown())).optional(),

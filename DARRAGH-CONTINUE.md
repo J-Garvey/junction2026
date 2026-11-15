@@ -14,12 +14,46 @@ How to continue:
 4. Work through section 5 ("Not done yet") in order. Start with removing the 3-option limit, which was Darragh's first request.
 5. Never sweep the Valio Aimo mock API: its rate limits are undisclosed. Test search offline against `data/products_slim.jsonl` with the scripts.
 
+## Update, 15 Nov: continued on branch `feat/search-tuning-continue`
+
+Darragh's branch, merged with `main`, then section 5 worked through. Sections 1 to 5 below are the original handoff, unchanged.
+
+| Section 5 step | Done |
+|---|---|
+| 1. Run the tests | Run. Two failed ("chicken burger"): the looser home rules for unknown words now apply only to narrow words, not product-type words like "burger" |
+| 2. Remove the 3-option limit | The best 5 show, and "Show all N" loads every candidate. Replacements show 3, later-delivery options 2, and "Or instead" 2 per need, each with "Show all". The API no longer cuts late options at 2. Product search pages: `limit` up to 200, `offset`, and `total`/`nextOffset` in the gateway response |
+| 3. Possible matches and "did you mean" | `Need.searchHelp`, only when the shortlist is empty. Spellings are checked to find products ("chese" → cheese). Possible matches are mention-only products, or what the rest of the query finds ("unicorn chicken burger"), with the reason. None is looked up or ordered: picking one re-checks the item with its id pinned |
+| 4. Facets | `Candidate.category` and `categoryLabel`. Chips narrow candidates and replacements when they span ranges ("Pepper, ground · ambient" or "Chili, pepper") |
+| 5. Rank by relevance | **Not changed: the team decides SF-06 / D34.** Precision fixes instead, so price can pick any shortlisted product safely |
+| 6. Evaluation test | `apps/api/test/search-eval.test.ts`: about 50 queries, and every shortlisted product must be the thing asked for |
+| 7. Category-tags export | `pnpm --filter @aimo/api tags` writes `data/category_tags.json` |
+| 8. Ask for a quantity | The rules parser no longer defaults to 1 pcs. No number at all means REQ-02 asks "How much?" |
+| 9. 429 handling | Two retries with back-off, honouring Retry-After (capped). Then 503 `upstream_rate_limited` with Retry-After, never a 500 "internal" |
+
+**Precision fixes, checked by the eval test:**
+- coffee beans works again;
+- honey no longer lists honey chicken or honeydew;
+- eggs no longer list albumen or egg white;
+- onions no longer list spring onion, leek or garlic;
+- flour no longer lists breadcrumbs;
+- "sparkling water" finds carbonated and Vichy water;
+- "vegan cheese" finds the plant cheese range;
+- peas no longer lists falafel;
+- "pizzasauce" is not a tomato.
+
+**Still open:**
+- **vanilla:** no home category, so 13 flavoured products are shortlisted at tier 2.
+- **cucumber, water, pepper:** they span several ranges, which the chips now handle, but the automatic shortlist still mixes the ranges.
+- **Rank-by-relevance:** remains a team decision.
+
+The offline probes are now in `apps/api/src/scripts/` as `pnpm --filter @aimo/api search:offline`, `search:shortlist` and `search:roles`.
+
 ---
 
 
 Status: **work in progress, stopped on request.** Nothing here is live on `main`. The code is on branch `DARRAGH-CONTINUE` (commit `3e5347c`, based on `0d02ad9`). It is also saved as [`docs/handoffs/search-tuning/search-tuning-wip.patch`](docs/handoffs/search-tuning/search-tuning-wip.patch).
 
-**The API test suite has not been run on this code.** A run was started and then stopped. Run it before merging anything.
+**The API test suite has not been run on this code.** A run was started and then stopped. Run it before merging anything. *(Since run and fixed: see the update above.)*
 
 ## 1. The request (Darragh's words)
 

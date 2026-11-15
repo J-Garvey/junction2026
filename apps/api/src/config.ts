@@ -26,6 +26,9 @@ export const config = {
   aimoBase: process.env.AIMO_BASE_URL ?? "https://junction26.valioaimo.fi",
   aimoKey: process.env.AIMO_API_KEY ?? "",
   aimoTimeoutMs: Number(process.env.AIMO_TIMEOUT_MS ?? 8000),
+  /** Waits before each retry when the mock answers 429 or 5xx (its rate limits are undisclosed). A Retry-After header wins, up to the cap. */
+  aimoRetryDelaysMs: (process.env.AIMO_RETRY_DELAYS_MS ?? "500,1500").split(",").map(Number).filter((n) => Number.isFinite(n) && n >= 0),
+  aimoRetryAfterCapMs: Number(process.env.AIMO_RETRY_AFTER_CAP_MS ?? 5000),
   /** live | fixture. Per-call modes can override; see aimo/lookup.ts. */
   aimoMode: (process.env.AIMO_MODE ?? "live") as "live" | "fixture",
   fixturesDir: resolve(REPO_ROOT, "data/fixtures/aimo"),

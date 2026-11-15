@@ -1,4 +1,18 @@
-# Interview: Owen, bar and events professional
+# Interview: Owen, chef and kitchen manager
+
+> **Correction, 15 Nov 2026 (Jack, who did the interview).** Owen is a chef and kitchen manager at a hotel. The notes below were first written up from poor audio and describe him as a bar and events professional who orders drinks; that was wrong. Where the notes and this correction disagree, the correction stands.
+>
+> **How we reached him:** the team called 30 hotels, and this is the conversation that came of it.
+>
+> **What he confirmed**, in his own order of events:
+> 1. The hotel is contractually obliged to stay with the same supplier.
+> 2. Someone talks with the guest before the event.
+> 3. The kitchen then settles the menu and the exact ingredients.
+> 4. The finance manager approves it.
+> 5. Only then does the order go to the wholesaler.
+>
+> He said the way we describe event ordering is accurate. This is one person's account.
+
 
 > **Source:** Jack's interview with Owen, who works in bars and events, about how wholesale ordering works for events. Notes added to the repo on 14 Nov 2026.
 > **Audio quality was poor throughout:** the mic cut out repeatedly and some answers were partly lost. Treat gaps as unknown, not as "no".

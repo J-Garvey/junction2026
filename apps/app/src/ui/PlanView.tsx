@@ -7,6 +7,7 @@ import type { DiffLine } from "../api";
 import { AllergenDataMark, Status, Fixture, UnknownStockMark } from "./Status";
 import { Pop, LineSource, CandidateSource, stockText } from "./Popover";
 import { Icon } from "./icons";
+import { useCategoryFilter, useShowAll } from "./ShowAll";
 import { BudgetCalculation, TotalCalculation, VatCalculation, matchingVatLines } from "./CalculationEvidence";
 import { SelectionFunnel } from "./SelectionFunnel";
 import { CarbonEstimate } from "./CarbonEstimate";
@@ -176,10 +177,14 @@ export function MoneyView({ plan, warnings, cap, vat, vatOrder, onRemove }: { pl
 
 /** Candidates per need, best first, with the ranking step that decided each. */
 export function Candidates({ need, lines }: { need: Need; lines: PlanLine[] }) {
-  const top = need.candidates.slice(0, 3);
+  // The best few first; every product that passed can be loaded, and an ambiguous word can be
+  // narrowed to one range.
+  const { filtered, chips } = useCategoryFilter(need.candidates);
+  const { visible: top, toggle } = useShowAll(filtered, CANDIDATES_SHOWN, "products");
   return (
     <div className="cands">
       <b className="small" style={{ color: "var(--ink)" }}>{need.label}</b>
+      {chips}
       <table className="t cands-t">
         <thead>
           <tr>
@@ -216,15 +221,20 @@ export function Candidates({ need, lines }: { need: Need; lines: PlanLine[] }) {
             <tr>
               <td colSpan={6} className="muted small">
                 Nothing passes
+                {need.searchHelp?.didYouMean.length ? ` · Did you mean ${need.searchHelp.didYouMean.map((q) => `"${q}"`).join(" or ")}?` : ""}
               </td>
             </tr>
           )}
         </tbody>
       </table>
+      {toggle}
       <SelectionFunnel need={need} lines={lines} />
     </div>
   );
 }
+
+/** Products shown per need before "Show all". */
+export const CANDIDATES_SHOWN = 5;
 
 /** UI-10: lines grouped by order cut-off. "Order in 5 h 20 min" under 48 h, else "Order by Sun 15 Nov, 17:00". */
 export function CutoffBoard({ lines }: { lines: PlanLine[] }) {
