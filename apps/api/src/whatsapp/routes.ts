@@ -9,6 +9,7 @@ import { nowIso } from "../clock.js";
 import { kvGet, kvSet } from "../db.js";
 import { resolveToken, tokenFrom, type Person } from "../identity.js";
 import { sha256, stableStringify } from "../util.js";
+import { MAX_WHATSAPP_TEXT_LENGTH, WHATSAPP_TEXT_TOO_LONG } from "./input.js";
 
 /** Completed deliveries are deduplicated. A rejected handler can be retried in
  * its original context, so mutations before throwing must also be idempotent. */
@@ -23,9 +24,11 @@ export type WhatsAppHandler = (arg: {
 
 interface Delivery {
   id: string;
-  text: string;
+  text?: string;
+  /** Rejected oversized input is hashed, never retained in history or storage. */
+  textFingerprint?: string;
   connectionId: string;
-  status: "processing" | "failed" | "complete";
+  status: "processing" | "failed" | "complete" | "rejected";
   contextFingerprint?: string;
   result?: WhatsAppSession;
 }
@@ -36,14 +39,16 @@ interface StoredSession {
   deliveries: Delivery[];
 }
 type MessageResult = { status: number; body: WhatsAppMessageResult | { error: string; code?: "stale_message_context" } };
-type MessageFlight = { text: string; result: Promise<MessageResult> };
+type MessageFlight = { textFingerprint: string; result: Promise<MessageResult> };
 const result = (status: number, body: MessageResult["body"]): MessageResult => ({ status, body });
 const inFlight = new Map<string, Map<string, MessageFlight>>();
 
 const ConnectBody = z.object({ displayName: z.string().trim().min(1).max(80).optional() }).strict();
 const MessageBody = z.object({
   id: z.string().min(1).max(128).refine((s) => s.trim().length > 0),
-  text: z.string().min(1).max(8000).refine((s) => s.trim().length > 0),
+  // Validate the envelope here. Enforce the text limit inside serialization so
+  // an authorized rejection cancels the proposal preceding it in the queue.
+  text: z.string().min(1).refine((s) => s.trim().length > 0),
   groupId: z.string().max(128).nullable().optional(),
 }).strict();
 const emptyConversation = (): WhatsAppConversation => ({ activeOrderId: null, pending: null });
@@ -168,10 +173,14 @@ export function whatsappRouter(handler: WhatsAppHandler): Router {
     const groupId = parsed.data.groupId ?? null;
     const ignored = ignoredMessage(groupId);
     if (ignored) return res.status(ignored.status).json(ignored.body);
+    const oversized = text.length > MAX_WHATSAPP_TEXT_LENGTH;
+    const textFingerprint = sha256(text);
+    const connectionId = kvGet<StoredSession>(key(identity.person))?.connectionId;
+    const groupRevision = groupSelection().revision;
     const personFlights = inFlight.get(identity.person.id) ?? new Map<string, MessageFlight>();
     const flight = personFlights.get(id);
     if (flight) {
-      if (flight.text !== text) return res.status(409).json({ error: "This message id was already used with different text" });
+      if (flight.textFingerprint !== textFingerprint) return res.status(409).json({ error: "This message id was already used with different text" });
       const response = await flight.result;
       return res.status(response.status).json(response.body);
     }
@@ -181,9 +190,20 @@ export function whatsappRouter(handler: WhatsAppHandler): Router {
       if (ignored) return ignored;
       const stored = read(identity.person);
       if (!stored.session.connected) return result(409, { error: "Connect the simulated chat before sending" });
+      if (oversized && (stored.connectionId !== connectionId || stored.groupRevision !== groupRevision)) {
+        return result(409, { error: "The chat changed. Review the latest basket and send a new request." });
+      }
       let delivery = stored.deliveries.find((d) => d.id === id);
-      if (delivery && delivery.text !== text) return result(409, { error: "This message id was already used with different text" });
+      if (delivery && (delivery.textFingerprint ?? sha256(delivery.text ?? "")) !== textFingerprint) return result(409, { error: "This message id was already used with different text" });
       if (delivery && delivery.connectionId !== stored.connectionId) return result(409, { error: "This message belongs to an earlier chat. Start a new message." });
+      // Retrying a rejected delivery cannot cancel a newer, reviewed proposal.
+      if (delivery?.status === "rejected") return result(400, { error: WHATSAPP_TEXT_TOO_LONG });
+      if (oversized) {
+        stored.session.conversation.pending = null;
+        stored.deliveries.push({ id, textFingerprint, connectionId: stored.connectionId, status: "rejected" });
+        kvSet(key(identity.person), stored);
+        return result(400, { error: WHATSAPP_TEXT_TOO_LONG });
+      }
       // The simulator replaces its displayed session with this response. An
       // older cached preview could show one proposal while "confirm change"
       // accepts a newer one. Return current context without repeating delivery.
@@ -238,7 +258,7 @@ export function whatsappRouter(handler: WhatsAppHandler): Router {
     // Share the full outcome, including failures, with concurrent retries. A
     // later explicit retry can retry a failed handler without duplicating a
     // concurrent failed attempt.
-    personFlights.set(id, { text, result: task });
+    personFlights.set(id, { textFingerprint, result: task });
     inFlight.set(identity.person.id, personFlights);
     try {
       const response = await task;
