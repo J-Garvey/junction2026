@@ -8,7 +8,7 @@ const state = {
   session: { id: "fixture-session", status: "idle", steps: [], error: null, model: "fixture" },
   rules: { hotel: "Demo hotel", spendCapEur: 1950, delivery: "Monday", site: "fixture", unconfirmedStock: "Ask the chef", signed: true },
   clock: "2026-11-14T10:00:00Z", model: "fixture", modelReady: false,
-  feed: [{ id: "fixture-feed", at: "2026-11-14T10:00:00Z", agent: "Hotel agent", callerKind: "agent", method: "POST", path: "/gateway/v1/orders", status: 201, action: "ORDER", verdict: "ALLOWED", amount: 12.4, reason: null, signed: true, quoteId: "fixture-quote", orderId: "fixture-order" }],
+  feed: [{ id: "fixture-feed", at: "2026-11-14T10:00:00Z", agent: "Hotel agent", callerKind: "agent", method: "POST", path: "/gateway/v1/orders", status: 201, action: "ORDER", verdict: "ALLOWED", amount: 12.4, reason: null, signed: true, quoteId: "fixture-quote", orderId: "fixture-order", ms: 1 }],
 };
 
 beforeEach(() => {
