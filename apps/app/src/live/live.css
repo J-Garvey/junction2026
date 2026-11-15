@@ -40,6 +40,7 @@
 .lv-right { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding: 22px 26px 16px; background: #fff; }
 .lv-h h1, .lv-h h2 { font-size: 38px; font-weight: 900; letter-spacing: -1px; line-height: 1.1; color: var(--navy); }
 .lv-h p { margin: 6px 0 0; font-size: 17px; color: var(--ink2); }
+.lv-h a { text-decoration: underline; text-underline-offset: 0.15em; }
 .lv-h code { font-size: 15px; background: var(--bg); padding: 1px 6px; border-radius: 4px; }
 
 .lv-thread { flex: 1; overflow-y: auto; margin: 16px 0 10px; display: flex; flex-direction: column; gap: 10px; padding-right: 4px; }
@@ -135,7 +136,7 @@
 .lv-sheet h2 { font-size: 26px; font-weight: 900; color: var(--navy); }
 .lv-x { position: absolute; right: 14px; top: 10px; border: 0; background: none; font-size: 30px; color: var(--ink2); }
 .lv-verify { margin: 12px 0; padding: 10px 14px; border-radius: 8px; font-weight: 700; font-size: 17px; }
-.lv-verify.ok { background: var(--ok-soft); color: var(--ok); }
+.lv-verify.ok { background: var(--ok-soft); color: #116b32; }
 .lv-verify.bad { background: var(--bad-soft); color: var(--bad); }
 .lv-lines { list-style: none; padding: 0; margin: 12px 0; font-size: 16px; }
 .lv-lines li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px 16px; align-items: baseline; padding: 12px 0; border-bottom: 1px solid var(--line); }
