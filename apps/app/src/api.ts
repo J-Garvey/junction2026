@@ -1,5 +1,5 @@
 /** Thin client for the hotel app API (/api). Shapes follow apps/api/src/app/routes.ts. */
-import type { AuditEntry, BasketStatus, Order, Plan, ProductDetails, Question, SingleRequest, StageProcessing, WarningRecord, DietGroup, FiredRule, Mandate, Unit } from "@aimo/contracts";
+import type { AuditEntry, BasketStatus, Order, Plan, Product, ProductDetails, ProductInspection, Question, SingleRequest, StageProcessing, WarningRecord, DietGroup, FiredRule, Mandate, Unit } from "@aimo/contracts";
 
 export class ApiError extends Error {
   constructor(
@@ -340,6 +340,8 @@ export const api = {
   newBasket: (name: string, deliveryDate: string) => post<{ basket: { id: string; name: string; deliveryDate: string } }>("/api/baskets", { name, deliveryDate }),
   plan: (id: string) => get<PlanResp>(`/api/plans/${encodeURIComponent(id)}`),
   product: (id: string) => get<ProductDetails>(`/api/products/${encodeURIComponent(id)}`),
+  products: (query: string) => get<{ products: Product[]; sites: { id: string; name: string }[]; source: string }>(`/api/products?q=${encodeURIComponent(query)}`),
+  inspectProduct: (id: string, requestedDate: string, siteId: string) => get<ProductInspection>(`/api/products/${encodeURIComponent(id)}/supplier?${new URLSearchParams({ requestedDate, siteId })}`),
   reviewItems: (id: string) => post<PlanResp>(`/api/plans/${encodeURIComponent(id)}/review-items`),
   requote: (id: string, request: SingleRequest) => post<PlanResp>(`/api/plans/${encodeURIComponent(id)}/requote`, { request }),
   basketPlan: (id: string, continueWithWarnings = false) => post<PlanResp>(`/api/plans/${encodeURIComponent(id)}/basket`, { continueWithWarnings }),

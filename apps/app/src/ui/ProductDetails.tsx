@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import type { PlanLine, ProductDetails } from "@aimo/contracts";
+import { Link } from "react-router";
+import type { AvailabilityEvidence, PlanLine, ProductDetails } from "@aimo/contracts";
 import { api } from "../api";
 import { useLoad } from "../ctx";
 import { claimLabel, day, fi, qty, eur, when } from "../format";
@@ -13,10 +14,10 @@ const number = (value: number) => value.toLocaleString("fi-FI", { maximumFractio
 const amount = (value: number | null | undefined, unit: string) => value == null ? null : `${number(value)} ${unit}`;
 const list = (values: string[] | undefined, label = (value: string) => value) => values?.length ? values.map(label).join(", ") : "None listed";
 
-function Fact({ label, children }: { label: string; children?: ReactNode }) {
+export function Fact({ label, children }: { label: string; children?: ReactNode }) {
   return <><dt>{label}</dt><dd>{children == null || children === "" ? NOT_SUPPLIED : children}</dd></>;
 }
-function Group({ title, children, wide }: { title: string; children: ReactNode; wide?: boolean }) {
+export function Group({ title, children, wide }: { title: string; children: ReactNode; wide?: boolean }) {
   return <section className={`product-detail-group${wide ? " product-detail-wide" : ""}`}><h4>{title}</h4>{children}</section>;
 }
 
@@ -48,30 +49,37 @@ export function ProductDetailsPanel({ line }: { line: PlanLine }) {
         </dl>
         {!!line.rules.length && <ul className="product-detail-notes small">{line.rules.map((rule, index) => <li key={`${rule.ruleId}-${index}`}>{rule.message}</li>)}</ul>}
       </Group>
-      <Group title="Original supplier schedules">
-        {!evidence ? <p className="small muted">Original supplier schedule not saved. Recheck the item terms before ordering.</p> : <>
-          <p className="small">Sales block: {evidence.salesBlock ? "Yes" : "No"}</p>
-          {!evidence.schedules.length && <p className="small">No supplier schedules returned. Availability is not confirmed.</p>}
-          {evidence.schedules.map((schedule, index) => <div className="product-detail-schedule" key={index}>
-            <h5>Schedule {index + 1}</h5>
-            <dl className="product-detail-fields small">
-              <Fact label="Available date">{schedule.availableDate ? day(schedule.availableDate) : null}</Fact>
-              <Fact label="Cutoff (Helsinki)">{schedule.closingTime ? when(schedule.closingTime) : null}</Fact>
-              <Fact label="Sales unit">{schedule.salesUnit}</Fact>
-              <Fact label="Stock">{stockText(schedule.stock, schedule.salesUnit)}</Fact>
-              <Fact label="Sales block">{schedule.salesBlock ? "Yes" : "No"}</Fact>
-            </dl>
-          </div>)}
-          {evidence.schedules.length > 0 && !evidence.schedules.some((schedule) => schedule.availableDate === line.availableDate && schedule.closingTime === line.closingTime)
-            && <p className="small muted">Quoted delivery and cutoff are demo estimates; the original supplier schedules are shown above. Delivery and stock need rechecking.</p>}
-        </>}
-        <p className="small muted">A delivery hour is not supplied. Supplier terms are rechecked when ordering.</p>
-      </Group>
+      <div>
+        <SupplierSchedules evidence={evidence} />
+        {!!evidence?.schedules.length && !evidence.schedules.some((schedule) => schedule.availableDate === line.availableDate && schedule.closingTime === line.closingTime)
+          && <p className="small muted">Quoted delivery and cutoff are demo estimates; the original supplier schedules are shown above. Delivery and stock need rechecking.</p>}
+        <Link className="small" to={`/products/${encodeURIComponent(line.productId!)}${line.availableDate ? `?date=${encodeURIComponent(line.availableDate)}` : ""}`}>Inspect current supplier terms</Link>
+      </div>
     </div>
     {loading && !product && <p className="small muted" role="status">Loading product information…</p>}
     {(error || (!product && !loading)) && <p className="small muted" role="status">Product information could not be loaded. <button type="button" className="linkbtn" onClick={reload}>Try again</button></p>}
     {product && <CatalogueFacts product={product} />}
   </div>;
+}
+
+export function SupplierSchedules({ evidence }: { evidence?: AvailabilityEvidence }) {
+  return <Group title="Original supplier schedules">
+    {!evidence ? <p className="small muted">Original supplier schedule not saved. Recheck the item terms before ordering.</p> : <>
+      <p className="small">Sales block: {evidence.salesBlock ? "Yes" : "No"}</p>
+      {!evidence.schedules.length && <p className="small">No supplier delivery dates returned.</p>}
+      {evidence.schedules.map((schedule, index) => <div className="product-detail-schedule" key={index}>
+        <h5>Schedule {index + 1}</h5>
+        <dl className="product-detail-fields small">
+          <Fact label="Available date">{schedule.availableDate ? day(schedule.availableDate) : null}</Fact>
+          <Fact label="Cutoff (Helsinki)">{schedule.closingTime ? when(schedule.closingTime) : null}</Fact>
+          <Fact label="Sales unit">{schedule.salesUnit}</Fact>
+          <Fact label="Stock">{schedule.stock.kind === "none" ? "Not supplied" : stockText(schedule.stock, schedule.salesUnit)}</Fact>
+          <Fact label="Sales block">{schedule.salesBlock ? "Yes" : "No"}</Fact>
+        </dl>
+      </div>)}
+    </>}
+    <p className="small muted">A delivery hour is not supplied. Supplier terms are rechecked when ordering.</p>
+  </Group>;
 }
 
 /** Catalogue values are descriptive evidence, never a new approval or supplier quote. */
