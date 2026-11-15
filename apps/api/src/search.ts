@@ -514,7 +514,7 @@ export function rank(q: string, candidates: Product[], all: Iterable<Product>, h
   // A brand on its own ("valio") lists the brand's range; the names were read without it.
   const brand = head.key.startsWith("~") && !quals.length ? head.key.slice(1) : null;
   if (brand && candidates.some((p) => p.brand && lc(p.brand) === brand))
-    return candidates.filter((p) => p.brand && lc(p.brand) === brand).map((product) => ({ product, tier: 0, role: "head", term: brand }));
+    return candidates.filter((p) => p.brand && lc(p.brand) === brand).map((product) => ({ product, tier: 3, role: "mention", term: brand }));
   const out: Match[] = [];
   for (const p of candidates) {
     if (!quals.every((t) => mentions(p, t))) continue;
@@ -526,6 +526,9 @@ export function rank(q: string, candidates: Product[], all: Iterable<Product>, h
     else if (role === "head") tier = 2;
     else if (role !== null) tier = 3;
     if (tier !== null && tier < 3 && foodTerm.get(head.key) && isNonFood(p.category)) tier = 3;
+    // Unknown nouns and brand/compound substrings support browsing only. They do
+    // not prove that a chef asking for "houses" wants smokehouse meat or insecticide.
+    if (tier !== null && head.key.startsWith("~") && !EN_MOD.has(head.key.slice(1))) tier = 3;
     // Identity checks matter only for a text/category match, not every catalogue row.
     if (tier !== null && !conflictsWithRequest(p, terms, q, claims)) out.push({ product: p, tier, role, term: head.key.replace(/^~/, "") });
   }
