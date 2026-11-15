@@ -14,6 +14,8 @@ import { gate, gateRouter } from "./gate.js";
 import { jwks } from "./gateway/keys.js";
 import { feedTap } from "./live/feed.js";
 import { liveRouter } from "./live/routes.js";
+import { whatsappRouter } from "./whatsapp/routes.js";
+import { handleWhatsAppMessage } from "./whatsapp/service.js";
 
 export function createApp() {
   getDb();
@@ -55,6 +57,7 @@ export function createApp() {
   });
   app.use("/gateway/v1", feedTap, gatewayRouter());
   app.use("/api/live", liveRouter());
+  app.use("/api/whatsapp", whatsappRouter(handleWhatsAppMessage));
   app.use("/api", appRouter());
   app.use(gatewayErrors);
   app.use(appErrors);
