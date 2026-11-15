@@ -34,6 +34,15 @@ catalog and fixture hashes. Keep real-model and fake-browser evidence in
 different directories. `CAMPAIGN_MODEL=real` uses the existing configuration;
 first detect key presence without printing values, then run a bounded manifest.
 
+The generic mix deliberately exposes missing saved supplier fixtures. For a
+separate fixture-covered planning baseline, prepare a **new directory** with
+`benchmark.mjs prepare C:/path/P1/fixture-sku --fixture-sku`. This preserves the
+seed/count mix but uses the known saved salmon SKU 469672 in every line. Its
+100-line input is exactly 1998 characters. That workload measures repeated-SKU
+planning, not generic catalog search. Never pool these two shapes or relabel a
+guarded fixture miss as successful planning. Selecting the simulator basket is
+support work, excluded from useful message latency by its actual call ID.
+
 No cold-cache p95 is claimed. The host loads the catalog at startup; only the
 first request starts with untouched process caches, and SQLite reset preserves
 search/model caches. Pass 2 measures repeat traffic, not guaranteed cache hits.

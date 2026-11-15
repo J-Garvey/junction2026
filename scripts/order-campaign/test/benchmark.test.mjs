@@ -19,6 +19,9 @@ test('fixed benchmark preserves the whole workload and all bands on both passes'
   }
   assert.deepEqual(rows.slice(0, 150).map(r => r.input), rows.slice(150, 300).map(r => r.input));
   assert.deepEqual(rows.slice(300).map(r => r.input.length), [2001, 8001]);
+  const fixtureRows = workload({ fixtureSku: true });
+  assert.equal(fixtureRows[120].input.length, 1998);
+  assert.ok(fixtureRows.slice(0, 300).every(r => r.expected.lines.every(l => l.productId === '469672')));
 });
 
 test('p95 claims require 30 valid observations', () => {

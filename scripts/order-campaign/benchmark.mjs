@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const buckets = [[1, 10], [11, 29], [30, 59], [60, 99], [100, 100]];
-export function workload({ seed = 20261115, samples = 30, repeats = 2 } = {}) {
+export function workload({ seed = 20261115, samples = 30, repeats = 2, fixtureSku = false } = {}) {
   if (!Number.isSafeInteger(samples) || samples < 1 || !Number.isSafeInteger(repeats) || repeats < 1) throw Error('positive samples/repeats required');
   let state = seed >>> 0;
   const random = () => { state ^= state << 13; state ^= state >>> 17; state ^= state << 5; return state >>> 0; };
@@ -16,11 +16,12 @@ export function workload({ seed = 20261115, samples = 30, repeats = 2 } = {}) {
     const count = sample === 0 ? min : sample === 1 ? max : min + random() % (max - min + 1);
     const lines = Array.from({ length: count }, (_, i) => {
       const [productWord, unit] = products[(i + sample) % products.length];
-      return { productWord, amount: 1 + random() % 9, unit };
+      const amount = 1 + random() % 9;
+      return fixtureSku ? { productWord: 'salmon', productId: '469672', amount, unit: 'kg' } : { productWord, amount, unit };
     });
-    const input = lines.map(l => `${l.amount} ${l.unit} ${l.productWord}`).join('; ');
+    const input = lines.map(l => `${l.amount} ${l.unit} ${l.productWord}${l.productId ? ` ${l.productId}` : ''}`).join('; ');
     return { input, expected: { lines, scope: 'independently authored input semantics; no automatic verdict' }, itemCount: count,
-      benchmark: { bucket: min === max ? String(min) : `${min}-${max}`, sample, shape: 'compact-literal' } };
+      benchmark: { bucket: min === max ? String(min) : `${min}-${max}`, sample, shape: fixtureSku ? 'fixture-sku-literal' : 'compact-literal' } };
   }));
   const rows = Array.from({ length: repeats }, (_, pass) => base.map((row, index) => ({ ...row,
     caseId: `p1-fixed-${pass}-${String(index).padStart(3, '0')}`, channels: ['web-api', 'whatsapp'], plan: true,
@@ -46,8 +47,9 @@ export function summarize(dir) {
   const raw = readRows(resolve(dir, 'raw-observations.jsonl')), rows = readRows(resolve(dir, 'requests.jsonl'));
   const responses = raw.filter(r => r.kind === 'http-response'), starts = raw.filter(r => r.kind === 'run-start');
   const requestPaths = new Set(['/api/messages', '/api/whatsapp/messages', '/api/requests']);
-  const useful = responses.filter(r => !String(r.attempt).startsWith('support') && requestPaths.has(r.path));
-  const support = responses.filter(r => String(r.attempt).startsWith('support'));
+  const selectionIds = new Set(rows.flatMap(r => (r.related || []).filter(c => c.purpose === 'select-active-order').map(c => c.callId)));
+  const useful = responses.filter(r => !String(r.attempt).startsWith('support') && requestPaths.has(r.path) && !selectionIds.has(r.callId));
+  const support = responses.filter(r => String(r.attempt).startsWith('support') || selectionIds.has(r.callId));
   const groups = new Map();
   for (const row of rows) {
     const calls = useful.filter(r => r.attempt === row.attemptId), primary = calls.find(r => r.path !== '/api/requests');
@@ -105,12 +107,13 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   if (!target || !['prepare', 'summarize'].includes(command)) throw Error('benchmark.mjs prepare|summarize <external-directory>');
   const dir = resolve(target); mkdirSync(dir, { recursive: true });
   if (command === 'prepare') {
-    const rows = workload(), bytes = rows.map(r => JSON.stringify(r)).join('\n') + '\n';
+    const fixtureSku = process.argv.includes('--fixture-sku');
+    const rows = workload({ fixtureSku }), bytes = rows.map(r => JSON.stringify(r)).join('\n') + '\n';
     writeFileSync(resolve(dir, 'workload.jsonl'), bytes, { flag: 'wx' });
     const paths = execFileSync('git', ['ls-files', 'apps/api/src', 'packages/contracts/src', 'scripts/order-campaign', 'data/products_slim.jsonl', 'data/ingredients.jsonl', 'data/fixtures/aimo'], { encoding: 'utf8' }).trim().split(/\r?\n/);
     const hashes = Object.fromEntries(paths.map(path => [path, hash(readFileSync(path))]));
     hashes['scripts/order-campaign/benchmark.mjs'] = hash(readFileSync(new URL(import.meta.url)));
-    writeFileSync(resolve(dir, 'workload-config.json'), JSON.stringify({ schema: 'p1-fixed-v1', seed: 20261115, samples: 30, repeats: 2,
+    writeFileSync(resolve(dir, 'workload-config.json'), JSON.stringify({ schema: 'p1-fixed-v1', seed: 20261115, samples: 30, repeats: 2, fixtureSku,
       clock: '2026-11-14T10:00:00Z', codeSha: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
       sha256: hash(bytes), records: rows.length, channels: ['web-api', 'syntheticWhatsApp via whatsapp'], hashes }, null, 2), { flag: 'wx' });
     console.log(JSON.stringify({ records: rows.length, executions: rows.length * 2, sha256: hash(bytes) }));
