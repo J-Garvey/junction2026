@@ -127,6 +127,7 @@ export function App() {
       <div className="shell" hidden={needPick} style={needPick ? { display: "none" } : undefined}>
         <div className="main">
           <TopBar status={status} me={ctx.me} onSwitch={() => setNeedPick(true)} />
+          <WorkspaceNav me={ctx.me} />
           <AllergyBanner warnings={warnings} />
           <div className="content">
             <Routes>
@@ -149,6 +150,31 @@ export function App() {
         </div>
       </div>
     </Ctx.Provider>
+  );
+}
+
+/** Keep the main destinations visible without expanding the order/account menus. */
+function WorkspaceNav({ me }: { me: Person }) {
+  const { pathname } = useLocation();
+  const homeCurrent = pathname === "/" ? "page" : pathname.startsWith("/baskets/") ? "location" : undefined;
+  const destinations: [string, IconName, string][] = [
+    ["/inbox", "q", "Waiting"],
+    ["/requests", "chat", "Requests"],
+    ["/events", "cal", "Events"],
+    ["/orders", "box", "Order receipts"],
+  ];
+
+  return (
+    <nav className="workspace-nav" aria-label="Main navigation">
+      <Link to="/" className={homeCurrent ? "on" : ""} aria-current={homeCurrent}>
+        <Icon n="home" s={16} />{me.role === "approver" ? "Approvals & spend" : "My orders"}
+      </Link>
+      {destinations.map(([to, icon, label]) => (
+        <NavLink key={to} to={to} className={({ isActive }) => isActive ? "on" : ""}>
+          <Icon n={icon} s={16} />{label}
+        </NavLink>
+      ))}
+    </nav>
   );
 }
 
