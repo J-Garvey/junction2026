@@ -69,7 +69,8 @@ export function createApp() {
   const web = resolve(REPO_ROOT, "apps/app/dist");
   if (existsSync(web)) {
     app.use(express.static(web));
-    app.get(/^\/(?!api|gateway).*/, (_req, res) => res.sendFile(resolve(web, "index.html")));
+    // An explicit root keeps hidden checkout ancestors out of send's dotfile check.
+    app.get(/^\/(?!api|gateway).*/, (_req, res) => res.sendFile("index.html", { root: web }));
   }
   app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     console.error(err);
