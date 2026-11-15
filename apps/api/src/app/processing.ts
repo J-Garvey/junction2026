@@ -87,16 +87,19 @@ export const measureProcessing: RequestHandler = (req, res, next) => {
     const questions = pending(allQuestions().filter((q) => event ? q.eventId === event.id : q.planId === (plan?.id ?? beforePlan?.id)));
     let milestone: Milestone = plan ? planMilestone(plan, questions) : "review_ready";
     if (event && eventMatch?.[2] !== "menu/order") {
+      // A chef's stock-consent answer can resume a substitution and run the
+      // final check internally; its saved result belongs to this same stage.
+      const finalCheck = body?.finalCheck ?? (question?.facts.recheckFinal === true ? event.finalCheck : undefined);
       if (warnings(event.id).some((w) => w.state === "open")) milestone = "blocked";
       else if (plan && ["blocked", "failed", "rejected", "chef_input"].includes(milestone)) { /* Keep the plan's stopping condition. */ }
-      else if (body?.finalCheck && !body.finalCheck.lines.length) milestone = "failed";
+      else if (finalCheck && !finalCheck.lines.length) milestone = "failed";
       else if (questions.some((q) => q.forRole === "chef")) milestone = "chef_input";
       else if (questions.some((q) => q.forRole === "approver" && q.state === "open")) milestone = "approval_ready";
-      else if (body?.finalCheck?.lines.some((line: { result: string }) => !["covered", "covered_at_risk"].includes(line.result))) milestone = "chef_input";
+      else if (finalCheck?.lines.some((line: { result: string }) => !["covered", "covered_at_risk"].includes(line.result))) milestone = "chef_input";
       else if (!plan || (question && ["allergy", "change", "change_stock", "final_substitute"].includes(String(question.facts.kind)))) {
         milestone = body?.applied === false || body?.question?.answer === "keep" ? "change_checked"
           : body?.question?.answer === "none" ? "chef_input"
-          : body?.finalCheck || question?.facts.kind === "final_substitute" ? "final_checked" : "change_applied";
+          : finalCheck || question?.facts.kind === "final_substitute" ? "final_checked" : "change_applied";
       }
     }
     const personId = (req as typeof req & { person: Person }).person.id;

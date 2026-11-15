@@ -4,15 +4,16 @@
  */
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { z } from "zod";
-import { AllergenAcknowledgementBody, AmendmentBody, ApprovalBody, LookupBody, OrderCreateBody, ProductSearchQuery, QuoteCreateBody } from "@aimo/contracts";
+import { AllergenAcknowledgementBody, AmendmentBody, BuilderConsentBody, ApprovalBody, LookupBody, OrderCreateBody, ProductSearchQuery, QuoteCreateBody } from "@aimo/contracts";
 import { resolveToken, tokenFrom, type Identity } from "../identity.js";
 import { searchMatches, getProduct } from "../catalog.js";
 import { lookup, UpstreamError } from "../aimo/lookup.js";
-import { acknowledgeAllergenData, amendOrder, createApproval, createQuote, getMandate, getOrder, getQuote, GatewayRefusal, listOrders, placeOrder } from "./service.js";
+import { acknowledgeAllergenData, amendOrder, createBuilderConsent, createApproval, createQuote, getMandate, GatewayRefusal, listOrders, placeOrder } from "./service.js";
 import { auditView, verifyChain } from "../audit.js";
 import { buildOpenApi } from "./openapi.js";
 import { brandProfile, ExternalUnavailable } from "../external/contextdev.js";
 import { orderToUbl } from "./peppol.js";
+import { readableQuote, readableOrder, requireRead, sharedQuote, sharedOrder } from "./reads.js";
 import { logSearch } from "../searchlog.js";
 
 declare global {
@@ -37,6 +38,11 @@ function parse<T>(schema: z.ZodType<T>, v: unknown): T {
 }
 
 const csv = (v: unknown) => (typeof v === "string" && v ? v.split(",").map((s) => s.trim()).filter(Boolean) : undefined);
+
+export function readFilter(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  return parse(z.string().trim().min(1), value);
+}
 
 export function gatewayRouter(): Router {
   const r = Router();
@@ -86,40 +92,42 @@ export function gatewayRouter(): Router {
     }
   });
   r.post("/quotes", async (req, res) => res.status(201).json(await createQuote(req.identity!, parse(QuoteCreateBody, req.body))));
-  r.get("/quotes/:id", (req, res) => res.json(getQuote(String(req.params.id))));
+  r.get("/quotes/:id", (req, res) => res.json(req.identity!.kind === "valio" ? sharedQuote(readableQuote(req.identity!, String(req.params.id))) : readableQuote(req.identity!, String(req.params.id))));
+  r.post("/builder-consents", (req, res) => res.status(201).json(createBuilderConsent(req.identity!, parse(BuilderConsentBody, req.body))));
   r.post("/approvals", async (req, res) => res.status(201).json(await createApproval(req.identity!, parse(ApprovalBody, req.body))));
   r.post("/allergen-acknowledgements", (req, res) => res.status(201).json(acknowledgeAllergenData(req.identity!, parse(AllergenAcknowledgementBody, req.body))));
   r.post("/orders", async (req, res) => {
     const b = parse(OrderCreateBody, req.body);
-    const out = await placeOrder(req.identity!, b.quoteId, req.header("idempotency-key") ?? "", b.approvalId, undefined, { continueWith: b.continueWithUnconfirmedStock, decidedBy: b.decidedBy, allergenAcknowledgements: b.allergenAcknowledgements });
+    const out = await placeOrder(req.identity!, b.quoteId, req.header("idempotency-key") ?? "", b.approvalId, undefined, { continueWith: b.continueWithUnconfirmedStock, builderConsentId: b.builderConsentId, allergenAcknowledgements: b.allergenAcknowledgements });
     res.status(out.replay ? 200 : 201).json(out.order);
   });
   r.get("/orders", (req, res) => {
     const id = req.identity!;
+    requireRead(id, "order");
     if (id.kind === "valio") throw new GatewayRefusal(403, { error: "forbidden", message: "Use /audit" });
-    res.json({ orders: listOrders(id.hotelId, req.query.eventId ? String(req.query.eventId) : undefined) });
+    res.json({ orders: listOrders(id.hotelId, readFilter(req.query.eventId)) });
   });
-  r.get("/orders/:id", (req, res) => res.json(getOrder(String(req.params.id))));
+  r.get("/orders/:id", (req, res) => res.json(req.identity!.kind === "valio" ? sharedOrder(readableOrder(req.identity!, String(req.params.id))) : readableOrder(req.identity!, String(req.params.id))));
   // The same order as a Peppol BIS Ordering 3 document (UBL 2.1 Order).
   r.get("/orders/:id/peppol", (req, res) => {
-    const o = getOrder(String(req.params.id));
-    const id = req.identity!;
-    if (id.kind !== "valio" && o.hotelId !== id.hotelId) throw new GatewayRefusal(403, { error: "forbidden", message: "Order belongs to another hotel" });
+    const o = readableOrder(req.identity!, String(req.params.id));
     res.type("application/xml").send(orderToUbl(o));
   });
   r.post("/orders/:id/amendments", async (req, res) => res.json(await amendOrder(req.identity!, String(req.params.id), parse(AmendmentBody, req.body))));
   r.get("/mandate", (req, res) => {
     const id = req.identity!;
+    requireRead(id, "mandate");
     if (id.kind === "valio") throw new GatewayRefusal(403, { error: "forbidden", message: "Valio Aimo sees whether a rule was met, not the mandate values" });
     res.json(getMandate(id.hotelId));
   });
   r.get("/audit", (req, res) => {
     const id = req.identity!;
-    const viewer = id.kind === "valio" ? "valio" : "hotel";
+    requireRead(id, "audit");
+    const viewer = id.kind === "person" ? "hotel" : "valio";
     res.json({
       viewer,
       chain: verifyChain(),
-      entries: auditView(viewer, { eventId: req.query.eventId ? String(req.query.eventId) : undefined, orderId: req.query.orderId ? String(req.query.orderId) : undefined }),
+      entries: auditView(viewer, { hotelIds: id.kind === "valio" ? id.hotelIds : undefined, hotelId: id.kind === "valio" ? undefined : id.hotelId, eventId: readFilter(req.query.eventId), orderId: readFilter(req.query.orderId) }),
     });
   });
   return r;

@@ -37,9 +37,10 @@ export const gw = {
   getQuote: (id: string) => call<Quote>("GET", `/quotes/${id}`),
   approve: (personToken: string, quoteId: string, fingerprint: string, grants: string[]) => call<Approval>("POST", "/approvals", { quoteId, fingerprint, grants }, { token: personToken }),
   acknowledgeAllergens: (personToken: string, quoteId: string, fingerprint: string, productIds: string[], outletId?: string) => call<AllergenAcknowledgement>("POST", "/allergen-acknowledgements", { quoteId, fingerprint, productIds, outletId }, { token: personToken }),
-  order: (quoteId: string, idemKey: string, approvalId?: string, continueWithUnconfirmedStock: string[] = [], decidedBy?: string, allergenAcknowledgements?: string[]) =>
-    call<Order>("POST", "/orders", { quoteId, approvalId, continueWithUnconfirmedStock, decidedBy, allergenAcknowledgements }, { headers: { "Idempotency-Key": idemKey } }),
-  getOrder: (id: string) => call<Order>("GET", `/orders/${id}`),
-  orders: (eventId?: string) => call<{ orders: Order[] }>("GET", `/orders${eventId ? `?eventId=${encodeURIComponent(eventId)}` : ""}`),
+  consent: (personToken: string, quote: Quote, productIds: string[]) => call<{ id: string }>("POST", "/builder-consents", { quoteId: quote.id, fingerprint: quote.fingerprint, productIds }, { token: personToken }),
+  order: (quoteId: string, idemKey: string, approvalId?: string, continueWithUnconfirmedStock: string[] = [], decidedBy?: string, builderConsentId?: string, allergenAcknowledgements?: string[]) =>
+    call<Order>("POST", "/orders", { quoteId, approvalId, continueWithUnconfirmedStock, builderConsentId: builderConsentId ?? undefined, allergenAcknowledgements }, { headers: { "Idempotency-Key": idemKey } }),
+  getOrder: (id: string, token?: string) => call<Order>("GET", `/orders/${id}`, undefined, { token }),
+  orders: (eventId?: string, token?: string) => call<{ orders: Order[] }>("GET", `/orders${eventId ? `?eventId=${encodeURIComponent(eventId)}` : ""}`, undefined, { token }),
   amend: (orderId: string, body: AmendmentBody) => call<{ order: Order; quote: Quote }>("POST", `/orders/${orderId}/amendments`, body),
 };

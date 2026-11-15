@@ -14,12 +14,14 @@ const { seedReset, OUTSIDE_AGENT_TOKEN } = await import("../src/seed.js");
 const { setClock } = await import("../src/clock.js");
 const { resolveToken, getPerson } = await import("../src/identity.js");
 const { getProduct } = await import("../src/catalog.js");
-const { createQuote, createApproval, acknowledgeAllergenData, placeOrder, amendOrder } = await import("../src/gateway/service.js");
+const { createQuote, createApproval, createBuilderConsent, acknowledgeAllergenData, placeOrder, amendOrder } = await import("../src/gateway/service.js");
 const { auditView, verifyChain } = await import("../src/audit.js");
 const { getDb } = await import("../src/db.js");
 const { loadFixture } = await import("../src/aimo/lookup.js");
 const { isConfirmedOrder } = await import("../src/agent/basketSummary.js");
 const { allergenQuestionText, missingAllergenProducts } = await import("../src/agent/allergenData.js");
+const { editRules } = await import("../src/rules/editor.js");
+const { finalCheck } = await import("../src/agent/events.js");
 const potato = getProduct("460541")!;
 const original = structuredClone(potato);
 const allergy: Constraints = { claims: [], avoidAllergens: ["AN"], labels: [] };
@@ -29,6 +31,8 @@ const finance = () => ({ ...chef(), person: getPerson("p-sanna")! });
 const terms = (): QuoteCreateBody => ({ siteId: "site-aurora", eventId: "evt-wedding", deliveryDate: "2026-11-16", lines: [{ productId: potato.id, outletId: "banquet", quantity: 3, requires: allergy, allergenScope: "synthetic-digest-for-one-guest" }] });
 const acknowledge = (q: Awaited<ReturnType<typeof createQuote>>) => acknowledgeAllergenData(chef(), { quoteId: q.id, fingerprint: q.fingerprint, productIds: [potato.id] });
 const stock = { continueWith: ["460541"], decidedBy: "Aino" };
+const stockConsent = (q: Awaited<ReturnType<typeof createQuote>>) => ({ ...stock,
+  builderConsentId: createBuilderConsent(chef(), { quoteId: q.id, fingerprint: q.fingerprint, productIds: q.unconfirmedStock }).id });
 
 let server: Server;
 let base = "";
@@ -72,9 +76,49 @@ describe("gateway chef continuation", () => {
     const headChefBar = acknowledgeAllergenData(chef(), { ...request, outletId: "bar" });
     await expect(placeOrder(identity(), q.id, "head-chef-bar-only", undefined, undefined, { ...stock, allergenAcknowledgements: [headChefBar.token] })).rejects.toMatchObject({ body: { error: "allergen_data_unconfirmed" } });
     const banquet = acknowledgeAllergenData(chef(), { ...request, outletId: "banquet" });
-    const result = await placeOrder(identity(), q.id, "two-outlet-consent", undefined, undefined, { ...stock, allergenAcknowledgements: [bar.token, banquet.token] });
+    const result = await placeOrder(identity(), q.id, "two-outlet-consent", undefined, undefined, { ...stockConsent(q), allergenAcknowledgements: [bar.token, banquet.token] });
     expect(result.order.lines.find((l) => l.outletId === "bar")?.allergenDataAcknowledgement?.by).toBe("Mikko");
     expect(result.order.lines.find((l) => l.outletId === "banquet")?.allergenDataAcknowledgement?.by).toBe("Aino");
+  });
+
+  it("keeps missing data unconfirmed even with enough known stock and retains the concern in final results", async () => {
+    const fixture = loadFixture("base")!;
+    const saved = structuredClone(fixture.availability[potato.id]);
+    try {
+      // Synthetic stock fixture isolates the D35 concern from the independent D31 concern.
+      fixture.availability[potato.id] = { ...saved, logisticModel: "Stock", scheduleLines: saved.scheduleLines.map((s: Record<string, unknown>) => ({ ...s, availableAmount: 100 })) };
+      const q = await createQuote(identity(), terms());
+      expect(q.unconfirmedStock).toEqual([]);
+      const a = acknowledge(q);
+      const { order } = await placeOrder(identity(), q.id, "known-stock-unknown-allergens", undefined, undefined, { allergenAcknowledgements: [a.token] });
+      expect(order.lines[0]).toMatchObject({ stock: { kind: "known" }, riskAccepted: null, allergenDataAcknowledgement: { personId: "p-aino" } });
+      expect(isConfirmedOrder(order)).toBe(false);
+      const result = await finalCheck("evt-wedding");
+      expect(result.lines).toContainEqual(expect.objectContaining({ productId: potato.id, result: "allergen_data_unconfirmed", detail: expect.stringMatching(/allergen data not confirmed.*does not establish safety/i) }));
+    } finally { fixture.availability[potato.id] = saved; }
+  });
+
+  it.each(["mandate", "rule policy"])("invalidates chef consent after a %s change even when supplier terms are identical", async (kind) => {
+    const q = await createQuote(identity(), terms());
+    const a = acknowledge(q);
+    editRules(finance().person, kind === "mandate" ? { params: { spendCapEur: 2000 } } : { outcomes: { "REL-01": "ask_chef" } });
+    await expect(placeOrder(identity(), q.id, `policy-original-${kind}`, undefined, undefined, { ...stock, allergenAcknowledgements: [a.token] })).rejects.toMatchObject({ body: { error: "quote_stale" } });
+    const fresh = await createQuote(identity(), terms());
+    await expect(placeOrder(identity(), fresh.id, `policy-${kind}`, undefined, undefined, { ...stock, allergenAcknowledgements: [a.token] })).rejects.toMatchObject({ body: { error: "allergen_data_unconfirmed" } });
+    expect(() => acknowledge(q)).toThrow(/policy changed/i);
+    const accepted = acknowledge(fresh);
+    expect((await placeOrder(identity(), fresh.id, `policy-fresh-${kind}`, undefined, undefined, { ...stockConsent(fresh), allergenAcknowledgements: [accepted.token] })).order.lines[0].allergenDataAcknowledgement).toBeTruthy();
+  });
+
+  it("invalidates an amendment acknowledgement when the policy changes after chef review", async () => {
+    const q = await createQuote(identity(), terms());
+    const a = acknowledge(q);
+    const { order } = await placeOrder(identity(), q.id, "policy-original", undefined, undefined, { ...stockConsent(q), allergenAcknowledgements: [a.token] });
+    const changes = [{ ...terms().lines[0], quantity: 4 }];
+    const reviewed = await amendOrder(identity(), order.id, { changes, quoteOnly: true });
+    const consent = acknowledge(reviewed.quote);
+    editRules(finance().person, { params: { spendCapEur: 2000 } });
+    await expect(amendOrder(identity(), order.id, { changes, allergenAcknowledgements: [consent.token], continueWithUnconfirmedStock: [potato.id] })).rejects.toMatchObject({ body: { error: "allergen_data_unconfirmed" } });
   });
 
   it("retains missing-data concern separately from stock acceptance and replays one order", async () => {
@@ -84,7 +128,7 @@ describe("gateway chef continuation", () => {
     await expect(placeOrder(identity(), q.id, "no-chef", undefined, undefined, stock)).rejects.toMatchObject({ body: { error: "allergen_data_unconfirmed" } });
     const a = acknowledge(q);
     await expect(placeOrder(identity(), q.id, "no-stock", undefined, undefined, { allergenAcknowledgements: [a.token] })).rejects.toMatchObject({ body: { error: "stock_unconfirmed" } });
-    const body = { ...stock, allergenAcknowledgements: [a.token] };
+    const body = { ...stockConsent(q), allergenAcknowledgements: [a.token] };
     const result = await placeOrder(identity(), q.id, "d35-order", undefined, undefined, body);
     expect(result.order.lines[0]).toMatchObject({ productId: "460541", stock: { kind: "unknown" }, riskAccepted: { by: "Aino" }, allergenDataAcknowledgement: { personId: "p-aino", fingerprint: q.fingerprint } });
     expect(result.order.lines[0].rules.some((r) => r.ruleId === "ALG-03")).toBe(true);
@@ -169,12 +213,12 @@ describe("gateway chef continuation", () => {
   it("requires a fresh chef decision when an amendment changes quantities or dietary scope", async () => {
     const q = await createQuote(identity(), terms());
     const a = acknowledge(q);
-    const { order } = await placeOrder(identity(), q.id, "original-amend", undefined, undefined, { ...stock, allergenAcknowledgements: [a.token] });
+    const { order } = await placeOrder(identity(), q.id, "original-amend", undefined, undefined, { ...stockConsent(q), allergenAcknowledgements: [a.token] });
     const changes = [{ ...terms().lines[0], quantity: 4, allergenScope: "synthetic-changed-guest-scope" }];
     const reviewed = await amendOrder(identity(), order.id, { changes, quoteOnly: true });
     await expect(amendOrder(identity(), order.id, { changes, allergenAcknowledgements: [a.token], continueWithUnconfirmedStock: [potato.id] })).rejects.toMatchObject({ body: { error: "allergen_data_unconfirmed" } });
     const fresh = acknowledge(reviewed.quote);
-    const changed = await amendOrder(identity(), order.id, { changes, allergenAcknowledgements: [fresh.token], continueWithUnconfirmedStock: [potato.id], decidedBy: "Aino" });
+    const changed = await amendOrder(identity(), order.id, { changes, allergenAcknowledgements: [fresh.token], continueWithUnconfirmedStock: [potato.id], builderConsentId: stockConsent(reviewed.quote).builderConsentId });
     expect(changed.order.lines[0]).toMatchObject({ quantity: 4, allergenDataAcknowledgement: { fingerprint: reviewed.quote.fingerprint } });
   });
 });
