@@ -43,7 +43,7 @@ export async function answer(qId: string, p: Person, optionId: string, token: st
 async function applyAnswer(q: Question, p: Person, token: string) {
   if (q.type === "order_review") return answerBasketReview(q, p, token);
   const f = q.facts as any;
-  if (f.kind === "change") return answerChange(q, p, token);
+  if (f.kind === "change" || f.kind === "change_stock") return answerChange(q, p, token);
   if (f.kind === "allergy") return answerAllergy(q, p);
   if (f.kind === "final_substitute") return answerFinalSubstitute(q, p);
   const plan = getPlan(q.planId);

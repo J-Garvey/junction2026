@@ -10,6 +10,7 @@ const { config } = await import("../src/config.js");
 const { getPlan, savePlan } = await import("../src/agent/plan.js");
 const { loadFixture } = await import("../src/aimo/lookup.js");
 const { matchesCurrentShortlists } = await import("../src/agent/match.js");
+const { getMandate, putMandate } = await import("../src/gateway/service.js");
 
 let BASE = "";
 let server: Server;
@@ -458,6 +459,22 @@ describe("order baskets", () => {
     expect(orders).toHaveLength(1);
     expect(orders[0].lines[0]).toMatchObject({ stock: { kind: "unknown" }, riskAccepted: { by: "Aino" } });
     expect((await call("GET", "/baskets")).baskets.find((b: any) => b.id === id)).toMatchObject({ confirmed: false, approvalLevels: [], orderBy: { state: "known", at: "2026-11-15T15:00:00.000Z", excludedItems: 0, unconfirmedStockItems: 1, reason: expect.stringContaining("Stock is unconfirmed") } });
+  });
+
+  it.each(["quantity", "policy"])("requires a fresh builder decision when staged unknown-stock %s changes", async (change) => {
+    const { id, planId } = await readyBasket("464306", "1000 l lactose-free milk");
+    if (change === "quantity") {
+      const plan = getPlan(planId)!;
+      plan.lines[0].quantity += 1;
+      savePlan(plan);
+    } else {
+      const policy = getMandate("hotel-aurora");
+      putMandate({ ...policy, version: policy.version + 1 });
+    }
+    const submitted = await call("POST", `/baskets/${id}/submit-review`);
+    expect(submitted.status).toBe(409);
+    expect(submitted.message).toMatch(/builder.*review/i);
+    expect((await call("GET", `/orders?eventId=${id}`)).orders).toHaveLength(0);
   });
 
   it.each([false, true])("reads matching list/detail deadlines from saved terms without supplier lookups (partial: %s)", async (partial) => {

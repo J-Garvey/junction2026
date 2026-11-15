@@ -14,7 +14,7 @@ This gateway owns quotes, approvals, orders, amendments and the audit log. Manda
 
 Stated assumptions about the upstream mock (see GROUND_TRUTH.md):
 - \`requestedDate\` and \`customer\` are ignored upstream; every available line says Monday 2026-11-16.
-- Stock 999999 on Terminal products and ~9,999,999,999 base units on some Stock products are **unknown**, never "available". They need an Approver to accept the risk (\`unknown_stock\` grant).
+- Stock 999999 on Terminal products and ~9,999,999,999 base units on some Stock products are **unknown**, never "available". The builder explicitly chooses whether to continue (D31); finance approval cannot make this decision. A newly unknown line requires a new quote. Amendment decisions can bind to the reviewed \`stockQuoteId\` and are checked against current terms.
 - Empty \`scheduleLines\` means not deliverable, even with a price. \`error: true\` on price means no price.
 - A cut-off already past is refused (\`cutoff_passed\`) even though the mock still shows a Monday date.
 - Only one schedule line is returned per product, so a split delivery is two linked orders.

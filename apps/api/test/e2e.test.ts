@@ -102,6 +102,16 @@ async function eventCase() {
   for (const q of out.allergyQs) await aino.call("POST", `/questions/${q.id}/answer`, { optionId: q.options[0].id });
   out.changeQs = (await sanna.call("GET", "/home")).questions.filter((q: any) => q.type === "change_outside_tolerance");
   out.changeOk = await sanna.call("POST", `/questions/${out.changeQs[0].id}/answer`, { optionId: "approve" });
+  // A finance decision cannot extend the builder's earlier unknown-stock
+  // decision to changed quantities. Review the fresh amendment before retrying.
+  out.changeStock = (await aino.call("GET", "/home")).questions.filter((q: any) => q.facts.kind === "change_stock");
+  out.beforeStockDecision = (await aino.call("GET", "/orders?eventId=evt-wedding")).orders;
+  for (const q of out.changeStock) {
+    out.financeStockTry = await sanna.call("POST", `/questions/${q.id}/answer`, { optionId: "continue" });
+    out.changeStockAnswer = await aino.call("POST", `/questions/${q.id}/answer`, { optionId: "continue" });
+  }
+  const reviewedChanges = (await sanna.call("GET", "/home")).questions.filter((q: any) => q.facts.kind === "change" && q.facts.stockQuoteId);
+  for (const q of reviewedChanges) out.reviewedChangeOk = await sanna.call("POST", `/questions/${q.id}/answer`, { optionId: "approve" });
   await aino.call("POST", "/clock", { scene: "4" });
   out.g188 = await aino.call("POST", "/events/evt-wedding/change", { guests: 188, version: await v() });
   out.final = (await aino.call("POST", "/events/evt-wedding/final-check")).finalCheck;
@@ -225,6 +235,11 @@ describe("Test case 1: the wedding through four scenes (docs/demo-plan.md)", () 
     expect(a.changeQs).toHaveLength(1);
     expect(a.changeQs[0].ruleIds).toContain("CHG-02");
     expect(a.changeOk.ok).toBe(true);
+    expect(a.changeStock).toHaveLength(1);
+    expect(a.changeStock[0]).toMatchObject({ forRole: "chef", quoteId: expect.any(String), fingerprint: expect.any(String) });
+    expect(a.financeStockTry.status).toBe(409);
+    expect(a.changeStockAnswer.error).toBeUndefined();
+    expect(a.reviewedChangeOk.error).toBeUndefined();
   });
   it("scene 4: no-shows need nobody; the final check keeps 37 L and fills 10 L; ready with 5 unconfirmed", () => {
     expect(a.g188.applied).toBe(true);

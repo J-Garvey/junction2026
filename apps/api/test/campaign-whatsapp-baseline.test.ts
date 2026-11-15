@@ -45,6 +45,9 @@ const { whatsappWebRouter } = await import("../src/whatsapp/web-routes.js");
 const { handleWhatsAppMessage } = await import("../src/whatsapp/service.js");
 const { whatsappRouter } = await import("../src/whatsapp/routes.js");
 const { saveFixture } = await import("../src/aimo/lookup.js");
+const lookupAdapter = await import("../src/aimo/lookup.js");
+const { getMandate, putMandate } = await import("../src/gateway/service.js");
+const { gw, GatewayError } = await import("../src/agent/gatewayClient.js");
 const sha = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
 let sequence = 0;
 let base = "";
@@ -61,7 +64,7 @@ let hold: { text: string; entered: () => void; release: Promise<void> } | null =
 const owner = () => getPerson("p-aino")!;
 const log = (kind: string, details: unknown) => appendFileSync(resolve(artifacts, "observations.jsonl"), JSON.stringify({
   at: new Date().toISOString(), sha, test: expect.getState().currentTestName ?? "setup",
-  clock: new Date(NOW).toISOString(), mode: "fixture-fallback-fake-browser", kind, details,
+  clock: new Date(NOW).toISOString(), mode: expect.getState().currentTestName?.includes("I3 current supplier") ? "fixture-gateway" : "fixture-fallback-fake-browser", kind, details,
 }, (_key, value) => typeof value === "number" && !Number.isFinite(value) ? { nonFiniteNumber: String(value) } : value) + "\n");
 function state() {
   return {
@@ -148,6 +151,7 @@ beforeEach(async () => {
   log("initial-state", state());
 });
 afterEach(async () => {
+  vi.restoreAllMocks();
   log("final-state", state());
   // Assertion counts are observations; Vitest's JSON report is the pass verdict.
   log("test-assertion-count", { assertions: expect.getState().assertionCalls });
@@ -422,10 +426,8 @@ describe("A3 independent persisted-state authorization audit", () => {
     } finally { config.fixturesDir = originalDir; }
   });
 
-  // Explicit expected failures preserve independent evidence of an EXISTING
-  // gateway defect, outside PR127. A green it.fails is not a safety pass. See
-  // A3-F01 in A3-audit.md; remove .fails when the separate production fix lands.
-  it.fails.each(["stock_unknown", "sales_block"] as const)("A3-10 KNOWN A3-F01 commit must refuse newly unsafe supplier %s", async (field) => {
+  // Independent A3-F01 reproductions are acceptance checks after the gateway fix.
+  it.each(["stock_unknown", "sales_block"] as const)("A3-10 A3-F01 commit must refuse newly unsafe supplier %s", async (field) => {
     const q = await auditQuote("469672", 1); expect(q.body.lines[0].stock.kind).toBe("known");
     const originalDir = config.fixturesDir, name = `A3-${field}-${sequence++}`;
     config.fixturesDir = resolve(runtime, "explicit-fixture-overlays");
@@ -444,6 +446,236 @@ describe("A3 independent persisted-state authorization audit", () => {
       expect(commit.status).toBe(409);
       expect(state().tables.orders).toHaveLength(0);
     } finally { config.fixturesDir = originalDir; }
+  });
+});
+
+// Reuse the existing production HTTP harness and append-only evidence journal.
+// These I3 cases are fixture-only gateway checks; they do not use the fake browser.
+describe("I3 current supplier facts authorize commit", () => {
+  const schedule = (patch: Record<string, unknown> = {}) => ({ salesBlock: false, availableAmount: 311, availableDate: "2026-11-16", salesUnit: "KG", ...patch });
+  async function overlay(availability: Record<string, unknown> = {}, price: Record<string, unknown> = {}) {
+    const originalDir = config.fixturesDir, name = `I3-${sequence++}`;
+    config.fixturesDir = resolve(runtime, "explicit-fixture-overlays");
+    saveFixture({ name: `overlay-${name}`, recordedAt: new Date(NOW).toISOString(), timeNow: new Date(NOW).toISOString(),
+      availability: { "469672": availability }, price: { "469672": price } });
+    lookupAdapter.loadFixture(`overlay-${name}`);
+    log("I3-explicit-overlay", { name, availability, price });
+    await ok("/data-mode", { mode: "fixture", overlay: name });
+    config.fixturesDir = originalDir; // loadFixture cached only this unique, external overlay.
+  }
+  const mutations: [string, Record<string, unknown>, Record<string, unknown>][] = [
+    ["unknown stock", { scheduleLines: [schedule({ availableAmount: 9999999999 })] }, {}],
+    ["top-level sales block", { salesBlock: true }, {}],
+    ["schedule sales block", { scheduleLines: [schedule({ salesBlock: true })] }, {}],
+    ["no schedules", { scheduleLines: [] }, {}],
+    ["missing delivery date", { scheduleLines: [schedule({ availableDate: null })] }, {}],
+    ["invalid delivery date", { scheduleLines: [schedule({ availableDate: "2026-02-30" })] }, {}],
+    ["missing cutoff", { closingTime: null }, {}],
+    ["invalid cutoff", { closingTime: "invalid" }, {}],
+    ["non-string cutoff", { closingTime: 123 }, {}],
+    ["rolled cutoff date", { closingTime: "2026-02-30T12:00:00Z" }, {}],
+    ["changed future cutoff", { closingTime: "2026-11-15T14:00:00Z" }, {}],
+    ["missing sales unit", { scheduleLines: [schedule({ salesUnit: null })] }, {}],
+    ["changed sales unit", { scheduleLines: [schedule({ salesUnit: "KI" })] }, {}],
+    ["zero price", {}, { catalogPrice: { value: 0 } }],
+    ["negative price", {}, { catalogPrice: { value: -1 } }],
+    ["NaN price", {}, { catalogPrice: { value: "NaN" } }],
+    ["infinite price", {}, { catalogPrice: { value: "Infinity" } }],
+    ["overflowing price", {}, { catalogPrice: { value: 1e308 } }],
+    ["null price", {}, { catalogPrice: { value: null } }],
+    ["missing price", {}, { error: true }],
+    ["missing price end", {}, { catalogPrice: { validTo: null } }],
+    ["missing price start", {}, { catalogPrice: { validFrom: null } }],
+    ["invalid price end", {}, { catalogPrice: { validTo: "invalid" } }],
+    ["price starts after delivery", {}, { catalogPrice: { validFrom: "2026-11-17T10:00:00Z" } }],
+    ["expired price", {}, { catalogPrice: { validTo: "2026-11-14T09:00:00Z" } }],
+    ["changed tax", {}, { tax: { taxRate: 25.5 } }],
+  ];
+  it.each(mutations)("I3-01 refuses stale %s for both order and approval", async (_name, availability, price) => {
+    const q = await auditQuote("469672", 1);
+    expect(q.body.outcome).toBe("order");
+    await overlay(availability, price);
+    const fresh = await auditQuote("469672", 1);
+    const commit = await gatewayAudit("/orders", { quoteId: q.body.id, continueWithUnconfirmedStock: ["469672"] }, "agent", `I3-stale-${sequence++}`);
+    expect(commit.status).toBe(409);
+    expect(commit.body.error).toBe("quote_stale");
+    expect(commit.body.newQuoteId).toBeTruthy();
+    const approval = await gatewayAudit("/approvals", { quoteId: q.body.id, fingerprint: q.body.fingerprint, grants: ["spend_cap"] }, "p-sanna");
+    expect(approval.status).toBe(409);
+    expect(state().tables.orders).toHaveLength(0);
+    expect(state().tables.approvals).toHaveLength(0);
+    log("I3-freshness-acceptance", { mutation: _name, fresh: fresh.body, commit, approval });
+  });
+
+  it("I3-02 requires a fresh unknown-stock quote and explicit builder choice, then preserves the disclosure", async () => {
+    const old = await auditQuote("469672", 1);
+    await overlay({ scheduleLines: [schedule({ availableAmount: 9999999999 })] });
+    const stale = await gatewayAudit("/orders", { quoteId: old.body.id, continueWithUnconfirmedStock: ["469672"] }, "agent", "I3-old-extra-consent");
+    expect(stale.status).toBe(409);
+    const quote = state().tables.quotes.find((q) => q.id === stale.body.newQuoteId);
+    expect(quote.unconfirmedStock).toEqual(["469672"]);
+    expect((await gatewayAudit("/orders", { quoteId: quote.id }, "agent", "I3-needs-choice")).body.error).toBe("stock_unconfirmed");
+    const body = { quoteId: quote.id, continueWithUnconfirmedStock: ["469672"], decidedBy: "I3 builder" };
+    const accepted = await gatewayAudit("/orders", body, "agent", "I3-reviewed-choice");
+    expect(accepted.status).toBe(201);
+    expect(accepted.body.lines[0]).toMatchObject({ stock: { kind: "unknown" }, riskAccepted: { by: "I3 builder" } });
+    const same = await gatewayAudit(`/orders/${accepted.body.id}/amendments`, { changes: [{ productId: "469672", outletId: "banquet", quantity: 1 }] });
+    expect(same.status).toBe(200);
+    expect(same.body.order.lines[0].riskAccepted).toEqual(accepted.body.lines[0].riskAccepted);
+    for (const change of [{ outletId: "banquet", quantity: 2 }, { outletId: "bar", quantity: 1 }]) {
+      const increased = await gatewayAudit(`/orders/${accepted.body.id}/amendments`, { changes: [{ productId: "469672", ...change }] });
+      expect(increased.body.error).toBe("stock_unconfirmed");
+      expect(state().tables.orders[0].version).toBe(2);
+    }
+    const increased = await gatewayAudit(`/orders/${accepted.body.id}/amendments`, { changes: [{ productId: "469672", outletId: "banquet", quantity: 2 }], continueWithUnconfirmedStock: ["469672"], decidedBy: "I3 new decision" });
+    expect(increased.status).toBe(200);
+    expect(increased.body.order.lines[0]).toMatchObject({ stock: { kind: "unknown" }, riskAccepted: { by: "I3 new decision" } });
+    const retry = await gatewayAudit("/orders", body, "agent", "I3-reviewed-choice");
+    expect(retry.status).toBe(200);
+    expect(retry.body.id).toBe(accepted.body.id);
+    expect(state().tables.orders).toHaveLength(1);
+  });
+
+  it("I3-03 reevaluates current policy and does not reuse a cheap-line pre-answer after it is withdrawn", async () => {
+    const mandate = getMandate("hotel-aurora");
+    putMandate({ ...mandate, preAnswers: { ...mandate.preAnswers, unknownStockMaxLineEur: 40 } });
+    await overlay({ scheduleLines: [schedule({ availableAmount: 9999999999 })] });
+    const q = await auditQuote("469672", 1);
+    expect(q.body.unconfirmedStock).toEqual([]);
+    const placed = await gatewayAudit("/orders", { quoteId: q.body.id }, "agent", "I3-pre-answer");
+    expect(placed.status).toBe(201);
+    putMandate({ ...mandate, version: mandate.version + 1 });
+    const change = await gatewayAudit(`/orders/${placed.body.id}/amendments`, { changes: [{ productId: "469672", outletId: "banquet", quantity: 1 }] });
+    expect(change.body.error).toBe("stock_unconfirmed");
+    expect((await gatewayAudit("/orders", { quoteId: q.body.id }, "agent", "I3-withdrawn-policy")).body.error).toBe("quote_stale");
+    expect(state().tables.orders).toHaveLength(1);
+  });
+
+  it.each(["unknown", "sales block"])("I3-04 signed finance approval cannot waive new %s facts", async (mutation) => {
+    const q = await auditQuote("469672", 100);
+    const approval = await gatewayAudit("/approvals", { quoteId: q.body.id, fingerprint: q.body.fingerprint, grants: ["spend_cap"] }, "p-sanna");
+    expect(approval.status).toBe(201);
+    await overlay(mutation === "unknown" ? { scheduleLines: [schedule({ availableAmount: 9999999999 })] } : { salesBlock: true });
+    const commit = await gatewayAudit("/orders", { quoteId: q.body.id, approvalId: approval.body.id }, "agent", "I3-approved-stale");
+    expect(commit.body.error).toBe("quote_stale");
+    if (mutation === "sales block") {
+      const replacement = state().tables.quotes.find((x) => x.id === commit.body.newQuoteId);
+      expect((await gatewayAudit("/approvals", { quoteId: replacement.id, fingerprint: replacement.fingerprint, grants: ["spend_cap"] }, "p-sanna")).body.error).toBe("hard_rule");
+    }
+    expect(state().tables.orders).toHaveLength(0);
+  });
+
+  it("I3-05 binds approvals to a quote and amendment approvals to the actual order version", async () => {
+    const q = await auditQuote("469672", 100);
+    const approval = await gatewayAudit("/approvals", { quoteId: q.body.id, fingerprint: q.body.fingerprint, grants: ["spend_cap"] }, "p-sanna");
+    const sameTerms = await auditQuote("469672", 100);
+    expect((await gatewayAudit("/orders", { quoteId: sameTerms.body.id, approvalId: approval.body.id }, "agent", "I3-other-quote")).body.error).toBe("mandate_violation");
+    const order = await gatewayAudit("/orders", { quoteId: q.body.id, approvalId: approval.body.id }, "agent", "I3-approved");
+    expect(order.status).toBe(201);
+    const changes = [{ productId: "469672", outletId: "banquet", quantity: 101 }];
+    const needs = await gatewayAudit(`/orders/${order.body.id}/amendments`, { changes, approvalId: approval.body.id });
+    expect(needs.body.error).toBe("mandate_violation");
+    const aq = state().tables.quotes.find((x) => x.id === needs.body.newQuoteId);
+    expect((await gatewayAudit("/orders", { quoteId: aq.id, approvalId: approval.body.id }, "agent", "I3-amendment-is-not-new-order")).body.error).toBe("invalid");
+    const aa = await gatewayAudit("/approvals", { quoteId: aq.id, fingerprint: aq.fingerprint, grants: ["spend_cap"] }, "p-sanna");
+    expect(aa.status).toBe(201);
+    const amended = await gatewayAudit(`/orders/${order.body.id}/amendments`, { changes, approvalId: aa.body.id });
+    expect(amended.status).toBe(200);
+    expect(amended.body.order.version).toBe(2);
+    await overlay({ salesBlock: true });
+    const blockedChange = await gatewayAudit(`/orders/${order.body.id}/amendments`, { changes: [{ ...changes[0], quantity: 102 }], approvalId: aa.body.id, continueWithUnconfirmedStock: ["469672"] });
+    expect(blockedChange.body.error).toBe("hard_rule");
+    expect(state().tables.orders[0].version).toBe(2);
+  });
+
+  it.each([false, true])("I3-06 concurrent same-key submissions are atomic (conflict=%s)", async (conflict) => {
+    const q = await auditQuote("469672", 1);
+    const other = conflict ? await auditQuote("469672", 2) : q;
+    const realLookup = lookupAdapter.lookup;
+    let arrived = 0, release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    vi.spyOn(lookupAdapter, "lookup").mockImplementation(async (...args) => {
+      const value = await realLookup(...args); arrived++; await gate; return value;
+    });
+    const calls = [q, other].map((quote) => gatewayAudit("/orders", { quoteId: quote.body.id }, "agent", "I3-concurrent"));
+    try { await vi.waitFor(() => expect(arrived).toBe(2)); } finally { release(); }
+    const result = await Promise.all(calls);
+    expect(result.map((r) => r.status).sort()).toEqual(conflict ? [201, 422] : [200, 201]);
+    if (!conflict) expect(new Set(result.map((r) => r.body.id)).size).toBe(1);
+    else expect(result.find((r) => r.status === 422)?.body.error).toBe("idempotency_conflict");
+    expect(state().tables.orders).toHaveLength(1);
+  });
+
+  it("I3-07 rechecks the clock after supplier I/O", async () => {
+    const q = await auditQuote("469672", 1);
+    const realLookup = lookupAdapter.lookup;
+    vi.spyOn(lookupAdapter, "lookup").mockImplementation(async (...args) => {
+      const value = await realLookup(...args); setClock({ time: q.body.expiresAt }); return value;
+    });
+    expect((await gatewayAudit("/orders", { quoteId: q.body.id }, "agent", "I3-clock-crossing")).body.error).toBe("quote_stale");
+    expect(state().tables.orders).toHaveLength(0);
+  });
+
+  it("I3-08 accepts sufficient known-stock changes and records the actual fresh stock", async () => {
+    const q = await auditQuote("469672", 1);
+    await overlay({ scheduleLines: [schedule({ availableAmount: 300 })] });
+    const commit = await gatewayAudit("/orders", { quoteId: q.body.id }, "agent", "I3-sufficient-current-stock");
+    expect(commit.status).toBe(201);
+    expect(commit.body.lines[0]).toMatchObject({ unitPrice: 29.84, stock: { kind: "known", amount: 300 }, riskAccepted: null });
+  });
+
+  it("I3-09 unknown-stock consent expires when supplier terms change", async () => {
+    await overlay({ scheduleLines: [schedule({ availableAmount: 9999999999 })] });
+    const q = await auditQuote("469672", 1);
+    const placed = await gatewayAudit("/orders", { quoteId: q.body.id, continueWithUnconfirmedStock: ["469672"] }, "agent", "I3-initial-risk");
+    expect(placed.status).toBe(201);
+    await overlay({ closingTime: "2026-11-15T18:00:00+0200", scheduleLines: [schedule({ availableAmount: 9999999999 })] });
+    const changed = await gatewayAudit(`/orders/${placed.body.id}/amendments`, { changes: [{ productId: "469672", outletId: "banquet", quantity: 1 }] });
+    expect(changed.body.error).toBe("stock_unconfirmed");
+    expect(state().tables.orders[0].version).toBe(1);
+    await overlay({ closingTime: "2026-11-15T19:00:00+0200", scheduleLines: [schedule({ availableAmount: 9999999999 })] });
+    const staleDecision = await gatewayAudit(`/orders/${placed.body.id}/amendments`, {
+      changes: [{ productId: "469672", outletId: "banquet", quantity: 1 }],
+      continueWithUnconfirmedStock: ["469672"], stockQuoteId: changed.body.newQuoteId,
+    });
+    expect(staleDecision.body.error).toBe("stock_unconfirmed");
+    expect(state().tables.orders[0].version).toBe(1);
+  });
+
+  it("I3-10 rechecks site authorization for new orders and amendments", async () => {
+    const q = await auditQuote("469672", 1);
+    const placed = await gatewayAudit("/orders", { quoteId: q.body.id }, "agent", "I3-original-site");
+    const m = getMandate("hotel-aurora"); putMandate({ ...m, sites: [], version: m.version + 1 });
+    expect((await gatewayAudit("/orders", { quoteId: q.body.id }, "agent", "I3-site-revoked")).body.error).toBe("quote_stale");
+    const change = await gatewayAudit(`/orders/${placed.body.id}/amendments`, { changes: [{ productId: "469672", outletId: "banquet", quantity: 2 }] });
+    expect(change.body.error).toBe("hard_rule");
+    expect(change.body.rules).toContainEqual(expect.objectContaining({ ruleId: "DLV-05" }));
+    expect(state().tables.orders[0].version).toBe(1);
+  });
+
+  it("I3-11 concurrent amendments cannot overwrite a newer order version", async () => {
+    const q = await auditQuote("469672", 1);
+    const placed = await gatewayAudit("/orders", { quoteId: q.body.id }, "agent", "I3-amend-race");
+    const realLookup = lookupAdapter.lookup;
+    let arrived = 0, release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    vi.spyOn(lookupAdapter, "lookup").mockImplementation(async (...args) => {
+      const value = await realLookup(...args); arrived++; await gate; return value;
+    });
+    const calls = [2, 3].map((quantity) => gatewayAudit(`/orders/${placed.body.id}/amendments`, { changes: [{ productId: "469672", outletId: "banquet", quantity }] }));
+    try { await vi.waitFor(() => expect(arrived).toBe(2)); } finally { release(); }
+    const result = await Promise.all(calls);
+    expect(result.map((r) => r.status).sort()).toEqual([200, 409]);
+    expect(result.find((r) => r.status === 409)?.body.error).toBe("quote_stale");
+    expect(state().tables.orders[0].version).toBe(2);
+  });
+
+  it("I3-12 preserves upstream unavailability status through the app", async () => {
+    vi.spyOn(gw, "orders").mockRejectedValue(new GatewayError(503, { error: "upstream_unavailable", message: "I3 synthetic upstream failure" }));
+    const result = await http("/orders");
+    expect(result.status).toBe(503);
+    expect(result.body.error).toBe("upstream_unavailable");
+    expect(state().tables.orders).toHaveLength(0);
   });
 });
 
