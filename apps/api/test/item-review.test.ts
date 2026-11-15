@@ -50,6 +50,55 @@ async function approve(plan: any, index: number) {
 }
 
 describe("per-item order review", () => {
+  it("offers checked broader cakes for the blocked princess cake without selecting or approving one", async () => {
+    await call("POST", "/clock", { time: "2026-11-11T10:00:00Z" });
+    const { plan } = await draft("24 pcs princess cake for tree nut allergy", [null], "2026-11-16");
+    expect(plan.request.lines[0].constraints.avoidAllergens).toEqual(["AN"]);
+    expect(plan.needs[0].candidates).toHaveLength(0);
+    expect(plan.lines.every((line: any) => !line.productId)).toBe(true);
+    expect(plan.itemReviews[0].canApprove).toBe(false);
+    const raspberry = plan.needs[0].replacementCandidates.find((candidate: any) => candidate.productId === "473522");
+    expect(raspberry).toMatchObject({ costToCover: { need: 24, quantity: 1, totalExVat: 62.12 }, stock: { kind: "unknown" }, source: "fixture" });
+    expect(plan.needs[0].replacementCandidates.some((candidate: any) => candidate.productId === "467767")).toBe(false);
+    expect((await approve(plan, 0)).status).toBe(409);
+    expect((await call("POST", `/plans/${plan.id}/choose`, { needId: plan.needs[0].id, productId: "467767" })).status).toBe(404);
+    const chosen = await call("POST", `/plans/${plan.id}/choose`, { needId: plan.needs[0].id, productId: "473522" });
+    expect(chosen.status).toBe(200);
+    expect(chosen.plan.request.lines[0]).toMatchObject({ productId: "473522", query: plan.request.lines[0].query, constraints: { avoidAllergens: ["AN"] }, quantity: { amount: 24, unit: "pcs" } });
+    expect(chosen.plan.lines[0]).toMatchObject({ productId: "473522", quantity: 1, lineTotal: 62.12, stock: { kind: "unknown" } });
+    expect(chosen.plan.itemReviews[0]).toMatchObject({ canApprove: true, requiresApproval: true, approvedAt: null });
+    expect((await call("POST", `/plans/${plan.id}/basket`)).status).toBe(409);
+    const approved = await approve(chosen.plan, 0);
+    expect(approved.status).toBe(200);
+    expect((await call("POST", `/plans/${plan.id}/basket`)).status).toBe(200);
+    expect((await call("GET", `/orders?eventId=${plan.eventId}`)).orders).toHaveLength(0);
+  });
+
+  it("ranks broader cake suggestions on the demo's whole-pack cost for 194 guests", async () => {
+    await call("POST", "/clock", { time: "2026-10-30T10:00:00Z" });
+    const { plan } = await draft("194 pcs princess cake for tree nut allergy", [null], "2026-11-16");
+    expect(plan.needs[0].replacementCandidates[0]).toMatchObject({ productId: "473522", costToCover: { need: 194, quantity: 5, totalExVat: 310.6 } });
+    expect(plan.itemReviews[0].canApprove).toBe(false);
+    expect(plan.orderIds).toHaveLength(0);
+  });
+
+  it("rechecks a broader replacement's cutoff at manual selection", async () => {
+    await call("POST", "/clock", { time: "2026-11-11T10:00:00Z" });
+    const { plan } = await draft("24 pcs princess cake for tree nut allergy", [null], "2026-11-16");
+    const fixture = loadFixture("base")!;
+    const original = structuredClone(fixture.availability["473522"]);
+    fixture.availability["473522"].closingTime = "2026-11-10T17:00:00+0200";
+    try {
+      const chosen = await call("POST", `/plans/${plan.id}/choose`, { needId: plan.needs[0].id, productId: "473522" });
+      expect(chosen.status).toBe(200);
+      expect(chosen.plan.itemReviews[0]).toMatchObject({ canApprove: false, approvedAt: null });
+      expect((await call("POST", `/plans/${plan.id}/basket`)).status).toBe(409);
+      expect(chosen.plan.orderIds).toHaveLength(0);
+    } finally {
+      fixture.availability["473522"] = original;
+    }
+  });
+
   it("stages an exact match without a separate item approval", async () => {
     const { plan } = await draft("10 kg salmon", ["469672"]);
     expect(plan.itemReviews[0]).toMatchObject({ canApprove: true, requiresApproval: false, approvedAt: null });
