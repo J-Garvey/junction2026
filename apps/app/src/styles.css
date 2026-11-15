@@ -26,8 +26,8 @@
   --purple: #7c44a6;
   --purple-soft: #e7d8ee;
   --yellow-soft: #fbe7bd;
-  --font: "IBM Plex Sans", -apple-system, system-ui, sans-serif;
-  --mono: "Source Code Pro", ui-monospace, monospace;
+  --font: "IBM Plex Sans Variable", "IBM Plex Sans", -apple-system, system-ui, sans-serif;
+  --mono: "Source Code Pro Variable", "Source Code Pro", ui-monospace, monospace;
   --page-width: 1040px;
 }
 * { box-sizing: border-box; }
