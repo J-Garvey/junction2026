@@ -16,6 +16,8 @@ let BASE = "";
 let server: Server;
 beforeAll(async () => {
   server = createApp().listen(0, "127.0.0.1");
+  // Cold catalogue work can outlast Node's default idle connection timeout.
+  server.keepAliveTimeout = 60_000;
   await new Promise((r) => server.once("listening", r));
   BASE = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
   config.gatewayUrl = `${BASE}/gateway/v1`;
