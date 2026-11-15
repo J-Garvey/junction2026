@@ -47,6 +47,21 @@ async function stage(id: string, text = "10 kg salmon") {
 }
 
 describe("synthetic WhatsApp order flow", () => {
+  it("lists all five candidate orders once and lets the person answer with an order name", async () => {
+    const examples = [
+      ["Pavit's Date", "2026-11-22"], ["Darragh's Birthday", "2026-11-30"],
+      ["Ben's Wedding", "2026-11-22"], ["HackJunction", "2026-11-22"],
+    ];
+    for (const [name, deliveryDate] of examples) await call("/baskets", { name, deliveryDate });
+    const reply = await send("show order missing");
+    expect(reply.status).toBe("clarification");
+    expect(reply.actions).toHaveLength(5);
+    for (const [name] of examples) expect(reply.text.split(name)).toHaveLength(2);
+    expect(reply.text).toContain("Reply with the *order name*.");
+    expect(reply.text).not.toMatch(/Total|TBC|Reply options|Next:|shortened|in the app/);
+    expect((await send("HackJunction")).status).toBe("summary");
+  });
+
   it("asks which order, previews an addition, confirms one complete mock order, and avoids duplicates", async () => {
     const id = await basket();
     await basket("Breakfast");
@@ -54,6 +69,7 @@ describe("synthetic WhatsApp order flow", () => {
     expect((await send(id)).status).toBe("summary");
     const proposal = await send("add 10 kg salmon 469672");
     expect(proposal.status, proposal.text).toBe("proposal");
+    expect(proposal.text).toContain(`/baskets/${id}`);
     expect((await call(`/baskets/${id}`)).requests).toHaveLength(0);
     const changed = await send("confirm change");
     expect(changed.status, changed.text).toBe("updated");
@@ -82,6 +98,18 @@ describe("synthetic WhatsApp order flow", () => {
     expect((await call(`/baskets/${other}`)).requests[0].lines).toHaveLength(1);
   });
 
+  it("summarises only the newly changed items after adding to an existing basket", async () => {
+    const id = await basket();
+    await stage(id, "10 kg salmon 469672");
+    await send(id);
+    expect((await send("add 2 kg salmon 469672")).status).toBe("proposal");
+    const updated = await send("confirm change");
+    expect(updated.status, updated.text).toBe("updated");
+    expect(updated.text).toContain("*2 KG*");
+    expect(updated.text).not.toContain("*10 KG*");
+    expect(updated.text).toContain(`/baskets/${id}`);
+  });
+
   it("keeps unknown stock unconfirmed and requires the existing stock decision", async () => {
     const id = await basket();
     await send(id);
@@ -90,6 +118,8 @@ describe("synthetic WhatsApp order flow", () => {
     const blocked = await send("confirm change");
     expect(blocked.status).toBe("blocked");
     expect(blocked.text).toContain("Stock is not confirmed");
+    const proposalId = (await call(`/baskets/${id}`)).requests[0].id;
+    expect(blocked.text).toContain(`/requests/${proposalId}`);
     expect((await call("/orders")).orders).toHaveLength(0);
   });
 
@@ -105,6 +135,7 @@ describe("synthetic WhatsApp order flow", () => {
     expect((await send("confirm order")).status).toBe("approval_required");
     const questions = allQuestions().filter((q) => q.eventId === id && q.state === "open");
     expect(questions).toHaveLength(1);
+    expect(response.text).toContain(`/baskets/${id}#question-${questions[0].id}`);
     expect((await call("/orders")).orders).toHaveLength(0);
     const sanna = (await call("/session", { personId: "p-sanna" })).token;
     const approved = await call(`/questions/${questions[0].id}/answer`, { optionId: "approve" }, sanna);

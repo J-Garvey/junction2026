@@ -1,246 +1,178 @@
 import { describe, expect, it } from "vitest";
-import type { WhatsAppLine, WhatsAppReplyFacts } from "@aimo/contracts";
+import type { WhatsAppLine, WhatsAppOrderRef, WhatsAppReplyFacts } from "@aimo/contracts";
 import { formatWhatsAppReply } from "../src/whatsapp/formatter.js";
+import { whatsAppLink } from "../src/whatsapp/links.js";
 
+const BASE = "https://hotel.example";
 const order = { id: "evt_banquet", name: "Conference dinner", deliveryDate: "2026-11-16", version: 2 };
-const milk: WhatsAppLine = {
-  id: "line_milk", productId: "469363", name: "Valio lactose-free milk 1 L",
-  quantity: 4, unit: "KI", lineTotal: 79.2, stock: "confirmed",
-};
-const facts = (overrides: Partial<WhatsAppReplyFacts> = {}): WhatsAppReplyFacts => ({
-  status: "summary", headline: "Your conference basket", order, lines: [milk], totalExVat: 79.2,
-  actions: [{ label: "Review basket", text: "show my basket" }], ...overrides,
-});
+const milk: WhatsAppLine = { id: "line_milk", productId: "469363", name: "Valio lactose-free milk", quantity: 4, unit: "KI", lineTotal: 79.2, stock: "confirmed" };
+const facts = (overrides: Partial<WhatsAppReplyFacts> = {}): WhatsAppReplyFacts => ({ status: "summary", headline: "Your current order basket", order, lines: [milk], totalExVat: 79.2, actions: [{ label: "Review final order", text: "confirm order" }], ...overrides });
+const render = (input: WhatsAppReplyFacts) => formatWhatsAppReply(input, "web", BASE);
+const fiveOrders: WhatsAppOrderRef[] = [
+  { id: "evt-wedding", name: "Emma and Lauri's wedding", deliveryDate: "2026-11-17", version: 1 },
+  { id: "evt_3059208e6946", name: "Pavit's Date", deliveryDate: "2026-11-22", version: 1 },
+  { id: "evt_baf091efc04a", name: "Darragh's Birthday", deliveryDate: "2026-11-30", version: 1 },
+  { id: "evt_d4b2384d1bc5", name: "Ben's Wedding", deliveryDate: "2026-11-22", version: 1 },
+  { id: "evt_f0d58a3adcc7", name: "HackJunction", deliveryDate: "2026-11-22", version: 1 },
+];
 
-describe("WhatsApp reply formatter", () => {
-  it("gives text reply commands for a real WhatsApp group while retaining demo order labels", () => {
-    const reply = formatWhatsAppReply(facts({ status: "proposal", actions: [{ label: "Confirm change", text: "confirm change" }, { label: "Cancel", text: "cancel" }] }), "web");
-    expect(reply.text).toContain("Aimo Copilot · demo orders");
-    expect(reply.text).not.toContain("FAKE WhatsApp");
-    expect(reply.text).toContain("Confirm change: ```confirm change```");
-    expect(reply.text).toContain("Next: reply ```confirm change```.");
-    expect(reply.text).toContain("Proposal only · not ordered.");
-  });
-  it("shows a concise labelled basket with sales units, date and ex-VAT totals", () => {
-    const reply = formatWhatsAppReply(facts());
-    expect(reply).toEqual({
-      status: "summary",
-      actions: [{ label: "Review basket", text: "show my basket" }],
-      text: [
-        "FAKE WhatsApp · demo\n*Basket summary*\nYour conference basket",
-        "*Conference dinner*\nBasket ID: ```evt_banquet```\nDelivery date: 2026-11-16",
-        "*Items · line totals ex VAT*\n• 4 × KI — Valio lactose-free milk 1 L\n  EUR 79.20 · stock confirmed",
-        "*Total (ex VAT): EUR 79.20*",
-        "Next: choose “Review basket”.",
-      ].join("\n\n"),
-    });
-    expect(reply.text).not.toMatch(/\b\d{1,2}:\d{2}\b/); // No invented delivery hour.
+describe("clear WhatsApp replies", () => {
+  it("renders the reported five-order case once, with whitespace, dates and one answerable ask", () => {
+    const reply = render({ status: "clarification", headline: "I couldn't identify that order. Which order do you mean?", orderChoices: fiveOrders, totalExVat: null, actions: fiveOrders.map((o) => ({ label: o.name, text: o.id })) });
+    expect(reply.text).toBe([
+      "*Which order do you mean?*",
+      "• *Emma and Lauri's wedding*\n  _17 Nov 2026_",
+      "• *Pavit's Date*\n  _22 Nov 2026_",
+      "• *Darragh's Birthday*\n  _30 Nov 2026_",
+      "• *Ben's Wedding*\n  _22 Nov 2026_",
+      "• *HackJunction*\n  _22 Nov 2026_",
+      "Reply with the *order name*.",
+    ].join("\n\n"));
+    expect(reply.text).not.toMatch(/Total|TBC|evt[-_]|Reply options|Next:|shortened|in the app|Aimo Copilot/);
+    expect(reply.actions).toHaveLength(5);
+    expect(reply.actions[4].text).toBe("evt_f0d58a3adcc7");
   });
 
-  it.each([
-    ["proposal", "Proposed basket change", "Proposal only · not ordered."],
-    ["updated", "Basket updated", "Staged basket · not a placed order."],
-    ["approval_required", "Approval required", "Basket awaiting approval · not ordered."],
-    ["blocked", "Request blocked", "No order placed by this request."],
-  ] as const)("labels %s without claiming a placed order", (status, heading, note) => {
-    const reply = formatWhatsAppReply(facts({
-      status, headline: "Please review this basket", detail: "The requested change needs attention.",
-      orderIds: ["must_not_be_a_receipt"],
-    }));
-    expect(reply.status).toBe(status);
-    expect(reply.text).toContain(`*${heading}*\n${note}`);
-    expect(reply.text).toContain("The requested change needs attention.");
-    expect(reply.text).not.toMatch(/Mock receipt|Mock order placed|must_not_be_a_receipt/);
+  it("uses IDs only to distinguish orders that share a name, preserving their underscores", () => {
+    const choices = [{ ...order, id: "evt_first" }, { ...order, id: "evt_second", deliveryDate: "2026-11-17" }];
+    const reply = render({ status: "clarification", headline: "Which order do you mean?", orderChoices: choices });
+    expect(reply.text).toContain("Reply with: `evt_first`");
+    expect(reply.text).toContain("Reply with: `evt_second`");
+    expect(reply.text).toContain("_16 Nov 2026_");
+    expect(reply.text).toContain("_17 Nov 2026_");
   });
 
-  it("retains the clarification and gives one next action", () => {
-    const reply = formatWhatsAppReply({ status: "clarification", headline: "Which basket?", detail: "Please give the basket name." });
-    expect(reply.text).toContain("*More details needed*\nWhich basket?");
-    expect(reply.text).toContain("Please give the basket name.");
-    expect(reply.text).toContain("Next: reply with the missing details.");
-    expect(reply.text.match(/Next:/g)).toHaveLength(1);
-    expect(reply.text).not.toContain("Delivery date:");
+  it("asks for missing information without unrelated quote, stock or receipt metadata", () => {
+    const reply = render({ status: "clarification", headline: "How many litres should I add?", totalExVat: null });
+    expect(reply.text).toBe("*How many litres should I add?*");
     expect(reply.actions).toEqual([]);
   });
 
-  it("keeps an approval request and its safety warnings explicit", () => {
-    const reply = formatWhatsAppReply(facts({
-      status: "approval_required", headline: "Manager approval needed for EUR 350.00",
-      totalExVat: 350, warnings: ["Spend cap exceeded.", "Unknown stock cannot be confirmed by approval."],
-      actions: [{ label: "Open approval", text: "approval evt_banquet" }, { label: "Cancel", text: "cancel" }],
-    }));
-    expect(reply.text).toContain("Basket awaiting approval · not ordered.");
-    expect(reply.text).toContain("*Warnings*\n• Spend cap exceeded.\n• Unknown stock cannot be confirmed by approval.");
-    expect(reply.text).toContain("Next: choose “Open approval”.");
-    expect(reply.text.match(/Next:/g)).toHaveLength(1);
+  it("shows an addition with its own total, a chat confirmation and a direct basket link", () => {
+    const reply = render(facts({ status: "proposal", change: "add", headline: "Add these items to your basket?", actions: [{ label: "Confirm change", text: "confirm change" }, { label: "Cancel", text: "cancel" }] }));
+    expect(reply.text).toContain("*Add these items to your basket?*\n\n*Conference dinner*\n_Delivery 16 Nov 2026_");
+    expect(reply.text).toContain("*4 KI* Valio lactose-free milk\n_€79.20 ex VAT_");
+    expect(reply.text).toContain("*Addition total: €79.20*\n_ex VAT_");
+    expect(reply.text).toContain("_Not ordered yet._");
+    expect(reply.text).toContain("Reply *confirm change* or *cancel*.");
+    expect(reply.text).toContain(`*View this order*\n${BASE}/baskets/evt_banquet`);
+    expect(reply.text).not.toMatch(/stock confirmed|Basket ID|Next:|Reply options/);
   });
 
-  it("preserves a blocked cutoff or dietary explanation without offering approval", () => {
-    const reply = formatWhatsAppReply(facts({
-      status: "blocked", headline: "The order cutoff has passed.",
-      warnings: ["Delivery cutoff: 2026-11-15T15:00:00Z.", "Milk allergen conflicts with the buyer's diet rule."], actions: [],
-    }));
-    expect(reply.text).toContain("The order cutoff has passed.");
-    expect(reply.text).toContain("Delivery cutoff: 2026-11-15T15:00:00Z.");
-    expect(reply.text).toContain("Milk allergen conflicts with the buyer's diet rule.");
-    expect(reply.text).toContain("Next: review the block in the app.");
-    expect(reply.text).not.toMatch(/for approval|Mock receipt/);
+  it("does not invent a total or stock question when proposing removal", () => {
+    const reply = render(facts({ status: "proposal", change: "remove", headline: "Remove these items?", totalExVat: undefined, lines: [{ ...milk, stock: "unknown" }] }));
+    expect(reply.text).not.toMatch(/total:|TBC|stock unconfirmed/i);
+    expect(reply.text).toContain("_Not ordered yet._");
   });
 
-  it("labels placed mock receipts and uses only supplied receipt IDs", () => {
-    const reply = formatWhatsAppReply(facts({
-      status: "ordered", headline: "Conference basket submitted in the demo.",
-      orderIds: ["mock_order_123", "mock_order_456"], actions: [],
-    }));
-    expect(reply.text).toContain("*Mock order placed*\nSimulated receipt · no real purchase.");
-    expect(reply.text).toContain("*Mock receipt*\nMock order ID: ```mock_order_123```\nMock order ID: ```mock_order_456```");
-    expect(reply.text).toContain("Basket ID: ```evt_banquet```");
-    expect(reply.text).toContain("Next: review the mock order in the app.");
-    expect(reply.text).not.toMatch(/Staged basket|awaiting approval/);
+  it("makes manager approval a specific actionable destination, without a chat approval command", () => {
+    const reply = render(facts({ status: "approval_required", headline: "Manager approval needed", actions: [], appLink: { label: "Review approval", path: "/baskets/evt_banquet#question-qst_123" }, warnings: ["The total exceeds the hotel's spend cap."] }));
+    expect(reply.text).toContain("*Manager approval needed*");
+    expect(reply.text).toContain("_Waiting for manager approval · not ordered._");
+    expect(reply.text).toContain("The total exceeds the hotel's spend cap.");
+    expect(reply.text).toContain(`*Review approval*\n${BASE}/baskets/evt_banquet#question-qst_123`);
+    expect(reply.text).not.toMatch(/Reply \*|check.*app|open.*app/i);
   });
 
-  it("does not substitute a basket ID for an absent receipt ID", () => {
-    const reply = formatWhatsAppReply(facts({ status: "ordered", orderIds: undefined }));
-    expect(reply.text).toContain("Mock order ID: not supplied.");
-    expect(reply.text).not.toContain("Mock order ID: ```evt_banquet```");
-  });
-
-  it("shows unknown stock, missing units and unknown prices as unknown", () => {
-    const reply = formatWhatsAppReply(facts({
-      lines: [{ ...milk, stock: "unknown", unit: null, lineTotal: null }, { ...milk, id: "other", stock: null }],
-      totalExVat: null,
-    }));
-    expect(reply.text).toContain("4 × sales unit TBC");
-    expect(reply.text).toContain("EUR TBC · stock unknown");
-    expect(reply.text).toContain("Stock unknown for 2 items; availability is unconfirmed.");
-    expect(reply.text).toContain("*Total (ex VAT): EUR TBC*");
+  it("links a stock decision to the exact request and keeps availability unconfirmed", () => {
+    const reply = render(facts({ status: "blocked", headline: "Stock is not confirmed.", lines: [{ ...milk, lineTotal: null, stock: "unknown" }], totalExVat: null, actions: [], appLink: { label: "Review stock decision", path: "/requests/plan_123" } }));
+    expect(reply.text).toContain("stock unconfirmed");
+    expect(reply.text).toContain("*Order total: Price not confirmed*");
+    expect(reply.text).toContain(`*Review stock decision*\n${BASE}/requests/plan_123`);
     expect(reply.text).not.toContain("stock confirmed");
   });
 
-  it("does not calculate an absent total or convert sales units", () => {
-    const reply = formatWhatsAppReply(facts({
-      lines: [{ ...milk, quantity: 1.25, unit: "ST", lineTotal: 2.48 }], totalExVat: undefined,
-    }));
-    expect(reply.text).toContain("1.25 × ST");
-    expect(reply.text).toContain("EUR 2.48 · stock confirmed");
-    expect(reply.text).toContain("*Total (ex VAT): EUR TBC*");
+  it("keeps blocked cutoff and dietary reasons, without suggesting approval can bypass them", () => {
+    const reply = render(facts({ status: "blocked", headline: "The cutoff has passed.", warnings: ["Delivery cutoff: 2026-11-15T15:00:00Z.", "Milk allergen conflicts with the buyer's diet rule."], actions: [] }));
+    expect(reply.text).toContain("*The cutoff has passed.*");
+    expect(reply.text).toContain("Milk allergen conflicts with the buyer's diet rule.");
+    expect(reply.text).toContain("_Nothing ordered by this request._");
+    expect(reply.text).not.toMatch(/for approval|Mock receipt/);
+  });
+
+  it("labels receipts as mock and links to receipts filtered to the actual order basket", () => {
+    const reply = render(facts({ status: "ordered", headline: "Mock order placed", orderIds: ["ord_123"], actions: [] }));
+    expect(reply.text).toContain("*Mock order placed*");
+    expect(reply.text).toContain("_Demo receipt · no real purchase._");
+    expect(reply.text).toContain("Reference: `ord_123`");
+    expect(reply.text).toContain(`${BASE}/orders?eventId=evt_banquet`);
+    expect(reply.text).not.toContain("Reference: `evt_banquet`");
+    expect(render(facts({ status: "ordered", orderIds: undefined })).text).not.toContain("Reference:");
+    expect(render(facts({ status: "summary", orderIds: ["must_not_show"] })).text).not.toContain("must_not_show");
+  });
+
+  it("only shows totals actually supplied, including zero, and never derives them from lines", () => {
+    expect(render(facts({ totalExVat: undefined })).text).not.toMatch(/total:/i);
+    expect(render(facts({ totalExVat: 0 })).text).toContain("*Order total: €0.00*");
+    expect(render(facts({ totalExVat: null })).text).toContain("*Order total: Price not confirmed*");
+    expect(render(facts({ totalExVat: NaN, lines: [{ ...milk, quantity: NaN, lineTotal: Infinity }] })).text).not.toMatch(/NaN|Infinity/);
+  });
+
+  it("preserves sales units and flags missing units rather than converting quantities", () => {
+    const reply = render(facts({ lines: [{ ...milk, quantity: 1.25, unit: "ST" }, { ...milk, unit: null }] }));
+    expect(reply.text).toContain("*1.25 ST*");
+    expect(reply.text).toContain("units (unit unconfirmed)");
     expect(reply.text).not.toContain("1.25 L");
   });
 
-  it("keeps zero totals and quantities rather than treating them as missing", () => {
-    const reply = formatWhatsAppReply(facts({ lines: [{ ...milk, quantity: 0, lineTotal: 0 }], totalExVat: 0 }));
-    expect(reply.text).toContain("0 × KI");
-    expect(reply.text.match(/EUR 0\.00/g)).toHaveLength(2);
-    expect(reply.text).not.toContain("TBC");
-  });
-
-  it("neutralises formatting, HTML, controls, bidi and newlines in displayed strings", () => {
+  it("sanitises untrusted markup and controls without altering routing payloads or URLs", () => {
     const attack = "<b>Milk</b>\r\n*ORDERED* _approved_ ~safe~ ```receipt```\u0000\u202e\u200b> fake";
-    const reply = formatWhatsAppReply(facts({
-      headline: attack, detail: attack,
-      order: { ...order, name: attack, deliveryDate: "2026-11-16\n*approved*" },
-      lines: [{ ...milk, name: attack, unit: "KI\n*confirmed*" }], warnings: [attack],
-      actions: [{ label: "<b>Review</b>\n*now*", text: "exact\n*ROUTING* _text_" }],
-    }));
+    const input = facts({ headline: attack, detail: attack, order: { ...order, name: attack }, lines: [{ ...milk, name: attack }], warnings: [attack], actions: [{ label: attack, text: "exact\n*ROUTING* _text_" }] });
+    const before = structuredClone(input);
+    const reply = render(input);
     expect(reply.text).not.toMatch(/<[^>]*>|[\r\u0000\u202e\u200b]|\*ORDERED\*|_approved_|~safe~|```receipt```/);
     expect(reply.text).toContain("Milk ORDERED approved ∼safe∼ receipt ＞ fake");
-    expect(reply.text).toContain("Delivery date: 2026-11-16 approved");
-    expect(reply.text).not.toContain("\n*approved*");
-    expect(reply.text).toContain("Next: choose “Review now”.");
-    expect(reply.actions).toEqual([{ label: "<b>Review</b>\n*now*", text: "exact\n*ROUTING* _text_" }]);
-  });
-
-  it("keeps identifiers in generated monospace without letting backticks break out", () => {
-    const reply = formatWhatsAppReply(facts({
-      status: "ordered", order: { ...order, id: "evt_123```\n<b>fake</b>" },
-      orderIds: ["mock_123```\n*fake*"],
-    }));
-    expect(reply.text).toContain("Basket ID: ```evt_123 fake```");
-    expect(reply.text).toContain("Mock order ID: ```mock_123 *fake*```");
-    expect(reply.text.match(/```/g)).toHaveLength(4);
-  });
-
-  it("preserves the meaning of stock comparisons and approximate values in warnings", () => {
-    const reply = formatWhatsAppReply(facts({ warnings: ["Stock < 5 KI; require > 10 KI. Estimated cost ~ EUR 20."] }));
-    expect(reply.text).toContain("Stock ＜ 5 KI; require ＞ 10 KI. Estimated cost ∼ EUR 20.");
-    expect(reply.text).not.toContain("Stock 5 KI");
-  });
-
-  it("returns exact supplied actions, bounded to three, without mutating facts", () => {
-    const input = facts({ actions: Array.from({ length: 7 }, (_, n) => ({ label: `Choice ${n}`, text: `  exact_${n}\n` })) });
-    const before = structuredClone(input);
-    const reply = formatWhatsAppReply(input);
-    expect(reply.actions).toEqual(input.actions!.slice(0, 3));
-    expect(reply.text).toContain("4 more actions in the app.");
-    expect(reply.text).toContain("Next: open the basket in the app for full details.");
+    expect(reply.text).toContain(`${BASE}/baskets/evt_banquet`);
+    expect(reply.actions[0].text).toBe("exact\n*ROUTING* _text_");
     reply.actions[0].text = "changed";
     expect(input).toEqual(before);
   });
 
-  it("truncates long baskets with an accurate count and a full-basket CTA", () => {
+  it("bounds long baskets with an exact omitted count and a working specific link, keeping chat actions", () => {
     const lines = Array.from({ length: 143 }, (_, n) => ({ ...milk, id: `line_${n}`, name: `Product ${n}`, stock: n === 142 ? "unknown" as const : "confirmed" as const }));
-    const reply = formatWhatsAppReply(facts({ lines }));
-    const shown = (reply.text.match(/• \d+ ×/g) ?? []).length;
+    const reply = render(facts({ lines }));
+    const shown = (reply.text.match(/\*4 KI\*/g) ?? []).length;
     expect(shown).toBeGreaterThan(0);
     expect(shown).toBeLessThanOrEqual(8);
-    expect(reply.text).toContain(`… ${143 - shown} more items in the full basket.`);
-    expect(reply.text).toContain("Stock unknown for 1 item; availability is unconfirmed.");
-    expect(reply.text).toContain("Next: open the full basket in the app.");
+    expect(reply.text).toContain(`_${143 - shown} more items._`);
+    expect(reply.text).toContain("Stock is also unconfirmed for 1 more item");
+    expect(reply.text).toContain("Reply *confirm order*.");
+    expect(reply.text).toContain(`${BASE}/baskets/evt_banquet`);
     expect(reply.text.length).toBeLessThanOrEqual(4_000);
   });
 
-  it("keeps warnings, or explicitly points to the omitted warnings", () => {
-    const warnings = Array.from({ length: 12 }, (_, n) => `Safety warning ${n}: ${"allergen information ".repeat(50)}`);
-    const reply = formatWhatsAppReply(facts({ warnings }));
+  it("bounds long choice lists and links to the orders list without forcing the user out of chat", () => {
+    const choices = Array.from({ length: 30 }, (_, n) => ({ ...order, id: `evt_${n}`, name: `Conference ${n}` }));
+    const reply = render({ status: "clarification", headline: "Which order?", orderChoices: choices });
+    expect(reply.text).toContain("_18 more orders are available._");
+    expect(reply.text).toContain("Reply with the *order name*.");
+    expect(reply.text).toContain(`*See all orders*\n${BASE}/`);
+    expect(reply.text).not.toMatch(/TBC|total|shortened/i);
+  });
+
+  it("keeps warning omission counts and links to the affected basket instead of saying check app", () => {
+    const reply = render(facts({ warnings: Array.from({ length: 12 }, (_, n) => `Safety warning ${n}: ${"allergen information ".repeat(50)}`) }));
     const shown = (reply.text.match(/• Safety warning /g) ?? []).length;
-    expect(shown).toBeGreaterThan(0);
-    expect(shown).toBeLessThanOrEqual(4);
-    expect(reply.text).toContain(`… ${12 - shown} more warnings in the app.`);
-    expect(reply.text).toContain("Text shortened; full details and warnings are in the app.");
-    expect(reply.text).toContain("Next: open the basket in the app for full details.");
+    expect(reply.text).toContain(`_${12 - shown} more warnings._`);
+    expect(reply.text).toContain(`${BASE}/baskets/evt_banquet`);
+    expect(reply.text).not.toMatch(/in the app|check the app|Text shortened/i);
     expect(reply.text.length).toBeLessThanOrEqual(4_000);
   });
 
-  it("bounds lengthy text while preserving status, totals, unknown stock and a CTA", () => {
+  it("retains valid markup and complete links under extreme text lengths", () => {
     const long = "🧑‍🍳 Extremely long product name ".repeat(300);
-    const reply = formatWhatsAppReply(facts({
-      status: "blocked", headline: long, detail: long,
-      order: { id: long, name: long, deliveryDate: long, version: 1 },
-      lines: Array.from({ length: 50 }, (_, n) => ({ ...milk, id: String(n), name: long, unit: long, stock: "unknown" })),
-      warnings: Array.from({ length: 20 }, () => long),
-      actions: Array.from({ length: 10 }, () => ({ label: long, text: long })),
-      totalExVat: null,
-    }));
+    const reply = render(facts({ status: "blocked", headline: long, detail: long, lines: Array.from({ length: 50 }, () => ({ ...milk, name: long, unit: long, stock: "unknown" })), warnings: Array.from({ length: 20 }, () => long), actions: Array.from({ length: 10 }, () => ({ label: long, text: long })), totalExVat: null }));
     expect(reply.text.length).toBeLessThanOrEqual(4_000);
-    expect(reply.text).toContain("*Request blocked*\nNo order placed by this request.");
-    expect(reply.text).toContain("*Total (ex VAT): EUR TBC*");
-    expect(reply.text).toContain("Stock unknown for 50 items; availability is unconfirmed.");
-    expect(reply.text).toMatch(/\d+ more warnings in the app/);
-    expect(reply.text).toContain("Next: open the full basket in the app.");
-    expect(reply.text.match(/Next:/g)).toHaveLength(1);
+    expect(reply.text).toContain("Nothing ordered by this request.");
+    expect(reply.text).toContain("Price not confirmed");
+    expect(reply.text).toContain(`${BASE}/baskets/evt_banquet`);
     expect(reply.text).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/u);
-    expect(reply.actions).toHaveLength(3);
-    expect(reply.actions[0].text).toBe(long);
   });
 
-  it("bounds multiple receipt IDs and states the accurate omitted count", () => {
-    const reply = formatWhatsAppReply(facts({ status: "ordered", orderIds: Array.from({ length: 9 }, (_, n) => `mock_${n}`) }));
-    expect(reply.text.match(/Mock order ID:/g)).toHaveLength(3);
-    expect(reply.text).toContain("6 more mock order IDs in the app.");
-    expect(reply.text).toContain("Next: open the basket in the app for full details.");
-  });
-
-  it("omits empty warnings and renders an empty basket without invented items", () => {
-    const reply = formatWhatsAppReply(facts({ lines: [], warnings: ["", " \n", "<b></b>"], order: null, actions: [] }));
-    expect(reply.text).not.toMatch(/\*Items|\*Warnings|Basket ID|Mock receipt/);
-    expect(reply.text).toContain("*Total (ex VAT): EUR 79.20*");
-    expect(reply.text).toContain("Next: review the basket in the app.");
-  });
-
-  it("does not print nonfinite numbers as confirmed prices or quantities", () => {
-    const reply = formatWhatsAppReply(facts({ lines: [{ ...milk, quantity: NaN, lineTotal: Infinity }], totalExVat: NaN }));
-    expect(reply.text).not.toMatch(/NaN|Infinity/);
-    expect(reply.text).toContain("TBC × KI");
-    expect(reply.text.match(/EUR TBC/g)).toHaveLength(2);
+  it("builds internal deep links with encoded IDs and rejects unsafe destinations or origins", () => {
+    expect(whatsAppLink("/requests/plan_%2F%3F", BASE)).toBe(`${BASE}/requests/plan_%2F%3F`);
+    for (const path of ["https://evil.example", "//evil.example", "/\\evil.example", "/basket\nspoof"]) expect(whatsAppLink(path, BASE)).toBeNull();
+    for (const base of ["javascript:alert(1)", "https://user:secret@example.com", "not a URL", `${BASE}?secret=1`]) expect(whatsAppLink("/baskets/evt_123", base)).toBeNull();
+    expect(render(facts({ appLink: { label: "Unsafe", path: "//evil.example" } })).text).not.toContain("evil.example");
   });
 });

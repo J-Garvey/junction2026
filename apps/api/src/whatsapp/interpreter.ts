@@ -25,10 +25,6 @@ const CONFIRM = /\b(?:confirm|place|submit|checkout)\b/i;
 const SUMMARY = /\b(?:summary|summari[sz]e|show|view|status|details)\b|^what(?:'s| is| are)?\b/i;
 const DATE = /\b(?:20\d{2}-\d{2}-\d{2}|today|tomorrow|(?:mon|tue|wed|thu|fri|sat|sun)(?:day|sday|nesday|rsday|urday)?|\d{1,2}\s*(?:\.|st|nd|rd|th)?\s*(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*)\b/gi;
 
-function choicesQuestion(message: string, choices: WhatsAppOrderRef[]): string {
-  return choices.length ? `${message} ${choices.map((order) => `${order.name} (${order.id}, ${order.deliveryDate})`).join("; ")}.` : message;
-}
-
 function referenceMatches(reference: string, context: WhatsAppInterpretContext): WhatsAppOrderRef[] {
   let query = reference.trim().replace(/^[#\s"']+|[\s"'.!?]+$/g, "");
   query = query.replace(/^(?:(?:the|my|our|order|basket|id|number|named|called|for|on|of|dated|delivery)\s+)+/i, "")
@@ -140,14 +136,14 @@ function resolveOrder(text: string, context: WhatsAppInterpretContext): Resoluti
     const available = choices.length ? choices : context.orders;
     return {
       order: null, body, explicit: true, choices: available,
-      question: choicesQuestion(matches.some((set) => !set.length) ? "I couldn't identify that order. Which order do you mean?" : "Which order do you mean?", available),
+      question: matches.some((set) => !set.length) ? "I couldn't identify that order. Which order do you mean?" : "Which order do you mean?",
     };
   }
   const order = context.orders.find((candidate) => candidate.id === context.activeOrderId)
     ?? (!context.activeOrderId && context.orders.length === 1 ? context.orders[0] : null);
   return {
     order, body, explicit: false, choices: order ? [] : context.orders,
-    question: order ? null : choicesQuestion(context.orders.length ? "Which order do you mean?" : "There are no orders to select.", context.orders),
+    question: order ? null : context.orders.length ? "Which order do you mean?" : "There are no orders to select.",
   };
 }
 
