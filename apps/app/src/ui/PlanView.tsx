@@ -8,6 +8,7 @@ import { Status, Fixture, UnknownStockMark } from "./Status";
 import { Pop, LineSource, CandidateSource, stockText } from "./Popover";
 import { Icon } from "./icons";
 import { SelectionFunnel } from "./SelectionFunnel";
+import { CarbonEstimate } from "./CarbonEstimate";
 
 const ORDER: Record<string, number> = { allergy_warning: 0, blocked: 1, not_available: 2, unresolved: 3, unknown_stock: 4, covered_at_risk: 5, waiting: 6, check: 7, covered: 8 };
 
@@ -41,15 +42,13 @@ export function LineRow({ plan, line, warnings, onRemove, showPrice = true, shar
         </Pop>
         {(() => {
           const r = line.rules.find((x) => x.outcome !== "order" && x.ruleId !== "STK-01");
-          const co2 = line.co2Kg != null ? `≈ ${Math.round(line.co2Kg)} kg CO₂e` : null;
-          return r || co2 ? (
+          return r ? (
             <div className="small muted trunc">
               {r && <span title={r.message}>{r.label ?? r.ruleId}</span>}
-              {r && co2 ? " · " : ""}
-              {co2 && <span title="Product-group average, not this product's own figure (63% of products have one)">{co2}</span>}
             </div>
           ) : null;
         })()}
+        <CarbonEstimate line={line} shared={share != null && line.shares.length > 1} />
       </div>
       <div className="pline-q num">
         <Pop label={<span>{share != null ? `${qty(share)} ${line.needAmount.unit}` : `${line.quantity} ${line.salesUnit ?? ""}`}</span>}>{pop}</Pop>
