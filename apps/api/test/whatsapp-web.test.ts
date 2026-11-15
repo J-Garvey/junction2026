@@ -9,6 +9,7 @@ process.env.OPENAI_API_KEY = "";
 process.env.AIMO_MODE = "fixture";
 const { seedReset } = await import("../src/seed.js");
 const { getPerson, issueToken } = await import("../src/identity.js");
+const { getDb, kvGet } = await import("../src/db.js");
 const { WhatsAppWebBridge } = await import("../src/whatsapp/web.js");
 const { whatsappWebRouter } = await import("../src/whatsapp/web-routes.js");
 const GROUP = "120300001@g.us";
@@ -47,10 +48,22 @@ async function ready(select = true) {
   if (select) bridge.selectGroup(person(), GROUP);
 }
 function latch() { let release!: () => void; return { promise: new Promise<void>((r) => { release = r; }), release: () => release() }; }
+async function restart() {
+  await bridge.close();
+  browser = new Browser();
+  bridge = new WhatsAppWebBridge(handler, { createClient, clock: () => NOW });
+  return bridge.restore();
+}
+async function restoredReady() {
+  expect(await restart()).toBe(true);
+  browser.emit("ready");
+  await vi.waitFor(() => expect(bridge.status(person()).phase).toBe("ready"));
+}
 
 describe("regular WhatsApp Web bridge", () => {
-  it("starts only on explicit connect, renders pairing QR privately and connects idempotently", async () => {
+  it("stays stopped until explicitly enabled, renders pairing QR privately and connects idempotently", async () => {
     expect(bridge.status(person()).phase).toBe("disconnected");
+    expect(await bridge.restore()).toBe(false);
     expect(createClient).not.toHaveBeenCalled();
     expect((await bridge.connect(person(), token)).phase).toBe("starting");
     await bridge.connect(person(), token);
@@ -61,6 +74,88 @@ describe("regular WhatsApp Web bridge", () => {
     expect(() => bridge.status(getPerson("p-sanna")!)).toThrow("controlled by Aino");
     browser.emit("authenticated");
     expect(bridge.status(person())).toMatchObject({ phase: "authenticated", qrDataUrl: null });
+  });
+
+  it("restores the owner and group without another button press or the old browser token", async () => {
+    await ready();
+    expect(kvGet("whatsapp-web:resume")).toEqual({ personId: person().id });
+    getDb().prepare("DELETE FROM tokens WHERE token = ?").run(token);
+    const currentPerson = { ...person(), hotelScope: false, outlets: [] };
+    getDb().prepare("UPDATE people SET json = ? WHERE id = ?").run(JSON.stringify(currentPerson), currentPerson.id);
+    await restoredReady();
+    expect(browser.initialize).toHaveBeenCalledTimes(1);
+    expect(bridge.status(person())).toMatchObject({ ownerName: person().name, selectedGroupId: GROUP, qrDataUrl: null });
+    await bridge.restore();
+    expect(browser.initialize).toHaveBeenCalledTimes(1);
+    await bridge.receive(message());
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler.mock.calls[0][0].token).not.toBe(token);
+    expect(handler.mock.calls[0][0].person).toEqual(currentPerson);
+  });
+
+  it("protects a saved owner's connection before startup restore finishes", async () => {
+    await ready();
+    await bridge.close();
+    bridge = new WhatsAppWebBridge(handler, { createClient });
+    const other = getPerson("p-sanna")!;
+    expect(() => bridge.status(other)).toThrow("controlled by Aino");
+    await expect(bridge.connect(other, issueToken({ kind: "person", personId: other.id }))).rejects.toMatchObject({ status: 403 });
+    expect(createClient).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a paused connection paused after restarting", async () => {
+    await ready();
+    bridge.selectGroup(person(), null);
+    await restoredReady();
+    expect(bridge.status(person()).selectedGroupId).toBeNull();
+    await bridge.receive(message());
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("retains each sender's selected order but invalidates pending confirmations after restart", async () => {
+    await ready();
+    handler.mockImplementation(async ({ conversation }) => ({ conversation: { activeOrderId: "evt-wedding", pending: { kind: "confirm_order", orderId: "evt-wedding", fingerprint: "before-restart" } }, reply: { text: "Review order", status: "summary", actions: [] } }));
+    await bridge.receive(message());
+    await restoredReady();
+    await bridge.receive(message()); // Persistent delivery guard also survives restart.
+    expect(handler).toHaveBeenCalledTimes(1);
+    await bridge.receive(message({ id: { _serialized: "after-restart" }, body: "confirm order" }));
+    expect(handler.mock.calls[1][0].conversation).toEqual({ activeOrderId: "evt-wedding", pending: null });
+    await bridge.receive(message({ id: { _serialized: "another-sender" }, author: "sender-two@lid" }));
+    expect(handler.mock.calls[2][0].conversation).toEqual({ activeOrderId: null, pending: null });
+    await bridge.receive(message({ id: { _serialized: "own-outbound-replay" }, body: "Review order", fromMe: true, to: GROUP }));
+    expect(handler).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not restore after intentional logout or transfer another person's order context", async () => {
+    await ready();
+    await bridge.receive(message());
+    await bridge.disconnect(person());
+    expect(browser.logout).toHaveBeenCalledTimes(1);
+    expect(await restart()).toBe(false);
+    const other = getPerson("p-sanna")!;
+    await bridge.connect(other, issueToken({ kind: "person", personId: other.id }));
+    browser.emit("ready");
+    await vi.waitFor(() => expect(bridge.status(other).phase).toBe("ready"));
+    await bridge.receive(message({ id: { _serialized: "other-owner" } }));
+    expect(handler.mock.calls[1][0].conversation).toEqual({ activeOrderId: null, pending: null });
+  });
+
+  it("does not restore after a demo reset", async () => {
+    await ready();
+    await bridge.close();
+    seedReset();
+    expect(await restart()).toBe(false);
+    expect(createClient).toHaveBeenCalledTimes(1);
+  });
+
+  it("disables restoration when the saved controlling person was removed", async () => {
+    await ready();
+    await bridge.close();
+    getDb().prepare("DELETE FROM people WHERE id = ?").run("p-aino");
+    expect(await restart()).toBe(false);
+    expect(kvGet("whatsapp-web:resume")).toBeNull();
+    expect(createClient).toHaveBeenCalledTimes(1);
   });
 
   it("loads only real groups and starts paused until a group is explicitly selected", async () => {
