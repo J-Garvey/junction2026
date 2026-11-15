@@ -44,7 +44,8 @@ function productJudgements(need: Need, productId: string) {
 }
 
 export function SelectionFunnel({ need, lines }: { need: Need; lines: PlanLine[] }) {
-  if (need.pinnedProductId) return null;
+  // Older event snapshots may carry dish allocations without selection evidence.
+  if (need.pinnedProductId || !Array.isArray(need.candidates) || !Array.isArray(need.excluded) || !Array.isArray(need.judgements)) return null;
   const funnel = selectionFunnel(need);
   const selected = new Map(lines.filter((l) => !l.removed && l.quantity > 0 && l.productId && l.needIds.includes(need.id)).map((l) => [l.productId!, l]));
   const outsideRanking = [...selected.values()].filter((l) => !funnel.candidates.some((c) => c.productId === l.productId));
