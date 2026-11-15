@@ -184,6 +184,10 @@ export async function handleWhatsAppMessage(input: { person: Person; token: stri
     } catch (error) { return blocked("The gateway could not quote this basket.", error instanceof GatewayError ? error.message : "Try again in the app."); }
     if (basketSnapshot(id) !== snapshot) return blocked("The basket changed while the final checks were running. Review it again.");
     if (quote.outcome === "block" || quote.lines.some((l) => l.lineTotal === null || (l.stock.kind !== "known" && !continued.has(l.productId)))) return blocked("The gateway blocked this basket.", quote.lines.flatMap((l) => l.rules.filter((r) => r.outcome !== "order").map((r) => r.message)).join(" "));
+    // Accounting outlets share supplier stock; do not count the same stock twice.
+    const totalsByProduct = new Map<string, number>();
+    for (const line of quote.lines) totalsByProduct.set(line.productId, (totalsByProduct.get(line.productId) ?? 0) + line.quantity);
+    if (quote.lines.some((l) => l.stock.kind === "known" && totalsByProduct.get(l.productId)! > l.stock.amount)) return blocked("There is not enough confirmed stock for the entire basket.", "Reduce the requested quantity in the app before confirming.");
     // The fresh gateway quote may not silently replace the terms the person saw.
     if (quote.totalExVat !== current.totalExVat || quote.lines.some((l) => { const original = grouped.get(`${l.productId}|${l.outletId}`)!.line; return l.unitPrice !== original.unitPrice || l.availableDate !== original.availableDate || l.closingTime !== original.closingTime; })) return blocked("Price or delivery terms changed during the final check. Review the basket in the app.");
     const plan = newPlan("event", { personId: person.id, name: person.name }, person.outlets[0] ?? "banquet", {
