@@ -11,6 +11,8 @@ describe("literal purchase requests skip the model", () => {
     ["40 l lactose-free milk", "milk", 40, "l", ["FREE_FROM_LACTOSE"]],
     ["10 kg chicken burger", "chicken burger", 10, "kg", []],
     ["12 x cakes", "cakes", 12, "pcs", []],
+    ["10 slices of cheese", "sliced cheese", 10, "pcs", []],
+    ["1 slice of cheese", "sliced cheese", 1, "pcs", []],
     ["milk", "milk", 1, "pcs", []],
     ["Please add 1,5 l gluten-free oat milk", "oat milk", 1.5, "l", ["FREE_FROM_GLUTEN"]],
     ["I need 1,000 litres of lactose-free milk by Monday", "milk", 1000, "l", ["FREE_FROM_LACTOSE"]],

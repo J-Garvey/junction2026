@@ -55,10 +55,10 @@ const CLAIM_WORDS: [RegExp, string][] = [
   [/milk[- ]?free|maidoton/, "FREE_FROM_MILK"],
 ];
 
-const UNIT_MAP: Record<string, Unit> = { l: "l", litre: "l", litres: "l", liter: "l", liters: "l", ltr: "l", kg: "kg", kilo: "kg", kilos: "kg", g: "g", gram: "g", grams: "g", ml: "ml", dl: "dl", pcs: "pcs", pieces: "pcs", piece: "pcs", pc: "pcs" };
+const UNIT_MAP: Record<string, Unit> = { l: "l", litre: "l", litres: "l", liter: "l", liters: "l", ltr: "l", kg: "kg", kilo: "kg", kilos: "kg", g: "g", gram: "g", grams: "g", ml: "ml", dl: "dl", pcs: "pcs", pieces: "pcs", piece: "pcs", pc: "pcs", slice: "pcs", slices: "pcs" };
 
 const NUMBER = "[+-]?(?:\\d+(?:[.,]\\d+)?|[.,]\\d+)";
-const UNIT_AMOUNT = new RegExp(`(?<![\\d.,])(${NUMBER})\\s*(?:(?:additional|more)\\s+)?(litres?|liters?|ltr|l|kg|kilos?|grams?|g|ml|dl|pcs|pieces?|pc)\\b`);
+const UNIT_AMOUNT = new RegExp(`(?<![\\d.,])(${NUMBER})\\s*(?:(?:additional|more)\\s+)?(litres?|liters?|ltr|l|kg|kilos?|grams?|g|ml|dl|pcs|pieces?|pc|slices?)\\b`);
 /** A number on its own, with an optional "x" either side; not a 6-digit product code or a day of the month. */
 const BARE_COUNT = /(?:\bx\s*)?(?<![\d.,/-])([+-]?(?:\d{1,5}(?:[.,]\d+)?|[.,]\d+))(?![\d.,/%-])(?!\s*%)(?!\s*(?:\.|st|nd|rd|th)?\s*(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec))(?:\s*x\b)?/;
 // The request contract cannot enforce fat percentages; preserve them and ask before matching.
@@ -196,7 +196,8 @@ export function rulesParse(text: string): Omit<SingleRequest, "siteId" | "outlet
     const claims = [...new Set([...global.claims, ...local.claims])];
     const pid = s.match(/\b(4\d{5})\b/);
     const leftover = local.rest
-      .replace(q ? UNIT_AMOUNT : BARE_COUNT, "")
+      // A slice is a requested piece, while "sliced" remains a product requirement.
+      .replace(q ? UNIT_AMOUNT : BARE_COUNT, q && /^slices?$/.test(q[2]) ? "sliced" : "")
       .replace(pid ? new RegExp(`\\b${pid[1]}\\b`) : /$^/, "")
       .replace(/\bof\b|\bi need\b|\bwe need\b|\bplease\b|\border\b|^\s*add\b/g, "")
       .replace(/\s+/g, " ")
@@ -236,7 +237,7 @@ const PARSE_SCHEMA = {
         additionalProperties: false,
         required: ["text", "productWord", "productType", "productId", "amount", "unit", "claims", "avoidAllergens", "origin"],
         properties: {
-          text: { type: "string" },
+          text: { type: "string", description: "The complete original item text, including its quantity, unit and restrictions. Do not rewrite or shorten it." },
           productWord: { type: "string", description: "The complete product description in English, preserving brand, species, form and modifiers, e.g. 'chicken burger', 'oat milk', 'unsalted butter'. Never shorten to a broader product." },
           productType: { type: ["string", "null"], description: "Specific type if the text names one, e.g. 'plain drinking milk' for 'milk'; null if it could be several types" },
           productId: { type: ["string", "null"] },
@@ -292,10 +293,12 @@ export function parseSimpleRequest(text: string): Omit<SingleRequest, "siteId" |
   body = body.replace(/^(?:(?:i|we) need\s+|please\s+|add\s+|order\s+)+/, "");
   const parts = body.split(LIST_SEPARATOR);
   if (!parts.length) return null;
-  const amountPrefix = /^(\d+(?:[.,]\d+)?)\s*(?:(litres?|liters?|ltr|kg|kilos?|grams?|ml|dl|pcs|pieces?|pc|l|g)\b|x\b)?\s*/;
+  const amountPrefix = /^(\d+(?:[.,]\d+)?)\s*(?:(litres?|liters?|ltr|kg|kilos?|grams?|ml|dl|pcs|pieces?|pc|l|g|slices?)\b|x\b)?\s*/;
   for (let part of parts) {
     if (/^4\d{5}$/.test(part)) continue;
+    const amount = part.match(amountPrefix);
     part = part.replace(amountPrefix, "").replace(/^of\s+/, "");
+    if (/^slices?$/.test(amount?.[2] ?? "")) part = `sliced ${part}`;
     // Claim removal must consume whole phrases; an unrecognised restriction is never dropped.
     part = part.replace(/\b(?:lactose[- ]free|gluten[- ]free|milk[- ]free|vegan)\b/g, "").trim();
     if (!/^4\d{5}$/.test(part) && !isLiteralProductQuery(part)) return null;
@@ -327,17 +330,20 @@ export async function parseRequest(text: string): Promise<{ request: Omit<Single
     const r = readModelRequest(rawResult, text);
     const date = resolveDate(r.neededByText ?? text);
     const lines: SingleLine[] = r.lines.map((l) => {
-      const stated = restrictions((r.lines.length === 1 ? text : l.text).toLowerCase());
+      // The source is authoritative. Models sometimes shorten an item's text to
+      // its product name even when they correctly return its separate amount.
+      const source = r.lines.length === 1 ? text : l.text;
+      const stated = restrictions(source.toLowerCase());
       const pw = productWord(String(l.productWord));
       return {
         id: lineId(),
-        text: l.text,
+        text: source,
         query: l.productWord,
         productType: l.productType ?? pw?.type ?? null,
         category: pw?.category ?? null,
         productId: l.productId && /^\d{6}$/.test(l.productId) ? l.productId : null,
         // A count without a unit is pieces; an unclear or invalid amount needs clarification.
-        quantity: typeof l.amount === "number" && l.amount >= 0 && !UNSUPPORTED_SPEC.test(`${l.text} ${l.productWord}`) && !unclearQuantity(l.text) ? { amount: l.amount, unit: l.unit ?? "pcs" } : null,
+        quantity: typeof l.amount === "number" && l.amount >= 0 && !UNSUPPORTED_SPEC.test(`${source} ${l.productWord}`) && !unclearQuantity(source) ? { amount: l.amount, unit: l.unit ?? "pcs" } : null,
         constraints: { claims: l.claims, avoidAllergens: [...new Set([...l.avoidAllergens, ...stated.avoidAllergens])], labels: [], ...(l.origin ? { origin: l.origin } : {}) },
       };
     });
