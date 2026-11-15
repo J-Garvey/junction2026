@@ -12,12 +12,13 @@ import { audit, auditView, verifyChain, decisionCount, SYSTEM } from "../audit.j
 import { kvGet, kvSet } from "../db.js";
 import { FIXED, rulesView } from "../rules/catalogue.js";
 import { PARAMS, policyParams, storedPolicy } from "../rules/policy.js";
-import { editRules, resetRules, RuleEditError } from "../rules/editor.js";
+import { defaultRuleParams, editRules, resetRules, RuleEditError } from "../rules/editor.js";
 import { getProduct, getProductDetails, catalogSize } from "../catalog.js";
 import { interpretMessage } from "../agent/message.js";
 import { logSearch } from "../searchlog.js";
 import { matchesCurrentShortlists, shortlist } from "../agent/match.js";
 import { allItemsResolved, quantityScope, refreshItemReviews } from "../agent/itemReview.js";
+import { toBase } from "../agent/parse.js";
 import { newPlan, quoteAndDecide, getPlan, listPlans, mandate, savePlan, emptyOverrides, HOTEL_ID, needsFromSingle } from "../agent/plan.js";
 import { questionsFor, allQuestions, getQuestion, canAnswer } from "../agent/questions.js";
 import { answer } from "../agent/answers.js";
@@ -198,12 +199,19 @@ export function appRouter(): Router {
     const p = P(req);
     if (request.outletId !== plan.outletId || (request.siteId ?? plan.siteId) !== plan.siteId)
       return res.status(403).json({ error: "A correction must stay within the original delivery site and outlet" });
-    // Editing or discarding one row retains explicit choices for unchanged rows.
+    // A product choice belongs to a stable need, so compatible quantity edits keep it.
+    // Text, product, diet or unit-dimension changes require a fresh choice.
     // Rechecking retains item approvals only if their complete terms still match.
     const previous = plan.request;
     const sameScope = previous?.siteId === request.siteId && previous?.outletId === request.outletId && previous?.neededBy === request.neededBy;
     const unchanged = new Set(sameScope ? request.lines.filter((line) => previous?.lines.some((old) => old.id === line.id && JSON.stringify(old) === JSON.stringify(line))).map((line) => line.id) : []);
-    const chosen = plan.overrides.chosen?.filter((choice) => [...unchanged].some((id) => choice.startsWith(`${id}:`)));
+    const sameNeeds = new Set(sameScope ? request.lines.filter((line) => {
+      const old = previous?.lines.find((old) => old.id === line.id);
+      return old?.quantity && line.quantity
+        && toBase(old.quantity).unit === toBase(line.quantity).unit
+        && JSON.stringify({ ...old, quantity: line.quantity }) === JSON.stringify(line);
+    }).map((line) => line.id) : []);
+    const chosen = plan.overrides.chosen?.filter((choice) => [...sameNeeds].some((id) => choice.startsWith(`${id}:`)));
     const salesQuantities = plan.overrides.salesQuantities?.filter((quantity) => unchanged.has(quantity.needId));
     plan.request = request;
     plan.siteId = request.siteId ?? plan.siteId;
@@ -506,6 +514,7 @@ export function appRouter(): Router {
       mandate: mandate(),
       fixed: FIXED,
       params: PARAMS,
+      defaultParams: defaultRuleParams(),
       policy: { params: policyParams(), version: p.version, updatedBy: p.updatedBy, updatedAt: p.updatedAt },
       canEdit: P(req).role === "approver",
       remembered: listRemembered(),

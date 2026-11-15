@@ -45,7 +45,11 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
     ? review.reason ?? (found.some((product) => product.stock?.kind === "unknown") ? "Approving continues with stock not confirmed." : null)
     : null;
   const hasIssue = unknownProduct || noMatch || tooLate || !found.length;
-  const expanded = !!children || !checked || hasIssue || warnings.length > 0 || !!decisionNote || review?.quantityRequired || showDetails;
+  // Keep the sales-unit correction available after checking a manual quantity.
+  // A known weight per pack still cannot convert a request for pieces.
+  const canEditSalesQuantity = !!review && found.length === 1 && !!found[0].salesUnit
+    && (!found[0].packContent || found[0].packContent.unit !== (need?.amount.unit ?? line.quantity?.unit));
+  const expanded = !!children || !checked || hasIssue || warnings.length > 0 || !!decisionNote || canEditSalesQuantity || showDetails;
 
   return (
     <tbody className="add-review-item" aria-labelledby={headingId} aria-busy={disabled && !checked}>
@@ -106,13 +110,13 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
                 ...(line.constraints.origin ? [`Required origin: ${line.constraints.origin}`] : []),
               ].join(" · ")}</p>}
 
-              {review?.quantityRequired && found.length === 1 && (
+              {review && canEditSalesQuantity && (
                 <form key={review.fingerprint} className="add-review-sales-quantity" onSubmit={(event) => {
                   event.preventDefault();
                   onSalesQuantity(found[0].productId!, Number(new FormData(event.currentTarget).get("salesQuantity")));
                 }}>
-                  <label className="field"><span className="small">Sales units to order ({found[0].salesUnit})</span><input name="salesQuantity" aria-label={`Sales units for ${line.query}`} type="number" min="1" max="1000000" step="1" required disabled={disabled} /></label>
-                  <p className="small muted">The pack conversion is unknown. Enter whole sales units, then check the price before approving.</p>
+                  <label className="field"><span className="small">Sales units to order ({found[0].salesUnit})</span><input name="salesQuantity" aria-label={`Sales units for ${line.query}`} type="number" min="1" max="1000000" step="1" required defaultValue={found[0].quantity > 0 ? found[0].quantity : ""} disabled={disabled} /></label>
+                  <p className="small muted">The conversion to your requested amount is unknown. Enter or correct whole sales units, then check the price before approving.</p>
                   <button type="submit" className="btn sm" disabled={disabled}>Check quantity</button>
                 </form>
               )}

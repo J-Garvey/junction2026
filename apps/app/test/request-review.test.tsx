@@ -401,7 +401,7 @@ describe("saved request review controls", () => {
   });
 
   it("keeps the selection after a failed replacement and allows a retry", async () => {
-    vi.spyOn(api, "choose").mockRejectedValue(new ApiError(0, { message: "Can't reach the server right now. Nothing has been ordered." }));
+    vi.spyOn(api, "choose").mockRejectedValue(new ApiError(0, { message: "Can't reach the server right now." }));
     show(fixture());
     fireEvent.click(screen.getByRole("button", { name: "View details" }));
     fireEvent.click(screen.getByRole("button", { name: "Suggest replacements" }));
@@ -432,6 +432,48 @@ describe("saved request review controls", () => {
     await waitFor(() => expect((screen.getByRole("button", { name: "Approve milk" }) as HTMLButtonElement).disabled).toBe(false));
     expect((screen.getByRole("button", { name: "Add to order" }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getAllByText(/60,00/).length).toBeGreaterThan(0);
+  });
+
+  it.each([null, { value: 8.16, unit: "kg", source: "catalog", verified: false }] as const)("keeps checked sales units correctable without converting the requested pieces (pack %j)", async (packContent) => {
+    function eggs(quantity: number, fingerprint: string, approved = false, unitPrice = 28.48) {
+      const result = fixture(approved);
+      const request = result.plan.request!;
+      request.lines[0] = { ...request.lines[0], query: "468445", quantity: { amount: 30, unit: "pcs" } };
+      result.plan.needs[0].amount = { value: 30, unit: "pcs" };
+      result.plan.lines[0] = { ...result.plan.lines[0], productId: "468445", productName: "Kieku eggs", needAmount: { value: 30, unit: "pcs" }, quantity, packContent, unitPrice, lineTotal: quantity * unitPrice };
+      result.plan.totalExVat = quantity * unitPrice;
+      result.plan.itemReviews![0] = { ...result.plan.itemReviews![0], fingerprint, quantityRequired: quantity === 0, canApprove: quantity > 0 };
+      return result;
+    }
+    vi.spyOn(api, "requote");
+    vi.spyOn(api, "itemSalesQuantity").mockResolvedValueOnce(eggs(2, "two-fp")).mockResolvedValueOnce(eggs(1, "one-fp", false, 30));
+    vi.spyOn(api, "approveItem").mockResolvedValueOnce(eggs(2, "two-fp", true)).mockResolvedValueOnce(eggs(1, "one-fp", true, 30));
+    show(eggs(0, "unresolved-fp"));
+
+    let input = screen.getByRole("spinbutton", { name: "Sales units for 468445" }) as HTMLInputElement;
+    expect(input.step).toBe("1");
+    expect(input.min).toBe("1");
+    fireEvent.change(input, { target: { value: "0.5" } });
+    expect(input.checkValidity()).toBe(false);
+    fireEvent.change(input, { target: { value: "2" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check quantity" }));
+    await waitFor(() => expect(api.itemSalesQuantity).toHaveBeenNthCalledWith(1, "plan", "need", "unresolved-fp", "468445", 2));
+    await waitFor(() => expect((screen.getByRole("spinbutton", { name: "Sales units for 468445" }) as HTMLInputElement).value).toBe("2"));
+    expect(screen.getAllByText(/56,96/).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "Approve 468445" }));
+    await waitFor(() => expect((screen.getByRole("button", { name: "Add to order" }) as HTMLButtonElement).disabled).toBe(false));
+
+    input = screen.getByRole("spinbutton", { name: "Sales units for 468445" }) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check quantity" }));
+    await waitFor(() => expect(api.itemSalesQuantity).toHaveBeenNthCalledWith(2, "plan", "need", "two-fp", "468445", 1));
+    await waitFor(() => expect((screen.getByRole("spinbutton", { name: "Sales units for 468445" }) as HTMLInputElement).value).toBe("1"));
+    expect(screen.getAllByText(/30,00/).length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Edit quantity for 468445" }).textContent).toBe("30 pcs");
+    expect((screen.getByRole("button", { name: "Add to order" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Approve 468445" }));
+    await waitFor(() => expect(api.approveItem).toHaveBeenLastCalledWith("plan", "need", "one-fp"));
+    expect(api.requote).not.toHaveBeenCalled();
   });
 
   it("opens from the pending row and moves the item into the order with a persistent success message", async () => {
