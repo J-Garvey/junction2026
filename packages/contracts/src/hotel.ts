@@ -133,7 +133,7 @@ export interface Plan {
   /** The add-item modal is reviewing this plan; it is hidden from order lists until staged. */
   reviewing?: boolean;
   /** Measured while running: how long each agent step took. */
-  timings?: { products: number; lookupMs: number; rankMs: number; quoteMs?: number; totalMs: number } | null;
+  timings?: { products: number; searchMs?: number; lookupMs: number; rankMs: number; quoteMs?: number; totalMs: number } | null;
 }
 
 export interface WarningRecord {

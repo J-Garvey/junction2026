@@ -12,7 +12,7 @@ import { audit, auditView, verifyChain, decisionCount, SYSTEM } from "../audit.j
 import { kvGet, kvSet } from "../db.js";
 import { RULES, FIXED } from "../rules/catalogue.js";
 import { getProduct, catalogSize } from "../catalog.js";
-import { parseRequest } from "../agent/parse.js";
+import { parseRequest, parseSimpleRequest } from "../agent/parse.js";
 import { logSearch } from "../searchlog.js";
 import { messageRoute } from "../agent/judge.js";
 import { matchesCurrentShortlists } from "../agent/match.js";
@@ -104,13 +104,14 @@ export function appRouter(): Router {
   // Chat box: route the message (MESSAGE-ROUTE), then parse a new request into chips (REQUEST-PARSE).
   r.post("/messages", async (req, res) => {
     const { text } = z.object({ text: z.string().min(1).max(2000) }).parse(req.body);
-    const route = await messageRoute(text);
+    const simple = parseSimpleRequest(text);
+    const route = simple ? { route: "new_request" as const, judgement: null } : await messageRoute(text);
     if (route.route === "event_change") {
       const m = text.match(/(\d{1,5})\s*guests?/i);
       return res.json({ route: "event_change", guests: m ? Number(m[1]) : null, events: listEvents().map((e) => ({ id: e.id, name: e.name, guests: e.guests, version: e.version })), judgement: route.judgement });
     }
     if (route.route === "neither") return res.json({ route: "neither", message: "I can take a new request or a change to an event." });
-    const parsed = await parseRequest(text);
+    const parsed = simple ? { request: simple, note: null } : await parseRequest(text);
     logSearch({ source: "request_parse", query: text, interpreted: { route: route.route, parsedBy: parsed.request.parsedBy, note: parsed.note, neededBy: parsed.request.neededBy, neededByText: parsed.request.neededByText, lines: parsed.request.lines } });
     audit({ actor: personActor(P(req)), action: "request_parsed", summary: `Parsed "${text.slice(0, 80)}" into ${parsed.request.lines.length} line(s) (${parsed.request.parsedBy})`, details: { request: parsed.request }, visibility: "hotel", judgements: route.judgement ? [route.judgement] : [] });
     res.json({ route: route.route === "unsure" ? "new_request_unsure" : "new_request", request: { ...parsed.request, siteId: mandate().sites[0].id, outletId: P(req).outlets[0] ?? "banquet" }, note: parsed.note });
