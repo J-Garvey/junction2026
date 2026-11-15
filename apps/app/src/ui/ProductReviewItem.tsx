@@ -4,7 +4,7 @@ import { useApp, useLoad } from "../ctx";
 import { api } from "../api";
 import { claimLabel, day, eur, parseTime, qty, when } from "../format";
 import { stockText } from "./Popover";
-import { Status } from "./Status";
+import { Status, UnknownStockMark } from "./Status";
 import { Icon } from "./icons";
 
 /** Keep a request, its matches and its alternatives together, including unresolved items. */
@@ -36,7 +36,8 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
   const unknownProduct = rules.some((rule) => rule.ruleId === "REQ-04");
   const noMatch = rules.some((rule) => rule.ruleId === "DIET-04");
   const tooLate = rules.some((rule) => rule.ruleId === "DLV-06");
-  const warnings = [...new Set(rules.filter((rule) => rule.outcome !== "order" && !["REQ-04", "DIET-04", "DLV-06"].includes(rule.ruleId)).map((rule) => rule.message))];
+  // Unknown stock (STK-01) is shown by the marker on the product and decided by approving the item.
+  const warnings = [...new Set(rules.filter((rule) => rule.outcome !== "order" && !["REQ-04", "DIET-04", "DLV-06", "STK-01"].includes(rule.ruleId)).map((rule) => rule.message))];
   const alternatives = need?.candidates.filter((candidate) => !selected.has(candidate.productId))
     .sort((a, b) => replacementScore(a, deliveryDate) - replacementScore(b, deliveryDate) || a.rank - b.rank).slice(0, 2) ?? [];
   const lateOptions = need?.lateDeliveryOptions?.slice(0, 2) ?? [];
@@ -65,11 +66,11 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
                   {found.map((product) => (
                     <div key={product.id} className="add-review-product">
                       <span className="add-review-product-name">
-                        <b>{product.productName}</b>
+                        <b>{product.productName}{product.stock?.kind === "unknown" && <UnknownStockMark reason={product.stock.reason} />}</b>
                         <small>Product {product.productId}{product.source === "fixture" ? " · Fixture" : ""}</small>
                         {details && <small>{product.packContent ? `${qty(product.packContent.value)} ${product.packContent.unit} per ${product.salesUnit ?? "sales unit"} (${product.packContent.verified ? "checked" : "unverified"}; ${product.packContent.source})` : "Pack conversion unknown; do not infer pieces from weight."}</small>}
                         {product.needIds.length > 1 && <small>Shared pack: quantity and price also cover {product.shares.filter((share) => share.needId !== line.id).map((share) => share.label).join(", ")}.</small>}
-                        {details && <Status k={product.status} />}
+                        {details && product.status !== "unknown_stock" && product.status !== "covered_at_risk" && <Status k={product.status} />}
                       </span>
                       <span className="add-review-product-quantity"><small>Quantity</small><b>{product.quantity > 0 ? `${qty(product.quantity)} ${product.salesUnit ?? ""}` : "TBC"}</b></span>
                       <span className="add-review-product-price"><small>Price ex VAT</small><b>{eur(product.quantity > 0 ? product.lineTotal : null)}</b><small>{eur(product.unitPrice)} / {product.salesUnit ?? "sales unit"}</small></span>
@@ -138,7 +139,7 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
                       && !candidate.notes.some((rule) => rule.outcome === "block") && !!cutoff && cutoff > (parseTime(now) ?? new Date());
                     return (
                       <div key={candidate.productId} className="add-review-product add-review-replacement">
-                        <span className="add-review-product-name"><b>{candidate.name}</b><small>Product {candidate.productId} · {stockText(candidate.stock, candidate.salesUnit)} · {candidate.availableDate ? `delivery ${day(candidate.availableDate)}` : "delivery date not supplied"}{candidate.source === "fixture" ? " · Fixture" : ""}</small><small>Cutoff (Helsinki): {candidate.closingTime ? when(candidate.closingTime) : "Not supplied"}</small><button type="button" className="btn sm" disabled={disabled || !usable} title={!usable ? "Stock, price, pack size or delivery needs checking." : undefined} onClick={() => onChoose(candidate.productId)}>Use replacement</button></span>
+                        <span className="add-review-product-name"><b>{candidate.name}{candidate.stock.kind === "unknown" && <UnknownStockMark reason={candidate.stock.reason} />}</b><small>Product {candidate.productId}{candidate.stock.kind !== "unknown" && ` · ${stockText(candidate.stock, candidate.salesUnit)}`} · {candidate.availableDate ? `delivery ${day(candidate.availableDate)}` : "delivery date not supplied"}{candidate.source === "fixture" ? " · Fixture" : ""}</small><small>Cutoff (Helsinki): {candidate.closingTime ? when(candidate.closingTime) : "Not supplied"}</small><button type="button" className="btn sm" disabled={disabled || !usable} title={!usable ? "Stock, price, pack size or delivery needs checking." : undefined} onClick={() => onChoose(candidate.productId)}>Use replacement</button></span>
                         <span className="add-review-product-quantity"><small>Quantity</small><b>{quantity === null ? "TBC" : `${qty(quantity)} ${candidate.salesUnit ?? "sales units"}`}</b></span>
                         <span className="add-review-product-price"><small>Price ex VAT</small><b>{eur(quantity === null || candidate.unitPrice === null ? null : quantity * candidate.unitPrice)}</b><small>{eur(candidate.unitPrice)} / {candidate.salesUnit ?? "sales unit"}</small></span>
                         <SupplierSchedule terms={candidate} />
@@ -197,7 +198,9 @@ function replacementQuantity(candidate: Candidate, need: Need) {
   return pack && pack.unit === need.amount.unit && pack.value > 0 ? Math.ceil(need.amount.value / pack.value - 1e-9) : null;
 }
 
+/** Unknown stock is not a shortage (D34): it keeps its rank and carries the "stock not confirmed" marker. */
 function replacementScore(candidate: Candidate, deliveryDate: string) {
-  if (candidate.stock.kind === "known" && candidate.stock.amount > 0 && candidate.availableDate && candidate.availableDate <= deliveryDate) return 0;
-  return candidate.stock.kind === "unknown" ? 1 : 2;
+  const inTime = !!candidate.availableDate && candidate.availableDate <= deliveryDate;
+  const stocked = candidate.stock.kind === "unknown" || (candidate.stock.kind === "known" && candidate.stock.amount > 0);
+  return inTime && stocked ? 0 : 1;
 }

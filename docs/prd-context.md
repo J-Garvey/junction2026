@@ -86,7 +86,7 @@ All four moments run the same pipeline; the demo shows them as four scenes on on
 ## Unconfirmed stock (D31, replaces D23)
 
 - **It is a question, not a warning and not a block.** When a product's stock can't be confirmed, the person building the order (normally the Chef) is asked: "Valio Aimo can't confirm stock for [product]. Continue with it?" They can continue or pick another product. It does not go to the Approver. [TEAM D31]
-- **It is never shown as confirmed.** The line keeps a plain "stock not confirmed" label everywhere, including after the final check, and the summary says how many lines are unconfirmed.
+- **It is never shown as confirmed.** The line keeps a plain "stock not confirmed" label everywhere, including after the final check, and the summary says how many lines are unconfirmed. In product lookup and review, an unknown-stock product is listed like any other match with a small "?" marker whose label and tooltip read "Stock not confirmed" (D34); replacement suggestions treat unknown stock like confirmed stock.
 - **Automatic picks prioritise price** (D34). Unknown stock is disclosed without changing rank, and the person decides whether to continue before ordering (D31).
 - **A hotel can skip the question** with a pre-answer (AP-11), for example on cheap lines.
 - **How this rule got here.** Unknown stock began as a block (the approval rules). It became a risk the Approver accepted (D23), then a louder warning in the team review, and then this, on 14 Nov, once the demo was planned ([demo-plan.md](demo-plan.md)). It matters for the milk case: 20 of the 35 lactose-free products are Terminal, so they always report unknown stock. [API, GROUND_TRUTH 4.3]
