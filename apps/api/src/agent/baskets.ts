@@ -51,7 +51,7 @@ export function basketReview(eventId: string, orders: Order[]): Question | null 
   return review;
 }
 
-export async function submitBasketForReview(eventId: string, person: Person): Promise<Question> {
+export async function submitBasketForReview(eventId: string, person: Person, token?: string): Promise<Question> {
   const event = getEvent(eventId);
   if (!event) throw new BasketReviewError(404, "No such order");
   const { orders } = await gw.orders(eventId);
@@ -116,6 +116,7 @@ export async function submitBasketForReview(eventId: string, person: Person): Pr
       if (!valid) throw new BasketReviewError(409, "The unconfirmed stock terms changed. The order builder must review the items again before finance approval.");
     }
   }
+  const builderConsentId = quote?.unconfirmedStock.length ? (await gw.consent(token ?? "", quote, quote.unconfirmedStock)).id : undefined;
   // Re-read after the lookup. Concurrent clicks share the same request; edits require a fresh submission.
   const latest = (await gw.orders(eventId)).orders;
   return tx(() => {
@@ -139,7 +140,7 @@ export async function submitBasketForReview(eventId: string, person: Person): Pr
         kind: "approval", hotelId: HOTEL_ID, snapshot: before, planIds: plans.map((p) => p.id), lines, total,
         deliveryDate: quote?.deliveryDate ?? event.serviceDate, grants: quote?.mandateCheck.approvalsNeeded ?? [],
         items: [...new Map(rules.map((r) => [r.ruleId, { text: r.message }])).values()],
-        continued, decidedBy: plans.find((p) => p.overrides.stockDecidedBy)?.overrides.stockDecidedBy ?? person.name,
+        builderConsentId: builderConsentId ?? null, continued, decidedBy: plans.find((p) => p.overrides.stockDecidedBy)?.overrides.stockDecidedBy ?? person.name,
       },
       ruleIds: [...new Set(rules.map((r) => r.ruleId))], deadline: deadlines.sort()[0] ?? null,
       options: [{ id: "approve", label: "Approve order", primary: true }, { id: "reject", label: "Refuse order", primary: false }],
@@ -162,7 +163,7 @@ export async function answerBasketReview(question: Question, person: Person, tok
   if (!question.quoteId) return; // Previously placed items are reviewed without placing them twice.
   try {
     const approval = await gw.approve(token, question.quoteId, question.fingerprint!, question.facts.grants as string[]);
-    const order = await gw.order(question.quoteId, `basket-review:${question.id}`, approval.id, question.facts.continued as string[], question.facts.decidedBy as string);
+    const order = await gw.order(question.quoteId, `basket-review:${question.id}`, approval.id, question.facts.continued as string[], undefined, question.facts.builderConsentId as string | undefined);
     for (const plan of stagedPlans(question.eventId!).filter((p) => (question.facts.planIds as string[]).includes(p.id))) {
       plan.orderIds = [order.id];
       plan.approvalId = approval.id;

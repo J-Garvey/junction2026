@@ -33,6 +33,7 @@ export type Overrides = {
   approvedSoft: string[]; // agent-side approver items already decided, by fingerprint
   stockContinued?: string[]; // D31: products the person chose to continue with despite unconfirmed stock
   stockDecidedBy?: string;
+  builderConsentId?: string;
   useConfirmed?: boolean; // urgent need: the person chose the split across confirmed stock instead
   stockBlind?: boolean; // a change to a placed order rescales the same products; stock is the final check's job
   accepted?: boolean; // single request: the person approved adding the proposed products to the quote
@@ -515,6 +516,10 @@ export async function quoteAndDecide(plan: StoredPlan, personToken?: string): Pr
     plan.overrides.stockContinued = [];
     delete plan.overrides.stockDecidedBy;
   }
+  if (personToken && plan.overrides.stockContinued?.length && quote.unconfirmedStock.length) {
+    const consent = await gw.consent(personToken, quote, quote.unconfirmedStock.filter((p) => plan.overrides.stockContinued!.includes(p)));
+    plan.overrides.builderConsentId = consent.id;
+  }
   plan.quoteId = quote.id;
   plan.fingerprint = quote.fingerprint;
   plan.stockPolicy = quote.stockPolicy;
@@ -574,7 +579,7 @@ export async function placeFromPlan(plan: StoredPlan, approvalId: string | undef
   }
   try {
     const continued = [...new Set(plan.lines.filter((l) => l.productId && l.stock?.kind === "unknown" && (plan.overrides.stockContinued ?? []).includes(l.productId)).map((l) => l.productId!))];
-    const o = await gw.order(plan.quoteId!, plan.idemKey, approvalId, continued, plan.overrides.stockDecidedBy);
+    const o = await gw.order(plan.quoteId!, plan.idemKey, approvalId, continued, undefined, plan.overrides.builderConsentId);
     plan.orderIds = [...new Set([...plan.orderIds, o.id])];
     for (const id of plan.basketCheckout?.sourcePlanIds ?? []) {
       const source = getPlan(id);

@@ -118,6 +118,13 @@ async function eventCase() {
   out.subQ = (await aino.call("GET", "/home")).questions.find((q: any) => q.type === "substitute");
   const pick = out.subQ.facts.candidates.findIndex((c: any) => c.productId === "464194");
   out.useSub = await aino.call("POST", `/questions/${out.subQ.id}/answer`, { optionId: `use_${Math.max(0, pick)}` });
+  expect(out.useSub.error).toBeUndefined();
+  // Selecting an unknown-stock substitute opens its exact amendment terms for authenticated builder consent.
+  const substituteStock = (await aino.call("GET", "/home")).questions.filter((q: any) => q.facts.kind === "change_stock");
+  for (const q of substituteStock) {
+    const continued = await aino.call("POST", `/questions/${q.id}/answer`, { optionId: "continue" });
+    expect(continued.error).toBeUndefined();
+  }
   out.view = await sanna.call("GET", "/events/evt-wedding");
   out.orders = (await aino.call("GET", "/orders?eventId=evt-wedding")).orders;
   out.valio = await sanna.call("GET", "/audit?viewer=valio");

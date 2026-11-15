@@ -220,6 +220,7 @@ describe("order baskets", () => {
   });
 
   it("lets the chef add unconfirmed stock after explicitly accepting the warning", async () => {
+    await signIn("p-aino");
     await call("POST", "/clock", { time: "2026-11-14T10:00:00Z" });
     const id = (await call("POST", "/baskets", { name: "Stock warning", deliveryDate: "2026-11-20" })).basket.id;
     const m = await call("POST", "/messages", { text: "1000 l lactose-free milk" });

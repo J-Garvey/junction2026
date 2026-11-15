@@ -87,12 +87,12 @@ async function applyAnswer(q: Question, p: Person, token: string) {
   savePlan(plan);
   const chefOpen = openQuestionsForPlan(plan.id).some((x) => x.forRole === "chef" && x.state === "open");
   if (replan) {
-    await quoteAndDecide(plan);
+    await quoteAndDecide(plan, token);
     return;
   }
   if (!chefOpen) {
     // All recipe questions answered: re-quote so the approver sees the exact version to sign.
-    await quoteAndDecide(getPlan(plan.id)!);
+    await quoteAndDecide(getPlan(plan.id)!, token);
   }
   openWaitingApprover(plan.id);
 }
@@ -110,7 +110,7 @@ async function applyApproval(plan: StoredPlan, q: Question, p: Person, token: st
     plan.overrides.approvedSoft.push(q.fingerprint!);
     savePlan(plan);
     // Keep short: re-quote with only the confirmed stock; the split decision is made.
-    const next = await quoteAndDecide(plan);
+    const next = await quoteAndDecide(plan, token);
     if (next.status === "waiting") {
       // The keep-short version has no unknown-stock lines, so any remaining card is for a different reason.
     }

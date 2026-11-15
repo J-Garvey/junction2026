@@ -515,10 +515,12 @@ describe("I3 current supplier facts authorize commit", () => {
     const quote = state().tables.quotes.find((q) => q.id === stale.body.newQuoteId);
     expect(quote.unconfirmedStock).toEqual(["469672"]);
     expect((await gatewayAudit("/orders", { quoteId: quote.id }, "agent", "I3-needs-choice")).body.error).toBe("stock_unconfirmed");
-    const body = { quoteId: quote.id, continueWithUnconfirmedStock: ["469672"], decidedBy: "I3 builder" };
+    const consent = await gatewayAudit("/builder-consents", { quoteId: quote.id, fingerprint: quote.fingerprint, productIds: ["469672"] }, "p-aino");
+    expect(consent.status).toBe(201);
+    const body = { quoteId: quote.id, continueWithUnconfirmedStock: ["469672"], builderConsentId: consent.body.id };
     const accepted = await gatewayAudit("/orders", body, "agent", "I3-reviewed-choice");
     expect(accepted.status).toBe(201);
-    expect(accepted.body.lines[0]).toMatchObject({ stock: { kind: "unknown" }, riskAccepted: { by: "I3 builder" } });
+    expect(accepted.body.lines[0]).toMatchObject({ stock: { kind: "unknown" }, riskAccepted: { by: "Aino" } });
     const same = await gatewayAudit(`/orders/${accepted.body.id}/amendments`, { changes: [{ productId: "469672", outletId: "banquet", quantity: 1 }] });
     expect(same.status).toBe(200);
     expect(same.body.order.lines[0].riskAccepted).toEqual(accepted.body.lines[0].riskAccepted);
@@ -527,9 +529,14 @@ describe("I3 current supplier facts authorize commit", () => {
       expect(increased.body.error).toBe("stock_unconfirmed");
       expect(state().tables.orders[0].version).toBe(2);
     }
-    const increased = await gatewayAudit(`/orders/${accepted.body.id}/amendments`, { changes: [{ productId: "469672", outletId: "banquet", quantity: 2 }], continueWithUnconfirmedStock: ["469672"], decidedBy: "I3 new decision" });
+    const changes = [{ productId: "469672", outletId: "banquet", quantity: 2 }];
+    const review = await gatewayAudit(`/orders/${accepted.body.id}/amendments`, { changes });
+    const reviewed = state().tables.quotes.find((q) => q.id === review.body.newQuoteId);
+    const newConsent = await gatewayAudit("/builder-consents", { quoteId: reviewed.id, fingerprint: reviewed.fingerprint, productIds: ["469672"] }, "p-aino");
+    expect(newConsent.status).toBe(201);
+    const increased = await gatewayAudit(`/orders/${accepted.body.id}/amendments`, { changes, continueWithUnconfirmedStock: ["469672"], builderConsentId: newConsent.body.id });
     expect(increased.status).toBe(200);
-    expect(increased.body.order.lines[0]).toMatchObject({ stock: { kind: "unknown" }, riskAccepted: { by: "I3 new decision" } });
+    expect(increased.body.order.lines[0]).toMatchObject({ stock: { kind: "unknown" }, riskAccepted: { by: "Aino" } });
     const retry = await gatewayAudit("/orders", body, "agent", "I3-reviewed-choice");
     expect(retry.status).toBe(200);
     expect(retry.body.id).toBe(accepted.body.id);
@@ -627,7 +634,9 @@ describe("I3 current supplier facts authorize commit", () => {
   it("I3-09 unknown-stock consent expires when supplier terms change", async () => {
     await overlay({ scheduleLines: [schedule({ availableAmount: 9999999999 })] });
     const q = await auditQuote("469672", 1);
-    const placed = await gatewayAudit("/orders", { quoteId: q.body.id, continueWithUnconfirmedStock: ["469672"] }, "agent", "I3-initial-risk");
+    const consent = await gatewayAudit("/builder-consents", { quoteId: q.body.id, fingerprint: q.body.fingerprint, productIds: ["469672"] }, "p-aino");
+    expect(consent.status).toBe(201);
+    const placed = await gatewayAudit("/orders", { quoteId: q.body.id, continueWithUnconfirmedStock: ["469672"], builderConsentId: consent.body.id }, "agent", "I3-initial-risk");
     expect(placed.status).toBe(201);
     await overlay({ closingTime: "2026-11-15T18:00:00+0200", scheduleLines: [schedule({ availableAmount: 9999999999 })] });
     const changed = await gatewayAudit(`/orders/${placed.body.id}/amendments`, { changes: [{ productId: "469672", outletId: "banquet", quantity: 1 }] });

@@ -122,3 +122,29 @@ describe("Live console: real gateway, scripted model", () => {
     expect(last.reason).toMatch(/spend cap.*No approval attached/);
   });
 });
+
+
+describe("live console human authentication outside demo mode", () => {
+  it("keeps cards pending without the authenticated role, then uses genuine person credentials", async () => {
+    scripted(); await post("/reset");
+    await post("/say", { text: "2,000 litres of lactose-free milk for Monday" });
+    const chefCard = openCard(await settle());
+    const { issueToken } = await import("../src/identity.js");
+    const chef = issueToken({ kind: "person", personId: "p-aino", testSession: false });
+    const finance = issueToken({ kind: "person", personId: "p-sanna", testSession: false });
+    const reply = async (id: string, optionId: string, token: string) => fetch(`${BASE}/api/live/cards/${id}`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ optionId }) });
+    config.testMode = false;
+    try {
+      expect((await post(`/cards/${chefCard.id}`, { optionId: "continue" })).status).toBe(409);
+      expect((await reply(chefCard.id, "continue", finance)).status).toBe(409);
+      expect((await reply(chefCard.id, "continue", chef)).status).toBe(200);
+      const approval = openCard(await settle());
+      expect((await post(`/cards/${approval.id}`, { optionId: "approve" })).status).toBe(409);
+      expect((await reply(approval.id, "approve", chef)).status).toBe(409);
+      expect((await reply(approval.id, "approve", finance)).status).toBe(200);
+      const done = await settle();
+      expect(done.session.status).toBe("done");
+      expect(done.feed.find((f: any) => f.action === "ORDER")?.status).toBe(201);
+    } finally { config.testMode = true; }
+  });
+});

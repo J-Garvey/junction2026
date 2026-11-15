@@ -435,7 +435,7 @@ export async function handleWhatsAppMessage(input: { person: Person; token: stri
       }
       conversation.pending = null;
       try {
-        const review = await submitBasketForReview(id, person);
+        const review = await submitBasketForReview(id, person, input.token);
         return summary({ status: "approval_required", headline: "Sent for finance review", detail: review.body, numbered: false, lines: [], actions: [], appLink: { label: "Review approval", path: `/baskets/${encodeURIComponent(id)}#question-${encodeURIComponent(review.id)}` } });
       } catch (error) {
         if (error instanceof BasketReviewError) return blocked(error.message, undefined, { label: "Open the order", path: `/baskets/${encodeURIComponent(id)}` });

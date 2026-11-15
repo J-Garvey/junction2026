@@ -244,7 +244,9 @@ export async function answerChange(q: Question, p: Person, token: string) {
     audit({ actor: personActor(p), action: "order_amended", summary: `${p.name} kept the order as is (${f.from} guests ordered, event now ${f.to})`, eventId: e.id, ruleIds: ["CHG-02"], details: {}, visibility: "hotel" });
     return;
   }
-  const body = { changes: f.changes, continueWithUnconfirmedStock: f.continueWith ?? [],
+  const builderConsentId = f.kind === "change_stock" && q.answer === "continue"
+    ? (await gw.consent(token, await gw.getQuote(f.stockQuoteId), f.continueWith)).id : f.builderConsentId;
+  const body = { builderConsentId, changes: f.changes, continueWithUnconfirmedStock: f.continueWith ?? [],
     stockQuoteId: f.stockQuoteId, decidedBy: f.kind === "change_stock" ? p.name : f.decidedBy ?? undefined };
   try {
     try { await gw.amend(f.orderId, body); }
@@ -264,7 +266,7 @@ export async function answerChange(q: Question, p: Person, token: string) {
       planId: q.planId, eventId: e.id, type: "spend_cap", forRole: "approver", outletId: null,
       quoteId: err.body.newQuoteId, fingerprint: null, deadline: q.deadline,
       title: "Approve the changed order?", body: "The builder reviewed its unconfirmed stock. Finance approval is still required.",
-      facts: { ...f, kind: "change", decidedBy: body.decidedBy }, ruleIds: ["MAN-01"],
+      facts: { ...f, kind: "change", builderConsentId, decidedBy: body.decidedBy }, ruleIds: ["MAN-01"],
       options: [{ id: "approve", label: "Approve the change", primary: true }, { id: "keep", label: "Keep the current order", primary: false }],
     });
     saveQuestion(finance);
@@ -272,6 +274,7 @@ export async function answerChange(q: Question, p: Person, token: string) {
   }
   e.orderedGuests = e.guests;
   saveEvent(e);
+  if (f.recheckFinal) await finalCheck(e.id);
 }
 
 // ---------- late allergy (CH-13, D28) ----------
@@ -472,6 +475,10 @@ export async function amendOrAsk(e: StoredEvent, orderId: string, changes: { pro
     await gw.amend(orderId, { changes, continueWithUnconfirmedStock: stock?.continueWith, decidedBy: stock?.decidedBy });
     return "applied";
   } catch (err) {
+    if (err instanceof GatewayError && err.body.error === "stock_unconfirmed" && err.body.newQuoteId) {
+      await askChangeStock(e, e.orderPlanId ?? "none", { orderId, changes, recheckFinal: true }, err.body.newQuoteId);
+      return "asked";
+    }
     if (!(err instanceof GatewayError) || err.body.error !== "mandate_violation") throw err;
     const q = makeQuestion({
       planId: e.orderPlanId ?? "none", eventId: e.id, type: "unknown_stock", forRole: "approver", outletId: null, quoteId: err.body.newQuoteId ?? null, fingerprint: null,

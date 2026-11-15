@@ -74,7 +74,7 @@ What changed when the two uploads were merged is in **[CHANGES.md](CHANGES.md)**
 
 ## Quick start
 
-To run the prototype: `pnpm install && pnpm --filter @aimo/app build && pnpm start`, then open http://127.0.0.1:8787. Details in [docs/build.md](docs/build.md).
+To run the prototype: `pnpm install && pnpm --filter @aimo/app build && pnpm start`, then open http://127.0.0.1:8787. For local demo persona switching, explicitly set `AIMO_TEST_MODE=1` in your ignored `.env.local`; it defaults off. Details in [docs/build.md](docs/build.md).
 
 The [WhatsApp ordering channel](docs/whatsapp-demo.md) links regular WhatsApp Web from Demo settings or `/whatsapp`, restricts replies to one selected real group, and routes messages through the existing interpreter and mock ordering rules. An offline simulator remains at `/whatsapp/simulator`.
 

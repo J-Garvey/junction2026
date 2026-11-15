@@ -332,11 +332,18 @@ export type Approval = z.infer<typeof Approval>;
 
 // ---------- orders (ORDER-PLACE, VA-03) ----------
 
+export const BuilderConsentBody = z.object({
+  quoteId: z.string(),
+  fingerprint: z.string(),
+  productIds: z.array(z.string()).min(1),
+});
+
 export const OrderCreateBody = z.object({
   quoteId: z.string(),
   approvalId: z.string().optional(),
   continueWithUnconfirmedStock: z.array(z.string()).optional().describe("D31: product IDs whose stock Valio Aimo can't confirm and the hotel chose to order anyway"),
-  decidedBy: z.string().optional().describe("Who at the hotel made that choice, for the record"),
+  builderConsentId: z.string().optional().describe("Server-issued chef consent for this exact quote; POST /builder-consents with the chef credential"),
+  decidedBy: z.string().optional().describe("Deprecated, ignored: identity is taken only from authenticated chef consent"),
 });
 
 export const OrderState = z.enum(["placed", "amended", "checked", "locked", "rejected"]);
@@ -381,7 +388,8 @@ export const AmendmentBody = z.object({
   approvalId: z.string().optional(),
   stockQuoteId: z.string().optional().describe("Amendment quote the builder reviewed when continuing with unconfirmed stock; changes require a fresh decision"),
   continueWithUnconfirmedStock: z.array(z.string()).optional(),
-  decidedBy: z.string().optional(),
+  builderConsentId: z.string().optional(),
+  decidedBy: z.string().optional().describe("Deprecated, ignored"),
 });
 export type AmendmentBody = z.infer<typeof AmendmentBody>;
 
