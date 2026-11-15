@@ -19,7 +19,7 @@ const needWith = (n: number): Need => ({
   candidateCount: n, excluded: [], rules: [], judgements: [], substituteFor: null,
 });
 const context: AppCtx = { me: { id: "aino", name: "Aino", title: "Head chef", role: "chef", outlets: ["banquet"], hotelScope: false }, people: [], outlets: [], status: null, now: "2026-11-14T10:00:00Z", tick: 0, refresh: vi.fn(), switchPerson: vi.fn() };
-const show = (need: Need) => render(<MemoryRouter><Ctx.Provider value={context}><Candidates need={need} /></Ctx.Provider></MemoryRouter>);
+const show = (need: Need) => render(<MemoryRouter><Ctx.Provider value={context}><Candidates need={need} lines={[]} /></Ctx.Provider></MemoryRouter>);
 const rows = () => within(screen.getByRole("table")).getAllByRole("row").slice(1);
 
 afterEach(cleanup);

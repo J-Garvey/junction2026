@@ -4,7 +4,8 @@
  * questions or an order inside the mandate. Re-planning is deterministic, so an
  * answer is applied by recording an override and running the pipeline again.
  */
-import type { Constraints, EventSpec, FiredRule, Mandate, Need, Plan, PlanLine, Question, Quote, SingleRequest, BaseUnit, Candidate } from "@aimo/contracts";
+import type { AllergenAcknowledgement, Constraints, EventSpec, FiredRule, Mandate, Need, Plan, PlanLine, Question, Quote, SingleRequest, BaseUnit, Candidate } from "@aimo/contracts";
+import { carbonEstimateKg } from "@aimo/contracts";
 import { getDb, getJson, allJson, kvGet } from "../db.js";
 import { now, nowIso } from "../clock.js";
 import { getProduct } from "../catalog.js";
@@ -15,13 +16,15 @@ import { newId, round2, eur, fmtHelsinki, isoDate } from "../util.js";
 import { gw, GatewayError } from "./gatewayClient.js";
 import { shortlist, rankNeed, packRound, searchHelp, verdictOf, type Pool } from "./match.js";
 import { toBase, quantitySanity, checkSingle } from "./parse.js";
-import { buildQuestions, expireOpenQuestions, openQuestionsForPlan } from "./questions.js";
+import { buildAllergenQuestions, buildQuestions, expireOpenQuestions, openQuestionsForPlan } from "./questions.js";
 import { recallSubstitute } from "./memory.js";
 import { basketSnapshot } from "../whatsapp/snapshot.js";
 import { forEachConcurrent } from "./concurrency.js";
 import { quantityScope, refreshItemReviews } from "./itemReview.js";
+import { applyAllergenAcknowledgements, constraintsForLine, lineAllergenScope } from "./allergenData.js";
+import { HOTEL_ID, mandate } from "./mandate.js";
 
-export const HOTEL_ID = "hotel-aurora";
+export { HOTEL_ID, mandate } from "./mandate.js";
 
 export type Overrides = {
   confirmed: string[]; // "needId:productId" the chef confirmed (type or substitute)
@@ -31,23 +34,22 @@ export type Overrides = {
   approvedSoft: string[]; // agent-side approver items already decided, by fingerprint
   stockContinued?: string[]; // D31: products the person chose to continue with despite unconfirmed stock
   stockDecidedBy?: string;
+  builderConsentId?: string;
   useConfirmed?: boolean; // urgent need: the person chose the split across confirmed stock instead
   stockBlind?: boolean; // a change to a placed order rescales the same products; stock is the final check's job
   accepted?: boolean; // single request: the person approved adding the proposed products to the quote
   chosen?: string[]; // "needId:productId" the person picked from the alternatives
   salesQuantities?: { needId: string; productId: string; scope: string; quantity: number }[];
+  allergenAcknowledgements?: AllergenAcknowledgement[];
 };
 export type StoredPlan = Plan & {
   overrides: Overrides; event?: EventSpec | null; questionsAnswered: number;
+  stockPolicy?: string;
   /** A channel checkout combines staged requests under one mandate evaluation. */
   basketCheckout?: { snapshot: string; sourcePlanIds: string[] };
 };
 
 export const emptyOverrides = (): Overrides => ({ confirmed: [], excluded: [], removedNeeds: [], keepShort: false, approvedSoft: [], stockContinued: [], useConfirmed: false });
-
-export function mandate(): Mandate {
-  return getJson<Mandate>("mandates", HOTEL_ID, "hotel_id")!;
-}
 
 export function savePlan(p: StoredPlan) {
   refreshItemReviews(p);
@@ -93,18 +95,20 @@ function emptyNeed(partial: Partial<Need> & Pick<Need, "id" | "label" | "text" |
   };
 }
 
-export function needsFromSingle(r: SingleRequest): Need[] {
+export function needsFromSingle(r: SingleRequest, event?: EventSpec | null): Need[] {
   return r.lines
     .filter((l) => l.quantity && l.quantity.amount > 0)
     .map((l) => {
       const base = toBase(l.quantity!);
       const claims = l.constraints.claims.map((c) => CLAIM_LABEL[c] ?? c);
+      const affected = event?.dietGroups.filter((g) => l.constraints.avoidAllergens.length && g.constraints.avoidAllergens.some((code) => l.constraints.avoidAllergens.includes(code)));
       return emptyNeed({
         id: l.id,
         label: `${base.value} ${base.unit} ${[...claims, l.productType ?? l.query].join(" ")}`,
         text: l.text,
         groupId: "request",
         groupLabel: claims.length ? `${claims.join(", ")} request` : "this request",
+        guests: affected?.length ? affected.reduce((sum, g) => sum + g.count, 0) : null,
         outletId: r.outletId,
         amount: base,
         constraints: l.constraints,
@@ -183,7 +187,9 @@ const lineKey = (productId: string, outletId: string) => `${productId}|${outletI
 
 function candidateRules(c: Candidate, need: Need): FiredRule[] {
   const p = getProduct(c.productId)!;
-  return [...c.notes, ...reliabilityRules(p)];
+  // A combined SKU can serve regular and allergic guests. Retain each need's
+  // own declarations instead of reusing the unrestricted candidate's notes.
+  return [...(need.candidates.find((candidate) => candidate.productId === c.productId)?.notes ?? c.notes), ...reliabilityRules(p)];
 }
 
 /**
@@ -223,7 +229,7 @@ function buildLines(needs: Need[], urgent: boolean, ov: Overrides, m: Mandate): 
       continue;
     }
     // Keep an unconvertible product visible so the buyer can specify sales units.
-    if (!urgent || !n.candidates[0].packContent || n.candidates[0].packContent.unit !== n.amount.unit) {
+    if (!urgent || !n.candidates[0].packContent || n.candidates[0].packContent.unit !== n.amount.unit || (n.amount.unit === "pcs" && !n.candidates[0].packContent.verified)) {
       const c = n.candidates[0];
       const k = `${lineKey(c.productId, n.outletId)}|${n.amount.unit}`;
       const e = combined.get(k) ?? { c, needs: [], value: 0, unit: n.amount.unit };
@@ -246,7 +252,7 @@ function buildLines(needs: Need[], urgent: boolean, ov: Overrides, m: Mandate): 
     let covered = 0;
     for (const c of candidates) {
       if (remaining <= 1e-9) break;
-      if (c.stock.kind !== "known" || !c.packContent || c.packContent.unit !== n.amount.unit || c.stock.amount <= 0) continue;
+      if (c.stock.kind !== "known" || !c.packContent || c.packContent.unit !== n.amount.unit || (n.amount.unit === "pcs" && !c.packContent.verified) || c.stock.amount <= 0) continue;
       const want = Math.ceil(remaining / c.packContent.value - 1e-9);
       const take = Math.min(want, Math.max(0, Math.floor(c.stock.amount) - (allocatedStock.get(c.productId) ?? 0)));
       if (take <= 0) continue;
@@ -258,7 +264,7 @@ function buildLines(needs: Need[], urgent: boolean, ov: Overrides, m: Mandate): 
     }
     if (remaining > 1e-9) {
       shortfall = { need: n.amount.value, covered: round2(covered), unit: n.amount.unit };
-      const unknown = candidates.find((c) => c.stock.kind === "unknown" && c.packContent && c.packContent.unit === n.amount.unit);
+      const unknown = candidates.find((c) => c.stock.kind === "unknown" && c.packContent && c.packContent.unit === n.amount.unit && (n.amount.unit !== "pcs" || c.packContent.verified));
       if (unknown && !ov.keepShort && !ov.useConfirmed) {
         const packs = Math.ceil(remaining / unknown.packContent!.value - 1e-9);
         lines.push(makeLine(unknown, group, remaining, packs, n.amount.unit, "unknown_fill", m));
@@ -302,8 +308,6 @@ function makeLine(c: Candidate, needs: Need[], needValue: number, quantity: numb
   if (c.stock.kind === "unknown") rules.push(fire("STK-01", { product: c.name, productId: c.productId, reason: c.stock.reason === "terminal_sentinel" ? "Terminal product, ships from the supplier" : "stock placeholder value" }));
   else if (allocation === "primary" && needs.every((n) => !isUrgentDate(n.neededBy))) rules.push(fire("STK-05", { product: c.name, stock: c.stock.kind === "known" ? `${c.stock.amount} ${c.salesUnit ?? ""}` : "none" }));
   const dedup = [...new Map(rules.map((r) => [`${r.ruleId}|${JSON.stringify(r.facts)}`, r])).values()];
-  const prod = getProduct(c.productId);
-  const massKg = c.packContent && c.packContent.unit !== "pcs" ? c.packContent.value * quantity : null;
   const lineTotal = c.unitPrice === null ? null : round2(c.unitPrice * quantity);
   return {
     id: `${c.productId}|${needs[0].outletId}|${allocation}|${needs.map((n) => n.id).join(",")}`,
@@ -332,7 +336,8 @@ function makeLine(c: Candidate, needs: Need[], needValue: number, quantity: numb
     allocation,
     riskAccepted: null,
     removed: false,
-    co2Kg: prod?.co2KgPerKg != null && massKg !== null ? round2(prod.co2KgPerKg * massKg) : null,
+    carbonBasis: c.carbonBasis ?? null,
+    co2Kg: carbonEstimateKg(quantity, c.carbonBasis),
   };
 }
 
@@ -343,8 +348,9 @@ export async function runPipeline(plan: StoredPlan): Promise<StoredPlan> {
   const m = mandate();
   const ov = plan.overrides;
   let needs: Need[];
+  if (plan.event && plan.eventId) plan.event = getJson<EventSpec>("events", plan.eventId) ?? plan.event;
   if (plan.kind === "single") {
-    needs = needsFromSingle(plan.request!);
+    needs = needsFromSingle(plan.request!, plan.event);
   } else {
     const e = plan.event!;
     needs = needsFromEvent(e, m, ov.removedNeeds);
@@ -371,11 +377,23 @@ export async function runPipeline(plan: StoredPlan): Promise<StoredPlan> {
     if (r.fallback) plan.note = r.fallback;
   }
   const tRank = performance.now();
+  // Compare identical piece specifications on their combined need, then round once,
+  // just as buildLines does. Manual quantities and explicit alternative choices stay separate.
+  const pieceGroups = new Map<string, Need[]>();
+  for (const n of needs.filter((n) => n.amount.unit === "pcs")) {
+    const separate = ov.salesQuantities?.some((q) => q.needId === n.id) || ov.chosen?.some((id) => id.startsWith(`${n.id}:`));
+    const key = separate ? n.id : JSON.stringify([n.outletId, n.query, n.productType, n.pinnedProductId, n.constraints, n.neededBy, lists.get(n.id)!.filter((p) => !ov.excluded.includes(`${n.id}:${p.id}`)).map((p) => p.id)]);
+    pieceGroups.set(key, [...(pieceGroups.get(key) ?? []), n]);
+  }
+  const pieceAmounts = new Map([...pieceGroups.values()].flatMap((group) => {
+    const total = group.reduce((sum, n) => sum + n.amount.value, 0);
+    return group.map((n) => [n.id, total] as const);
+  }));
   // Type checks can wait on the model; independent needs need not wait on each other.
   await forEachConcurrent(needs, 4, async (n) => {
     n.rules = n.rules.filter((r) => r.ruleId === "DLV-04" || r.ruleId === "QTY-02");
     const list = lists.get(n.id)!.filter((p) => !ov.excluded.includes(`${n.id}:${p.id}`));
-    await rankNeed(n, list, pool, { lockedOk: ov.stockBlind, deliveryDays: m.deliveryDays, holidays: m.holidays });
+    await rankNeed(n, list, pool, { lockedOk: ov.stockBlind, deliveryDays: m.deliveryDays, holidays: m.holidays, combinedPieceNeed: pieceAmounts.get(n.id) });
     // Nothing to order from the text: spellings and possible products for the person, never ordered.
     n.searchHelp = lists.get(n.id)!.length ? null : searchHelp(n);
     // A chef's confirmation removes the type question for that product.
@@ -429,6 +447,8 @@ export function verdictSummary(p: Plan): string {
 /** Scene 2 and every request: quote at the gateway, then ask or order. */
 export async function quoteAndDecide(plan: StoredPlan, personToken?: string): Promise<StoredPlan> {
   const t0 = performance.now();
+  // A validation-only result must not inherit product-check timings from an earlier run.
+  plan.timings = null;
   plan.stage = "order";
   plan.error = null;
   plan.proposal = false;
@@ -485,15 +505,6 @@ export async function quoteAndDecide(plan: StoredPlan, personToken?: string): Pr
     savePlan(plan);
     return plan;
   }
-  const requiresFor = (l: PlanLine): Constraints => {
-    const ns = plan.needs.filter((n) => l.needIds.includes(n.id));
-    return {
-      claims: [...new Set(ns.flatMap((n) => n.constraints.claims))],
-      avoidAllergens: [...new Set(ns.flatMap((n) => n.constraints.avoidAllergens))],
-      labels: [...new Set(ns.flatMap((n) => n.constraints.labels))],
-      ...(ns.find((n) => n.constraints.origin) ? { origin: ns.find((n) => n.constraints.origin)!.constraints.origin } : {}),
-    };
-  };
   let quote: Quote;
   const tQuote = performance.now();
   const recordQuoteTiming = () => {
@@ -504,7 +515,7 @@ export async function quoteAndDecide(plan: StoredPlan, personToken?: string): Pr
       siteId: plan.siteId,
       deliveryDate: plan.deliveryDate!,
       eventId: plan.eventId ?? undefined,
-      lines: orderable.map((l) => ({ productId: l.productId!, quantity: l.quantity, outletId: l.outletId, ref: l.id, requires: requiresFor(l) })),
+      lines: orderable.map((l) => ({ productId: l.productId!, quantity: l.quantity, outletId: l.outletId, ref: l.id, requires: constraintsForLine(plan, l), allergenScope: lineAllergenScope(plan, l) })),
     });
   } catch (e) {
     recordQuoteTiming();
@@ -515,8 +526,17 @@ export async function quoteAndDecide(plan: StoredPlan, personToken?: string): Pr
     return plan;
   }
   recordQuoteTiming();
+  if (plan.fingerprint && (plan.fingerprint !== quote.fingerprint || plan.stockPolicy !== quote.stockPolicy)) {
+    plan.overrides.stockContinued = [];
+    delete plan.overrides.stockDecidedBy;
+  }
+  if (personToken && plan.overrides.stockContinued?.length && quote.unconfirmedStock.length) {
+    const consent = await gw.consent(personToken, quote, quote.unconfirmedStock.filter((p) => plan.overrides.stockContinued!.includes(p)));
+    plan.overrides.builderConsentId = consent.id;
+  }
   plan.quoteId = quote.id;
   plan.fingerprint = quote.fingerprint;
+  plan.stockPolicy = quote.stockPolicy;
   const hasUnknownPrice = quote.lines.some((line) => line.lineTotal === null);
   plan.totalExVat = hasUnknownPrice ? null : quote.totalExVat;
   plan.totalVat = hasUnknownPrice ? null : quote.totalVat;
@@ -528,10 +548,15 @@ export async function quoteAndDecide(plan: StoredPlan, personToken?: string): Pr
     l.unitPrice = ql.unitPrice;
     l.lineTotal = ql.lineTotal;
     l.availabilityEvidence = ql.availabilityEvidence;
+    l.stock = ql.stock;
+    l.salesUnit = ql.salesUnit;
+    l.availableDate = ql.availableDate;
+    l.closingTime = ql.closingTime;
     for (const r of ql.rules) if (!l.rules.some((x) => x.ruleId === r.ruleId)) l.rules.push(r);
     Object.assign(l, verdictOf(l, plan.urgent));
   }
   for (const r of quote.mandateCheck.rules) if (!plan.inputRules.some((x) => x.ruleId === r.ruleId)) plan.inputRules.push(r);
+  applyAllergenAcknowledgements(plan, quote);
   if (quote.outcome === "block") {
     plan.status = "blocked";
     plan.summary = "Blocked";
@@ -542,7 +567,8 @@ export async function quoteAndDecide(plan: StoredPlan, personToken?: string): Pr
   if (plan.kind === "single" && !plan.overrides.accepted) {
     plan.status = "waiting";
     plan.proposal = true;
-    plan.summary = "Ready to add to the quote";
+    plan.summary = `Ready to add to the quote${plan.lines.some((l) => l.rules.some((r) => r.ruleId === "ALG-03")) ? " · allergen data not confirmed" : ""}`;
+    plan.questionIds = buildAllergenQuestions(plan, quote).map((q) => q.id);
     savePlan(plan);
     return plan;
   }
@@ -554,6 +580,7 @@ export async function quoteAndDecide(plan: StoredPlan, personToken?: string): Pr
   }
   plan.status = "waiting";
   plan.summary = `Waiting · ${questions.length} question${questions.length > 1 ? "s" : ""}`;
+  if (plan.lines.some((l) => l.rules.some((r) => r.ruleId === "ALG-03"))) plan.summary += " · allergen data not confirmed";
   savePlan(plan);
   return plan;
 }
@@ -569,7 +596,7 @@ export async function placeFromPlan(plan: StoredPlan, approvalId: string | undef
   }
   try {
     const continued = [...new Set(plan.lines.filter((l) => l.productId && l.stock?.kind === "unknown" && (plan.overrides.stockContinued ?? []).includes(l.productId)).map((l) => l.productId!))];
-    const o = await gw.order(plan.quoteId!, plan.idemKey, approvalId, continued, plan.overrides.stockDecidedBy);
+    const o = await gw.order(plan.quoteId!, plan.idemKey, approvalId, continued, undefined, plan.overrides.builderConsentId, plan.overrides.allergenAcknowledgements?.map((a) => a.token));
     plan.orderIds = [...new Set([...plan.orderIds, o.id])];
     for (const id of plan.basketCheckout?.sourcePlanIds ?? []) {
       const source = getPlan(id);
@@ -588,9 +615,11 @@ export async function placeFromPlan(plan: StoredPlan, approvalId: string | undef
         l.riskAccepted = ol.riskAccepted;
         l.status = "covered_at_risk";
       }
+      l.allergenDataAcknowledgement = ol?.allergenDataAcknowledgement;
     }
     const atRisk = plan.lines.filter((l) => l.riskAccepted).length;
     plan.summary = `Ordered · ${eur(o.totalExVat)}${atRisk ? ` · ${atRisk} at risk` : ""}${plan.shortfall && plan.overrides.keepShort ? ` · ${plan.shortfall.covered} of ${plan.shortfall.need} ${plan.shortfall.unit}` : ""}`;
+    if (plan.lines.some((l) => l.allergenDataAcknowledgement)) plan.summary += " · allergen data not confirmed";
     if (plan.overrides.keepShort && plan.shortfall) plan.status = "kept_short";
   } catch (e) {
     if (e instanceof GatewayError && e.body.error === "quote_stale") {

@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Owner** | Pavit |
+| **Owner** | The group (Jack, Darragh, Ben). It was Pavit's until he left the team on 15 Nov |
 | **Track** | C: gateway, interface, tests |
 | **Needs from** | 05 (the mandate), 02 (search fields) |
 | **Feeds** | Every chunk that quotes, orders or amends: 04, 06, 07, 09 |
@@ -66,7 +66,7 @@ Each function is one problem that can be built and tested alone. "Deterministic 
   - `GET /audit`, filtered by event or order.
 - **Answer:** _open_
 
-**Q08.2 Where is the line between Valio Aimo's gateway and the hotel's agent, inside one service?** **Major question.** Responsibility: Pavit, who builds the core brief functions (`PRODUCT-SEARCH`, `LOOKUP`, quoting and ordering).
+**Q08.2 Where is the line between Valio Aimo's gateway and the hotel's agent, inside one service?** **Major question.** Responsibility: the group, which took over the core brief functions from Pavit (`PRODUCT-SEARCH`, `LOOKUP`, quoting and ordering).
 - Recommended: two folders in `apps/api` that may not import each other's internals: `gateway/` (Valio Aimo's side) and `agent/` (the hotel's side). The agent reaches the gateway only through the same HTTP routes an outside agent uses. That keeps it honest: our own agent has no back door.
 - **Answer:** **Use the same REST contract for both agents.** Keep the hotel agent and gateway in one Express process on the T3 devbox. [Tech stack](../../TechStack.md)
   - **Hosting.** Use `http://127.0.0.1:5690/api` for local calls. The planned demo API base is `https://junction-gateway.bestinhop23.com/api`. Web and Capacitor clients use that HTTPS origin. Publish the gateway contract at `/openapi.json` on the same origin, with the demo API base in its server URL. The gateway keeps the Aimo mock key server-side.

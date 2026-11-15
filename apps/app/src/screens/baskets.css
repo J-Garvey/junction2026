@@ -41,7 +41,7 @@
 .basket-context { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px 24px; }
 .bqty { font-family: var(--mono); font-size: 13px; color: var(--ink); white-space: nowrap; min-width: 72px; }
 .staged-lines { margin-bottom: 10px; }
-.add-review-date { display: flex; align-items: center; justify-content: flex-end; gap: 10px; color: var(--ink); }
+.add-review-date { display: flex; align-items: center; gap: 10px; color: var(--ink); }
 .add-review-date span, .add-review-total { display: flex; flex-direction: column; gap: 2px; }
 .add-review-date small, .add-review-total small { color: var(--mute); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 .add-review-section { margin-top: 22px; }
@@ -73,16 +73,12 @@
 .add-review-item-body h4 { margin: 0 0 8px; color: var(--mute); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
 .add-review-product { display: grid; grid-template-columns: minmax(0, 1fr) 100px 140px; align-items: start; gap: 16px; padding: 12px 0; color: var(--ink); }
 .add-review-product + .add-review-product { border-top: 1px solid var(--hairline-soft); }
-.add-review-matches .add-review-product { grid-template-columns: minmax(0, 1fr) auto; }
 .add-review-product > span { min-width: 0; }
 .add-review-product-name { overflow-wrap: anywhere; }
 .add-review-product small { display: block; margin-top: 3px; color: var(--mute); font-size: 12px; }
 .add-review-product-name .stamp, .add-review-product-name .btn { margin-top: 8px; }
 .add-review-product-quantity, .add-review-product-price { display: flex; flex-direction: column; gap: 3px; }
 .add-review-product-price { text-align: right; }
-.add-review-product-facts { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(120px, 1fr) minmax(0, 3fr); gap: 6px 16px; margin: 0; }
-.add-review-product-facts dt { color: var(--mute); }
-.add-review-product-facts dd { margin: 0; overflow-wrap: anywhere; }
 .add-review-supplier-note { grid-column: 1 / -1; margin: 0; }
 .add-review-product-quantity > small:first-child, .add-review-product-price > small:first-child { margin-top: 0; font-size: 10px; text-transform: uppercase; font-weight: 700; }
 .add-review-replacements { margin-top: 12px; padding-top: 14px; border-top: 1px solid var(--hairline-soft); }

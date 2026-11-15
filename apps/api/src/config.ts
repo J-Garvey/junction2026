@@ -48,7 +48,7 @@ export const config = {
     baseUrl: process.env.CONTEXT_DEV_BASE_URL ?? "https://api.context.dev/v1",
     timeoutMs: Number(process.env.CONTEXT_DEV_TIMEOUT_MS ?? 15000),
   },
-  testMode: process.env.AIMO_TEST_MODE !== "0",
+  testMode: process.env.AIMO_TEST_MODE === "1",
   whatsappWeb: {
     authDir: process.env.WHATSAPP_AUTH_DIR ?? resolve(REPO_ROOT, "apps/api/var/whatsapp-web"),
     chromePath: process.env.WHATSAPP_CHROME_PATH ?? "",

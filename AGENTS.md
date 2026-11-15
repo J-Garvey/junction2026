@@ -8,7 +8,8 @@ Keep `C:\Users\benfh\junction` as a clean, local mirror of GitHub's `main` branc
 - Give each person, agent and concurrent task its own worktree and branch. Never let two active sessions share a worktree or branch.
 - Before creating a worktree, run `git fetch origin` and base it on `origin/main`. Do not pull, rebase, switch branches or remove a worktree that another session may be using.
 - Make all changes on the task branch. Push the branch and open a GitHub pull request targeting `main`; never push commits directly to `main`. **Merge when ready by default**: once required checks pass, required reviews are satisfied and the branch is conflict-free, merge the pull request without waiting for a separate instruction. If any of those conditions are not met, leave the pull request open and report the blocker instead of forcing the merge.
-- Before merging, bring the branch up to date with `origin/main` when needed and run the checks appropriate to the change.
+- Before merging, bring the branch up to date with `origin/main` when needed and run only the checks directly relevant to the change.
+- UI checks are not a blanket requirement for merges to `main`. Do not automatically run the full UI test suite, browser walkthroughs, screenshots or visual reviews before every merge. Use targeted UI tests when the change affects UI behaviour; run broader UI reviews only when explicitly requested. Documentation-only, backend-only and other unrelated changes do not need UI validation.
 - After a pull request merges, fast-forward the clean primary checkout with `git pull --ff-only`. Remove only the completed task's worktree and local branch, then run `git fetch --prune`.
 - If the primary checkout has tracked modifications, stop and identify their owner instead of overwriting or stashing them. Treat untracked directories and other worktrees as potentially active work until verified otherwise.
 - When running multiple app instances, use distinct ports and, where applicable, separate databases or temporary data directories. Keep credentials out of Git; configure each worktree safely through its own ignored environment file or an external shared secret source.
@@ -54,7 +55,7 @@ python3 scripts/aimo_api.py availability 2026-11-16 464306 463038 469363
 
 ## Decide when to stop for a human
 
-[docs/human-approval-rules.md](docs/human-approval-rules.md) lists the edge cases that end in an order, a question for the hotel, or a block. Allergen and diet failures, missing delivery dates and passed cut-offs are never approved through. Missing allergen data is different from a failure: under D35 (decided 15 Nov, not yet built) the chef can continue past it and the line stays marked as a concern. Unknown stock is never shown as confirmed. The person building the order is asked whether to continue with it, and can (decision D31 in [docs/prd-context.md](docs/prd-context.md)).
+[docs/human-approval-rules.md](docs/human-approval-rules.md) lists the edge cases that end in an order, a question for the hotel, or a block. Allergen and diet failures, missing delivery dates and passed cut-offs are never approved through. Missing allergen data is different from a failure: under D35 (decided 15 Nov) the chef can continue past it and the line stays marked as a concern. Unknown stock is never shown as confirmed. The person building the order is asked whether to continue with it, and can (decision D31 in [docs/prd-context.md](docs/prd-context.md)).
 
 ## Verify the demo
 

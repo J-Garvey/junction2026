@@ -1,12 +1,15 @@
+import { CandidateRanking } from "./CandidateRanking";
 import { type ReactNode, useId, useState } from "react";
 import type { Candidate, ItemReview, Need, PlanLine, SingleLine } from "@aimo/contracts";
-import { useApp, useLoad } from "../ctx";
-import { api } from "../api";
+import { useApp } from "../ctx";
 import { claimLabel, day, eur, parseTime, qty, when } from "../format";
 import { stockText } from "./Popover";
-import { Status, UnknownStockMark } from "./Status";
+import { AllergenDataMark, UnknownStockMark } from "./Status";
 import { Icon } from "./icons";
 import { useCategoryFilter, useShowAll } from "./ShowAll";
+import { ProductDetailsPanel, allergenLabel } from "./ProductDetails";
+import { SelectionFunnel } from "./SelectionFunnel";
+import { CarbonEstimate } from "./CarbonEstimate";
 
 /** One compact table group per requested item; supporting evidence opens on demand. */
 export function ProductReviewItem({ line, need, lines, deliveryDate, checked, disabled, review, onApprove, onSalesQuantity, onEdit, onDiscard, onChoose, onSearch, children }: {
@@ -62,6 +65,8 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
         <tr key={product?.id ?? line.id} className="add-review-row">
           <td className="add-review-row-product">
             <b>{product?.productName ?? line.query}{product?.stock?.kind === "unknown" && <UnknownStockMark reason={product.stock.reason} />}</b>
+            {product && <AllergenDataMark line={product} />}
+            <CarbonEstimate line={product ?? { quantity: 0 }} />
             {index === 0 && <div className="add-review-request small muted">
               <span>Requested</span>
               <button type="button" className="add-review-edit-value" disabled={disabled} onClick={() => onEdit("quantity")} aria-label={`Edit quantity for ${line.query}`}>
@@ -73,8 +78,8 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
             </div>}
             {product?.source === "fixture" && <small className="muted">Fixture</small>}
           </td>
-          <td className="add-review-row-quantity">{product && product.quantity > 0 ? `${qty(product.quantity)} ${product.salesUnit ?? ""}` : "TBC"}</td>
-          <td className="add-review-row-price"><b>{eur(product && product.quantity > 0 ? product.lineTotal : null)}</b></td>
+          <td className="add-review-row-quantity"><button type="button" className="poptrigger" aria-label={`Explain quantity for ${product?.productName ?? line.query}`} aria-expanded={showDetails} onClick={() => setShowDetails(!showDetails)}>{product && product.quantity > 0 ? `${qty(product.quantity)} ${product.salesUnit ?? ""}` : "TBC"}</button></td>
+          <td className="add-review-row-price"><button type="button" className="poptrigger" aria-label={`Explain line amount for ${product?.productName ?? line.query}`} aria-expanded={showDetails} onClick={() => setShowDetails(!showDetails)}><b>{eur(product && product.quantity > 0 ? product.lineTotal : null)}</b></button></td>
           {index === 0 && <td rowSpan={products.length} className="add-review-row-actions">
             {checked && review && !exactMatch && (review.approvedAt
               ? <span className="add-review-approved small" title={`Approved by ${review.approvedBy}`}><Icon n="check" s={14} /> Approved</span>
@@ -95,26 +100,12 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
                 <div className="add-review-matches">
                   <h4>Product details</h4>
                   {found.map((product) => (
-                    <div key={product.id} className="add-review-product">
-                      <span className="add-review-product-name">
-                        <small>Product {product.productId}{product.source === "fixture" ? " · Fixture" : ""}</small>
-                        <small>{product.packContent ? `${qty(product.packContent.value)} ${product.packContent.unit} per ${product.salesUnit ?? "sales unit"} (${product.packContent.verified ? "checked" : "unverified"}; ${product.packContent.source})` : "Pack conversion unknown; do not infer pieces from weight."}</small>
-                        {product.needIds.length > 1 && <small>Shared pack: quantity and price also cover {product.shares.filter((share) => share.needId !== line.id).map((share) => share.label).join(", ")}.</small>}
-                        {product.status !== "unknown_stock" && product.status !== "covered_at_risk" && <Status k={product.status} />}
-                      </span>
-                      <span className="add-review-product-price"><small>Unit price ex VAT</small><b>{eur(product.unitPrice)} / {product.salesUnit ?? "sales unit"}</b></span>
-                      <dl className="add-review-product-facts small">
-                        <dt>Stock</dt><dd>{stockText(product.stock, product.salesUnit)}</dd>
-                        <dt>Available date</dt><dd>{product.availableDate ? day(product.availableDate) : "Not supplied"}</dd>
-                        <dt>Order cutoff (Helsinki)</dt><dd>{product.closingTime ? when(product.closingTime) : "Not supplied"}</dd>
-                        {product.overshoot && <><dt>Pack rounding</dt><dd>{qty(product.overshoot.amount)} {product.needAmount.unit} extra ({qty(product.overshoot.pct)}%)</dd></>}
-                      </dl>
-                      <SupplierSchedule terms={product} />
-                      {hasDietRequirements && product.productId && <ProductDietFacts key={product.productId} productId={product.productId} />}
-                    </div>
+                    <ProductDetailsPanel key={`${product.id}-${product.productId}`} line={product} />
                   ))}
                 </div>
               )}
+
+              {showDetails && need && <SelectionFunnel need={need} lines={lines} />}
 
               {(unknownProduct || noMatch || tooLate || !found.length) && (
                 <div className="callout yellow add-review-item-issue" role="status">
@@ -190,6 +181,7 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
                         <span className="add-review-product-quantity"><small>Quantity</small><b>{quantity === null ? "TBC" : `${qty(quantity)} ${candidate.salesUnit ?? "sales units"}`}</b></span>
                         <span className="add-review-product-price"><small>Price ex VAT</small><b>{eur(quantity === null || candidate.unitPrice === null ? null : quantity * candidate.unitPrice)}</b><small>{eur(candidate.unitPrice)} / {candidate.salesUnit ?? "sales unit"}</small></span>
                         <SupplierSchedule terms={candidate} />
+                        <small><CandidateRanking candidate={candidate} /></small>
                       </div>
                     );
                   })}
@@ -218,18 +210,6 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
   );
 }
 
-/** Catalogue declarations are supporting facts, never an assurance about absent data. */
-function ProductDietFacts({ productId }: { productId: string }) {
-  const { data: product, error, loading, reload } = useLoad(() => api.product(productId), [productId]);
-  if (loading && !product) return <p className="small muted">Loading dietary information...</p>;
-  if (error || !product) return <div className="small muted" role="status">Dietary information could not be loaded. <button type="button" className="linkbtn" onClick={reload}>Try again</button></div>;
-  const contains = product.contains.filter((code) => code !== "X99");
-  return <dl className="add-review-product-facts small">
-    <dt>Diet claims</dt><dd>{product.claims.map(claimLabel).join(", ") || "No claims supplied"}</dd>
-    <dt>Allergen declarations</dt><dd>{product.hasAllergenData ? [contains.length ? `Contains: ${contains.map(allergenLabel).join(", ")}` : "No contains entries supplied", product.mayContain.length ? `May contain: ${product.mayContain.map(allergenLabel).join(", ")}` : "No may-contain entries supplied"].join(". ") : "No allergen declaration supplied. Dietary suitability is unknown."}</dd>
-  </dl>;
-}
-
 function SupplierSchedule({ terms }: { terms: Pick<PlanLine, "availabilityEvidence" | "availableDate" | "closingTime"> }) {
   const schedule = terms.availabilityEvidence?.schedules[0];
   if (!schedule) return <p className="add-review-supplier-note small muted">Original supplier schedule not saved. Recheck the item terms before ordering.</p>;
@@ -237,14 +217,9 @@ function SupplierSchedule({ terms }: { terms: Pick<PlanLine, "availabilityEviden
   return <p className="add-review-supplier-note small muted">Quoted delivery and cutoff are demo estimates. Original supplier schedule: {schedule.availableDate ? day(schedule.availableDate) : "date not supplied"}; cutoff (Helsinki): {schedule.closingTime ? when(schedule.closingTime) : "not supplied"}. A delivery hour is not supplied.</p>;
 }
 
-function allergenLabel(code: string) {
-  const names: Record<string, string> = { AM: "milk", AE: "eggs", AF: "fish", AC: "crustaceans", UM: "molluscs", AP: "peanuts", AN: "tree nuts", AY: "soybeans", AS: "sesame", BC: "celery", BM: "mustard", NL: "lupin", AU: "sulphites", AW: "cereals containing gluten", ML: "lactose" };
-  return names[code] ? `${names[code]} (${code})` : code;
-}
-
 function replacementQuantity(candidate: Candidate, need: Need) {
   const pack = candidate.packContent;
-  return pack && pack.unit === need.amount.unit && pack.value > 0 ? Math.ceil(need.amount.value / pack.value - 1e-9) : null;
+  return pack && (need.amount.unit !== "pcs" || pack.verified) && pack.unit === need.amount.unit && pack.value > 0 ? Math.ceil(need.amount.value / pack.value - 1e-9) : null;
 }
 
 /** Unknown stock is not a shortage (D34): it keeps its rank and carries the "stock not confirmed" marker. */

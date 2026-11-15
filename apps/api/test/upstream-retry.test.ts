@@ -118,9 +118,12 @@ describe("Valio Aimo rate limits", () => {
     expect(json).toMatchObject({ error: "upstream_rate_limited", retryAfter: 30 });
   });
 
-  it("a refusal that isn't the mock's fault still goes to the next handler", () => {
-    let passed = false;
-    appErrors(new GatewayError(409, { error: "quote_stale", message: "stale" }), {} as any, {} as any, () => (passed = true));
-    expect(passed).toBe(true);
+  it("other gateway refusals keep their own status, without Retry-After", () => {
+    let status = 0;
+    const headers: Record<string, string> = {};
+    const res = { status: (s: number) => ((status = s), res), json: () => res, setHeader: (k: string, v: string) => (headers[k] = v) } as any;
+    appErrors(new GatewayError(409, { error: "quote_stale", message: "stale" }), {} as any, res, () => undefined);
+    expect(status).toBe(409);
+    expect(headers["Retry-After"]).toBeUndefined();
   });
 });

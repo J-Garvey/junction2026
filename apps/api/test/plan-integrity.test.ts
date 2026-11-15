@@ -17,6 +17,9 @@ const { getPerson } = await import("../src/identity.js");
 let quoted: QuoteCreateBody | undefined;
 beforeEach(async () => {
   seedReset();
+  // These quantity/identity fixtures intentionally use Norwegian salmon 462150.
+  // Exercise their original legacy mandate; category origin has separate gateway regressions.
+  putMandate({ ...mandate(), categoryOriginRequirements: [] });
   setClock({ time: "2026-11-14T10:00:00Z" });
   quoted = undefined;
   const fixture = await lookup(["462150", "469363"], "2026-11-16", { mode: "fixture", overlay: null });
@@ -25,7 +28,7 @@ beforeEach(async () => {
   vi.spyOn(gw, "lookup").mockImplementation(async (ids) => ({ ...fixture, lines: ids.map((id) => fixture.lines.find((l) => l.productId === id) ?? normalise(id, {}, {}, "fixture", "unavailable identity fixture", "2026-11-14T10:00:00Z")) }));
   vi.spyOn(gw, "quote").mockImplementation(async (body) => {
     quoted = body;
-    const lines = body.lines.map((line, index) => ({ ...line, lineNo: index + 1, ref: line.ref ?? null, unitPrice: line.productId === "462150" ? 14.11 : 2.48, lineTotal: +(line.quantity * (line.productId === "462150" ? 14.11 : 2.48)).toFixed(2), rules: [] }));
+    const lines = body.lines.map((line, index) => ({ ...fixture.lines.find((l) => l.productId === line.productId)!, ...line, lineNo: index + 1, ref: line.ref ?? null, unitPrice: line.productId === "462150" ? 14.11 : 2.48, lineTotal: +(line.quantity * (line.productId === "462150" ? 14.11 : 2.48)).toFixed(2), rules: [] }));
     return { id: "synthetic-quote", fingerprint: "synthetic-fingerprint", expiresAt: "2026-11-14T11:00:00Z", unconfirmedStock: [], lines, totalExVat: +lines.reduce((sum, line) => sum + line.lineTotal, 0).toFixed(2), totalVat: 0, mandateCheck: { approvalsNeeded: [], rules: [] }, outcome: "order" } as unknown as Quote;
   });
 });
@@ -39,6 +42,34 @@ async function planFor(text: string, neededBy = "2026-11-16") {
 }
 
 describe("purchasing plan line integrity", () => {
+  it.each(["same", "quantity", "policy"])("reuses a builder stock decision only for the reviewed terms (%s)", async (change) => {
+    const quote = vi.mocked(gw.quote).getMockImplementation()!;
+    let changed = false;
+    vi.mocked(gw.quote).mockImplementation(async (body) => {
+      const result = await quote(body);
+      return { ...result, stockPolicy: changed && change === "policy" ? "policy-v2" : "policy-v1",
+        fingerprint: changed && change === "quantity" ? "new-quantity" : "reviewed-quantity",
+        unconfirmedStock: ["469363"], lines: result.lines.map((l) => ({ ...l, stock: { kind: "unknown", reason: "stock_sentinel" } })) };
+    });
+    const order = vi.spyOn(gw, "order").mockResolvedValue({ id: "I3-mock-order", lines: [] } as any);
+    const plan = await planFor("5 l lactose-free milk 469363");
+    plan.overrides.accepted = true;
+    plan.overrides.stockContinued = ["469363"];
+    plan.overrides.stockDecidedBy = "reviewing builder";
+    if (change === "quantity") plan.request!.lines[0].quantity!.amount = 6;
+    changed = true;
+    await quoteAndDecide(plan);
+    expect(plan.lines[0].stock?.kind).toBe("unknown");
+    if (change === "same") {
+      expect(plan.overrides.stockContinued).toEqual(["469363"]);
+      expect(order).toHaveBeenCalledOnce();
+    } else {
+      expect(plan.overrides.stockContinued).toEqual([]);
+      expect(order).not.toHaveBeenCalled();
+      expect(plan.status).toBe("waiting");
+    }
+  });
+
   it("keeps litres and kilograms separate when the same product is requested ahead", async () => {
     const plan = await planFor("5 l lactose-free milk 469363 and 5 kg lactose-free milk 469363", "2027-03-01");
     expect(plan.lines.some((line) => line.rules.some((rule) => rule.ruleId === "QTY-05"))).toBe(true);

@@ -2,10 +2,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import type { Order, Question } from "@aimo/contracts";
-import { api, ApiError, type BasketPlan, type MessageResp, type PlanResp } from "../api";
+import { api, ApiError, type BasketPlan, type BasketResp, type MessageResp, type PlanResp } from "../api";
 import { splitMine, useApp, useLoad, waitingForText } from "../ctx";
 import { OthersWaiting, QuestionCard } from "../ui/QuestionCard";
-import { Status, planStatusKind, PLAN_STATUS_TEXT } from "../ui/Status";
+import { AllergenDataMark, Status, planStatusKind, PLAN_STATUS_TEXT } from "../ui/Status";
 import { Icon } from "../ui/icons";
 import { OrderItemDialog } from "../ui/OrderItemDialog";
 import { RequestReviewDialog } from "../ui/RequestReviewDialog";
@@ -13,7 +13,10 @@ import { MenuEditor } from "../ui/MenuEditor";
 import { BasketCard } from "../ui/BasketCard";
 import { OrderBy } from "../ui/OrderBy";
 import { OrderReviewHistory } from "../ui/OrderReviewHistory";
-import { stockText } from "../ui/Popover";
+import { CarbonEstimate } from "../ui/CarbonEstimate";
+import { FinanceOrderSummary } from "./Finance";
+import { Pop, stockText } from "../ui/Popover";
+import { LineCalculation, TotalCalculation } from "../ui/CalculationEvidence";
 import { tooLateText } from "../ui/TooLate";
 import { addDays, day, eur, helsinkiDate, plural, qty, when } from "../format";
 import "./baskets.css";
@@ -102,21 +105,26 @@ function NewBasketTile() {
 export function BasketPage() {
   const { me, people, refresh } = useApp();
   const { id } = useParams();
-  const { data, error, reload } = useLoad(() => api.basket(id!), [id]);
+  const { data, error, reload, setData } = useLoad(() => api.basket(id!), [id]);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [reviewFeedback, setReviewFeedback] = useState<{ eventId: string; message: string; error: boolean } | null>(null);
   const [requestNote, setRequestNote] = useState<string | null>(null);
   const [addMode, setAddMode] = useState<"product" | "menu">("product");
 
+  function updateBasket(basket?: BasketResp) {
+    if (basket) setData(basket);
+    else reload();
+  }
+
   async function submitForReview() {
     setSubmitting(true);
     setSubmitError(null);
     setReviewFeedback(null);
     try {
-      await api.submitBasketForReview(id!);
+      const result = await api.submitBasketForReview(id!);
+      updateBasket(result.basket);
       refresh();
-      reload();
     } catch (e) {
       setSubmitError((e as Error).message);
     } finally {
@@ -133,16 +141,21 @@ export function BasketPage() {
   const staged = requests.filter((r) => r.basketedAt && !r.orderIds.length);
   const { mine: waitingQs, others } = splitMine(questions.filter((q) => q.state === "open" || q.state === "waiting"), me, people);
   const pending = requests.filter((r) => !r.basketedAt && r.status !== "ordered" && r.status !== "rejected" && !r.orderIds.length);
-  const orderTotal = staged.some((p) => p.totalExVat == null || p.lines.some((line) => line.lineTotal == null))
+  const orderTotal = staged.some((p) => p.totalExVat == null || p.lines.some((line) => !line.removed && line.lineTotal == null))
     ? null
     : live.reduce((sum, order) => sum + order.totalExVat, 0) + staged.reduce((sum, plan) => sum + plan.totalExVat!, 0);
+  const isApprover = me.role === "approver";
+  const placedTotal = live.reduce((sum, order) => sum + order.totalExVat, 0);
+  const pendingTotal = orderTotal === null ? null : orderTotal - placedTotal;
+  const placedParts = live.map((order) => ({ label: `Placed order ${order.id} · v${order.version}`, total: order.totalExVat, lines: order.lines }));
+  const currentParts = [...placedParts, ...staged.map((plan) => ({ label: `Staged request ${plan.title}`, total: plan.totalExVat, lines: plan.lines }))];
 
   return (
     <div className="page stack-l">
       <div className={`bhead${data.confirmed ? " confirmed" : ""}`}>
         <h1>{ev.name}</h1>
         {data.confirmed && <span className="stamp order"><Icon n="check" s={14} /> Confirmed</span>}
-        <div className="row small" style={{ gap: 12, marginLeft: "auto", flexWrap: "wrap" }}>
+        {!isApprover && <div className="row small" style={{ gap: 12, marginLeft: "auto", flexWrap: "wrap" }}>
           <button
             type="button"
             className="btn primary"
@@ -152,7 +165,7 @@ export function BasketPage() {
             <Icon n={review ? "check" : "send"} s={16} />
             {submitting ? "Submitting…" : review ? "Submitted for review" : "Submit order for review"}
           </button>
-        </div>
+        </div>}
       </div>
       <div className="basket-context small muted">Delivery {day(ev.serviceDate)}<OrderBy deadline={data.orderBy} detail /></div>
 
@@ -161,7 +174,16 @@ export function BasketPage() {
       {returned && <div className="callout yellow small" role="status"><strong>Changes requested</strong><p className="decision-note">{returned.answerNote ?? "Returned to the order builder for changes."}</p><span className="muted">{returned.answeredBy?.name} · {when(returned.answeredAt)}</span></div>}
       {requestNote && <div className="callout green small" role="status">{requestNote}</div>}
 
-      <section className="stack">
+      {isApprover && <>
+        <nav className="finance-links" aria-label="Order finance tools">
+          <Link to="/"><Icon n="back" s={16} /> Approvals &amp; spend</Link>
+          <Link to={`/orders?eventId=${encodeURIComponent(ev.id)}`}><Icon n="box" s={16} /> Order receipts</Link>
+          <Link to="/rules"><Icon n="shield" s={16} /> Hotel rules</Link>
+        </nav>
+        <FinanceOrderSummary total={orderTotal} placed={placedTotal} pending={pendingTotal} review={review} currentParts={currentParts} placedParts={placedParts} />
+      </>}
+
+      {!isApprover && <section className="stack">
         <div className="add-mode">
           <h2>Add to the order</h2>
           <div className="seg" role="tablist" aria-label="How to add">
@@ -174,13 +196,13 @@ export function BasketPage() {
           </div>
         </div>
         {addMode === "product" ? (
-          <AddToBasket eventId={ev.id} deliveryDate={ev.serviceDate} onAdded={reload} />
+          <AddToBasket eventId={ev.id} deliveryDate={ev.serviceDate} onAdded={updateBasket} />
         ) : (
-          <MenuEditor event={ev} menuInOrder={staged.some((r) => r.title.startsWith("Menu ·")) || live.length > 0} onSaved={reload} onAdded={() => { refresh(); reload(); }} />
+          <MenuEditor event={ev} menuInOrder={staged.some((r) => r.title.startsWith("Menu ·")) || live.length > 0} onSaved={reload} onAdded={(basket) => { updateBasket(basket); refresh(); }} />
         )}
-      </section>
+      </section>}
 
-      {(waitingQs.length > 0 || pending.length > 0) && (
+      {(waitingQs.length > 0 || (!isApprover && pending.length > 0)) && (
         <section>
           <div className="sechead">
             <h2>Decisions before processing</h2>
@@ -197,10 +219,10 @@ export function BasketPage() {
             </div>
           )}
           <OthersWaiting others={others} />
-          {pending.length > 0 && (
+          {!isApprover && pending.length > 0 && (
             <div className="card" style={{ marginTop: 12 }}>
               {pending.map((r) => (
-                <RequestRow key={r.id} r={r} onChanged={reload} onAdded={() => { setRequestNote("Added to the order. Submit the final order for finance review."); reload(); }} question={questions.find((q) => q.planId === r.id && (q.state === "open" || q.state === "waiting"))} />
+                <RequestRow key={r.id} r={r} onChanged={reload} onAdded={(basket) => { updateBasket(basket); setRequestNote("Added to the order. Submit the final order for finance review."); }} question={questions.find((q) => q.planId === r.id && (q.state === "open" || q.state === "waiting"))} />
               ))}
             </div>
           )}
@@ -210,17 +232,17 @@ export function BasketPage() {
       <section>
         <div className="sechead">
           <h2>In the order</h2>
-          {(live.length > 0 || staged.length > 0) && <span className="small muted">{eur(orderTotal)} ex VAT</span>}
+          {(live.length > 0 || staged.length > 0) && <span id="order-calculation" className="small muted"><TotalCalculation title="current order total" total={orderTotal} parts={currentParts} note="Placed supplier orders plus staged requests. Pending proposals and rejected orders are excluded; requests already placed are not added twice." /> ex VAT</span>}
         </div>
         <StagedLines plans={staged} submitted={!!review} />
-        <OrderedLines orders={live} showEmpty={!staged.length} />
+        <OrderedLines orders={live} showEmpty={!staged.length} emptyText={isApprover ? "No items in this order yet. The kitchen is preparing it." : undefined} />
       </section>
       <OrderReviewHistory questions={questions} />
     </div>
   );
 }
 
-function RequestRow({ r, question, onChanged, onAdded }: { r: BasketPlan; question?: Question; onChanged: () => void; onAdded: () => void }) {
+function RequestRow({ r, question, onChanged, onAdded }: { r: BasketPlan; question?: Question; onChanged: () => void; onAdded: (basket?: BasketResp) => void }) {
   const { me, people } = useApp();
   const waitingLabel = question ? waitingForText(question, me, people) : undefined;
   const [open, setOpen] = useState(false);
@@ -232,11 +254,11 @@ function RequestRow({ r, question, onChanged, onAdded }: { r: BasketPlan; questi
       </div>
       {r.tooLate ? <span className="stamp ask">Too late</span> : <Status k={planStatusKind(r.status)} title={waitingLabel ?? PLAN_STATUS_TEXT[r.status]} label={r.status === "waiting" ? waitingLabel : undefined} />}
     </button>
-    {open && <SavedRequestDetails id={r.id} title={r.title} onClose={() => setOpen(false)} onChanged={onChanged} onAdded={() => { setOpen(false); onAdded(); }} />}
+    {open && <SavedRequestDetails id={r.id} title={r.title} onClose={() => setOpen(false)} onChanged={onChanged} onAdded={(basket) => { setOpen(false); onAdded(basket); }} />}
   </>;
 }
 
-function SavedRequestDetails({ id, title, onClose, onChanged, onAdded }: { id: string; title: string; onClose: () => void; onChanged: () => void; onAdded: () => void }) {
+function SavedRequestDetails({ id, title, onClose, onChanged, onAdded }: { id: string; title: string; onClose: () => void; onChanged: () => void; onAdded: (basket?: BasketResp) => void }) {
   const { data, error, loading, reload } = useLoad(() => api.plan(id), [id]);
   if (!data?.plan.request || !data.plan.eventId) return <OrderItemDialog eyebrow="Request details" title={title} onClose={onClose}>
     {loading && <div className="muted" role="status">Loading item details...</div>}
@@ -252,20 +274,24 @@ function StagedLines({ plans, submitted }: { plans: BasketPlan[]; submitted: boo
     <div className="card staged-lines">
       {lines.map((line) => (
         <div key={`${line.planId}-${line.id}`} className="li">
-          <span className="bqty">{qty(line.quantity)} {line.salesUnit ?? ""}</span>
-          <span className="trunc" style={{ flex: 1, color: "var(--ink)" }}>{line.productName}</span>
-          <span className="stamp ask">{submitted ? "Awaiting finance approval" : "Awaiting final order"}</span>
-          <span className="small">{eur(line.lineTotal)}</span>
+          <span className="bqty"><Pop ariaLabel={`Explain quantity for ${line.productName}`} label={`${qty(line.quantity)} ${line.salesUnit ?? ""}`}><LineCalculation line={line} /></Pop></span>
+          <span style={{ flex: 1, minWidth: 0, color: "var(--ink)" }}>
+            <span className="trunc">{line.productName}</span>
+            <AllergenDataMark line={line} />
+            <CarbonEstimate line={line} />
+          </span>
+          <span className="stamp ask">{submitted ? "Awaiting finance approval" : "Ready to order"}</span>
+          <span className="small"><Pop ariaLabel={`Explain line amount for ${line.productName}`} label={eur(line.lineTotal)}><LineCalculation line={line} /></Pop></span>
         </div>
       ))}
     </div>
   );
 }
 
-function OrderedLines({ orders, showEmpty = true }: { orders: Order[]; showEmpty?: boolean }) {
+function OrderedLines({ orders, showEmpty = true, emptyText = "Nothing ordered yet. Add something above." }: { orders: Order[]; showEmpty?: boolean; emptyText?: string }) {
   const lines = orders.flatMap((o) => o.lines.filter((l) => !l.removed).map((l) => ({ ...l, orderId: o.id })));
   const [selected, setSelected] = useState<(typeof lines)[number] | null>(null);
-  if (!lines.length) return showEmpty ? <div className="empty">Nothing ordered yet. Add something above.</div> : null;
+  if (!lines.length) return showEmpty ? <div className="empty">{emptyText}</div> : null;
   return (
     <>
       <div className="card">
@@ -274,10 +300,12 @@ function OrderedLines({ orders, showEmpty = true }: { orders: Order[]; showEmpty
             <span className="bqty">
               {qty(l.quantity)} {l.salesUnit ?? ""}
             </span>
-            <span className="trunc" style={{ flex: 1, color: "var(--ink)" }}>
-              {l.productName}
+            <span style={{ flex: 1, minWidth: 0, color: "var(--ink)" }}>
+              <span className="trunc">{l.productName}</span>
+              <CarbonEstimate line={l} />
             </span>
             {l.stock.kind === "unknown" && <Status k={l.riskAccepted ? "covered_at_risk" : "unknown_stock"} />}
+            <AllergenDataMark line={l} />
             <span className="small">{eur(l.lineTotal)}</span>
           </button>
         ))}
@@ -295,6 +323,7 @@ function OrderedLines({ orders, showEmpty = true }: { orders: Order[]; showEmpty
             { label: "Quantity", value: `${qty(selected.quantity)} ${selected.salesUnit ?? ""}` },
             { label: "Unit price", value: eur(selected.unitPrice) },
             { label: "Line total", value: eur(selected.lineTotal) },
+            { label: "Carbon estimate", value: <CarbonEstimate line={selected} /> },
             { label: "Product ID", value: selected.productId },
             { label: "Stock", value: stockText(selected.stock) },
             { label: "Order", value: selected.orderId },
@@ -303,19 +332,20 @@ function OrderedLines({ orders, showEmpty = true }: { orders: Order[]; showEmpty
             { label: "Price valid to", value: selected.priceValidTo ?? "Not supplied" },
           ]}
           onClose={() => setSelected(null)}
-        />
+        ><LineCalculation line={selected} /></OrderItemDialog>
       )}
     </>
   );
 }
 
 /** Search and check a new request, then use the shared saved-request review. */
-function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deliveryDate: string; onAdded: () => void }) {
+function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deliveryDate: string; onAdded: (basket?: BasketResp) => void }) {
   const { refresh } = useApp();
   const [text, setText] = useState("");
   const [review, setReview] = useState<PlanResp | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ cls: string; body: React.ReactNode } | null>(null);
+  const submittedText = useRef("");
   useMessagePreparation(busy || review ? "" : text);
   const picker = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<Attachment[]>([]);
@@ -351,19 +381,21 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
   }
 
-  function added() {
+  function added(basket?: BasketResp) {
+    onAdded(basket);
+    const completedText = submittedText.current;
     setReview(null);
-    setText("");
+    setText((current) => current.trim() === completedText ? "" : current);
     setNote({ cls: "green", body: <><b>Added to the order.</b> Submit the final order for finance review.</> });
-    onAdded();
   }
 
   async function search() {
     if (!text.trim() || busy) return;
+    submittedText.current = text.trim();
     setBusy(true);
     setNote(null);
     try {
-      const parsed: MessageResp = await api.message(text.trim());
+      const parsed: MessageResp = await api.message(submittedText.current);
       if (parsed.route === "event_change") {
         setNote({ cls: "blue", body: <>Guest changes are made on the <Link to={`/events/${eventId}`}>event page</Link>.</> });
       } else if (parsed.route === "neither") {
@@ -377,8 +409,8 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
           && !checked.questions.some((question) => question.state === "open" || question.state === "waiting");
         if (exact) {
           try {
-            await api.basketPlan(plan.id);
-            added();
+            const result = await api.basketPlan(plan.id);
+            added(result.basket);
             refresh();
           } catch (e) {
             // A supplier change during staging returns the current terms for review.
@@ -417,7 +449,7 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
             rows={1}
             value={text}
             maxLength={2000}
-            placeholder="Add to this order, e.g. 40 l lactose-free milk"
+            placeholder="e.g. 40 L lactose-free milk"
             onChange={(event) => setText(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) {

@@ -1,34 +1,53 @@
+import { CandidateRanking } from "./CandidateRanking";
 /** UI-05: tap a price, quantity or status to see where it came from. */
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import type { Candidate, FiredRule, ModelJudgement, PlanLine, StockFact } from "@aimo/contracts";
 import { eur, qty, when, day, fi } from "../format";
 import { Fixture } from "./Status";
 import { get } from "../api";
+import { LineCalculation } from "./LineCalculation";
 
-export function Pop({ label, children, className }: { label: ReactNode; children: ReactNode; className?: string }) {
+export function Pop({ label, children, className, ariaLabel }: { label: ReactNode; children: ReactNode; className?: string; ariaLabel?: string }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLSpanElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const triggerId = useId();
+  const dialogId = useId();
+  function close() {
+    setOpen(false);
+    triggerRef.current?.focus({ preventScroll: true });
+  }
   useEffect(() => {
     if (!open) return;
+    closeRef.current?.focus({ preventScroll: true });
     const onDoc = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
     document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
     return () => {
       document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("keydown", onKey);
     };
   }, [open]);
   return (
-    <span className={`popwrap ${className ?? ""}`} ref={ref}>
-      <button type="button" className="poptrigger" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+    <span
+      className={`popwrap ${className ?? ""}`}
+      ref={ref}
+      onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}
+      onKeyDown={(event) => {
+        if (open && event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          close();
+        }
+      }}
+    >
+      <button ref={triggerRef} id={triggerId} type="button" className="poptrigger" aria-label={ariaLabel} onClick={() => setOpen((o) => !o)} aria-haspopup="dialog" aria-controls={open ? dialogId : undefined} aria-expanded={open}>
         {label}
       </button>
       {open && (
-        <div className="popover" role="dialog">
-          <button type="button" className="popclose" onClick={() => setOpen(false)} aria-label="Close">
+        <div id={dialogId} className="popover" role="dialog" aria-labelledby={triggerId}>
+          <button ref={closeRef} type="button" className="popclose" onClick={close} aria-label="Close">
             ×
           </button>
           {children}
@@ -86,13 +105,13 @@ export function Judgements({ items }: { items: (ModelJudgement | null | undefine
 }
 
 /** Everything known about one plan line. */
-export function LineSource({ line, judgements }: { line: PlanLine; judgements?: ModelJudgement[] }) {
+export function LineSource({ line, judgements, savedOnly = false }: { line: PlanLine; judgements?: ModelJudgement[]; savedOnly?: boolean }) {
   return (
     <>
       <div className="popsec">
         <div className="pophead">{line.productName}</div>
         <div className="small muted mono">{line.productId ?? "no product"}</div>
-        {line.productId && <BrandLine productId={line.productId} />}
+        {line.productId && !savedOnly && <BrandLine productId={line.productId} />}
       </div>
       <div className="popsec">
         <div className="pophead">Pack maths</div>
@@ -172,6 +191,7 @@ export function LineSource({ line, judgements }: { line: PlanLine; judgements?: 
           )}
         </dl>
       </div>
+      <div className="popsec"><div className="pophead">Saved calculation</div><LineCalculation line={line} /></div>
       <RulesList rules={line.rules} />
       <Judgements items={judgements ?? []} />
     </>
@@ -186,6 +206,7 @@ export function CandidateSource({ c }: { c: Candidate }) {
         <div className="small muted">
           Rank {c.rank} ({c.label}), decided by: <b>{c.rankStep}</b>
         </div>
+        {c.costToCover !== undefined && <p className="small"><CandidateRanking candidate={c} /></p>}
       </div>
       <div className="popsec">
         <dl className="kv small">

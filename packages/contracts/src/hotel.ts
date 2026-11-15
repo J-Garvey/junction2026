@@ -1,5 +1,5 @@
 /** Hotel-side shapes (the agent's working state). Valio Aimo never receives these. */
-import type { AvailabilityEvidence, FiredRule, ModelJudgement, StockFact, SingleRequest, Constraints, Amount, BaseUnit } from "./index.js";
+import type { AllergenAcknowledgement, AvailabilityEvidence, CarbonBasis, FiredRule, ModelJudgement, StockFact, SingleRequest, Constraints, Amount, BaseUnit } from "./index.js";
 
 export interface OrderDeadline {
   state: "known" | "expired" | "unknown" | "unavailable";
@@ -30,10 +30,13 @@ export interface Candidate {
   label: "best" | "better" | "good" | "more";
   unitPrice: number | null;
   pricePerBase: number | null;
+  /** D36: checked whole sales packs and ex-VAT total for this piece need. Absent on older plans and kg/L needs. */
+  costToCover?: { need: number; quantity: number; totalExVat: number } | null;
   baseUnit: BaseUnit | null;
   stock: StockFact;
   reliability: number | null;
   packContent: { value: number; unit: BaseUnit; verified: boolean; source: string } | null;
+  carbonBasis?: CarbonBasis | null;
   salesUnit: string | null;
   closingTime: string | null;
   availabilityEvidence?: AvailabilityEvidence;
@@ -87,6 +90,12 @@ export interface Need {
   excluded: { productId: string; name: string; reason: string; ruleId: string }[];
   rules: FiredRule[];
   judgements: ModelJudgement[];
+  /** Display evidence from the bounded shortlist passed to ranking, after saved buyer exclusions. Older plans omit it. */
+  selectionTrace?: {
+    shortlist: { productId: string; name: string }[];
+    /** Each product leaves the funnel once; additional reasons remain in excluded. */
+    stages: { key: "lookup" | "eligibility" | "cutoff" | "type" | "delivery"; removedProductIds: string[] }[];
+  };
   substituteFor: string | null;
   /** Set when nothing arrives by the needed-by date (DLV-06): the earliest date something can. */
   earliestDelivery?: string | null;
@@ -122,8 +131,11 @@ export interface PlanLine {
   shares: { needId: string; label: string; amount: number }[];
   allocation: "primary" | "partial" | "unknown_fill" | "short";
   riskAccepted: { by: string; at: string } | null;
+  allergenDataAcknowledgement?: Omit<AllergenAcknowledgement, "token" | "productIds" | "expiresAt">;
   removed: boolean;
-  /** Product-group average kg CO2e per kg, times the kg or L ordered. An estimate, labelled as such. */
+  /** Saved mass evidence for an informational product-group estimate. Older totals without it are untrusted. */
+  carbonBasis?: CarbonBasis | null;
+  /** Legacy cached estimate. Display only with carbonBasis; older versions incorrectly used litres as kg. */
   co2Kg?: number | null;
 }
 
@@ -133,12 +145,23 @@ export interface ItemReview {
   needId: string;
   fingerprint: string;
   canApprove: boolean;
-  /** False only for a verified exact match; older reviews still require a decision. */
+  /** False only for a verified exact match without a manual replacement; older reviews still require a decision. */
   requiresApproval?: boolean;
   quantityRequired: boolean;
   reason: string | null;
   approvedBy: string | null;
   approvedAt: string | null;
+}
+
+/** Server processing from submission to a saved result; human decision time is excluded. */
+export interface StageProcessing {
+  stage: string;
+  totalMs: number;
+  /** Present only when the submitted message's saved parsing measurement is available. */
+  parsingMs?: number;
+  /** Result-producing calls, after the optional message parsing call. */
+  segments: number;
+  milestone: "review_ready" | "chef_input" | "approval_ready" | "blocked" | "ordered" | "rejected" | "failed" | "viability_checked" | "change_applied" | "change_checked" | "final_checked";
 }
 
 export interface Plan {
@@ -187,6 +210,7 @@ export interface Plan {
   itemReviews?: ItemReview[];
   /** Measured while running: how long each agent step took. */
   timings?: { products: number; searchMs?: number; lookupMs: number; rankMs: number; quoteMs?: number; totalMs: number } | null;
+  processing?: StageProcessing;
 }
 
 export interface WarningRecord {
@@ -204,4 +228,9 @@ export interface WarningRecord {
   resolvedBy: string | null;
   resolution: string | null;
   createdAt: string;
+}
+
+/** Older snapshots may have only the rule; a continuation never clears the concern. */
+export function hasUnconfirmedAllergenData(line: { rules?: { ruleId: string }[]; allergenDataAcknowledgement?: unknown }): boolean {
+  return !!line.allergenDataAcknowledgement || !!line.rules?.some((rule) => rule.ruleId === "ALG-03");
 }

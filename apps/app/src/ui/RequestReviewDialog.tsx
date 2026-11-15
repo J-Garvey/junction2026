@@ -1,13 +1,15 @@
 /** Shared item review used for new items and saved pending requests. */
 import { useEffect, useRef, useState } from "react";
 import type { SingleRequest, Unit } from "@aimo/contracts";
-import { api, ApiError, type PlanResp } from "../api";
+import { api, ApiError, type BasketResp, type PlanResp } from "../api";
 import { useApp } from "../ctx";
 import { claimLabel, day, eur } from "../format";
 import { OrderItemDialog } from "./OrderItemDialog";
 import { ProductReviewItem } from "./ProductReviewItem";
 import { QuestionCard } from "./QuestionCard";
+import { ProcessingTime } from "./ProcessingTime";
 import { Icon } from "./icons";
+import { TotalCalculation } from "./CalculationEvidence";
 
 const UNITS: Unit[] = ["l", "dl", "ml", "kg", "g", "pcs"];
 
@@ -16,7 +18,7 @@ export function RequestReviewDialog({ initialReview, deliveryDate, onClose, onCh
   deliveryDate: string;
   onClose: () => void;
   onChanged: () => void;
-  onAdded: () => void;
+  onAdded: (basket?: BasketResp) => void;
 }) {
   const { me, refresh } = useApp();
   const [review, setReview] = useState(initialReview);
@@ -70,8 +72,9 @@ export function RequestReviewDialog({ initialReview, deliveryDate, onClose, onCh
   }
   const editReady = !!editTarget?.description.trim() && Number.isFinite(Number(editTarget.amount)) && Number(editTarget.amount) > 0;
 
-  async function recheck(next: SingleRequest) {
-    const result = await api.requote(review.plan.id, next);
+  async function recheck(next: SingleRequest, parseAuditId?: string) {
+    const { parseAuditId: _priorParsing, ...request } = next;
+    const result = await api.requote(review.plan.id, { ...request, ...(parseAuditId ? { parseAuditId } : {}) });
     setReview(result);
     setEditTarget(null);
     onChanged();
@@ -100,6 +103,7 @@ export function RequestReviewDialog({ initialReview, deliveryDate, onClose, onCh
     setDialogError(null);
     try {
       const original = request.lines.find((line) => line.id === lineId)!;
+      let parseAuditId: string | undefined;
       let updated = { ...original, quantity: { amount: Number(amount), unit } };
       if (description.trim() !== original.query) {
         const parsed = await api.message(`${amount} ${unit} ${description.trim()}`);
@@ -107,6 +111,7 @@ export function RequestReviewDialog({ initialReview, deliveryDate, onClose, onCh
           throw new Error("Describe one product for this row, then check it again.");
         }
         const line = parsed.request.lines[0];
+        parseAuditId = parsed.request.parseAuditId;
         updated = { ...line, id: original.id, quantity: updated.quantity, constraints: {
           ...original.constraints,
           ...line.constraints,
@@ -116,7 +121,7 @@ export function RequestReviewDialog({ initialReview, deliveryDate, onClose, onCh
           origin: original.constraints.origin ?? line.constraints.origin,
         } };
       }
-      await recheck({ ...request, lines: request.lines.map((line) => line.id === original.id ? updated : line) });
+      await recheck({ ...request, lines: request.lines.map((line) => line.id === original.id ? updated : line) }, parseAuditId);
     } catch (e) {
       setDialogError((e as Error).message);
     } finally {
@@ -166,9 +171,8 @@ export function RequestReviewDialog({ initialReview, deliveryDate, onClose, onCh
     setBusy("add");
     setDialogError(null);
     try {
-      await api.basketPlan(review.plan.id);
-
-      onAdded();
+      const result = await api.basketPlan(review.plan.id);
+      onAdded(result.basket);
       refresh();
     } catch (e) {
       if (e instanceof ApiError && e.body?.plan) setReview({ plan: e.body.plan, questions: [] });
@@ -210,6 +214,7 @@ export function RequestReviewDialog({ initialReview, deliveryDate, onClose, onCh
       onClose={() => { if (!busy) onClose(); }}
     >
       <div className="add-review-date"><Icon n="cal" s={18} /><span><small>Delivery date</small><b>{day(plan?.deliveryDate ?? deliveryDate)}</b></span></div>
+      <ProcessingTime processing={plan?.processing} />
 
       {!editable && <div className="callout blue" role="status">{inScope ? "This request is awaiting the decision below or has already been added." : "This request is outside your outlet scope. The order builder must review it."}</div>}
       {review.questions.filter((q) => q.state === "open" || q.state === "waiting").map((q) => <QuestionCard key={q.id} q={q} onAnswered={reloadDecision} />)}
@@ -271,7 +276,7 @@ export function RequestReviewDialog({ initialReview, deliveryDate, onClose, onCh
           <div className="add-review-actions">
             <button type="button" className="btn primary" disabled={!!busy || !canAdd} onClick={add}>{busy === "add" ? "Adding…" : "Add to order"}</button>
             <button type="button" className="btn ghost" disabled={!!busy} onClick={onClose}>Close</button>
-            <span className="add-review-total"><small>Total ex VAT</small><b>{eur(plan.totalExVat)}</b></span>
+            <span className="add-review-total"><small>Total ex VAT</small><b><TotalCalculation title="request total" total={plan.totalExVat} lines={plan.lines} /></b></span>
           </div>
         </>
       )}

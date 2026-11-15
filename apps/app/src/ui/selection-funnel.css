@@ -1,0 +1,11 @@
+.selection-funnel { margin-top: 8px; color: var(--ink); text-align: left; }
+.selection-step { border-top: 1px solid var(--hairline-soft); }
+.selection-toggle { display: flex; align-items: baseline; gap: 6px; width: 100%; padding: 10px 4px; border: 0; background: transparent; color: inherit; font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.selection-toggle:hover { background: var(--soft); }
+.selection-toggle:focus-visible { outline: 2px solid var(--green); outline-offset: -2px; border-radius: 3px; }
+.selection-step > [role="region"] { padding: 0 8px 8px; overflow-wrap: anywhere; }
+.selection-products { margin: 4px 0; padding-left: 24px; }
+.selection-products > li { padding: 8px 0; }
+.selection-products > li + li { border-top: 1px solid var(--hairline-soft); }
+.selection-funnel p { margin: 4px 0 8px; }
+.selection-evidence { border-left: 2px solid var(--hairline-soft); margin-top: 6px; padding-left: 8px; }

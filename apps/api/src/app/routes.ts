@@ -13,7 +13,7 @@ import { kvGet, kvSet } from "../db.js";
 import { FIXED, rulesView } from "../rules/catalogue.js";
 import { PARAMS, policyParams, storedPolicy } from "../rules/policy.js";
 import { editRules, resetRules, RuleEditError } from "../rules/editor.js";
-import { getProduct, catalogSize } from "../catalog.js";
+import { getProduct, getProductDetails, catalogSize, searchProducts } from "../catalog.js";
 import { interpretMessage } from "../agent/message.js";
 import { logSearch } from "../searchlog.js";
 import { matchesCurrentShortlists, shortlist } from "../agent/match.js";
@@ -22,16 +22,21 @@ import { newPlan, quoteAndDecide, getPlan, listPlans, mandate, savePlan, emptyOv
 import { questionsFor, allQuestions, getQuestion, canAnswer } from "../agent/questions.js";
 import { answer } from "../agent/answers.js";
 import { addDietGroup, changeEvent, changeGuests, coverageSummary, EditConflict, eventView, finalCheck, getEvent, listEvents, orderEvent, removeNeed, runCutoff, runViability, saveEvent, warnings, personActor, type StoredEvent } from "../agent/events.js";
-import { newId } from "../util.js";
+import { isCalendarDate, newId } from "../util.js";
 import { MenuBody, menuRequest, saveMenu, scaleMenu } from "../agent/menu.js";
 import { listRemembered } from "../agent/memory.js";
 import { seedReset, OUTLETS, OUTSIDE_AGENT_TOKEN, VALIO_VIEWER_TOKEN } from "../seed.js";
+import { seedHotelWorkspace } from "../seed-workspace.js";
 import { gw, GatewayError } from "../agent/gatewayClient.js";
-import { dataMode } from "../aimo/lookup.js";
+import { dataMode, lookup, UpstreamError } from "../aimo/lookup.js";
+import { inspectDelivery } from "./productInspection.js";
+import { hotelFor } from "../ownership.js";
+import { readFilter } from "../gateway/routes.js";
 import { config } from "../config.js";
 import { modelConfigured, modelName } from "../agent/openai.js";
 import { basketReview, submitBasketForReview, invalidateBasketReview, BasketReviewError } from "../agent/baskets.js";
 import { approvalLevels, basketStatus, pendingQuestions } from "../agent/basketSummary.js";
+import { measureProcessing, processingClock } from "./processing.js";
 
 type Authed = Request & { person: Person; token: string };
 
@@ -58,6 +63,7 @@ export function appRouter(): Router {
     res.json({
       clock: { ...clockState(), now: now().toISOString(), scenes: SCENES },
       dataMode: dataMode(),
+      seedProfile: kvGet("seedProfile"),
       model: { provider: "openai", model: modelName(), configured: modelConfigured() },
       catalogue: catalogSize(),
       testMode: config.testMode,
@@ -67,16 +73,21 @@ export function appRouter(): Router {
   r.get("/people", (_req, res) => res.json({ people: allPeople(), outlets: OUTLETS }));
   r.post("/session", (req, res) => {
     const { personId } = z.object({ personId: z.string() }).parse(req.body);
+    const existing = resolveToken(tokenFrom(req));
+    if (!config.testMode && (existing?.kind !== "person" || existing.person.id !== personId))
+      return res.status(403).json({ error: "Authenticated person session required; demo persona switching is disabled" });
     const p = getPerson(personId);
     if (!p) return res.status(404).json({ error: "No such person" });
-    const token = issueToken({ kind: "person", personId: p.id, testSession: true });
+    const token = issueToken({ kind: "person", personId: p.id, testSession: config.testMode });
     sessionCookie(res, token);
     res.json({ person: p, token });
   });
 
-  r.post("/reset", (_req, res) => {
+  r.post("/reset", async (req, res) => {
     if (!config.testMode) return res.status(403).json({ error: "Test mode only" });
-    seedReset();
+    const { profile } = z.object({ profile: z.enum(["story", "hotel"]).default("story") }).parse(req.body ?? {});
+    if (profile === "hotel") await seedHotelWorkspace();
+    else seedReset();
     res.json({ ok: true });
   });
 
@@ -94,16 +105,38 @@ export function appRouter(): Router {
   });
 
   r.use(person);
+  r.use(measureProcessing);
+  // These app workflows are backed by the single Demo Hotel agent. Keep their
+  // plans, baskets and policy out of another hotel's session. The explicit
+  // multi-hotel readers below forward the caller credential or filter ownership.
+  r.use((req, res, next) => {
+    const scopedRead = req.method === "GET" && (/^\/orders(?:\/|$)/.test(req.path) || req.path === "/audit" || req.path === "/me" || /^\/products(?:\/|$)/.test(req.path));
+    if (P(req).hotelId !== HOTEL_ID && !scopedRead)
+      return res.status(403).json({ error: "forbidden", message: "This app workflow belongs to Demo Hotel; use the gateway for your hotel" });
+    const object = req.path.match(/^\/(events|baskets|plans|questions)\/([^/]+)/);
+    if (object) {
+      const [, kind, encodedKey] = object;
+      const key = decodeURIComponent(encodedKey);
+      const record = kind === "plans" ? getPlan(key) : kind === "questions" ? getQuestion(key) : getEvent(key);
+      const owner = kind === "plans" ? hotelFor({ details: { planId: key } }) : kind === "questions" ? hotelFor({ questionId: key }) : hotelFor({ eventId: key });
+      if (record && owner !== P(req).hotelId)
+        return res.status(403).json({ error: "forbidden", message: "Resource belongs to another hotel or has unknown ownership" });
+    }
+    next();
+  });
+
+  const ownEvents = (req: Request) => listEvents().filter(e => hotelFor({ eventId: e.id }) === P(req).hotelId);
+  const ownPlans = (req: Request) => listPlans().filter(pl => hotelFor({ details: { planId: pl.id } }) === P(req).hotelId);
 
   r.get("/me", (req, res) => res.json({ person: P(req) }));
 
   // UI-01: home opens on the decisions waiting for this person, then their events.
   r.get("/home", (req, res) => {
     const p = P(req);
-    const mine = questionsFor(p);
-    const events = listEvents().map((e) => ({ id: e.id, name: e.name, serviceDate: e.serviceDate, guests: e.guests, coverage: coverageSummary(e.id), version: e.version, outlets: [...new Set(e.dishes.map((d) => d.outletId))] }));
-    const plans = listPlans().filter((pl) => pl.kind === "single" && !pl.reviewing).slice(0, 10).map((pl) => ({ id: pl.id, title: pl.title, status: pl.status, summary: pl.summary, createdAt: pl.createdAt, createdBy: pl.createdBy.name }));
-    res.json({ questions: mine, events, plans, warnings: warnings().filter((w) => w.state === "open") });
+    const mine = questionsFor(p).filter(q => hotelFor({ questionId: q.id }) === p.hotelId);
+    const events = ownEvents(req).map((e) => ({ id: e.id, name: e.name, serviceDate: e.serviceDate, guests: e.guests, coverage: coverageSummary(e.id), version: e.version, outlets: [...new Set(e.dishes.map((d) => d.outletId))] }));
+    const plans = ownPlans(req).filter((pl) => pl.kind === "single" && !pl.reviewing).slice(0, 10).map((pl) => ({ id: pl.id, title: pl.title, status: pl.status, summary: pl.summary, createdAt: pl.createdAt, createdBy: pl.createdBy.name }));
+    res.json({ questions: mine, events, plans, warnings: warnings().filter((w) => w.state === "open" && hotelFor({ eventId: w.eventId }) === p.hotelId) });
   });
 
   const messageBody = z.object({ text: z.string().trim().min(1).max(2000) });
@@ -122,17 +155,20 @@ export function appRouter(): Router {
 
   // Chat box: route the message (MESSAGE-ROUTE), then parse a new request into chips (REQUEST-PARSE).
   r.post("/messages", async (req, res) => {
+    const started = processingClock.now();
     const { text } = messageBody.parse(req.body);
     const { route, parsed } = await interpretMessage(text);
     if (route.route === "event_change") {
       const m = text.match(/(\d{1,5})\s*guests?/i);
-      return res.json({ route: "event_change", guests: m ? Number(m[1]) : null, events: listEvents().map((e) => ({ id: e.id, name: e.name, guests: e.guests, version: e.version })), judgement: route.judgement });
+      const guests = m ? Number(m[1]) : null;
+      const parsedEntry = audit({ actor: personActor(P(req)), action: "request_parsed", summary: "Interpreted an event change", details: { route: "event_change", guests, processingMs: Math.round(processingClock.now() - started) }, visibility: "hotel" });
+      return res.json({ route: "event_change", parseAuditId: parsedEntry.id, guests, events: listEvents().map((e) => ({ id: e.id, name: e.name, guests: e.guests, version: e.version })), judgement: route.judgement });
     }
     if (route.route === "neither") return res.json({ route: "neither", message: "I can take a new request or a change to an event." });
     if (!parsed) throw new Error("Missing request interpretation");
     logSearch({ source: "request_parse", query: text, interpreted: { route: route.route, parsedBy: parsed.request.parsedBy, note: parsed.note, neededBy: parsed.request.neededBy, neededByText: parsed.request.neededByText, lines: parsed.request.lines } });
-    audit({ actor: personActor(P(req)), action: "request_parsed", summary: `Parsed "${text.slice(0, 80)}" into ${parsed.request.lines.length} line(s) (${parsed.request.parsedBy})`, details: { request: parsed.request }, visibility: "hotel", judgements: route.judgement ? [route.judgement] : [] });
-    res.json({ route: route.route === "unsure" ? "new_request_unsure" : "new_request", request: { ...parsed.request, siteId: mandate().sites[0].id, outletId: P(req).outlets[0] ?? "banquet" }, note: parsed.note });
+    const parsedEntry = audit({ actor: personActor(P(req)), action: "request_parsed", summary: `Parsed "${text.slice(0, 80)}" into ${parsed.request.lines.length} line(s) (${parsed.request.parsedBy})`, details: { request: parsed.request, processingMs: Math.round(processingClock.now() - started) }, visibility: "hotel", judgements: route.judgement ? [route.judgement] : [] });
+    res.json({ route: route.route === "unsure" ? "new_request_unsure" : "new_request", request: { ...parsed.request, parseAuditId: parsedEntry.id, siteId: mandate().sites[0].id, outletId: P(req).outlets[0] ?? "banquet" }, note: parsed.note });
   });
 
   // UI-04 confirmed chips → a plan → quote → questions or an order.
@@ -151,6 +187,7 @@ export function appRouter(): Router {
     const p = P(req);
     const plan = newPlan("single", { personId: p.id, name: p.name }, request.outletId, { request, title: title ?? (request.lines.map((l) => `${l.quantity ? `${l.quantity.amount} ${l.quantity.unit} ` : ""}${l.constraints.claims.includes("FREE_FROM_LACTOSE") ? "lactose-free " : ""}${l.query}`).join(", ") || request.originalText.slice(0, 60)) });
     plan.eventId = eventId;
+    plan.event = eventId ? getEvent(eventId) : null;
     plan.siteId = request.siteId ?? plan.siteId;
     plan.reviewing = reviewing;
     if (itemReview) plan.itemReviews = [];
@@ -159,8 +196,8 @@ export function appRouter(): Router {
     await quoteAndDecide(plan, T(req));
     return getPlan(plan.id)!;
   }
-  r.get("/plans", (_req, res) =>
-    res.json({ plans: listPlans().filter((pl) => pl.kind === "single").map((pl) => ({ id: pl.id, title: pl.title, status: pl.status, summary: pl.summary, createdAt: pl.createdAt, createdBy: pl.createdBy.name, totalExVat: pl.totalExVat })) }),
+  r.get("/plans", (req, res) =>
+    res.json({ plans: ownPlans(req).filter((pl) => pl.kind === "single").map((pl) => ({ id: pl.id, title: pl.title, status: pl.status, summary: pl.summary, createdAt: pl.createdAt, createdBy: pl.createdBy.name, totalExVat: pl.totalExVat })) }),
   );
   r.get("/plans/:id", (req, res) => {
     const plan = getPlan(String(req.params.id));
@@ -227,11 +264,16 @@ export function appRouter(): Router {
     const { continueWithWarnings } = z.object({ continueWithWarnings: z.boolean().default(false) }).parse(req.body ?? {});
     const issueRules = [...plan.inputRules, ...plan.lines.flatMap((line) => line.rules)].filter((rule) => rule.outcome !== "order");
     const hardIssues = issueRules.filter((rule) => rule.outcome === "block" || !rule.overridable);
+    if (plan.lines.some((line) => line.rules.some((rule) => rule.ruleId === "ALG-03") && !line.allergenDataAcknowledgement))
+      return res.status(409).json({ error: "The chef must explicitly continue with missing allergen data before adding this request" });
     if (plan.tooLate || plan.error || hardIssues.length) return res.status(409).json({ error: "Resolve the stock, delivery or product issues before adding this request" });
     if (issueRules.length && !continueWithWarnings && !plan.itemReviews) return res.status(409).json({ error: "Confirm that you want to add this request with its warnings" });
     const p = P(req);
     const unconfirmed = plan.lines.filter((line) => line.productId && line.rules.some((rule) => rule.ruleId === "STK-01")).map((line) => line.productId!);
     if ((continueWithWarnings || plan.itemReviews) && unconfirmed.length) {
+      if (p.role !== "chef") return res.status(403).json({ error: "Only the chef can continue with unconfirmed stock" });
+      const reviewed = await gw.getQuote(plan.quoteId!);
+      if (reviewed.unconfirmedStock.length) plan.overrides.builderConsentId = (await gw.consent(T(req), reviewed, reviewed.unconfirmedStock)).id;
       plan.overrides.stockContinued = [...new Set([...(plan.overrides.stockContinued ?? []), ...unconfirmed])];
       const stockApprovers = plan.itemReviews?.filter((item) => plan.lines.some((line) => line.needIds.includes(item.needId) && unconfirmed.includes(line.productId!))).map((item) => item.approvedBy!);
       plan.overrides.stockDecidedBy = stockApprovers?.length ? [...new Set(stockApprovers)].join(", ") : p.name;
@@ -241,10 +283,11 @@ export function appRouter(): Router {
     plan.proposal = false;
     plan.status = "waiting";
     plan.summary = "In the order · awaiting final order";
+    if (plan.lines.some((l) => l.rules.some((r) => r.ruleId === "ALG-03"))) plan.summary += " · allergen data not confirmed";
     audit({ actor: personActor(p), action: "request_received", summary: `${p.name} added ${plan.title} to the order`, eventId: plan.eventId, details: { kind: "confirmation", planId: plan.id, lines: plan.lines.map((l) => l.productId) }, visibility: "hotel" });
     savePlan(plan);
     invalidateBasketReview(plan.eventId);
-    res.json({ plan, questions: allQuestions().filter((q) => q.planId === plan.id) });
+    res.json({ plan, questions: allQuestions().filter((q) => q.planId === plan.id), basket: await basketView(plan.eventId) });
   });
 
   r.post("/plans/:id/items/:needId/approve", (req, res) => {
@@ -286,7 +329,7 @@ export function appRouter(): Router {
     const line = plan.lines.find((line) => line.productId === productId && line.needIds.includes(need?.id ?? ""));
     if (!item || !need || !line?.salesUnit) return res.status(404).json({ error: "No such product on this item" });
     if (item.fingerprint !== fingerprint) return res.status(409).json({ error: "This item changed. Review its current terms again.", plan });
-    if (line.packContent && line.packContent.unit === need.amount.unit)
+    if (line.packContent && line.packContent.unit === need.amount.unit && (need.amount.unit !== "pcs" || line.packContent.verified))
       return res.status(409).json({ error: "Edit the requested quantity for this product instead" });
     plan.overrides.salesQuantities = [...(plan.overrides.salesQuantities ?? []).filter((q) => q.needId !== need.id), { needId: need.id, productId, quantity, scope: quantityScope(need) }];
     plan.overrides.chosen = [...(plan.overrides.chosen ?? []).filter((choice) => !choice.startsWith(`${need.id}:`)), `${need.id}:${productId}`];
@@ -370,14 +413,22 @@ export function appRouter(): Router {
       || !!event.finalCheck?.lines.some((line) => line.result !== "covered");
     return basketStatus(event.serviceDate, orders, plans, allQuestions().filter((q) => q.eventId === event.id), now(), needsAttention);
   };
+  // Return the same saved basket projection on reads and successful submissions so
+  // the builder can update its items and deadline without a second browser request.
+  const basketView = async (id: string) => {
+    if (!getEvent(id)) throw new BasketReviewError(404, "No such order");
+    const { orders } = await gw.orders(id);
+    const review = basketReview(id, orders);
+    return { ...eventView(id), requests: basketPlans(id).map(planRow), orders, review, ...basketSummary(getEvent(id)!, orders) };
+  };
   r.get("/baskets", async (req, res) => {
     const { orders } = await gw.orders();
     const p = P(req);
     // Apply the same stale finance-review cleanup as the detail page, using local snapshots only.
-    for (const event of listEvents()) basketReview(event.id, orders.filter((order) => order.eventId === event.id));
+    for (const event of ownEvents(req)) basketReview(event.id, orders.filter((order) => order.eventId === event.id));
     const open = pendingQuestions(allQuestions(), now());
     res.json({
-      baskets: listEvents().map((e) => {
+      baskets: ownEvents(req).map((e) => {
         const mine = orders.filter((o) => o.eventId === e.id && o.state !== "rejected");
         const staged = basketPlans(e.id).filter((pl) => pl.basketedAt && !pl.orderIds.length);
         const totalExVat = staged.some((pl) => pl.totalExVat === null)
@@ -413,15 +464,15 @@ export function appRouter(): Router {
     res.json({ basket: { id: e.id, name: e.name, deliveryDate: e.serviceDate } });
   });
   r.get("/baskets/:id", async (req, res) => {
-    const id = String(req.params.id);
-    if (!getEvent(id)) return res.status(404).json({ error: "No such order" });
-    const { orders } = await gw.orders(id);
-    const review = basketReview(id, orders);
-    res.json({ ...eventView(id), requests: basketPlans(id).map(planRow), orders, review, ...basketSummary(getEvent(id)!, orders) });
+    res.json(await basketView(String(req.params.id)));
   });
-  r.post("/baskets/:id/submit-review", async (req, res) => res.json({ review: await submitBasketForReview(String(req.params.id), P(req)) }));
+  r.post("/baskets/:id/submit-review", async (req, res) => {
+    const id = String(req.params.id);
+    const review = await submitBasketForReview(id, P(req), T(req));
+    res.json({ review, basket: await basketView(id) });
+  });
 
-  r.get("/events", (_req, res) => res.json({ events: listEvents().map((e) => ({ ...e, coverage: coverageSummary(e.id) })) }));
+  r.get("/events", (req, res) => res.json({ events: ownEvents(req).map((e) => ({ ...e, coverage: coverageSummary(e.id) })) }));
   r.get("/events/:id", (req, res) => res.json(eventView(String(req.params.id))));
   r.post("/events/:id/viability", async (req, res) => res.json({ plan: await runViability(String(req.params.id), P(req)) }));
   r.post("/events/:id/order", async (req, res) => res.json({ plan: await orderEvent(String(req.params.id), P(req)) }));
@@ -473,13 +524,14 @@ export function appRouter(): Router {
   r.post("/events/:id/final-check", async (req, res) => res.json({ finalCheck: await finalCheck(String(req.params.id)) }));
   r.post("/events/:id/cutoff", (req, res) => res.json({ flags: runCutoff(String(req.params.id)) }));
 
-  r.get("/orders", async (req, res) => res.json(await gw.orders(req.query.eventId ? String(req.query.eventId) : undefined)));
-  r.get("/orders/:id", async (req, res) => res.json(await gw.getOrder(String(req.params.id))));
+  r.get("/orders", async (req, res) => res.json(await gw.orders(readFilter(req.query.eventId), T(req))));
+  r.get("/orders/:id", async (req, res) => res.json(await gw.getOrder(String(req.params.id), T(req))));
 
   r.get("/audit", (req, res) => {
     const viewer = req.query.viewer === "valio" ? "valio" : "hotel";
-    const eventId = req.query.eventId ? String(req.query.eventId) : undefined;
-    res.json({ viewer, chain: verifyChain(), entries: auditView(viewer, { eventId }), decisions: eventId ? decisionCount(eventId) : null });
+    const eventId = readFilter(req.query.eventId);
+    const orderId = readFilter(req.query.orderId);
+    res.json({ viewer, chain: verifyChain(), entries: auditView(viewer, { hotelId: P(req).hotelId, eventId, orderId }), decisions: eventId ? decisionCount(eventId, P(req).hotelId) : null });
   });
 
   const rulesPayload = (req: Request) => {
@@ -516,8 +568,33 @@ export function appRouter(): Router {
       throw e;
     }
   });
+  // Catalogue inspection is account-scoped and read-only, separate from request planning.
+  const canInspectProducts = (req: Request) => P(req).hotelId === HOTEL_ID && (P(req).hotelScope || P(req).outlets.length > 0);
+  r.get("/products", (req, res) => {
+    if (!canInspectProducts(req)) return res.status(403).json({ error: "Outside your hotel scope" });
+    const { q } = z.object({ q: z.string().trim().max(200).default("") }).parse(req.query);
+    const exact = q ? getProduct(q) : null;
+    res.json({ products: exact ? [exact] : q ? searchProducts({ q, limit: 50 }) : [], sites: mandate().sites.map(({ id, name }) => ({ id, name })), source: "Local catalogue" });
+  });
+  r.get("/products/:id/supplier", async (req, res) => {
+    if (!canInspectProducts(req)) return res.status(403).json({ error: "Outside your hotel scope" });
+    const { siteId, requestedDate } = z.object({ siteId: z.string().min(1), requestedDate: z.string().refine(isCalendarDate, "Use a valid YYYY-MM-DD date") }).parse(req.query);
+    const site = mandate().sites.find((candidate) => candidate.id === siteId);
+    if (!site) return res.status(403).json({ error: "Outside your delivery site scope" });
+    const product = getProductDetails(String(req.params.id));
+    if (!product) return res.status(404).json({ error: "Not in catalogue" });
+    try {
+      const { lines, fallback } = await lookup([product.id], requestedDate);
+      const evaluatedAt = now();
+      res.setHeader("Cache-Control", "no-store");
+      res.json({ product, lookup: lines[0], site: { id: site.id, name: site.name }, requestedDate, evaluatedAt: evaluatedAt.toISOString(), fallback, delivery: inspectDelivery(product, lines[0], requestedDate, evaluatedAt) });
+    } catch (error) {
+      if (error instanceof UpstreamError) return res.status(503).json({ error: "upstream_unavailable", message: "Supplier terms could not be checked. Try again." });
+      throw error;
+    }
+  });
   r.get("/products/:id", (req, res) => {
-    const p = getProduct(String(req.params.id));
+    const p = getProductDetails(String(req.params.id));
     if (!p) return res.status(404).json({ error: "Not in catalogue" });
     res.json(p);
   });
@@ -541,13 +618,14 @@ export function appRouter(): Router {
 }
 
 export function appErrors(err: unknown, _req: Request, res: Response, next: NextFunction) {
+  // A gateway refusal keeps its status and body. Valio Aimo rate limited or down is a 503 with a
+  // clear message (and Retry-After when known), never a 500 "internal".
+  if (err instanceof GatewayError) {
+    if (err.body?.retryAfter !== undefined) res.setHeader("Retry-After", String(err.body.retryAfter));
+    return res.status(err.status).json(err.body);
+  }
   if (err instanceof BasketReviewError) return res.status(err.status).json({ error: "basket_review", message: err.message });
   if (err instanceof EditConflict) return res.status(409).json({ error: "edit_conflict", message: err.message, current: err.current });
   if (err instanceof z.ZodError) return res.status(422).json({ error: "invalid", message: err.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") });
-  // Valio Aimo's API couldn't answer (rate limited or down): say so, never a bare 500 "internal".
-  if (err instanceof GatewayError && err.status >= 500) {
-    if (err.body?.retryAfter !== undefined) res.setHeader("Retry-After", String(err.body.retryAfter));
-    return res.status(503).json({ error: err.body?.error ?? "upstream_unavailable", message: err.body?.message ?? "Valio Aimo's API couldn't answer. Nothing has been ordered. Try again in a minute.", ...(err.body?.retryAfter !== undefined ? { retryAfter: err.body.retryAfter } : {}) });
-  }
   next(err);
 }

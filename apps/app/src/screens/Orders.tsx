@@ -4,10 +4,12 @@ import type { Order } from "@aimo/contracts";
 import { Link, useSearchParams } from "react-router";
 import { api } from "../api";
 import { useApp, useLoad, outletName } from "../ctx";
-import { Fixture, Status } from "../ui/Status";
+import { AllergenDataMark, Fixture, Status } from "../ui/Status";
 import { stockText } from "../ui/Popover";
 import { day, eur, when } from "../format";
 import { OrderItemDialog } from "../ui/OrderItemDialog";
+import { LineCalculation, TotalCalculation, VatCalculation } from "../ui/CalculationEvidence";
+import { CarbonEstimate } from "../ui/CarbonEstimate";
 
 export function Orders() {
   const [sp] = useSearchParams();
@@ -61,6 +63,8 @@ export function Orders() {
                 </span>
                 <span>{eur(l.lineTotal)}</span>
               </div>
+              <AllergenDataMark line={l} />
+              <CarbonEstimate line={l} />
               {(l.removed || l.stock.kind === "unknown") && (
                 <div className="rl small muted">
                   <span className="row" style={{ gap: 6 }}>
@@ -73,11 +77,11 @@ export function Orders() {
           <hr />
           <div className="rl">
             <span>Ex VAT</span>
-            <b>{eur(o.totalExVat)}</b>
+            <b><TotalCalculation title={`order ${o.id} total`} total={o.totalExVat} lines={o.lines} note={`Saved receipt version ${o.version}, placed ${when(o.placedAt)}.`} /></b>
           </div>
           <div className="rl">
             <span>VAT</span>
-            <span>{eur(o.totalVat)}</span>
+            <span><VatCalculation totalVat={o.totalVat} lines={o.lines} scope={`order ${o.id}`} /></span>
           </div>
 
         </div>
@@ -91,15 +95,17 @@ export function Orders() {
             { label: "Quantity", value: `${selected.line.quantity} ${selected.line.salesUnit ?? ""}` },
             { label: "Unit price", value: eur(selected.line.unitPrice) },
             { label: "Line total", value: eur(selected.line.lineTotal) },
+            { label: "Carbon estimate", value: <CarbonEstimate line={selected.line} /> },
             { label: "Product ID", value: selected.line.productId },
             { label: "Stock", value: stockText(selected.line.stock) },
+            ...(selected.line.rules.some((r) => r.ruleId === "ALG-03") || selected.line.allergenDataAcknowledgement ? [{ label: "Allergen declaration", value: `Allergen data not confirmed${selected.line.allergenDataAcknowledgement ? `; ${selected.line.allergenDataAcknowledgement.by} chose to continue` : ""}. Safety is not confirmed.` }] : []),
             { label: "Delivery", value: day(selected.order.deliveryDate) },
             { label: "Placed by", value: selected.order.placedBy },
             { label: "Placed", value: when(selected.order.placedAt) },
             { label: "State", value: selected.line.removed ? "Removed" : selected.order.state },
           ]}
           onClose={() => setSelected(null)}
-        />
+        ><LineCalculation line={selected.line} /></OrderItemDialog>
       )}
     </div>
   );

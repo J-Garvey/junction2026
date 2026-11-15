@@ -1,13 +1,16 @@
 /** Plan lines, candidates, the dish and money views, the cut-off board and the change view. */
 import { useState, type ReactNode } from "react";
-import type { Need, Plan, PlanLine, StatusLabel, WarningRecord } from "@aimo/contracts";
+import type { Need, Order, Plan, PlanLine, StatusLabel, WarningRecord } from "@aimo/contracts";
 import { countdown, eur, qty, when, fi, plural, parseTime } from "../format";
 import { useApp, outletName } from "../ctx";
 import type { DiffLine } from "../api";
-import { Status, Fixture, UnknownStockMark } from "./Status";
+import { AllergenDataMark, Status, Fixture, UnknownStockMark } from "./Status";
 import { Pop, LineSource, CandidateSource, stockText } from "./Popover";
 import { Icon } from "./icons";
 import { useCategoryFilter, useShowAll } from "./ShowAll";
+import { BudgetCalculation, TotalCalculation, VatCalculation, matchingVatLines } from "./CalculationEvidence";
+import { SelectionFunnel } from "./SelectionFunnel";
+import { CarbonEstimate } from "./CarbonEstimate";
 
 const ORDER: Record<string, number> = { allergy_warning: 0, blocked: 1, not_available: 2, unresolved: 3, unknown_stock: 4, covered_at_risk: 5, waiting: 6, check: 7, covered: 8 };
 
@@ -30,34 +33,34 @@ export function LineRow({ plan, line, warnings, onRemove, showPrice = true, shar
   const { outlets } = useApp();
   const st = lineStatus(line, warnings);
   const pop = <LineSource line={line} judgements={judgementsFor(plan, line)} />;
+  const calculation = <LineSource line={line} judgements={judgementsFor(plan, line)} savedOnly />;
   return (
     <div className={`pline ${line.removed ? "removed" : ""} v-${line.verdict}`}>
       <div className="pline-st">
         <Pop label={<Status k={st} />}>{pop}</Pop>
       </div>
       <div className="pline-name">
+        <AllergenDataMark line={line} />
         <Pop label={<span className="trunc">{line.productName}</span>} className="namepop">
           {pop}
         </Pop>
         {(() => {
-          const r = line.rules.find((x) => x.outcome !== "order" && x.ruleId !== "STK-01");
-          const co2 = line.co2Kg != null ? `≈ ${Math.round(line.co2Kg)} kg CO₂e` : null;
-          return r || co2 ? (
+          const r = line.rules.find((x) => x.outcome !== "order" && x.ruleId !== "STK-01" && x.ruleId !== "ALG-03");
+          return r ? (
             <div className="small muted trunc">
               {r && <span title={r.message}>{r.label ?? r.ruleId}</span>}
-              {r && co2 ? " · " : ""}
-              {co2 && <span title="Product-group average, not this product's own figure (63% of products have one)">{co2}</span>}
             </div>
           ) : null;
         })()}
+        <CarbonEstimate line={line} shared={share != null && line.shares.length > 1} />
       </div>
       <div className="pline-q num">
-        <Pop label={<span>{share != null ? `${qty(share)} ${line.needAmount.unit}` : `${line.quantity} ${line.salesUnit ?? ""}`}</span>}>{pop}</Pop>
+        <Pop ariaLabel={`Explain quantity for ${line.productName}`} label={<span>{share != null ? `${qty(share)} ${line.needAmount.unit}` : `${line.quantity} ${line.salesUnit ?? ""}`}</span>}>{calculation}</Pop>
 
       </div>
       {showPrice && (
         <div className="pline-p num">
-          <Pop label={<b>{eur(line.lineTotal)}</b>}>{pop}</Pop>
+          <Pop ariaLabel={`Explain line amount for ${line.productName}`} label={<b>{eur(line.lineTotal)}</b>}>{calculation}</Pop>
 
         </div>
       )}
@@ -125,6 +128,7 @@ export function DishView({ plan, warnings, onRemove }: { plan: Plan; warnings: W
                     <div className="pline-name small" title={n.rules[0]?.message}>{n.text}</div>
                   </div>
                 )}
+                <SelectionFunnel need={n} lines={plan.lines} />
               </div>
             );
           })}
@@ -135,7 +139,7 @@ export function DishView({ plan, warnings, onRemove }: { plan: Plan; warnings: W
 }
 
 /** UI-09 money view: by cost, with total, VAT and distance from the cap. */
-export function MoneyView({ plan, warnings, cap, vat, onRemove }: { plan: Plan; warnings: WarningRecord[]; cap: number | null; vat?: number | null; onRemove?: (l: PlanLine) => void }) {
+export function MoneyView({ plan, warnings, cap, vat, vatOrder, onRemove }: { plan: Plan; warnings: WarningRecord[]; cap: number | null; vat?: number | null; vatOrder?: Order | null; onRemove?: (l: PlanLine) => void }) {
   const lines = [...plan.lines].filter((l) => !l.removed).sort((a, b) => (b.lineTotal ?? 0) - (a.lineTotal ?? 0));
   const total = lines.some((line) => line.lineTotal == null)
     ? null
@@ -146,18 +150,18 @@ export function MoneyView({ plan, warnings, cap, vat, onRemove }: { plan: Plan; 
         <div>
           <div className="small muted">Ex VAT</div>
           <div className="price" style={{ fontSize: 26 }}>
-            {eur(total)}
+            <TotalCalculation title="order total" total={total} lines={plan.lines} note={`Saved plan ${plan.id}.`} />
           </div>
         </div>
         <div>
           <div className="small muted">VAT</div>
-          <div style={{ color: "var(--ink)", fontWeight: 600 }}>{eur(vat)}</div>
+          <div style={{ color: "var(--ink)", fontWeight: 600 }}><VatCalculation totalVat={vatOrder?.totalVat ?? vat ?? plan.totalVat} lines={matchingVatLines(plan, vatOrder)} scope="this plan" /></div>
         </div>
         {cap != null && (
           <div>
             <div className="small muted">Cap {eur(cap)}</div>
             <div style={{ color: total != null && total > cap ? "var(--red)" : "var(--green)", fontWeight: 700 }}>
-              {total == null ? "TBC" : total > cap ? `+${eur(total - cap)}` : `${eur(cap - total)} left`}
+              <BudgetCalculation total={total} cap={cap} />
             </div>
           </div>
         )}
@@ -172,7 +176,7 @@ export function MoneyView({ plan, warnings, cap, vat, onRemove }: { plan: Plan; 
 }
 
 /** Candidates per need, best first, with the ranking step that decided each. */
-export function Candidates({ need }: { need: Need }) {
+export function Candidates({ need, lines }: { need: Need; lines: PlanLine[] }) {
   // The best few first; every product that passed can be loaded, and an ambiguous word can be
   // narrowed to one range.
   const { filtered, chips } = useCategoryFilter(need.candidates);
@@ -187,7 +191,7 @@ export function Candidates({ need }: { need: Need }) {
             <th />
             <th>Product</th>
             <th className="num">Price</th>
-            <th className="num">Per {need.amount.unit}</th>
+            <th className="num">{need.amount.unit === "pcs" ? "Cost to cover need" : `Per ${need.amount.unit}`}</th>
             <th className="hide-m">Stock</th>
           </tr>
         </thead>
@@ -208,7 +212,7 @@ export function Candidates({ need }: { need: Need }) {
                 {eur(c.unitPrice)}
 
               </td>
-              <td className="num">{eur(c.pricePerBase)}</td>
+              <td className="num">{eur(need.amount.unit === "pcs" ? c.costToCover?.totalExVat ?? null : c.pricePerBase)}</td>
               <td className="hide-m small">{c.stock.kind === "unknown" ? <span className="muted">Not confirmed</span> : stockText(c.stock, c.salesUnit)}</td>
 
             </tr>
@@ -224,6 +228,7 @@ export function Candidates({ need }: { need: Need }) {
         </tbody>
       </table>
       {toggle}
+      <SelectionFunnel need={need} lines={lines} />
     </div>
   );
 }

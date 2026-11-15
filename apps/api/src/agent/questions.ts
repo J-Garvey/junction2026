@@ -13,6 +13,8 @@ import { newId, eur, parseAimoTime, round2, shortName, helsinkiStartOfDay } from
 import { allPeople, type Person } from "../identity.js";
 import { specCompare } from "./sidebyside.js";
 import { getProduct } from "../catalog.js";
+import { allergenQuestionText, eventAllergenScope, missingAllergenProducts } from "./allergenData.js";
+import type { AllergenAcknowledgement } from "@aimo/contracts";
 
 export function saveQuestion(q: Question) {
   getDb()
@@ -46,13 +48,29 @@ const asks = (l: PlanLine, id: string, outcome: "ask_chef" | "ask_approver" = "a
 const APPROVER_ORDER = ["QTY-01", "REL-02", "DLV-03", "PRC-02"];
 const rank = (id: string) => (APPROVER_ORDER.includes(id) ? APPROVER_ORDER.indexOf(id) : APPROVER_ORDER.length);
 /** Rules with their own chef card, or handled outside the line (STK-01 by stock kind, STK-02 as the split). */
-const OWN_CARD = new Set(["TYP-01", "SUB-01", "QTY-02", "QTY-03", "QTY-05", "STK-01", "STK-02"]);
+const OWN_CARD = new Set(["ALG-03", "TYP-01", "SUB-01", "QTY-02", "QTY-03", "QTY-05", "STK-01", "STK-02"]);
 
 const lineFacts = (l: PlanLine) => ({ lineId: l.id, productId: l.productId, product: l.productName, quantity: l.quantity, unit: l.salesUnit, needIds: l.needIds, lineTotal: l.lineTotal, shares: l.shares });
 
+export function buildAllergenQuestions(plan: Plan & { event?: import("@aimo/contracts").EventSpec | null; overrides: { allergenAcknowledgements?: AllergenAcknowledgement[] } }, quote: Quote): Question[] {
+  const missing = missingAllergenProducts(quote, plan.overrides.allergenAcknowledgements);
+  return [...new Set(missing.map((l) => l.outletId))].map((outletId) => {
+    const productIds = [...new Set(missing.filter((l) => l.outletId === outletId).map((l) => l.productId))];
+    const q = makeQuestion({ planId: plan.id, eventId: plan.eventId, quoteId: quote.id, fingerprint: quote.fingerprint,
+      deadline: quote.expiresAt, type: "missing_allergen_data", forRole: "chef", outletId,
+      title: "Continue with allergen data not confirmed?", body: allergenQuestionText(plan, productIds, outletId),
+      facts: { kind: "allergen_data", productIds, ...(plan.event ? { eventScope: eventAllergenScope(plan.event) } : {}), lines: plan.lines.filter((l) => l.outletId === outletId && productIds.includes(l.productId ?? "")).map(lineFacts) },
+      ruleIds: ["ALG-03"], options: [{ id: "continue", label: "Continue with missing allergen data", primary: true }, { id: "others", label: "Pick another product", primary: false }],
+    });
+    saveQuestion(q);
+    audit({ actor: AGENT, action: "question_asked", summary: q.body, eventId: plan.eventId, quoteId: quote.id, questionId: q.id, ruleIds: ["ALG-03"], details: { planId: plan.id }, visibility: "hotel" });
+    return q;
+  });
+}
+
 /** QUESTION-BUILD for a quote. Pre-answered questions are never created (PREANSWER-MATCH runs first). */
 export function buildQuestions(plan: Plan & { overrides: any }, quote: Quote): Question[] {
-  const out: Question[] = [];
+  const out: Question[] = buildAllergenQuestions(plan, quote);
   const live = plan.lines.filter((l) => !l.removed && l.productId);
   // Answer in time for both the order cut-off and the date the goods are needed, whichever comes first.
   const needed = plan.neededBy ? helsinkiStartOfDay(plan.neededBy).toISOString() : null;
@@ -198,6 +216,11 @@ export function recordAnswer(qId: string, p: Person, optionId: string, note?: st
     if (!q) return { ok: false as const, question: null, reason: "No such question" };
     if (q.state === "answered") return { ok: false as const, question: q, reason: `Answered by ${q.answeredBy?.name}, ${q.answeredAt}` };
     if (q.state !== "open") return { ok: false as const, question: q, reason: q.state === "waiting" ? "Waiting for the chef to answer first" : `This question was ${q.state}` };
+    if (q.type === "missing_allergen_data" && (!q.deadline || new Date(q.deadline) <= now())) {
+      q.state = "expired";
+      saveQuestion(q);
+      return { ok: false as const, question: q, reason: "These terms expired. Review the missing allergen data again." };
+    }
     if (!canAnswer(q, p)) return { ok: false as const, question: q, reason: `This question is for the ${q.forRole}${q.outletId ? ` of ${q.outletId}` : ""}` };
     if (q.type === "order_review") {
       if (q.facts.hotelId && q.facts.hotelId !== p.hotelId)

@@ -59,6 +59,35 @@ describe("per-item order review", () => {
     expect(staged.plan.orderIds).toHaveLength(0);
   });
 
+  it("requires approval when a replacement exactly matches a previously blocked item", async () => {
+    const fixture = loadFixture("base")!;
+    const originalValidity = fixture.price["469363"].catalogPrice.validTo;
+    const originalStock = fixture.availability["464306"].scheduleLines[0].availableAmount;
+    // Synthetic fixture: an expired original price and confirmed replacement stock.
+    fixture.price["469363"].catalogPrice.validTo = "2026-11-14T00:00:00+0200";
+    fixture.availability["464306"].scheduleLines[0].availableAmount = 100;
+    try {
+      const { plan } = await draft("5 l lactose-free milk", ["469363"]);
+      expect(plan.lines[0].productId).toBe("469363");
+      expect(plan.itemReviews[0].canApprove).toBe(false);
+      const changed = await call("POST", `/plans/${plan.id}/choose`, { needId: plan.needs[0].id, productId: "464306" });
+      expect(changed.status).toBe(200);
+      expect(changed.plan.lines[0]).toMatchObject({ productId: "464306", status: "covered", packContent: { verified: true } });
+      expect(changed.plan.lines[0].rules.every((rule: any) => rule.outcome === "order")).toBe(true);
+      expect(changed.plan.itemReviews[0]).toMatchObject({ canApprove: true, requiresApproval: true, approvedAt: null });
+      expect((await call("POST", `/plans/${plan.id}/basket`)).status).toBe(409);
+      const rechecked = await call("POST", `/plans/${plan.id}/review-items`);
+      expect(rechecked.plan.itemReviews[0]).toMatchObject({ requiresApproval: true, approvedAt: null });
+      const approved = await approve(rechecked.plan, 0);
+      expect(approved.status).toBe(200);
+      expect(approved.plan.itemReviews[0].approvedBy).toBe("Aino");
+      expect((await call("POST", `/plans/${plan.id}/basket`)).status).toBe(200);
+    } finally {
+      fixture.price["469363"].catalogPrice.validTo = originalValidity;
+      fixture.availability["464306"].scheduleLines[0].availableAmount = originalStock;
+    }
+  });
+
   it("resumes a visible saved proposal, stages it after review, and places it once through finance", async () => {
     const { basket, plan } = await draft("5 l lactose-free milk", ["464306"], "2026-11-20", true);
     expect((await call("GET", `/plans/${plan.id}`)).plan.itemReviews).toBeUndefined();
@@ -103,13 +132,14 @@ describe("per-item order review", () => {
     const fixture = loadFixture("base")!;
     const original = structuredClone(fixture.availability["469363"]);
     try {
-      // Move the original schedule and cutoff together. The adapter still projects
-      // the same quote dates, but the source terms the builder reviewed changed.
+      // Move the original schedule and cutoff together. The supplier terms
+      // the builder reviewed changed and must invalidate the approval.
       fixture.availability["469363"].scheduleLines[0].availableDate = "2026-11-17";
       fixture.availability["469363"].closingTime = "2026-11-16T17:00:00+0200";
       const result = await call("POST", `/plans/${plan.id}/basket`);
       expect(result.status).toBe(409);
-      expect(result.plan.lines[0].availableDate).toBe(approved.plan.lines[0].availableDate);
+      expect(result.plan.lines[0].availableDate).toBe("2026-11-17");
+      expect(result.plan.lines[0].availableDate).not.toBe(approved.plan.lines[0].availableDate);
       expect(result.plan.itemReviews[0].approvedAt).toBeNull();
       expect(result.plan.lines[0].availabilityEvidence).not.toEqual(approved.plan.lines[0].availabilityEvidence);
     } finally {
@@ -186,6 +216,34 @@ describe("per-item order review", () => {
     expect(updated.plan.itemReviews[0].approvedAt).toBeNull();
     expect((await approve(edited.plan, 0)).status).toBe(409);
     expect((await approve(updated.plan, 0)).status).toBe(200);
+  });
+
+  it("prices identical piece needs on one combined whole-pack rounding", async () => {
+    await call("POST", "/clock", { scene: "3" });
+    const { plan } = await draft("6 pcs cake, 6 pcs cake", ["466509", "466509"]);
+    expect(plan.needs).toHaveLength(2);
+    for (const n of plan.needs) expect(n.candidates[0].costToCover).toEqual({ need: 12, quantity: 1, totalExVat: 24.34 });
+    expect(plan.lines).toHaveLength(1);
+    expect(plan.lines[0]).toMatchObject({ quantity: 1, lineTotal: 24.34, needAmount: { value: 12, unit: "pcs" } });
+  });
+
+  it("requires builder quantity input for an unverified named piece count", async () => {
+    await call("POST", "/clock", { scene: "3" });
+    const fx = loadFixture("base")!;
+    const price = fx.price["466509"];
+    const comparison = price.comparisonPrice;
+    price.comparisonPrice = null;
+    try {
+      const { plan } = await draft("194 pcs cake", ["466509"]);
+      expect(plan.lines[0]).toMatchObject({ quantity: 0, packContent: { verified: false } });
+      expect(plan.needs[0].candidates.find((c: any) => c.productId === "466509").costToCover).toBeNull();
+      expect(plan.itemReviews[0]).toMatchObject({ canApprove: false, quantityRequired: true });
+      const item = plan.itemReviews[0];
+      const checked = await call("POST", `/plans/${plan.id}/items/${item.needId}/quantity`, { fingerprint: item.fingerprint, productId: "466509", quantity: 13 });
+      expect(checked.status).toBe(200);
+      expect(checked.plan.lines[0]).toMatchObject({ quantity: 13, lineTotal: 316.42, packContent: { verified: false } });
+      expect(checked.plan.itemReviews[0]).toMatchObject({ canApprove: true, quantityRequired: false });
+    } finally { price.comparisonPrice = comparison; }
   });
 
   it("asks for explicit whole sales units when the eggs pack cannot be converted, then prices and processes it", async () => {

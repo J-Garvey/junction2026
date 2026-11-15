@@ -33,7 +33,7 @@ function Excluded({ deadline }: { deadline: OrderDeadline }) {
 }
 
 export function OrderBy({ deadline, detail = false }: { deadline: OrderDeadline; detail?: boolean }) {
-  const when = deadline.at ? <><time dateTime={deadline.at}>{day(deadline.at)}, {clockTime(deadline.at)}</time> Helsinki{deadline.state === "expired" && " · Expired"}</> : deadline.state === "unavailable" ? "Unavailable" : "Unknown";
+  const when = deadline.at ? <><time dateTime={deadline.at}>{day(deadline.at)}, {clockTime(deadline.at)}</time>{deadline.state === "expired" && " · Expired"}</> : deadline.state === "unavailable" ? "Unavailable" : "Unknown";
   // Card: the cutoff only; every explanation sits behind the info marker.
   if (!detail) {
     return (

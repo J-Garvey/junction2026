@@ -3,18 +3,21 @@
  * orders and amendments. It enforces the hotel's mandate and the hard rules
  * itself, so Valio Aimo never has to trust the agent's code (D11).
  */
-import type { Approval, ApprovalBody, FiredRule, Mandate, Order, OrderLine, Quote, QuoteCreateBody, QuoteLine, Refusal, AmendmentBody, LookupLine } from "@aimo/contracts";
-import { getDb, getJson, allJson, tx } from "../db.js";
+import type { AllergenAcknowledgement, AllergenAcknowledgementBody, Approval, ApprovalBody, FiredRule, Mandate, Order, OrderLine, Quote, QuoteCreateBody, QuoteLine, Refusal, AmendmentBody, LookupLine } from "@aimo/contracts";
+import { getDb, getJson, allJson, tx, kvGet, kvSet } from "../db.js";
 import { now, nowIso } from "../clock.js";
 import { getProduct } from "../catalog.js";
+import { carbonBasisFor } from "../carbon.js";
 import { lookup, UpstreamError } from "../aimo/lookup.js";
 import { fire, resolveOutcome, FIXED, outcomeOf } from "../rules/catalogue.js";
-import { cutoffRule, dietRules, mandateRules, priceValidityRule, stockCheck, supplyRules } from "../rules/checks.js";
+import { cutoffRule, productRules, mandateRules, priceValidityRule, stockCheck, supplyRules } from "../rules/checks.js";
+import { supplierDelivery } from "../rules/delivery.js";
+import { storedPolicy } from "../rules/policy.js";
 import { audit, GATEWAY, type Actor } from "../audit.js";
 import { newId, round2, sha256, stableStringify, parseAimoTime, eur, isCalendarDate } from "../util.js";
 import { signJwt, verifyJwt, jcs, checkoutHash } from "./keys.js";
 import type { Identity } from "../identity.js";
-import { actorOf } from "../identity.js";
+import { actorOf, getPerson } from "../identity.js";
 
 export class GatewayRefusal extends Error {
   constructor(public status: number, public body: Refusal) {
@@ -36,7 +39,11 @@ export function upstreamRefusal(e: UpstreamError, prefix = ""): GatewayRefusal {
 /** Approvals are valid only with a JWS this gateway signed that names the same quote, fingerprint and grants. */
 export function approvalValid(a: Approval): boolean {
   const c = verifyJwt(a.signature, "aimo-approval+jwt");
-  return Boolean(c && c.vct === "mandate.checkout.1" && c.quote_id === a.quoteId && c.checkout_hash === a.checkoutHash && c.fingerprint === a.fingerprint && jcs([...c.grants].sort()) === jcs([...a.grants].sort()));
+  const q = getJson<Quote>("quotes", a.quoteId);
+  return Boolean(c && q && c.sub === q.hotelId && c.exp > now().getTime() / 1000 && c.nbf <= now().getTime() / 1000 &&
+    c.vct === "mandate.checkout.1" && c.quote_id === a.quoteId && c.checkout_hash === a.checkoutHash &&
+    a.checkoutHash === q.checkoutHash && a.fingerprint === q.fingerprint && c.fingerprint === a.fingerprint &&
+    Array.isArray(c.grants) && jcs([...c.grants].sort()) === jcs([...a.grants].sort()));
 }
 
 const quoteClaims = (q: Quote) => ({
@@ -47,7 +54,8 @@ const quoteClaims = (q: Quote) => ({
   currency: "EUR",
   total_ex_vat: q.totalExVat,
   approvals_needed: q.mandateCheck.approvalsNeeded,
-  lines: q.lines.map((l) => ({ product_id: l.productId, outlet: l.outletId, quantity: l.quantity, sales_unit: l.salesUnit, unit_price: l.unitPrice, cutoff: l.closingTime, stock: l.stock.kind, source: l.source, requires: l.requires ?? null })),
+  allergen_policy: q.allergenPolicy ?? null,
+  lines: q.lines.map((l) => ({ product_id: l.productId, outlet: l.outletId, quantity: l.quantity, sales_unit: l.salesUnit, unit_price: l.unitPrice, cutoff: l.closingTime, stock: l.stock.kind, source: l.source, requires: l.requires ?? null, allergen_scope: l.allergenScope ?? null, allergen_evidence: l.allergenEvidence ?? null })),
 });
 const orderClaims = (o: Order) => ({
   // AP2 v0.2 Checkout Receipt fields: status, reference (the quote's checkout_hash), order_id.
@@ -61,7 +69,7 @@ const orderClaims = (o: Order) => ({
   delivery_date: o.deliveryDate,
   currency: "EUR",
   total_ex_vat: o.totalExVat,
-  lines: o.lines.filter((l) => !l.removed).map((l) => ({ product_id: l.productId, outlet: l.outletId, quantity: l.quantity, sales_unit: l.salesUnit, unit_price: l.unitPrice, risk_accepted: Boolean(l.riskAccepted) })),
+  lines: o.lines.filter((l) => !l.removed).map((l) => ({ product_id: l.productId, outlet: l.outletId, quantity: l.quantity, sales_unit: l.salesUnit, unit_price: l.unitPrice, risk_accepted: Boolean(l.riskAccepted), allergen_data_acknowledgement: l.allergenDataAcknowledgement ?? null })),
 });
 export const signOrder = (o: Order): Order => ({ ...o, jws: signJwt("aimo-order+jwt", orderClaims({ ...o, jws: undefined }), { sub: o.hotelId, jti: `${o.id}.v${o.version}` }) });
 
@@ -85,20 +93,27 @@ export function isUrgent(deliveryDate: string, at: Date): boolean {
 }
 
 /** APPROVAL-BIND: any change to site, lines, quantities, prices, total or dates gives a new fingerprint. */
-export function fingerprintOf(q: Pick<Quote, "siteId" | "deliveryDate" | "lines" | "totalExVat">): string {
+export function fingerprintOf(q: Pick<Quote, "siteId" | "deliveryDate" | "lines" | "totalExVat" | "allergenPolicy">): string {
   return sha256(
     stableStringify({
       siteId: q.siteId,
       deliveryDate: q.deliveryDate,
       total: q.totalExVat,
-      lines: q.lines.map((l) => [l.productId, l.outletId, l.quantity, l.unitPrice, l.availableDate, l.closingTime, l.requires ?? null]),
+      ...(q.allergenPolicy ? { allergenPolicy: q.allergenPolicy } : {}),
+      lines: q.lines.map((l) => [l.productId, l.outletId, l.quantity, l.salesUnit, l.unitPrice, l.taxRate, l.availableDate, l.closingTime, l.priceValidTo,
+        l.stock.kind === "unknown" ? l.stock : l.stock.kind, l.logisticModel, l.requires ?? null, l.allergenScope ?? null, l.allergenEvidence ?? null]),
     }),
   );
 }
 
+type StoredQuote = Quote & { amendsOrderId?: string; amendmentVersion?: number; humanPolicy?: string; stockPolicy?: string };
+type StoredOrder = Order & { stockPolicy?: string; humanPolicy?: string };
+const stockPolicy = (m: Mandate) => sha256(stableStringify({ version: m.version, preAnswers: m.preAnswers }));
+const allergenPolicy = (m: Mandate) => sha256(stableStringify({ mandate: m, rules: storedPolicy() }));
+const supplierTime = (value: string | null | undefined) => value && isCalendarDate(value.slice(0, 10)) ? parseAimoTime(value) : null;
 type BuildOpts = { hotelId: string; body: QuoteCreateBody; lookups: Map<string, LookupLine>; amendsOrderId?: string; fixedPrices?: Map<string, number> };
 
-function buildQuote({ hotelId, body, lookups, amendsOrderId, fixedPrices }: BuildOpts): Quote {
+function buildQuote({ hotelId, body, lookups, amendsOrderId, fixedPrices }: BuildOpts): StoredQuote {
   const mandate = getMandate(hotelId);
   const at = now();
   const urgent = isUrgent(body.deliveryDate, at);
@@ -106,18 +121,34 @@ function buildQuote({ hotelId, body, lookups, amendsOrderId, fixedPrices }: Buil
   for (const line of body.lines) quantities.set(line.productId, (quantities.get(line.productId) ?? 0) + line.quantity);
   const lines: QuoteLine[] = body.lines.map((li, i) => {
     const p = getProduct(li.productId);
-    const l = lookups.get(li.productId)!;
+    const delivery = supplierDelivery(lookups.get(li.productId)!, body.deliveryDate, mandate, quantities.get(li.productId)!, at);
+    const l = delivery.line;
     const name = p?.name ?? li.productId;
-    const rules: FiredRule[] = [];
+    const rules: FiredRule[] = [...delivery.rules];
     if (!p) rules.push(fire("REQ-04", { product: li.productId }));
     rules.push(...supplyRules({ name }, l));
+    // An incomplete supplier response is not permission to order. These facts
+    // are mandatory even when the hotel's policy allows unknown stock.
+    if (!isCalendarDate(l.availableDate ?? "") || !supplierTime(l.closingTime) || !l.salesUnit?.trim())
+      rules.push(fire("DLV-01", { product: name, productId: li.productId, reason: "missing or invalid delivery terms" }));
+    const from = supplierTime(l.price?.validFrom), to = supplierTime(l.price?.validTo);
+    if (l.price && (!Number.isFinite(l.price.value) || l.price.value <= 0 || l.price.currency !== "EUR" ||
+      !Number.isSafeInteger(Math.round(l.price.value * li.quantity * 100)) ||
+      // The price API's pricingDate is the requested delivery date. A future
+      // price can cover that delivery even when the hotel orders months ahead.
+      !from || !to || (l.price.validFrom ?? "").slice(0, 10) > body.deliveryDate || to <= at || from > to ||
+      (l.price.taxRate !== null && (!Number.isFinite(l.price.taxRate) || l.price.taxRate < 0 || l.price.taxRate > 100))))
+      rules.push(fire("PRC-01", { product: name, productId: li.productId, reason: "invalid price or validity" }));
     const cut = cutoffRule({ name }, l, at);
     if (cut) rules.push(cut);
-    if (p && li.requires) rules.push(...dietRules(p, li.requires, "this line").filter((r) => r.outcome === "block"));
+    if (p) rules.push(...productRules(p, li.requires, "this line", mandate).filter((r) => r.outcome === "block" || r.ruleId === "ALG-03"));
     if (l.deliverable) rules.push(...stockCheck({ name }, l, quantities.get(li.productId)!, urgent, l.salesUnit ?? "units").rules.filter((r) => r.ruleId !== "STK-05"));
+    if (l.deliverable && l.stock.kind === "none" && !urgent)
+      rules.push(fire("STK-04", { product: name, productId: li.productId, quantity: li.quantity, unit: l.salesUnit ?? "units", stock: 0, date: l.availableDate ?? "" }));
     const pv = priceValidityRule({ name }, l, body.deliveryDate);
     if (pv) rules.push(pv);
-    const unitPrice = fixedPrices?.get(`${li.productId}|${li.outletId}`) ?? l.price?.value ?? null;
+    const rawPrice = fixedPrices?.get(`${li.productId}|${li.outletId}`) ?? l.price?.value;
+    const unitPrice = typeof rawPrice === "number" && rawPrice > 0 && Number.isSafeInteger(Math.round(rawPrice * li.quantity * 100)) ? rawPrice : null;
     return {
       lineNo: i + 1,
       ref: li.ref ?? null,
@@ -128,17 +159,20 @@ function buildQuote({ hotelId, body, lookups, amendsOrderId, fixedPrices }: Buil
       salesUnit: l.salesUnit,
       unitPrice,
       lineTotal: unitPrice === null ? null : round2(unitPrice * li.quantity),
-      taxRate: l.price?.taxRate ?? null,
+      taxRate: typeof l.price?.taxRate === "number" && Number.isFinite(l.price.taxRate) && l.price.taxRate >= 0 ? l.price.taxRate : null,
       stock: l.stock,
       availableDate: l.availableDate,
       closingTime: l.closingTime,
       availabilityEvidence: l.availabilityEvidence,
+      carbonBasis: carbonBasisFor(p, l),
       priceValidTo: l.price?.validTo ?? null,
       logisticModel: l.logisticModel,
       source: l.source,
       rules,
       outcome: resolveOutcome(rules),
       ...(li.requires ? { requires: li.requires } : {}),
+      ...(li.allergenScope ? { allergenScope: li.allergenScope } : {}),
+      ...(p && li.requires?.avoidAllergens.length ? { allergenEvidence: sha256(stableStringify([p.hasAllergenData, p.contains, p.mayContain, p.allergenUndeclared ?? [], p.claims])) } : {}),
     };
   });
   const totalExVat = round2(lines.reduce((s, l) => s + (l.lineTotal ?? 0), 0));
@@ -156,7 +190,8 @@ function buildQuote({ hotelId, body, lookups, amendsOrderId, fixedPrices }: Buil
   const blocked = allRules.some((r) => r.outcome === "block");
   const cutoffs = lines.map((l) => parseAimoTime(l.closingTime)?.getTime()).filter((t): t is number => typeof t === "number" && t > at.getTime());
   const expires = Math.min(at.getTime() + FIXED.quoteMaxHours * 3_600_000, ...cutoffs);
-  const base = { siteId: body.siteId, deliveryDate: body.deliveryDate, lines, totalExVat };
+  const policy = lines.some((l) => l.requires?.avoidAllergens.length) ? allergenPolicy(mandate) : undefined;
+  const base = { siteId: body.siteId, deliveryDate: body.deliveryDate, lines, totalExVat, allergenPolicy: policy };
   return {
     id: newId("q"),
     hotelId,
@@ -170,12 +205,32 @@ function buildQuote({ hotelId, body, lookups, amendsOrderId, fixedPrices }: Buil
     totalExVat,
     totalVat,
     fingerprint: fingerprintOf(base),
+    ...(policy ? { allergenPolicy: policy } : {}),
     mandateCheck: { pass: mc.rules.length === 0, rules: mc.rules, approvalsNeeded },
-    outcome: blocked ? "block" : approvalsNeeded.length ? "ask_approver" : "order",
+    outcome: blocked ? "block" : lines.some((l) => l.rules.some((r) => r.ruleId === "ALG-03")) ? "ask_chef" : approvalsNeeded.length ? "ask_approver" : "order",
     usesFixtures: lines.some((l) => l.source === "fixture"),
     unconfirmedStock,
+    stockPolicy: stockPolicy(mandate),
+    humanPolicy: consentPolicy(hotelId),
     ...(amendsOrderId ? { amendsOrderId } : {}),
-  } as Quote;
+  };
+}
+
+const quoteBody = (q: Quote): QuoteCreateBody => ({ siteId: q.siteId, deliveryDate: q.deliveryDate, eventId: q.eventId ?? undefined,
+  lines: q.lines.map((l) => ({ productId: l.productId, quantity: l.quantity, outletId: l.outletId, ref: l.ref ?? undefined, requires: l.requires, allergenScope: l.allergenScope })) });
+
+function preserveSpendApproval(q: Quote, order: Order) {
+  if (q.totalExVat <= order.totalExVat) {
+    q.mandateCheck.approvalsNeeded = q.mandateCheck.approvalsNeeded.filter((n) => n !== "spend_cap");
+    q.mandateCheck.rules = q.mandateCheck.rules.filter((r) => r.ruleId !== "MAN-01");
+  }
+}
+
+function saveQuote(q: StoredQuote): StoredQuote {
+  q.jws = signJwt("aimo-quote+jwt", quoteClaims(q), { sub: q.hotelId, expiresAt: q.expiresAt, jti: q.id });
+  q.checkoutHash = checkoutHash(q.jws);
+  getDb().prepare("INSERT INTO quotes (id, json, created_at) VALUES (?, ?, ?)").run(q.id, JSON.stringify(q), q.createdAt);
+  return q;
 }
 
 async function lookupMap(ids: string[], date: string): Promise<{ map: Map<string, LookupLine>; fallback: string | null }> {
@@ -202,16 +257,14 @@ export async function createQuote(id: Identity, body: QuoteCreateBody, actor?: A
     throw new GatewayRefusal(403, { error: "forbidden", message: `Site ${body.siteId} is not one of this hotel's delivery sites`, rules: [fire("DLV-05", { site: body.siteId })] });
   const { map, fallback } = await lookupMap(body.lines.map((l) => l.productId), body.deliveryDate);
   const q = buildQuote({ hotelId, body, lookups: map });
-  q.jws = signJwt("aimo-quote+jwt", quoteClaims(q), { sub: q.hotelId, expiresAt: q.expiresAt, jti: q.id });
-  q.checkoutHash = checkoutHash(q.jws);
-  getDb().prepare("INSERT INTO quotes (id, json, created_at) VALUES (?, ?, ?)").run(q.id, JSON.stringify(q), q.createdAt);
+  saveQuote(q);
   audit({
     actor: actor ?? actorOf(id),
     action: "quote_created",
     summary: `Quote ${q.id}: ${q.lines.length} lines, ${eur(q.totalExVat)} ex VAT, outcome ${q.outcome}${fallback ? ` (${fallback})` : ""}`,
     eventId: q.eventId,
     quoteId: q.id,
-    ruleIds: [...q.lines.flatMap((l) => l.rules.map((r) => r.ruleId)), ...q.mandateCheck.rules.map((r) => r.ruleId)],
+    ruleIds: [...q.lines.flatMap((l) => l.rules.map((r) => r.ruleId)), ...q.mandateCheck.rules.map((r) => r.ruleId)].filter((r) => !dietaryRule(r)),
     details: { deliveryDate: q.deliveryDate, approvalsNeeded: q.mandateCheck.approvalsNeeded, fingerprint: q.fingerprint, urgent: q.urgent },
     usesFixture: q.usesFixtures,
     visibility: "shared",
@@ -225,9 +278,64 @@ export function getQuote(id: string): Quote {
   return q;
 }
 
+const missingAllergenLines = (q: Quote) => q.lines.filter((l) => l.rules.some((r) => r.ruleId === "ALG-03"));
+const dietaryRule = (id: string) => id.startsWith("ALG-") || id.startsWith("DIET-");
+
+/** D35 is an authenticated chef decision, never a finance grant or an agent's assertion. */
+export function acknowledgeAllergenData(id: Identity, body: AllergenAcknowledgementBody): AllergenAcknowledgement {
+  if (id.kind !== "person" || id.person.role !== "chef")
+    throw new GatewayRefusal(403, { error: "forbidden", message: "Only the chef can continue with allergen data not confirmed" });
+  const q = getQuote(body.quoteId);
+  const reviewedLines = q.lines.filter((l) => body.productIds.includes(l.productId) && (!body.outletId || l.outletId === body.outletId));
+  if (q.hotelId !== id.hotelId || reviewedLines.some((l) => !id.person.hotelScope && !id.person.outlets.includes(l.outletId)))
+    throw new GatewayRefusal(403, { error: "forbidden", message: "These terms are outside the chef's hotel or outlet scope" });
+  if (q.fingerprint !== body.fingerprint || new Date(q.expiresAt) <= now())
+    throw new GatewayRefusal(409, { error: "quote_stale", message: "Review the current terms before continuing with missing allergen data" });
+  if (q.allergenPolicy !== allergenPolicy(getMandate(q.hotelId)))
+    throw new GatewayRefusal(409, { error: "quote_stale", message: "The hotel policy changed. Request current terms before reviewing missing allergen data." });
+  const hard = [...(q.outcome === "block" ? q.lines.flatMap((l) => l.rules).filter((r) => r.outcome === "block") : []), ...q.lines.flatMap((l) => {
+    const p = getProduct(l.productId);
+    return (p ? productRules(p, l.requires, "this line", getMandate(q.hotelId)) : []).filter((r) => r.outcome === "block");
+  })];
+  if (hard.length) throw new GatewayRefusal(409, { error: "hard_rule", message: "Blocked dietary or supplier terms cannot be acknowledged", rules: hard });
+  const productIds = [...new Set(body.productIds)].sort();
+  if (productIds.some((p) => !missingAllergenLines(q).some((l) => l.productId === p && (!body.outletId || l.outletId === body.outletId))))
+    throw new GatewayRefusal(422, { error: "invalid", message: "Acknowledge only products with missing allergen declarations on this quote" });
+  const result = { fingerprint: q.fingerprint, productIds, ...(body.outletId ? { outletId: body.outletId } : {}), personId: id.person.id, by: id.person.name, at: nowIso(), expiresAt: q.expiresAt };
+  const token = signJwt("aimo-allergen-ack+jwt", { ...result, eventId: q.eventId }, { sub: q.hotelId, expiresAt: q.expiresAt });
+  audit({ actor: actorOf(id), action: "line_verdict_set", summary: `${id.person.name} continued: allergen data not confirmed for ${q.lines.filter((l) => productIds.includes(l.productId)).map((l) => l.productName).join(", ")}. Safety is not confirmed.`, eventId: q.eventId, quoteId: q.id, ruleIds: ["ALG-03"], details: { kind: "allergen_data_acknowledgement", ...result }, visibility: "hotel", usesFixture: q.usesFixtures });
+  return { ...result, token };
+}
+
+/** Verify the signature, person, scope, expiry and exact rechecked terms at commit. */
+function allergenDecisions(q: Quote, tokens: string[] = []): Map<string, NonNullable<OrderLine["allergenDataAcknowledgement"]>> {
+  const decisions = new Map<string, NonNullable<OrderLine["allergenDataAcknowledgement"]>>();
+  for (const token of tokens) {
+    const c = verifyJwt(token, "aimo-allergen-ack+jwt");
+    const person = c && typeof c.personId === "string" ? getPerson(c.personId) : null;
+    if (!c || c.sub !== q.hotelId || c.eventId !== q.eventId || c.fingerprint !== q.fingerprint || !(c.exp > now().getTime() / 1000) || !(c.nbf <= now().getTime() / 1000) ||
+      !person || person.hotelId !== q.hotelId || person.role !== "chef" || !Array.isArray(c.productIds)) continue;
+    for (const l of missingAllergenLines(q)) if (c.productIds.includes(l.productId) && (!c.outletId || c.outletId === l.outletId) && (person.hotelScope || person.outlets.includes(l.outletId)))
+      decisions.set(`${l.productId}|${l.outletId}`, { fingerprint: c.fingerprint, personId: person.id, by: person.name, at: c.at });
+  }
+  return decisions;
+}
+
+function requireAllergenDecisions(q: Quote, tokens?: string[]) {
+  const decisions = allergenDecisions(q, tokens);
+  if (missingAllergenLines(q).some((l) => !decisions.has(`${l.productId}|${l.outletId}`)))
+    throw new GatewayRefusal(409, { error: "allergen_data_unconfirmed", message: "Allergen data not confirmed. The chef must explicitly continue with these exact terms or choose another product.", newQuoteId: q.id });
+  return decisions;
+}
+
+function auditAllergenConcerns(q: Quote, order: Order, actor: Actor) {
+  const lines = order.lines.filter((l) => !l.removed && l.allergenDataAcknowledgement);
+  if (lines.length) audit({ actor, action: "line_verdict_set", summary: `Allergen data not confirmed: ${lines.map((l) => l.productName).join(", ")}. Chef continuation retained; safety is not confirmed.`, eventId: q.eventId, quoteId: q.id, orderId: order.id, ruleIds: ["ALG-03"], details: { lines: lines.map((l) => ({ productId: l.productId, requires: l.requires, acknowledgement: l.allergenDataAcknowledgement })) }, visibility: "hotel", usesFixture: q.usesFixtures });
+}
+
 // ---------- approvals (AP-07, AP2-style CartMandate) ----------
 
-export function createApproval(id: Identity, body: ApprovalBody): Approval {
+export async function createApproval(id: Identity, body: ApprovalBody): Promise<Approval> {
   if (id.kind !== "person" || id.person.role !== "approver")
     throw new GatewayRefusal(403, { error: "forbidden", message: "Only a person with the Approver role can approve" });
   const q = getQuote(body.quoteId);
@@ -238,6 +346,24 @@ export function createApproval(id: Identity, body: ApprovalBody): Approval {
     const hard = q.lines.flatMap((l) => l.rules).filter((r) => r.outcome === "block");
     throw new GatewayRefusal(409, { error: "hard_rule", message: "A blocked line can't be approved. Fix or remove it first.", rules: hard });
   }
+  if (new Date(q.expiresAt).getTime() <= now().getTime())
+    throw new GatewayRefusal(409, { error: "quote_stale", message: "The quote has expired; request a new one" });
+  const context = q as StoredQuote;
+  const { map } = await lookupMap(q.lines.map((l) => l.productId), q.deliveryDate);
+  if (new Date(q.expiresAt).getTime() <= now().getTime())
+    throw new GatewayRefusal(409, { error: "quote_stale", message: "The quote expired before approval; request a new one" });
+  const order = context.amendsOrderId ? getOrder(context.amendsOrderId) : undefined;
+  if (order && (order.hotelId !== q.hotelId || order.version !== context.amendmentVersion))
+    throw new GatewayRefusal(409, { error: "quote_stale", message: "The order changed before amendment approval" });
+  const fixedPrices = new Map<string, number>();
+  if (order) for (const line of q.lines) {
+    const previous = order.lines.find((l) => !l.removed && l.productId === line.productId && l.outletId === line.outletId && l.quantity === line.quantity);
+    if (previous?.unitPrice != null) fixedPrices.set(`${line.productId}|${line.outletId}`, previous.unitPrice);
+  }
+  const fresh = buildQuote({ hotelId: q.hotelId, body: quoteBody(q), lookups: map, fixedPrices, amendsOrderId: context.amendsOrderId });
+  if (order) { fresh.amendmentVersion = order.version; preserveSpendApproval(fresh, order); }
+  const changes = recheck(q, fresh, now(), order);
+  if (changes.length) throw new GatewayRefusal(409, { error: "quote_stale", message: "Terms changed before approval", changes, newQuoteId: saveQuote(fresh).id });
   const a: Approval = {
     id: newId("apr"),
     type: "mandate.checkout.1",
@@ -269,21 +395,68 @@ export function createApproval(id: Identity, body: ApprovalBody): Approval {
   return a;
 }
 
+// Authenticated builder decisions are separate from finance approvals. Opaque IDs are
+// references to server-owned records, never client assertions about a person's name.
+type BuilderConsent = { id: string; quoteId: string; fingerprint: string; hotelId: string;
+  policy: string; expiresAt: string; productIds: string[]; personId: string; name: string };
+const consentPolicy = (hotelId: string) => sha256(stableStringify({ mandate: getMandate(hotelId), rules: storedPolicy() }));
+function chefScope(personId: string, q: Quote) {
+  const p = getPerson(personId);
+  return p?.role === "chef" && p.hotelId === q.hotelId &&
+    (p.hotelScope || q.lines.every((l) => p.outlets.includes(l.outletId)));
+}
+export function createBuilderConsent(id: Identity, body: { quoteId: string; fingerprint: string; productIds: string[] }): BuilderConsent {
+  const q = getQuote(body.quoteId);
+  if (id.kind !== "person" || !chefScope(id.person.id, q))
+    throw new GatewayRefusal(403, { error: "forbidden", message: "Only an authenticated chef in this quote's hotel and outlet scope can consent" });
+  if (q.fingerprint !== body.fingerprint || (q as StoredQuote).humanPolicy !== consentPolicy(q.hotelId) || new Date(q.expiresAt) <= now() ||
+    (q as StoredQuote).stockPolicy !== stockPolicy(getMandate(q.hotelId)))
+    throw new GatewayRefusal(409, { error: "quote_stale", message: "Review a current quote before consenting" });
+  if (body.productIds.some((p) => !q.unconfirmedStock.includes(p)))
+    throw new GatewayRefusal(422, { error: "invalid", message: "Consent products must be unconfirmed lines on the reviewed quote" });
+  const c: BuilderConsent = { id: newId("consent"), quoteId: q.id, fingerprint: q.fingerprint,
+    hotelId: q.hotelId, policy: consentPolicy(q.hotelId), expiresAt: q.expiresAt,
+    productIds: [...new Set(body.productIds)].sort(), personId: id.person.id, name: id.person.name };
+  kvSet(`builder-consent:${c.id}`, c);
+  audit({ actor: actorOf(id), action: "question_answered", summary: `${c.name} continued with unconfirmed stock`,
+    quoteId: q.id, eventId: q.eventId, details: { consentId: c.id, fingerprint: c.fingerprint, productIds: c.productIds }, visibility: "hotel" });
+  return c;
+}
+function builderConsent(q: Quote, consentId?: string, amendment?: Order): BuilderConsent | null {
+  const c = consentId ? kvGet<BuilderConsent>(`builder-consent:${consentId}`) : null;
+  const reviewed = c ? getJson<StoredQuote>("quotes", c.quoteId) : null;
+  if (!c || !reviewed || c.hotelId !== q.hotelId || c.fingerprint !== q.fingerprint ||
+    c.policy !== consentPolicy(q.hotelId) || new Date(c.expiresAt) <= now() || !chefScope(c.personId, q)) return null;
+  if (amendment ? reviewed.amendsOrderId !== amendment.id || reviewed.amendmentVersion !== amendment.version : c.quoteId !== q.id) return null;
+  return c;
+}
+
 // ---------- orders (ORDER-PLACE, QUOTE-RECHECK, idempotency) ----------
 
-/** QUOTE-RECHECK (Q08.7): any price change, stock now short, cut-off passed or date moved. */
-function recheck(q: Quote, fresh: Map<string, LookupLine>, at: Date): Record<string, unknown>[] {
+/** Compare a fresh rule evaluation, not just a subset of the old snapshot. */
+function recheck(q: Quote, fresh: Quote, at: Date, amending?: Order): Record<string, unknown>[] {
   const changes: Record<string, unknown>[] = [];
   const quantities = new Map<string, number>();
   for (const line of q.lines) quantities.set(line.productId, (quantities.get(line.productId) ?? 0) + line.quantity);
-  for (const l of q.lines) {
-    const f = fresh.get(l.productId)!;
-    if ((f.price?.value ?? null) !== l.unitPrice) changes.push({ productId: l.productId, field: "price", was: l.unitPrice, now: f.price?.value ?? null });
-    if (f.availableDate !== l.availableDate) changes.push({ productId: l.productId, field: "availableDate", was: l.availableDate, now: f.availableDate });
-    if (q.urgent && f.stock.kind === "known" && f.stock.amount < quantities.get(l.productId)!) changes.push({ productId: l.productId, field: "stock", was: l.stock, now: f.stock });
-    const c = parseAimoTime(f.closingTime);
-    if (c && c.getTime() <= at.getTime()) changes.push({ productId: l.productId, field: "cutoff", now: f.closingTime, passed: true });
+  for (const [i, l] of q.lines.entries()) {
+    const f = fresh.lines[i];
+    const previous = amending?.lines.find((line) => !line.removed && line.productId === l.productId && line.outletId === l.outletId);
+    const changed = !previous || previous.quantity !== l.quantity;
+    const grew = !previous || previous.quantity < l.quantity;
+    for (const field of ["unitPrice", "taxRate", "availableDate", "closingTime", "salesUnit", "priceValidTo", "logisticModel", "allergenEvidence"] as const)
+      if (f[field] !== l[field]) changes.push({ productId: l.productId, field, was: l[field], now: f[field] });
+    if (f.stock.kind !== l.stock.kind || (f.stock.kind === "unknown" && l.stock.kind === "unknown" && f.stock.reason !== l.stock.reason) ||
+      (grew && fresh.urgent && f.stock.kind === "known" && f.stock.amount < quantities.get(l.productId)!))
+      changes.push({ productId: l.productId, field: "stock", was: l.stock, now: f.stock });
+    const c = supplierTime(f.closingTime);
+    if (changed && c && c.getTime() <= at.getTime()) changes.push({ productId: l.productId, field: "cutoff", now: f.closingTime, passed: true });
+    for (const rule of f.rules.filter((r) => r.outcome === "block" && (r.ruleId === "CUT-01" ? changed : r.ruleId === "STK-04" ? grew : true)))
+      changes.push({ productId: l.productId, field: "rule", ruleId: rule.ruleId, now: rule.message });
   }
+  if (stableStringify(fresh.mandateCheck) !== stableStringify(q.mandateCheck) ||
+    fresh.allergenPolicy !== q.allergenPolicy ||
+    stableStringify(fresh.unconfirmedStock) !== stableStringify(q.unconfirmedStock) ||
+    (q as StoredQuote).stockPolicy !== (fresh as StoredQuote).stockPolicy) changes.push({ field: "policy", now: fresh.mandateCheck });
   return changes;
 }
 
@@ -294,17 +467,17 @@ function approvalCovers(q: Quote, approvalId: string | undefined): { ok: boolean
   const a = getJson<Approval>("approvals", approvalId);
   if (!a) return { ok: false, reason: "approval not found" };
   if (!approvalValid(a)) return { ok: false, reason: "approval signature invalid" };
-  if (a.fingerprint !== q.fingerprint) return { ok: false, reason: "approval is for a different quote version" };
+  if (a.quoteId !== q.id || a.fingerprint !== q.fingerprint) return { ok: false, reason: "approval is for a different quote version" };
   const missing = needed.filter((n) => !a.grants.includes(n));
   if (missing.length) return { ok: false, reason: `approval doesn't cover ${missing.join(", ")}` };
   return { ok: true };
 }
 
-export async function placeOrder(id: Identity, quoteId: string, idemKey: string, approvalId?: string, actor?: Actor, stock: { continueWith?: string[]; decidedBy?: string } = {}): Promise<{ order: Order; replay: boolean }> {
+export async function placeOrder(id: Identity, quoteId: string, idemKey: string, approvalId?: string, actor?: Actor, stock: { continueWith?: string[]; decidedBy?: string; builderConsentId?: string; allergenAcknowledgements?: string[] } = {}): Promise<{ order: Order; replay: boolean }> {
   const hotelId = requireHotel(id);
   if (!idemKey) throw new GatewayRefusal(400, { error: "invalid", message: "Idempotency-Key header is required" });
   const continued = [...new Set(stock.continueWith ?? [])].sort();
-  const bodyHash = sha256(stableStringify({ quoteId, approvalId: approvalId ?? null, hotelId, continued }));
+  const bodyHash = sha256(stableStringify({ quoteId, approvalId: approvalId ?? null, hotelId, continued, ...(stock.builderConsentId ? { builderConsentId: stock.builderConsentId } : {}), ...(stock.allergenAcknowledgements?.length ? { allergenAcknowledgements: [...stock.allergenAcknowledgements].sort() } : {}) }));
   const existing = getDb().prepare("SELECT json, body_hash FROM orders WHERE idem_key = ?").get(idemKey) as { json: string; body_hash: string } | undefined;
   if (existing) {
     if (existing.body_hash !== bodyHash) throw new GatewayRefusal(422, { error: "idempotency_conflict", message: "This Idempotency-Key was used with a different body; the first order is untouched" });
@@ -312,39 +485,48 @@ export async function placeOrder(id: Identity, quoteId: string, idemKey: string,
   }
   const q = getQuote(quoteId);
   if (q.hotelId !== hotelId) throw new GatewayRefusal(403, { error: "forbidden", message: "Quote belongs to another hotel" });
+  if ((q as StoredQuote).amendsOrderId)
+    throw new GatewayRefusal(409, { error: "invalid", message: "Use this amendment quote only to amend its existing order" });
   const by = actor ?? actorOf(id);
   const refuse = (status: number, r: Refusal): never => {
-    audit({ actor: by, action: "order_refused", summary: `Order on ${q.id} refused: ${r.error}: ${r.message}`, eventId: q.eventId, quoteId: q.id, ruleIds: r.rules?.map((x) => x.ruleId), details: { error: r.error, approvalsNeeded: r.approvalsNeeded, changes: r.changes }, visibility: "shared", usesFixture: q.usesFixtures });
+    audit({ actor: by, action: "order_refused", summary: `Order on ${q.id} refused: ${r.error}: ${r.message}`, eventId: q.eventId, quoteId: q.id, ruleIds: r.rules?.map((x) => x.ruleId), details: { error: r.error, approvalsNeeded: r.approvalsNeeded, changes: r.changes }, visibility: r.error === "allergen_data_unconfirmed" || r.rules?.some((x) => dietaryRule(x.ruleId)) || r.changes?.some((c) => c.field === "allergenEvidence" || dietaryRule(String(c.ruleId))) ? "hotel" : "shared", usesFixture: q.usesFixtures });
     throw new GatewayRefusal(status, r);
   };
-  const at = now();
+  let at = now();
   // Hard rules first: no approval can push a blocked line through (AP-04).
   const hard = q.lines.flatMap((l) => l.rules).filter((r) => r.outcome === "block");
   for (const line of q.lines) {
     const product = getProduct(line.productId);
-    if (product && line.requires) hard.push(...dietRules(product, line.requires, "this line").filter((r) => r.outcome === "block"));
+    if (product) hard.push(...productRules(product, line.requires, "this line", getMandate(hotelId)).filter((r) => r.outcome === "block"));
   }
   if (hard.length) refuse(409, { error: hard.some((r) => r.ruleId === "CUT-01") ? "cutoff_passed" : "hard_rule", message: hard.map((r) => r.message).join(" "), rules: hard });
   if (new Date(q.expiresAt).getTime() <= at.getTime()) refuse(409, { error: "quote_stale", message: "The quote has expired; request a new one" });
   const { map } = await lookupMap(q.lines.map((l) => l.productId), q.deliveryDate);
-  const changes = recheck(q, map, at);
+  at = now(); // Supplier I/O may cross the quote expiry or a cut-off.
+  if (new Date(q.expiresAt).getTime() <= at.getTime()) refuse(409, { error: "quote_stale", message: "The quote has expired; request a new one" });
+  const fresh = buildQuote({ hotelId, body: quoteBody(q), lookups: map });
+  const changes = recheck(q, fresh, at);
   if (changes.length) {
-    const nq = await createQuote(id, { siteId: q.siteId, deliveryDate: q.deliveryDate, eventId: q.eventId ?? undefined, lines: q.lines.map((l) => ({ productId: l.productId, quantity: l.quantity, outletId: l.outletId, ref: l.ref ?? undefined, requires: l.requires })) }, by);
+    const nq = saveQuote(fresh);
     const cutoff = changes.some((c) => c.field === "cutoff");
     refuse(409, { error: cutoff ? "cutoff_passed" : "quote_stale", message: cutoff ? "A cut-off passed since the quote" : "Terms changed since the quote", changes, newQuoteId: nq.id });
   }
-  const missingStock = (q.unconfirmedStock ?? []).filter((p) => !continued.includes(p));
+  let allergenData: ReturnType<typeof requireAllergenDecisions>;
+  try { allergenData = requireAllergenDecisions(fresh, stock.allergenAcknowledgements); }
+  catch (err) { if (err instanceof GatewayRefusal) refuse(err.status, { ...err.body, newQuoteId: q.id }); throw err; }
+  const consent = builderConsent(q, stock.builderConsentId);
+  const missingStock = (q.unconfirmedStock ?? []).filter((p) => !continued.includes(p) || !consent?.productIds.includes(p));
   if (missingStock.length)
     refuse(409, {
       error: "stock_unconfirmed",
-      message: `Valio Aimo can't confirm stock for ${missingStock.join(", ")}. List them in continueWithUnconfirmedStock to order anyway.`,
+      message: `Valio Aimo can't confirm stock for ${missingStock.join(", ")}. An authenticated chef must consent through /builder-consents before ordering.`,
       rules: q.lines.filter((l) => missingStock.includes(l.productId)).flatMap((l) => l.rules.filter((r) => r.ruleId === "STK-01")),
     });
   const cover = approvalCovers(q, approvalId);
   if (!cover.ok)
     refuse(409, { error: "mandate_violation", message: `This order needs an approval bound to quote ${q.id} (${cover.reason})`, rules: q.mandateCheck.rules, approvalsNeeded: q.mandateCheck.approvalsNeeded });
   const approval = approvalId ? getJson<Approval>("approvals", approvalId) : null;
-  const order: Order = {
+  const order: StoredOrder = {
     id: newId("ord"),
     quoteId: q.id,
     hotelId,
@@ -352,11 +534,12 @@ export async function placeOrder(id: Identity, quoteId: string, idemKey: string,
     eventId: q.eventId,
     deliveryDate: q.deliveryDate,
     state: "placed",
-    lines: q.lines.map(
+    lines: fresh.lines.map(
       (l): OrderLine => ({
         ...l,
         removed: false,
-        riskAccepted: l.stock.kind === "unknown" ? { by: continued.includes(l.productId) ? stock.decidedBy ?? by.name : "pre-answer", at: at.toISOString() } : null,
+        riskAccepted: l.stock.kind === "unknown" ? { by: consent?.productIds.includes(l.productId) ? consent.name : "pre-answer", at: at.toISOString() } : null,
+        ...(allergenData.get(`${l.productId}|${l.outletId}`) ? { allergenDataAcknowledgement: allergenData.get(`${l.productId}|${l.outletId}`)! } : {}),
       }),
     ),
     totalExVat: q.totalExVat,
@@ -367,11 +550,23 @@ export async function placeOrder(id: Identity, quoteId: string, idemKey: string,
     idempotencyKey: idemKey,
     version: 1,
     flags: [],
+    stockPolicy: fresh.stockPolicy,
+    humanPolicy: fresh.humanPolicy,
   };
-  tx(() => {
+  // Two requests may both finish their supplier lookup before either writes.
+  // Resolve the same-key race inside the transaction instead of surfacing SQL 500.
+  const raced = tx(() => {
+    const row = getDb().prepare("SELECT json, body_hash FROM orders WHERE idem_key = ?").get(idemKey) as { json: string; body_hash: string } | undefined;
+    if (row) {
+      if (row.body_hash !== bodyHash) refuse(422, { error: "idempotency_conflict", message: "This Idempotency-Key was used with a different body; the first order is untouched" });
+      return JSON.parse(row.json) as Order;
+    }
     Object.assign(order, signOrder(order));
     getDb().prepare("INSERT INTO orders (id, quote_id, event_id, idem_key, body_hash, json) VALUES (?, ?, ?, ?, ?, ?)").run(order.id, q.id, q.eventId, idemKey, bodyHash, JSON.stringify(order));
+    return null;
   });
+  if (raced) return { order: raced, replay: true };
+  auditAllergenConcerns(q, order, by);
   audit({
     actor: by,
     action: "order_placed",
@@ -379,7 +574,7 @@ export async function placeOrder(id: Identity, quoteId: string, idemKey: string,
     eventId: q.eventId,
     quoteId: q.id,
     orderId: order.id,
-    ruleIds: q.lines.flatMap((l) => l.rules.map((r) => r.ruleId)),
+    ruleIds: q.lines.flatMap((l) => l.rules.map((r) => r.ruleId)).filter((r) => !dietaryRule(r)),
     details: { approvalId: approvalId ?? null, outlets: [...new Set(order.lines.map((l) => l.outletId))] },
     usesFixture: q.usesFixtures,
     visibility: "shared",
@@ -413,7 +608,7 @@ export async function amendOrder(id: Identity, orderId: string, body: AmendmentB
   const o = getOrder(orderId);
   if (o.hotelId !== hotelId) throw new GatewayRefusal(403, { error: "forbidden", message: "Order belongs to another hotel" });
   const by = actor ?? actorOf(id);
-  const at = now();
+  let at = now();
   const key = (p: string, out: string) => `${p}|${out}`;
   const current = new Map(o.lines.filter((l) => !l.removed).map((l) => [key(l.productId, l.outletId), l]));
   const refusedLines: FiredRule[] = [];
@@ -437,39 +632,71 @@ export async function amendOrder(id: Identity, orderId: string, body: AmendmentB
   for (const [k, l] of current) if (next.get(k) === l.quantity && l.unitPrice !== null) fixedPrices.set(k, l.unitPrice);
   const lines = [...next].map(([k, qty]) => {
     const [productId, outletId] = k.split("|");
-    return { productId, outletId, quantity: qty, ref: current.get(k)?.ref ?? undefined, requires: current.get(k)?.requires };
+    const change = body.changes.find((c) => key(c.productId, c.outletId) === k);
+    return { productId, outletId, quantity: qty, ref: current.get(k)?.ref ?? undefined, requires: change?.requires ?? current.get(k)?.requires, allergenScope: change?.allergenScope ?? current.get(k)?.allergenScope };
   });
   if (!lines.length) throw new GatewayRefusal(422, { error: "invalid", message: "An amendment can't remove every line; cancel the order instead" });
   const { map } = await lookupMap(lines.map((l) => l.productId), o.deliveryDate);
+  at = now();
+  if (getOrder(o.id).version !== o.version)
+    throw new GatewayRefusal(409, { error: "quote_stale", message: "The order changed during the amendment; reload it before retrying" });
+  for (const change of body.changes) {
+    const previous = current.get(key(change.productId, change.outletId));
+    const cutoff = supplierTime(previous?.closingTime);
+    if (previous && previous.quantity !== change.quantity && cutoff && cutoff <= at && next.get(key(change.productId, change.outletId)) !== previous.quantity)
+      throw new GatewayRefusal(409, { error: "cutoff_passed", message: "A changed line's cut-off passed during the amendment" });
+  }
   const q = buildQuote({ hotelId, body: { siteId: o.siteId, deliveryDate: o.deliveryDate, eventId: o.eventId ?? undefined, lines }, lookups: map, amendsOrderId: o.id, fixedPrices });
+  q.amendmentVersion = o.version;
   // A spend-cap approval already covers the order up to its current total: an amendment that
   // doesn't raise the total needs no new one (edge case in chunk 05: only going over asks again).
-  if (q.totalExVat <= o.totalExVat) {
-    q.mandateCheck.approvalsNeeded = q.mandateCheck.approvalsNeeded.filter((n) => n !== "spend_cap");
-    q.mandateCheck.rules = q.mandateCheck.rules.filter((r) => r.ruleId !== "MAN-01");
-  }
-  // D31: a product the hotel already chose to continue with stays continued (Q04.6); only new ones need the choice.
-  const alreadyContinued = new Set(o.lines.filter((l) => l.riskAccepted).map((l) => l.productId));
-  const continued = new Set([...(body.continueWithUnconfirmedStock ?? []), ...alreadyContinued]);
-  q.unconfirmedStock = (q.unconfirmedStock ?? []).filter((p) => !alreadyContinued.has(p));
+  preserveSpendApproval(q, o);
+  // D31: carry the builder's decision only for the same line, quantity,
+  // supplier terms and hotel policy. Consent for a SKU is not consent for more.
+  const sameReview = (a: QuoteLine, b: QuoteLine) => stableStringify([
+    a.quantity, a.salesUnit, a.unitPrice, a.taxRate, a.availableDate, a.closingTime, a.priceValidTo, a.stock, a.logisticModel, a.requires,
+  ]) === stableStringify([
+    b.quantity, b.salesUnit, b.unitPrice, b.taxRate, b.availableDate, b.closingTime, b.priceValidTo, b.stock, b.logisticModel, b.requires,
+  ]);
+  const inherited = new Map(q.lines.flatMap((l) => {
+    const previous = current.get(key(l.productId, l.outletId));
+    return previous?.riskAccepted && (o as StoredOrder).stockPolicy === q.stockPolicy && (o as StoredOrder).humanPolicy === q.humanPolicy && sameReview(previous, l)
+      ? [[key(l.productId, l.outletId), previous.riskAccepted] as const] : [];
+  }));
+  const consent = builderConsent(q, body.builderConsentId, o);
+  const continued = new Set((body.continueWithUnconfirmedStock ?? []).filter((p) => consent?.productIds.includes(p)));
+  const missingStock = q.unconfirmedStock.filter((p) => !continued.has(p) && q.lines.some((l) => l.productId === p && !inherited.has(key(l.productId, l.outletId))));
   // A past cut-off blocks only the lines this amendment changes or adds; locked lines stay as they are.
-  const touched = new Set(body.changes.map((c) => key(c.productId, c.outletId)));
+  const touched = new Set(body.changes.filter((c) => current.get(key(c.productId, c.outletId))?.quantity !== c.quantity).map((c) => key(c.productId, c.outletId)));
   // Stock is checked only where the amendment asks for more than before; a decrease never makes a shortage worse.
   const grew = (l: QuoteLine) => (current.get(key(l.productId, l.outletId))?.quantity ?? 0) < l.quantity;
-  const blocked = q.lines.flatMap((l) =>
+  const blocked = [...q.mandateCheck.rules.filter((r) => r.outcome === "block"), ...q.lines.flatMap((l) =>
     l.rules.filter((r) => r.outcome === "block" && (r.ruleId === "CUT-01" ? touched.has(key(l.productId, l.outletId)) : r.ruleId === "STK-04" ? grew(l) : true)),
-  );
-  q.outcome = blocked.length ? "block" : q.mandateCheck.approvalsNeeded.length ? "ask_approver" : "order";
-  q.jws = signJwt("aimo-quote+jwt", quoteClaims(q), { sub: q.hotelId, expiresAt: q.expiresAt, jti: q.id });
-  q.checkoutHash = checkoutHash(q.jws);
-  getDb().prepare("INSERT INTO quotes (id, json, created_at) VALUES (?, ?, ?)").run(q.id, JSON.stringify(q), q.createdAt);
+  )];
+  q.outcome = blocked.length ? "block" : missingAllergenLines(q).length ? "ask_chef" : q.mandateCheck.approvalsNeeded.length ? "ask_approver" : "order";
+  saveQuote(q);
   if (blocked.length) throw new GatewayRefusal(409, { error: "hard_rule", message: blocked.map((r) => r.message).join(" "), rules: blocked });
-  const missingStock = q.unconfirmedStock.filter((p) => !continued.has(p));
+  if (body.quoteOnly) return { order: o, quote: q };
+  let allergenData: ReturnType<typeof requireAllergenDecisions>;
+  try { allergenData = requireAllergenDecisions(q, body.allergenAcknowledgements); }
+  catch (err) {
+    audit({ actor: by, action: "order_refused", summary: "Amendment refused: allergen data not confirmed. The chef must review the current terms.", eventId: o.eventId, orderId: o.id, quoteId: q.id, ruleIds: ["ALG-03"], details: {}, visibility: "hotel" });
+    throw err;
+  }
+  if (body.stockQuoteId && continued.size) {
+    const reviewed = getJson<StoredQuote>("quotes", body.stockQuoteId);
+    if (!reviewed || reviewed.hotelId !== hotelId || reviewed.amendsOrderId !== o.id || reviewed.amendmentVersion !== o.version ||
+      reviewed.fingerprint !== q.fingerprint || reviewed.stockPolicy !== q.stockPolicy || new Date(reviewed.expiresAt).getTime() <= at.getTime())
+      throw new GatewayRefusal(409, { error: "stock_unconfirmed", message: "The amendment changed since the builder reviewed its unconfirmed stock. Review the current terms again.", newQuoteId: q.id });
+  }
   if (missingStock.length)
-    throw new GatewayRefusal(409, { error: "stock_unconfirmed", message: `Valio Aimo can't confirm stock for ${missingStock.join(", ")}. List them in continueWithUnconfirmedStock to change the order anyway.`, newQuoteId: q.id });
+    throw new GatewayRefusal(409, { error: "stock_unconfirmed", message: `Valio Aimo can't confirm stock for ${missingStock.join(", ")}. An authenticated chef must consent to the amendment quote through /builder-consents.`, newQuoteId: q.id });
   if (q.mandateCheck.approvalsNeeded.length) {
     const a = body.approvalId ? getJson<Approval>("approvals", body.approvalId) : null;
-    const ok = a && approvalValid(a) && a.fingerprint === q.fingerprint && q.mandateCheck.approvalsNeeded.every((n) => a.grants.includes(n));
+    const approvedQuote = a ? getJson<StoredQuote>("quotes", a.quoteId) : null;
+    const ok = a && approvedQuote && approvedQuote.hotelId === hotelId && approvedQuote.amendsOrderId === o.id &&
+      approvedQuote.amendmentVersion === o.version && approvedQuote.stockPolicy === q.stockPolicy &&
+      approvalValid(a) && a.fingerprint === q.fingerprint && q.mandateCheck.approvalsNeeded.every((n) => a.grants.includes(n));
     if (!ok) {
       audit({ actor: by, action: "order_refused", summary: `Amendment to ${o.id} needs an approval (${q.mandateCheck.approvalsNeeded.join(", ")})`, eventId: o.eventId, orderId: o.id, quoteId: q.id, ruleIds: q.mandateCheck.rules.map((r) => r.ruleId), details: { approvalsNeeded: q.mandateCheck.approvalsNeeded }, visibility: "shared" });
       throw new GatewayRefusal(409, { error: "mandate_violation", message: `The amendment needs an approval bound to quote ${q.id}`, approvalsNeeded: q.mandateCheck.approvalsNeeded, rules: q.mandateCheck.rules, newQuoteId: q.id });
@@ -477,18 +704,18 @@ export async function amendOrder(id: Identity, orderId: string, body: AmendmentB
   }
   const prevLines = new Map(o.lines.map((l) => [key(l.productId, l.outletId), l]));
   const newLines: OrderLine[] = q.lines.map((l) => {
-    const prev = prevLines.get(key(l.productId, l.outletId));
-    const earlier = o.lines.find((x) => x.productId === l.productId && x.riskAccepted)?.riskAccepted ?? null;
     return {
       ...l,
       removed: false,
-      riskAccepted: l.stock.kind === "unknown" ? prev?.riskAccepted ?? earlier ?? { by: continued.has(l.productId) ? body.decidedBy ?? by.name : "pre-answer", at: at.toISOString() } : null,
+      riskAccepted: l.stock.kind === "unknown" ? inherited.get(key(l.productId, l.outletId)) ?? { by: continued.has(l.productId) ? consent!.name : "pre-answer", at: at.toISOString() } : null,
+      ...(allergenData.get(key(l.productId, l.outletId)) ? { allergenDataAcknowledgement: allergenData.get(key(l.productId, l.outletId))! } : {}),
     };
   });
   for (const [k, l] of prevLines) if (!next.has(k) && !l.removed) newLines.push({ ...l, removed: true });
-  const updated: Order = { ...o, lines: newLines, totalExVat: q.totalExVat, totalVat: q.totalVat, state: "amended", version: o.version + 1 };
+  const updated: StoredOrder = { ...o, lines: newLines, totalExVat: q.totalExVat, totalVat: q.totalVat, state: "amended", version: o.version + 1, stockPolicy: q.stockPolicy, humanPolicy: q.humanPolicy };
   Object.assign(updated, signOrder(updated));
   saveOrder(updated);
+  auditAllergenConcerns(q, updated, by);
   audit({
     actor: by,
     action: "order_amended",
@@ -497,7 +724,7 @@ export async function amendOrder(id: Identity, orderId: string, body: AmendmentB
     orderId: o.id,
     quoteId: q.id,
     ruleIds: [...refusedLines.map((r) => r.ruleId), ...q.mandateCheck.rules.map((r) => r.ruleId)],
-    details: { changes: body.changes, refused: refusedLines.map((r) => r.facts), approvalId: body.approvalId ?? null },
+    details: { changes: body.changes.map(({ productId, outletId, quantity }) => ({ productId, outletId, quantity })), refused: refusedLines.map((r) => r.facts), approvalId: body.approvalId ?? null },
     visibility: "shared",
   });
   return { order: updated, quote: q };

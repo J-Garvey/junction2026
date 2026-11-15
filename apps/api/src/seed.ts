@@ -38,6 +38,8 @@ export const MANDATE: Mandate = {
   sites: [{ id: "site-aurora", name: "Demo Hotel, goods entrance", address: "Esimerkkikatu 1, 00100 Helsinki" }],
   spendCapEur: 1950,
   blockedProducts: [],
+  // Explicit category scope and mixed-bucket limits: docs/category-origin-policy.md.
+  categoryOriginRequirements: [{ categories: ["18701", "18702", "18706", "18707", "18708", "41720", "41722"], origin: "fi" }],
   deliveryDays: [1, 2, 3, 4, 5],
   holidays: ["2026-12-06", "2026-12-24", "2026-12-25", "2026-12-26"],
   preAnswers: { partialFillMaxShortPct: null, unknownStockMaxLineEur: null, overshootMaxPct: 10, overshootMaxEur: 25, priceRiseMaxPct: 5, guestChangeMaxPct: 5 },
@@ -91,11 +93,12 @@ export function seedReset() {
   const db = getDb();
   for (const p of PEOPLE) db.prepare("INSERT INTO people (id, json) VALUES (?, ?)").run(p.id, JSON.stringify(p));
   putMandate(MANDATE);
-  issueFixedToken(OUTSIDE_AGENT_TOKEN, { kind: "agent", hotelId: HOTEL_ID, name: "Unvetted script (safety drill)", scopes: ["search", "quote", "order"] });
+  issueFixedToken(OUTSIDE_AGENT_TOKEN, { kind: "agent", hotelId: HOTEL_ID, name: "Unvetted script (safety drill)", scopes: ["search", "quote", "order", "audit:read"] });
   issueFixedToken(HOTEL_AGENT_TOKEN, { kind: "agent", hotelId: HOTEL_ID, name: "Demo Hotel purchasing agent", scopes: ["search", "quote", "order"] });
-  issueFixedToken(VALIO_VIEWER_TOKEN, { kind: "valio", name: "Katri, Valio Aimo account manager" });
+  issueFixedToken(VALIO_VIEWER_TOKEN, { kind: "valio", hotelIds: [HOTEL_ID], name: "Katri, Valio Aimo account manager" });
   kvSet("agentToken", HOTEL_AGENT_TOKEN);
   kvSet("dataMode", { mode: "fixture", overlay: null });
+  kvSet("seedProfile", { id: "story", version: 1, label: "Wedding story (fictional fixture)" });
   setClock({ scene: "1" });
   const e: StoredEvent = { ...SEED_EVENT, version: 1, removedNeeds: [], viabilityPlanId: null, orderPlanId: null, orderedGuests: null, lastDiff: null, finalCheck: null, changes: [] };
   saveEvent(e);

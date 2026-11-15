@@ -10,11 +10,14 @@ const { config } = await import("../src/config.js");
 const { getPlan, savePlan } = await import("../src/agent/plan.js");
 const { loadFixture } = await import("../src/aimo/lookup.js");
 const { matchesCurrentShortlists } = await import("../src/agent/match.js");
+const { getMandate, putMandate } = await import("../src/gateway/service.js");
 
 let BASE = "";
 let server: Server;
 beforeAll(async () => {
   server = createApp().listen(0, "127.0.0.1");
+  // Cold catalogue work can outlast Node's default idle connection timeout.
+  server.keepAliveTimeout = 60_000;
   await new Promise((r) => server.once("listening", r));
   BASE = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
   config.gatewayUrl = `${BASE}/gateway/v1`;
@@ -32,7 +35,7 @@ async function signIn(personId: string) {
   cookie = `aimo_session=${session.token}`;
 }
 
-async function readyBasket(productId = "469672", text = "10 kg salmon") {
+async function readyBasket(productId = "469672", text = "10 kg salmon", salesQuantity?: number) {
   await call("POST", "/reset");
   await signIn("p-aino");
   await call("POST", "/clock", { time: "2026-11-14T10:00:00Z" });
@@ -40,7 +43,15 @@ async function readyBasket(productId = "469672", text = "10 kg salmon") {
   const message = await call("POST", "/messages", { text });
   const request = { ...message.request, neededBy: "2026-11-16", lines: message.request.lines.map((line: any) => ({ ...line, productId })) };
   const add = async () => {
-    const { plan } = await call("POST", "/requests", { request, eventId: id, reviewing: true });
+    let { plan } = await call("POST", "/requests", { request, eventId: id, reviewing: true, itemReview: salesQuantity !== undefined });
+    if (salesQuantity !== undefined) {
+      const item = plan.itemReviews[0];
+      expect(item.quantityRequired).toBe(true);
+      const checked = await call("POST", `/plans/${plan.id}/items/${item.needId}/quantity`, { fingerprint: item.fingerprint, productId, quantity: salesQuantity });
+      expect(checked.status).toBe(200);
+      plan = checked.plan;
+      expect((await call("POST", `/plans/${plan.id}/items/${item.needId}/approve`, { fingerprint: plan.itemReviews[0].fingerprint })).status).toBe(200);
+    }
     expect((await call("POST", `/plans/${plan.id}/basket`, { continueWithWarnings: true })).status).toBe(200);
     return plan.id;
   };
@@ -104,6 +115,10 @@ describe("order baskets", () => {
     expect((await call("GET", `/orders?eventId=${id}`)).orders).toHaveLength(0);
 
     const view = await call("GET", `/baskets/${id}`);
+    expect(staged.basket).toEqual(expect.objectContaining({
+      requests: view.requests, orders: view.orders, review: view.review, orderBy: view.orderBy, confirmed: view.confirmed,
+    }));
+    expect(staged.basket.orderBy).toMatchObject({ state: "known", at: "2026-11-15T15:00:00.000Z" });
     expect(view.requests.map((p: any) => p.id)).toEqual([r.plan.id]);
     expect(view.requests[0]).toMatchObject({ basketedAt: expect.any(String), lines: expect.any(Array) });
     expect((await call("GET", "/baskets")).baskets.find((basket: any) => basket.id === id).lines).toBeGreaterThan(0);
@@ -184,7 +199,8 @@ describe("order baskets", () => {
     const fixture = loadFixture("base")!;
     fixture.availability["477529"] = { productId: "477529", salesBlock: false, logisticModel: "Stock", closingTime: "2026-11-15T17:00:00+0200", scheduleLines: [{ salesBlock: false, availableAmount: 100, availableDate: "2026-11-16", salesUnit: "KI" }] };
     fixture.price["477529"] = { ...fixture.price["469672"], productId: "477529", catalogPrice: { ...fixture.price["469672"].catalogPrice, value: 56.27 } };
-    const { id, planId } = await readyBasket("477529", "1 pcs Monster Energy energy drink");
+    // D36: its name-only count needs an explicit builder sales quantity before staging.
+    const { id, planId } = await readyBasket("477529", "1 pcs Monster Energy energy drink", 1);
     // Reproduce a basket accepted by the old build with the exact product already shown.
     const saved = getPlan(planId)!;
     saved.request!.lines[0].query = "monster";
@@ -219,6 +235,7 @@ describe("order baskets", () => {
   });
 
   it("lets the chef add unconfirmed stock after explicitly accepting the warning", async () => {
+    await signIn("p-aino");
     await call("POST", "/clock", { time: "2026-11-14T10:00:00Z" });
     const id = (await call("POST", "/baskets", { name: "Stock warning", deliveryDate: "2026-11-20" })).basket.id;
     const m = await call("POST", "/messages", { text: "1000 l lactose-free milk" });
@@ -316,6 +333,10 @@ describe("order baskets", () => {
     expect(submitted.status).toBe(200);
     expect(submitted.review).toMatchObject({ type: "order_review", forRole: "approver", state: "open", eventId: id, facts: { kind: "approval", planIds: [planId] } });
     expect(retry.review.id).toBe(submitted.review.id);
+    expect(submitted.basket).toMatchObject({
+      event: { id }, review: { id: submitted.review.id },
+      requests: [{ id: planId, basketedAt: expect.any(String) }], orderBy: before.orderBy,
+    });
     expect((await call("GET", `/baskets/${id}`)).review.id).toBe(submitted.review.id);
     expect((await call("GET", "/baskets")).baskets.find((b: any) => b.id === id)).toMatchObject({ confirmed: false, approvalLevels: [{ role: "approver", count: 1 }] });
     expect((await call("GET", `/orders?eventId=${id}`)).orders).toHaveLength(0);
@@ -458,6 +479,22 @@ describe("order baskets", () => {
     expect(orders).toHaveLength(1);
     expect(orders[0].lines[0]).toMatchObject({ stock: { kind: "unknown" }, riskAccepted: { by: "Aino" } });
     expect((await call("GET", "/baskets")).baskets.find((b: any) => b.id === id)).toMatchObject({ confirmed: false, approvalLevels: [], orderBy: { state: "known", at: "2026-11-15T15:00:00.000Z", excludedItems: 0, unconfirmedStockItems: 1, reason: expect.stringContaining("Stock is unconfirmed") } });
+  });
+
+  it.each(["quantity", "policy"])("requires a fresh builder decision when staged unknown-stock %s changes", async (change) => {
+    const { id, planId } = await readyBasket("464306", "1000 l lactose-free milk");
+    if (change === "quantity") {
+      const plan = getPlan(planId)!;
+      plan.lines[0].quantity += 1;
+      savePlan(plan);
+    } else {
+      const policy = getMandate("hotel-aurora");
+      putMandate({ ...policy, version: policy.version + 1 });
+    }
+    const submitted = await call("POST", `/baskets/${id}/submit-review`);
+    expect(submitted.status).toBe(409);
+    expect(submitted.message).toMatch(/builder.*review/i);
+    expect((await call("GET", `/orders?eventId=${id}`)).orders).toHaveLength(0);
   });
 
   it.each([false, true])("reads matching list/detail deadlines from saved terms without supplier lookups (partial: %s)", async (partial) => {

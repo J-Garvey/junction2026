@@ -5,6 +5,8 @@
  * cannot drift from the code.
  */
 import { z } from "zod";
+import { CarbonBasis } from "./carbon.js";
+export { CarbonBasis, carbonEstimateKg } from "./carbon.js";
 
 // ---------- basics ----------
 
@@ -38,7 +40,7 @@ export const ProductSearchQuery = z.object({
   q: z.string().optional().describe("What the product is, read against the English and Finnish names: 'cheese' finds cheeses, not cheesecake"),
   category: z.string().optional().describe("Category code or prefix, e.g. 10400"),
   claims: z.array(z.string()).optional().describe("Every listed claim must be present"),
-  excludeAllergens: z.array(z.string()).optional().describe("Products that contain or may contain these, or have no allergen declaration, are excluded"),
+  excludeAllergens: z.array(z.string()).optional().describe("Products that contain, may contain or explicitly list these as UNDECLARED, or have no allergen declaration, are excluded; allergen families include their members"),
   origin: z.string().optional(),
   labels: z.array(z.string()).optional(),
   limit: z.number().int().min(1).max(200).default(50).describe("Page size; page on with offset until nextOffset is null to load every match"),
@@ -56,6 +58,7 @@ export const Product = z.object({
   claims: z.array(z.string()),
   contains: z.array(z.string()),
   mayContain: z.array(z.string()),
+  allergenUndeclared: z.array(z.string()).optional().describe("Explicit UNDECLARED allergen codes; excluded for a requested allergy under Q02.3. Distinct from free-from and missing declarations. Optional for older product snapshots"),
   hasAllergenData: z.boolean(),
   origin: z.string().nullable(),
   labels: z.array(z.string()),
@@ -71,6 +74,29 @@ export const Product = z.object({
 });
 export type Product = z.infer<typeof Product>;
 
+/** Extra local catalogue fields used by the hotel's expanded product view. */
+export const ProductDetails = Product.extend({
+  catalogueDetails: z.object({
+    gtin: z.string().nullable(),
+    baseUnit: z.string().nullable(),
+    units: z.record(z.string(), z.number()),
+    salesUnitInBaseUnits: z.number().nullable(),
+    allowedLotSize: z.number().nullable(),
+    vatCategory: z.string().nullable(),
+    variableWeight: z.boolean().nullable(),
+    freeFrom: z.array(z.string()),
+    allergenUndeclared: z.array(z.string()),
+    netWeightKg: z.number().nullable(),
+    netVolumeL: z.number().nullable(),
+    netContentSource: z.string().nullable(),
+    deposits: z.array(z.object({ material: z.string(), unit: z.string(), quantity: z.number() })),
+    hotelTags: z.array(z.string()),
+    ingredientsEn: z.string().nullable(),
+    ingredientsFi: z.string().nullable(),
+  }),
+});
+export type ProductDetails = z.infer<typeof ProductDetails>;
+
 // ---------- lookup (LOOKUP) ----------
 
 export const StockFact = z.discriminatedUnion("kind", [
@@ -80,7 +106,7 @@ export const StockFact = z.discriminatedUnion("kind", [
 ]);
 export type StockFact = z.infer<typeof StockFact>;
 
-/** Original supplier schedules, retained before the demo adapter projects dates. */
+/** Original supplier schedules; requested dates never alter these terms. */
 export const AvailabilityEvidence = z.object({
   salesBlock: z.boolean(),
   schedules: z.array(z.object({
@@ -111,7 +137,7 @@ export const LookupLine = z.object({
     .string()
     .nullable()
     .optional()
-    .describe("The mock ignores requestedDate and offers its own date. When the requested date is later, availableDate is the requested date and closingTime is the mock's cut-off moved forward by the same number of days. This holds the mock's original date. The cut-off is an estimate"),
+    .describe("Legacy snapshot projection marker. New lookups preserve supplier dates and cutoffs unchanged; requested dates never establish supplier commitments"),
   price: z
     .object({
       value: z.number().describe("catalogPrice.value per sales unit, ex VAT"),
@@ -149,6 +175,22 @@ export const FiredRule = z.object({
 });
 export type FiredRule = z.infer<typeof FiredRule>;
 
+/** Read-only supplier evidence for a single catalogue product; never a quote. */
+export const ProductInspection = z.object({
+  product: ProductDetails,
+  lookup: LookupLine,
+  site: z.object({ id: z.string(), name: z.string() }),
+  requestedDate: z.string(),
+  evaluatedAt: z.string(),
+  fallback: z.string().nullable(),
+  delivery: z.object({
+    state: z.enum(["not_available", "sales_blocked", "cutoff_passed", "stock_unconfirmed", "scheduled", "unknown", "after_requested_date", "out_of_stock"]),
+    message: z.string(),
+    rules: z.array(FiredRule),
+  }),
+});
+export type ProductInspection = z.infer<typeof ProductInspection>;
+
 export const ModelJudgement = z.object({
   fn: z.string(),
   question: z.string(),
@@ -173,6 +215,12 @@ export const PreAnswers = z.object({
 });
 export type PreAnswers = z.infer<typeof PreAnswers>;
 
+export const CategoryOriginRequirement = z.object({
+  categories: z.array(z.string().regex(/^\d{5}$/)).min(1).describe("Exact catalogue category codes, never prefixes"),
+  origin: z.string().regex(/^[a-z]{2}$/).describe("Required catalogue country of origin, ISO alpha-2 lowercase; missing evidence fails"),
+});
+export type CategoryOriginRequirement = z.infer<typeof CategoryOriginRequirement>;
+
 export const Mandate = z.object({
   id: z.string(),
   type: z.literal("aimo.mandate.standing.1").describe("The hotel's standing rules. AP2 v0.2 has no field for spend caps, sites or tolerances, so this is our own object, signed the same way"),
@@ -181,6 +229,7 @@ export const Mandate = z.object({
   sites: z.array(z.object({ id: z.string(), name: z.string(), address: z.string() })),
   spendCapEur: z.number().nonnegative().describe("Per order, ex VAT, inclusive"),
   blockedProducts: z.array(z.string()),
+  categoryOriginRequirements: z.array(CategoryOriginRequirement).optional().describe("Standing origin requirements, all applicable entries must pass in addition to request constraints. Omitted on older mandates; no category origin restriction then"),
   deliveryDays: z.array(z.number().int().min(0).max(6)).describe("0 = Sunday"),
   holidays: z.array(z.string()),
   preAnswers: PreAnswers,
@@ -197,11 +246,12 @@ export const QuoteLineInput = z.object({
   outletId: z.string(),
   ref: z.string().optional().describe("Caller's line reference, echoed back"),
   requires: Constraints.optional().describe("Diet and allergen constraints the product must meet. No guest details are sent."),
+  allergenScope: z.string().optional().describe("Opaque hotel digest of affected guests, dishes and dietary scope. Changes invalidate a missing-data acknowledgement; never send guest details."),
 });
 
 export const QuoteCreateBody = z.object({
   siteId: z.string(),
-  deliveryDate: z.string().describe("YYYY-MM-DD, the date the hotel needs delivery"),
+  deliveryDate: z.string().describe("YYYY-MM-DD, the date the hotel needs delivery by. An earlier original supplier schedule can satisfy it if allowed by the hotel's deliveryDays and holidays; its original cutoff still applies"),
   eventId: z.string().optional(),
   lines: z.array(QuoteLineInput).min(1).max(1000),
 });
@@ -223,11 +273,14 @@ export const QuoteLine = z.object({
   closingTime: z.string().nullable(),
   availabilityEvidence: AvailabilityEvidence.optional(),
   priceValidTo: z.string().nullable(),
+  carbonBasis: CarbonBasis.nullable().optional().describe("Informational product-group carbon factor with checked kilograms per sales unit; absent in older snapshots"),
   logisticModel: z.string().nullable(),
   source: z.enum(["live", "fixture"]),
   rules: z.array(FiredRule),
   outcome: Outcome,
   requires: Constraints.optional().describe("Hard product requirements retained for rechecks and amendments"),
+  allergenScope: z.string().optional(),
+  allergenEvidence: z.string().optional().describe("Digest of the catalogue declarations checked for these terms"),
 });
 export type QuoteLine = z.infer<typeof QuoteLine>;
 
@@ -252,6 +305,8 @@ export const Quote = z.object({
   outcome: Outcome,
   usesFixtures: z.boolean(),
   unconfirmedStock: z.array(z.string()).default([]).describe("D31: product IDs whose stock Valio Aimo can't confirm. An order must list them in continueWithUnconfirmedStock"),
+  stockPolicy: z.string().optional().describe("Fingerprint of the hotel policy used for the stock decision; changes require a new review"),
+  allergenPolicy: z.string().optional().describe("Digest of the mandate and rule policy reviewed for missing allergen data; policy changes require fresh chef consent"),
   jws: z.string().optional().describe("AP2 v0.2 merchant checkout_jwt: compact JWS, typ aimo-quote+jwt, alg ES256, signed by Valio Aimo. Verify with /.well-known/jwks.json"),
   checkoutHash: z.string().optional().describe("AP2 checkout_hash: base64url(SHA-256(jws))"),
 });
@@ -283,11 +338,33 @@ export type Approval = z.infer<typeof Approval>;
 
 // ---------- orders (ORDER-PLACE, VA-03) ----------
 
+export const BuilderConsentBody = z.object({
+  quoteId: z.string(),
+  fingerprint: z.string(),
+  productIds: z.array(z.string()).min(1),
+});
+export const AllergenAcknowledgementBody = z.object({
+  quoteId: z.string(),
+  fingerprint: z.string(),
+  productIds: z.array(z.string()).min(1),
+  outletId: z.string().min(1).optional().describe("Acknowledge only this outlet's matching lines. Omit only to review all matching outlets within the chef's scope."),
+});
+export type AllergenAcknowledgementBody = z.infer<typeof AllergenAcknowledgementBody>;
+export const AllergenAcknowledgement = z.object({
+  token: z.string(), fingerprint: z.string(), productIds: z.array(z.string()),
+  outletId: z.string().optional(),
+  personId: z.string(), by: z.string(), at: z.string(), expiresAt: z.string(),
+});
+export type AllergenAcknowledgement = z.infer<typeof AllergenAcknowledgement>;
+export const AllergenDataDecision = AllergenAcknowledgement.omit({ token: true, productIds: true, expiresAt: true });
+
 export const OrderCreateBody = z.object({
   quoteId: z.string(),
   approvalId: z.string().optional(),
   continueWithUnconfirmedStock: z.array(z.string()).optional().describe("D31: product IDs whose stock Valio Aimo can't confirm and the hotel chose to order anyway"),
-  decidedBy: z.string().optional().describe("Who at the hotel made that choice, for the record"),
+  builderConsentId: z.string().optional().describe("Server-issued chef consent for this exact quote; POST /builder-consents with the chef credential"),
+  decidedBy: z.string().optional().describe("Deprecated, ignored: identity is taken only from authenticated chef consent"),
+  allergenAcknowledgements: z.array(z.string()).optional().describe("Gateway-issued chef acknowledgements for missing allergen data, bound to these exact terms. Not safety confirmation or stock acceptance."),
 });
 
 export const OrderState = z.enum(["placed", "amended", "checked", "locked", "rejected"]);
@@ -295,6 +372,7 @@ export const OrderState = z.enum(["placed", "amended", "checked", "locked", "rej
 export const OrderLine = QuoteLine.extend({
   removed: z.boolean().default(false),
   riskAccepted: z.object({ by: z.string(), at: z.string() }).nullable(),
+  allergenDataAcknowledgement: AllergenDataDecision.optional().describe("Chef continued with allergen data not confirmed; this never establishes safety"),
 });
 export type OrderLine = z.infer<typeof OrderLine>;
 
@@ -326,17 +404,23 @@ export const AmendmentBody = z.object({
         productId: z.string(),
         outletId: z.string(),
         quantity: z.number().int().nonnegative().describe("New whole sales units; 0 removes the line"),
+        requires: Constraints.optional(),
+        allergenScope: z.string().optional(),
       }),
     )
     .min(1),
   approvalId: z.string().optional(),
+  stockQuoteId: z.string().optional().describe("Amendment quote the builder reviewed when continuing with unconfirmed stock; changes require a fresh decision"),
   continueWithUnconfirmedStock: z.array(z.string()).optional(),
-  decidedBy: z.string().optional(),
+  builderConsentId: z.string().optional(),
+  decidedBy: z.string().optional().describe("Deprecated, ignored"),
+  allergenAcknowledgements: z.array(z.string()).optional(),
+  quoteOnly: z.boolean().optional().describe("Return rechecked amendment terms without changing the order, so the chef can review them"),
 });
 export type AmendmentBody = z.infer<typeof AmendmentBody>;
 
 export const Refusal = z.object({
-  error: z.enum(["mandate_violation", "stock_unconfirmed", "quote_stale", "cutoff_passed", "hard_rule", "idempotency_conflict", "not_found", "forbidden", "invalid", "upstream_unavailable", "upstream_rate_limited"]),
+  error: z.enum(["mandate_violation", "stock_unconfirmed", "allergen_data_unconfirmed", "quote_stale", "cutoff_passed", "hard_rule", "idempotency_conflict", "not_found", "forbidden", "invalid", "upstream_unavailable", "upstream_rate_limited"]),
   message: z.string(),
   /** upstream_rate_limited: seconds to wait before trying again, when Valio Aimo said. */
   retryAfter: z.number().optional(),
@@ -379,6 +463,7 @@ export const AuditAction = z.enum([
 export type AuditAction = z.infer<typeof AuditAction>;
 
 export const AuditEntry = z.object({
+  hotelId: z.string().nullable().optional().describe("Server-resolved owner; absent on legacy entries"),
   seq: z.number().int(),
   id: z.string(),
   simTime: z.string(),
@@ -464,6 +549,8 @@ export type SingleLine = z.infer<typeof SingleLine>;
 
 export const SingleRequest = z.object({
   kind: z.literal("single"),
+  /** Reference to server-saved parsing evidence; never a client-supplied duration. */
+  parseAuditId: z.string().optional(),
   originalText: z.string(),
   siteId: z.string().nullable(),
   outletId: z.string(),
@@ -487,6 +574,7 @@ export const QuestionType = z.enum([
   "reliability",
   "change_outside_tolerance",
   "allergy_conflict",
+  "missing_allergen_data",
   "delivery_alignment",
   "order_review",
 ]);

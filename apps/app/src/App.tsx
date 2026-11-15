@@ -5,27 +5,22 @@ import { Link, NavLink, Route, Routes, useLocation, useNavigate } from "react-ro
 import type { WarningRecord } from "@aimo/contracts";
 import { api, authHooks, type Outlet, type Person, type StatusResp, type SceneKey } from "./api";
 import { Ctx, type AppCtx, useLoad } from "./ctx";
-import { Icon, Lockup, Mark, type IconName } from "./ui/icons";
+import { Icon, Lockup, Mark } from "./ui/icons";
 import { AllergyBanner } from "./ui/Banner";
 import { day, initials, when } from "./format";
 import { Home } from "./screens/Home";
+import { FinanceHome } from "./screens/Finance";
 import { BasketPage, BasketsHome } from "./screens/Baskets";
 import { RequestNew, RequestPlan, Requests } from "./screens/Request";
 import { EventPage, Events } from "./screens/Event";
 import { Orders } from "./screens/Orders";
 import { Audit } from "./screens/Audit";
 import { Rules } from "./screens/Rules";
+import { Products, SupplierProduct } from "./screens/Products";
 import { WhatsApp, WhatsAppSimulator } from "./screens/WhatsApp";
 import { WhatsAppWebConnection } from "./screens/WhatsAppWebConnection";
+import "./shell-navigation.css";
 
-const NAV: [string, IconName, string][] = [
-  ["/", "home", "Home"],
-  ["/inbox", "q", "Waiting"],
-  ["/events", "cal", "Events"],
-  ["/requests", "chat", "Requests"],
-  ["/orders", "box", "Orders"],
-  ["/whatsapp", "chat", "WhatsApp"],
-];
 
 export function App() {
   const [me, setMe] = useState<Person | null>(null);
@@ -108,69 +103,39 @@ export function App() {
         <div className="callout red">{bootErr}</div>
       </div>
     );
+  if ((!ctx || needPick) && status && !status.testMode) return <div className="picker"><Lockup /><p>Sign in with your personal hotel credential. Demo persona switching is disabled.</p></div>;
   if (!ctx || needPick) return <PersonPicker people={people} current={me} status={status} onChange={refresh} onPick={pick} onCancel={me ? () => setNeedPick(false) : undefined} />;
 
   return (
     <Ctx.Provider value={ctx}>
       <div className="shell">
+        <a className="skip-to-content" href="#main-content">Skip to content</a>
         <div className="main">
           <TopBar status={status} me={ctx.me} onSwitch={() => setNeedPick(true)} />
           <AllergyBanner warnings={warnings} />
-          <div className="content">
+          <main className="content" id="main-content" tabIndex={-1}>
             <Routes>
-              <Route path="/" element={<BasketsHome />} />
+              <Route path="/" element={me?.role === "approver" ? <FinanceHome /> : <BasketsHome />} />
               <Route path="/baskets/:id" element={<BasketPage />} />
-              <Route path="/inbox" element={<Home />} />
+              <Route path="/inbox" element={me?.role === "approver" ? <FinanceHome /> : <Home />} />
               <Route path="/requests" element={<Requests />} />
               <Route path="/requests/new" element={<RequestNew />} />
               <Route path="/requests/:id" element={<RequestPlan />} />
               <Route path="/events" element={<Events />} />
               <Route path="/events/:id" element={<EventPage />} />
               <Route path="/orders" element={<Orders />} />
+              <Route path="/products" element={<Products />} />
+              <Route path="/products/:id" element={<SupplierProduct />} />
               <Route path="/whatsapp" element={<WhatsApp />} />
               <Route path="/whatsapp/simulator" element={<WhatsAppSimulator />} />
               <Route path="/audit" element={<Audit />} />
               <Route path="/rules" element={<Rules />} />
               <Route path="*" element={<div className="muted">Page not found.</div>} />
             </Routes>
-          </div>
+          </main>
         </div>
       </div>
     </Ctx.Provider>
-  );
-}
-
-function Sidebar({ badge, me }: { badge: number; me: Person }) {
-  const loc = useLocation();
-  const basketId = loc.pathname.match(/^\/baskets\/([^/]+)$/)?.[1];
-
-  return (
-    <aside className="side">
-      {basketId ? (
-        <OrderSwitcher currentId={decodeURIComponent(basketId)} />
-      ) : loc.pathname === "/" ? (
-        <div className="acct acct-static" title={`Viewing as ${me.name}`}>
-          <Mark s={20} />
-          <span>
-            <b>{me.name}</b>
-            <span className="small muted">{me.title}</span>
-          </span>
-        </div>
-      ) : (
-        <div className="side-brand"><Lockup /></div>
-      )}
-      {NAV.map(([to, ic, l]) => (
-        <NavLink key={to} to={to} end={to === "/"} className={({ isActive }) => (isActive ? "on" : "")}>
-          <Icon n={ic} s={17} />
-          {l}
-          {to === "/inbox" && badge > 0 && (
-            <span className="n" aria-label={`${badge} waiting`}>
-              {badge}
-            </span>
-          )}
-        </NavLink>
-      ))}
-    </aside>
   );
 }
 
@@ -252,12 +217,13 @@ function TopBar({ status, me, onSwitch }: { status: StatusResp | null; me: Perso
   return (
     <div className="topbar">
       <div className="order-switcher-slot">
-        <Link to="/" className="home-logo-button" aria-label="Go to homepage" title="Go to homepage">
+        <Link to="/" className="app-brand" aria-label="Aimo Copilot home">
           <Mark s={22} />
+          <b>Aimo Copilot</b>
         </Link>
         <OrderSwitcher currentId={basketId ? decodeURIComponent(basketId) : undefined} />
       </div>
-      {status && !status.chain.ok && <span className="stamp block">Audit chain broken</span>}
+      {status && !status.chain.ok && <span className="stamp block audit-chain-warning" role="alert">Audit chain broken</span>}
       <div className="account-slot"><AccountMenu me={me} onSwitch={onSwitch} /></div>
     </div>
   );
@@ -303,6 +269,7 @@ function AccountMenu({ me, onSwitch }: { me: Person; onSwitch: () => void }) {
               <span className="small muted">{me.title}</span>
             </span>
           </div>
+          <NavLink to="/products" role="menuitem" onClick={() => setOpen(false)}><Icon n="list" s={17} /> Products</NavLink>
           <NavLink to="/audit" role="menuitem" onClick={() => setOpen(false)}><Icon n="list" s={17} /> Audit log</NavLink>
           <NavLink to="/rules" role="menuitem" onClick={() => setOpen(false)}><Icon n="shield" s={17} /> Rules</NavLink>
           <button type="button" className="account-action" role="menuitem" onClick={() => { setOpen(false); onSwitch(); }}><Icon n="users" s={17} /> Switch user</button>
@@ -340,7 +307,8 @@ function PersonPicker({
   return (
     <div className="picker">
       <Lockup s={30} />
-      <h1>Who are you?</h1>
+      <h1>Demo persona</h1>
+      <p className="muted">Local test mode: viewing as a simulated hotel person.</p>
       <div className="pickgrid">
         {people.map((p) => (
           <button key={p.id} type="button" className={`pickcard ${current?.id === p.id ? "on" : ""}`} onClick={() => onPick(p.id)}>
@@ -424,6 +392,17 @@ function DemoSettings({ status, onChange, onOpenWhatsApp, person }: { status: St
       </div>}
       <div className="demofoot">
         {err && <span className="small" style={{ color: "var(--red)" }}>{err}</span>}
+        <span className="small muted">{status.seedProfile?.label}</span>
+        <button
+          type="button"
+          className="btn sm"
+          disabled={!!busy}
+          onClick={() => {
+            if (confirm("Load the hotel workspace? This replaces orders, questions and the audit log with fictional demo activity.")) run("hotel", () => api.reset("hotel"));
+          }}
+        >
+          {busy === "hotel" ? "Loading hotel…" : "Load hotel workspace"}
+        </button>
         <button
           type="button"
           className="btn sm ghost"

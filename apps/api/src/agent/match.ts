@@ -1,5 +1,5 @@
 /**
- * Chunks 02â€“04 for one need: shortlist locally, filter on hard rules, check the
+ * Chunks 02–04 for one need: shortlist locally, filter on hard rules, check the
  * product type, look up the shortlist once, rank in the fixed SF-06 order and
  * work out whole packs. Deterministic apart from the stored model judgements.
  */
@@ -8,8 +8,10 @@ import { allProducts, getProduct, searchMatches, searchPage } from "../catalog.j
 import { contentWords, queryTerms, rank } from "../search.js";
 import { categoryLabel, didYouMean as didYouMeanWords } from "../categoryTags.js";
 import { fire, FIXED, RULE_INDEX } from "../rules/catalogue.js";
-import { cutoffRule, dietRules, earliestDelivery, packContent, priceValidityRule, reliabilityRules, supplyRules, blocks } from "../rules/checks.js";
+import { cutoffRule, productRules, earliestDelivery, packContent, priceValidityRule, reliabilityRules, supplyRules, blocks } from "../rules/checks.js";
+import { mandate } from "./mandate.js";
 import { typeCheck } from "./judge.js";
+import { carbonBasisFor } from "../carbon.js";
 import { round2, eur, fmtHelsinki } from "../util.js";
 import { now } from "../clock.js";
 import { brief, logSearch } from "../searchlog.js";
@@ -20,7 +22,7 @@ const MIXED_TYPE_CATEGORIES = ["10400", "10401"];
 
 export type Pool = Map<string, LookupLine>;
 
-/** Step 1â€“2 of Q02.1: the shortlist for a need, before lookup. */
+/** Step 1–2 of Q02.1: the shortlist for a need, before lookup. */
 export function shortlist(need: Need, opts: { log?: boolean } = {}): Product[] {
   const claims = need.constraints.claims ?? [];
   if (need.pinnedProductId) {
@@ -31,7 +33,7 @@ export function shortlist(need: Need, opts: { log?: boolean } = {}): Product[] {
     const query = need.query.replace(/\b\d{6}\b/g, "").trim();
     // Only words can name alternatives: a leftover count or "x" would list the whole category.
     if (pinned && contentWords(query).some((w) => /\p{L}{2}/u.test(w))) {
-      const matches = searchMatches({ q: query, category: pinned.category, claims: claims.filter((c) => c !== "FREE_FROM_MILK"), limit: FIXED.searchLimit });
+      const matches = searchMatches({ q: query, category: pinned.category, claims: claims.filter((c) => c !== "FREE_FROM_MILK"), limit: FIXED.searchLimit }, mandate());
       for (const m of matches) if (m.tier < 3 && m.product.id !== pinned.id) out.push(m.product);
     }
     return out.slice(0, FIXED.searchLimit);
@@ -39,7 +41,7 @@ export function shortlist(need: Need, opts: { log?: boolean } = {}): Product[] {
   const base = { category: need.category ?? undefined, claims: claims.filter((c) => c !== "FREE_FROM_MILK"), limit: FIXED.searchLimit };
   // Mention-only search results are useful for browsing, but cannot establish what to
   // buy. A failed text match must not turn into an unrelated category-wide pick.
-  const list = searchMatches({ ...base, q: need.query }).filter((m) => m.tier < 3).map((m) => m.product);
+  const list = searchMatches({ ...base, q: need.query }, mandate()).filter((m) => m.tier < 3).map((m) => m.product);
   if (opts.log !== false) logSearch({ source: "shortlist", query: { need: need.label, text: need.text, q: need.query, ...base }, interpreted: { count: list.length, fellBackToCategory: false, top: brief(list) } });
   return list;
 }
@@ -50,8 +52,8 @@ export const HELP_SHOWN = 20;
 /**
  * Fixes 4 and 5 of the search audit: when the shortlist is empty, help the person instead of
  * showing nothing. A misspelt word gets catalogue spellings that are checked to find products
- * ("chese" â†’ "cheese"). Products that only mention the words, or match once a word no product
- * uses is dropped ("unicorn chicken burger" â†’ chicken burgers), are listed as possible matches.
+ * ("chese" → "cheese"). Products that only mention the words, or match once a word no product
+ * uses is dropped ("unicorn chicken burger" → chicken burgers), are listed as possible matches.
  * None of them is looked up or ordered: the person picks one, and it is checked like any item.
  */
 export function searchHelp(need: Need): SearchHelp | null {
@@ -91,6 +93,7 @@ export function searchHelp(need: Need): SearchHelp | null {
 
 /** A saved proposal must still qualify for automatic selection before it is staged. */
 export function matchesCurrentShortlists(needs: Need[], lines: PlanLine[]): boolean {
+  if (!matchesSelectedProducts(needs, lines)) return false;
   const eligible = new Map(needs.map((need) => [need.id, new Set(shortlist(need).map((p) => p.id))]));
   return lines.filter((line) => !line.removed).every((line) =>
     line.productId && line.needIds.length > 0 && line.needIds.every((id) => eligible.get(id)?.has(line.productId!)),
@@ -100,13 +103,14 @@ export function matchesCurrentShortlists(needs: Need[], lines: PlanLine[]): bool
 /** Validate the exact products already accepted into a basket, independent of shortlist limits. */
 export function matchesSelectedProducts(needs: Need[], lines: PlanLine[]): boolean {
   const byId = new Map(needs.map((need) => [need.id, need]));
+  const m = mandate();
   const catalog = allProducts();
   return lines.filter((line) => !line.removed).every((line) => {
     const product = line.productId ? getProduct(line.productId) : null;
     if (!product || !line.needIds.length) return false;
     return line.needIds.every((id) => {
       const need = byId.get(id);
-      if (!need || blocks(dietRules(product, need.constraints, need.groupLabel)).length) return false;
+      if (!need || blocks(productRules(product, need.constraints, need.groupLabel, m)).length) return false;
       if (need.pinnedProductId === product.id) return true;
       if (need.category && !product.category.startsWith(need.category)) return false;
       const terms = queryTerms(need.query);
@@ -120,14 +124,14 @@ export function matchesSelectedProducts(needs: Need[], lines: PlanLine[]): boole
   });
 }
 
-type Scored = { p: Product; l: LookupLine; content: ReturnType<typeof packContent>; pricePerBase: number | null; judgement: ModelJudgement | null; notes: FiredRule[]; pinned: boolean };
+type Scored = { p: Product; l: LookupLine; content: ReturnType<typeof packContent>; pricePerBase: number | null; costToCover: Candidate["costToCover"]; pieces: boolean; judgement: ModelJudgement | null; notes: FiredRule[]; pinned: boolean };
 
 /** RANK: explicit recipe choice, then price and reliability; stock is disclosed separately. */
 const relBand = (r: number | null) => (r === null ? 1 : r >= FIXED.reliabilityAmber ? 0 : 2);
 const STEPS: [string, (s: Scored) => number | string][] = [
   ["known price", (s) => (s.l.price === null ? 1 : 0)],
   ["recipe-approved product", (s) => (s.pinned ? 0 : 1)],
-  ["price per kg or L after rounding", (s) => (s.pricePerBase === null ? Number.MAX_SAFE_INTEGER : Math.round(s.pricePerBase * 100))],
+  ["price per kg or L after rounding", (s) => Math.round((s.pieces ? s.costToCover?.totalExVat ?? Number.MAX_SAFE_INTEGER : s.pricePerBase ?? Number.MAX_SAFE_INTEGER) * 100)],
   ["delivery reliability", (s) => relBand(s.p.reliability) * 10 - (s.p.reliability ?? 0)],
   ["product id (tie-break)", (s) => s.p.id],
 ];
@@ -141,7 +145,7 @@ function compare(a: Scored, b: Scored): number {
 }
 function decidingStep(a: Scored, b: Scored | undefined): string {
   if (!b) return "only candidate";
-  for (const [name, f] of STEPS) if (f(a) !== f(b)) return name;
+  for (const [name, f] of STEPS) if (f(a) !== f(b)) return a.pieces && name.startsWith("price per") ? "cost to cover the piece need after whole-pack rounding" : name;
   return "product id (tie-break)";
 }
 
@@ -150,9 +154,18 @@ function decidingStep(a: Scored, b: Scored | undefined): string {
  * and need.rules. `urgent` decides whether a past cut-off matters now; it is
  * always caught (CUT-01), whatever the mock's date says.
  */
-export async function rankNeed(need: Need, list: Product[], pool: Pool, opts: { lockedOk?: boolean; deliveryDays?: number[]; holidays?: string[] } = {}): Promise<void> {
+export async function rankNeed(need: Need, list: Product[], pool: Pool, opts: { lockedOk?: boolean; deliveryDays?: number[]; holidays?: string[]; combinedPieceNeed?: number } = {}): Promise<void> {
   const at = now();
+  const m = mandate();
   need.excluded = [];
+  const trace = need.selectionTrace = { shortlist: list.map((p) => ({ productId: p.id, name: p.name })), stages: [] } as NonNullable<Need["selectionTrace"]>;
+  const remaining = new Set(list.map((p) => p.id));
+  const recordStage = (key: (typeof trace.stages)[number]["key"], ids: string[]) => {
+    const removedProductIds = [...new Set(ids)].filter((id) => remaining.delete(id));
+    trace.stages.push({ key, removedProductIds });
+  };
+  // Missing lookup evidence is an unevaluated product, not a dietary or stock rejection.
+  recordStage("lookup", list.filter((p) => !pool.has(p.id)).map((p) => p.id));
   need.earliestDelivery = null;
   need.lateDeliveryOptions = [];
   let passing: Scored[] = [];
@@ -166,7 +179,7 @@ export async function rankNeed(need: Need, list: Product[], pool: Pool, opts: { 
     const l = pool.get(p.id);
     if (!l) continue;
     const pinned = p.id === need.pinnedProductId;
-    const diet = dietRules(p, need.constraints, need.groupLabel);
+    const diet = productRules(p, need.constraints, need.groupLabel, m);
     const supply = supplyRules(p, l);
     // Keep unpriced products visible at the end; PRC-01 still blocks ordering them.
     const hard = [...blocks(diet), ...supply.filter((r) => r.ruleId !== "PRC-01")];
@@ -180,14 +193,18 @@ export async function rankNeed(need: Need, list: Product[], pool: Pool, opts: { 
       continue;
     }
     const content = packContent(p, l, need.amount.unit);
-    const pricePerBase = content && l.price ? l.price.value / content.value : null;
-    const scored: Scored = { p, l, content, pricePerBase, judgement: null, notes: [...diet.filter((r) => r.outcome !== "block"), ...supply.filter((r) => r.ruleId === "PRC-01")], pinned };
+    const pieces = need.amount.unit === "pcs";
+    const pricePerBase = content && l.price && (!pieces || content.verified) ? l.price.value / content.value : null;
+    const costToCover = pieces ? pieceCostToCover(p.name, opts.combinedPieceNeed ?? need.amount.value, content, l.price?.value ?? null, m.preAnswers) : undefined;
+    const scored: Scored = { p, l, content, pricePerBase, pieces, costToCover, judgement: null, notes: [...diet.filter((r) => r.outcome !== "block"), ...supply.filter((r) => r.ruleId === "PRC-01")], pinned };
     if (cut) {
       cutOnly.push(scored);
       need.excluded.push({ productId: p.id, name: p.name, reason: cut.message, ruleId: cut.ruleId });
       if (pinned) need.rules.push(cut);
     } else passing.push(scored);
   }
+  recordStage("eligibility", need.excluded.filter((e) => e.ruleId !== "CUT-01").map((e) => e.productId));
+  recordStage("cutoff", need.excluded.filter((e) => e.ruleId === "CUT-01").map((e) => e.productId));
   if (typeTarget && (passing.length || cutOnly.length)) {
     judgements = await typeCheck(typeTarget, [...passing, ...cutOnly].map((s) => s.p));
     need.judgements.push(...judgements.values());
@@ -211,6 +228,7 @@ export async function rankNeed(need: Need, list: Product[], pool: Pool, opts: { 
       }
     }
   }
+  recordStage("type", need.excluded.map((e) => e.productId));
   // Preserve explicit recipe choices; automatic picks prefer price, with stock shown separately.
   passing.sort(compare);
   // NOT-IN-TIME (DLV-06): nothing that passes every other check arrives by the needed-by date.
@@ -236,6 +254,7 @@ export async function rankNeed(need: Need, list: Product[], pool: Pool, opts: { 
     need.rules = need.rules.filter((r) => r.ruleId !== "CUT-01");
     need.rules.push(fire("DLV-06", { need: need.label, neededBy: nb, neededByText: day(nb), earliest: need.earliestDelivery, earliestText: need.earliestDelivery ? day(need.earliestDelivery) : "not known yet" }));
   }
+  recordStage("delivery", need.excluded.map((e) => e.productId));
   need.candidateCount = passing.length;
   need.candidates = passing.map((s, i): Candidate => ({
     ...asCandidate(s, i),
@@ -263,10 +282,12 @@ function asCandidate(s: Scored, i: number): Candidate {
     label: i === 0 ? "best" : i === 1 ? "better" : i === 2 ? "good" : "more",
     unitPrice: s.l.price?.value ?? null,
     pricePerBase: s.pricePerBase === null ? null : round2(s.pricePerBase),
+    ...(s.pieces ? { costToCover: s.costToCover } : {}),
     baseUnit: s.content?.unit ?? null,
     stock: s.l.stock,
     reliability: s.p.reliability,
     packContent: s.content ? { value: s.content.value, unit: s.content.unit, verified: s.content.verified, source: s.content.source } : null,
+    carbonBasis: carbonBasisFor(s.p, s.l),
     salesUnit: s.l.salesUnit,
     closingTime: s.l.closingTime,
     availabilityEvidence: s.l.availabilityEvidence,
@@ -290,9 +311,10 @@ function labelOf(category: string): string {
 export type PackMath = { quantity: number; overshoot: { amount: number; pct: number; eur: number } | null; rules: FiredRule[] };
 
 /** PACK-ROUND + OVERSHOOT-CHECK (D25): round the total once, up, ask only above both limits. */
-export function packRound(productName: string, needValue: number, needUnit: BaseUnit, c: Candidate, pre: PreAnswers): PackMath {
+export function packRound(productName: string, needValue: number, needUnit: BaseUnit, c: Pick<Candidate, "packContent" | "unitPrice" | "salesUnit">, pre: PreAnswers): PackMath {
   const rules: FiredRule[] = [];
   if (!c.packContent) return { quantity: 0, overshoot: null, rules: [fire("QTY-03", { product: productName, content: "unknown" })] };
+  if (needUnit === "pcs" && (!c.packContent.verified || c.packContent.value <= 0)) return { quantity: 0, overshoot: null, rules: [fire("QTY-03", { product: productName, content: "piece conversion not confirmed" })] };
   if (c.packContent.unit !== needUnit)
     return { quantity: 0, overshoot: null, rules: [fire("QTY-05", { need: productName, from: needUnit, to: c.packContent.unit, product: productName })] };
   const exact = needValue / c.packContent.value;
@@ -306,6 +328,13 @@ export function packRound(productName: string, needValue: number, needUnit: Base
     rules.push(fire("QTY-01", { product: productName, packs: quantity, unit: c.salesUnit ?? "units", overshoot: `${round2(over)} ${needUnit}`, pct: `${Math.round(pct)}%`, eurOver: eur(overEur) }));
   else rules.push(fire("QTY-06", { need: `${round2(needValue)} ${needUnit}`, packs: quantity, product: productName, overshoot: `${round2(over)} ${needUnit}` }));
   return { quantity, overshoot, rules };
+}
+
+/** Use the same checked conversion and rounding as the order, never a weight-derived piece count. */
+export function pieceCostToCover(name: string, need: number, content: Candidate["packContent"], unitPrice: number | null, pre: PreAnswers): Candidate["costToCover"] {
+  if (unitPrice === null || !content?.verified || content.unit !== "pcs" || content.value <= 0) return null;
+  const { quantity } = packRound(name, need, "pcs", { packContent: content, unitPrice, salesUnit: null }, pre);
+  return { need, quantity, totalExVat: round2(quantity * unitPrice) };
 }
 
 /** LINE-VERDICT (Q04.5): months ahead stock is ignored; amber for caveats; red when nothing passes. */

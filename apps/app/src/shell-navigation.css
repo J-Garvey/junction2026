@@ -1,0 +1,45 @@
+/* Shared shell layout and keyboard access. */
+.skip-to-content {
+  position: fixed;
+  top: 8px;
+  left: 16px;
+  z-index: 100;
+  padding: 10px 16px;
+  border: 2px solid var(--ink);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--ink);
+  font-weight: 700;
+  transform: translateY(-160%);
+}
+.skip-to-content:focus { transform: translateY(0); }
+.shell .topbar { flex-wrap: wrap; }
+.audit-chain-warning { order: 1; flex-basis: 100%; white-space: normal; }
+.shell .topbar .order-switcher-slot { flex: 1; min-width: 0; gap: 16px; }
+.app-brand {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.app-brand b { font-size: 15px; font-weight: 800; }
+.app-brand:hover { text-decoration: none; }
+.app-brand:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
+  border-radius: 4px;
+}
+.shell .topbar .order-switcher { width: 250px; min-width: 0; }
+.shell .topbar .order-switcher-trigger { min-height: 44px; }
+#main-content:focus { outline: none; }
+
+@media (max-width: 760px) {
+  .shell .topbar .order-switcher-slot { position: relative; gap: 10px; }
+  .shell .topbar .order-switcher { position: static; flex: 1; width: auto; }
+  .shell .topbar .order-switcher-menu { left: 0; width: min(320px, calc(100vw - 28px)); }
+  .app-brand { gap: 5px; }
+  .app-brand b { font-size: 13px; }
+}
