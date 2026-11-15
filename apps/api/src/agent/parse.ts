@@ -65,6 +65,7 @@ const BARE_COUNT = /(?:\bx\s*)?(?<![\d.,/-])([+-]?(?:\d{1,5}(?:[.,]\d+)?|[.,]\d+
 const UNSUPPORTED_SPEC = /\d+(?:[.,]\d+)?\s*%/;
 /** These need a unit/pack decision; never buy the denominator, range end or pack size. */
 const UNSUPPORTED_QUANTITY = /\d+(?:[.,]\d+)?\s*\/\s*\d|\d+(?:[.,]\d+)?\s*[-–—]\s*\d|\d+(?:[.,]\d+)?\s*[x×]\s*\d+(?:[.,]\d+)?\s*(?:kg|g|l|ml|dl)\b|(?:^|\s)[-−]\s*\d|\b\d+(?:[.,]\d+)?\s*(?:packs?|cases?|cartons?|boxes|bottles?|dozens?|pallets?)\b/;
+const unclearQuantity = (text: string) => UNSUPPORTED_QUANTITY.test(text.replace(/\b20\d\d-\d\d-\d\d\b/g, ""));
 
 /** Consume complete groups only, without joining separate lines or decimal commas. */
 const normalizeNumbers = (text: string) => text.replace(/\b\d{1,3}(?:[, \u00a0]\d{3})+(?!\d)/g, (s) => s.replace(/[, \u00a0]/g, ""));
@@ -188,7 +189,7 @@ export function rulesParse(text: string): Omit<SingleRequest, "siteId" | "outlet
       : { amount: count ? Number(count[1].replace(",", ".")) : 1, unit: "pcs" };
     const local = restrictions(s);
     const conflictingOrigin = local.conflictingOrigin || global.conflictingOrigin || Boolean(local.origin && global.origin && local.origin !== global.origin);
-    const quantity = parsedQuantity.amount >= 0 && Number.isFinite(parsedQuantity.amount) && !conflictingOrigin && !UNSUPPORTED_SPEC.test(s) && !UNSUPPORTED_QUANTITY.test(s) ? parsedQuantity : null;
+    const quantity = parsedQuantity.amount >= 0 && Number.isFinite(parsedQuantity.amount) && !conflictingOrigin && !UNSUPPORTED_SPEC.test(s) && !unclearQuantity(s) ? parsedQuantity : null;
     const claims = [...new Set([...global.claims, ...local.claims])];
     const pid = s.match(/\b(4\d{5})\b/);
     const leftover = local.rest
@@ -316,7 +317,7 @@ export async function parseRequest(text: string): Promise<{ request: Omit<Single
         category: pw?.category ?? null,
         productId: l.productId && /^\d{6}$/.test(l.productId) ? l.productId : null,
         // A count without a unit is pieces; an unclear or invalid amount needs clarification.
-        quantity: typeof l.amount === "number" && l.amount >= 0 && !UNSUPPORTED_SPEC.test(`${l.text} ${l.productWord}`) && !UNSUPPORTED_QUANTITY.test(l.text) ? { amount: l.amount, unit: l.unit ?? "pcs" } : null,
+        quantity: typeof l.amount === "number" && l.amount >= 0 && !UNSUPPORTED_SPEC.test(`${l.text} ${l.productWord}`) && !unclearQuantity(l.text) ? { amount: l.amount, unit: l.unit ?? "pcs" } : null,
         constraints: { claims: l.claims, avoidAllergens: l.avoidAllergens, labels: [], ...(l.origin ? { origin: l.origin } : {}) },
       };
     });
