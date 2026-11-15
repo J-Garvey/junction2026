@@ -10,6 +10,7 @@ import { fire, FIXED, RULE_INDEX } from "../rules/catalogue.js";
 import { cutoffRule, productRules, earliestDelivery, packContent, priceValidityRule, reliabilityRules, supplyRules, blocks } from "../rules/checks.js";
 import { mandate } from "./mandate.js";
 import { typeCheck } from "./judge.js";
+import { carbonBasisFor } from "../carbon.js";
 import { round2, eur, fmtHelsinki } from "../util.js";
 import { now } from "../clock.js";
 import { brief, logSearch } from "../searchlog.js";
@@ -223,6 +224,7 @@ function asCandidate(s: Scored, i: number): Candidate {
     stock: s.l.stock,
     reliability: s.p.reliability,
     packContent: s.content ? { value: s.content.value, unit: s.content.unit, verified: s.content.verified, source: s.content.source } : null,
+    carbonBasis: carbonBasisFor(s.p, s.l),
     salesUnit: s.l.salesUnit,
     closingTime: s.l.closingTime,
     availabilityEvidence: s.l.availabilityEvidence,
