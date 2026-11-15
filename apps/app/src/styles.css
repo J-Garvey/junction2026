@@ -25,6 +25,7 @@
   --yellow-soft: #fbe7bd;
   --font: "IBM Plex Sans", -apple-system, system-ui, sans-serif;
   --mono: "Source Code Pro", ui-monospace, monospace;
+  --page-width: 1040px;
 }
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; }
@@ -84,9 +85,9 @@ h4 { font-size: 13px; font-weight: 700; text-transform: uppercase; color: var(--
 .dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
 .dot.ok { background: var(--green); }
 .dot.off { background: var(--ash); }
-.main { width: 100%; max-width: 1440px; margin-inline: auto; flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.main { width: 100%; max-width: calc(var(--page-width) + 56px); margin-inline: auto; flex: 1; display: flex; flex-direction: column; min-width: 0; }
 .content { flex: 1; padding: 20px 28px 48px; }
-.page { max-width: 1040px; }
+.page { max-width: var(--page-width); margin-inline: auto; }
 .stack > * + * { margin-top: 12px; }
 .stack-l > * + * { margin-top: 24px; }
 .mhead, .mtabs { display: none; }
