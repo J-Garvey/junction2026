@@ -162,7 +162,7 @@ afterEach(async () => {
 afterAll(() => {
   writeFileSync(resolve(artifacts, "run.json"), JSON.stringify({ sha, runtime, port: process.env.E2_PORT ?? 8892,
     testSourceSha256: createHash("sha256").update(testSource).digest("hex"),
-    clock: new Date(NOW).toISOString(), mode: "fixture-fallback-fake-browser", blockedExternalRequests: blocked,
+    clock: new Date(NOW).toISOString(), mode: process.env.E2_EVIDENCE_MODE ?? "fixture-fallback-fake-browser", blockedExternalRequests: blocked,
     notes: "No model, real supplier, phone pairing or real browser. Results in Vitest JSON, observations append-only."
   }, null, 2));
 });
