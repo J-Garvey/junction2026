@@ -3,9 +3,10 @@
  * product type, look up the shortlist once, rank in the fixed SF-06 order and
  * work out whole packs. Deterministic apart from the stored model judgements.
  */
-import type { Candidate, FiredRule, LookupLine, Need, PlanLine, Product, StatusLabel, Verdict, BaseUnit, ModelJudgement } from "@aimo/contracts";
-import { allProducts, getProduct, searchMatches } from "../catalog.js";
-import { queryTerms, rank } from "../search.js";
+import type { Candidate, FiredRule, LookupLine, Need, PlanLine, Product, SearchHelp, StatusLabel, Verdict, BaseUnit, ModelJudgement } from "@aimo/contracts";
+import { allProducts, getProduct, searchMatches, searchPage } from "../catalog.js";
+import { contentWords, queryTerms, rank } from "../search.js";
+import { categoryLabel, didYouMean as didYouMeanWords } from "../categoryTags.js";
 import { fire, FIXED, RULE_INDEX } from "../rules/catalogue.js";
 import { cutoffRule, productRules, earliestDelivery, packContent, priceValidityRule, reliabilityRules, supplyRules, blocks } from "../rules/checks.js";
 import { mandate } from "./mandate.js";
@@ -30,7 +31,8 @@ export function shortlist(need: Need, opts: { log?: boolean } = {}): Product[] {
     // A category can mix distinct products (plain, coffee and sour milk). Alternatives
     // must retain the named identity; an ID alone does not establish a substitute spec.
     const query = need.query.replace(/\b\d{6}\b/g, "").trim();
-    if (pinned && query) {
+    // Only words can name alternatives: a leftover count or "x" would list the whole category.
+    if (pinned && contentWords(query).some((w) => /\p{L}{2}/u.test(w))) {
       const matches = searchMatches({ q: query, category: pinned.category, claims: claims.filter((c) => c !== "FREE_FROM_MILK"), limit: FIXED.searchLimit }, mandate());
       for (const m of matches) if (m.tier < 3 && m.product.id !== pinned.id) out.push(m.product);
     }
@@ -42,6 +44,51 @@ export function shortlist(need: Need, opts: { log?: boolean } = {}): Product[] {
   const list = searchMatches({ ...base, q: need.query }, mandate()).filter((m) => m.tier < 3).map((m) => m.product);
   if (opts.log !== false) logSearch({ source: "shortlist", query: { need: need.label, text: need.text, q: need.query, ...base }, interpreted: { count: list.length, fellBackToCategory: false, top: brief(list) } });
   return list;
+}
+
+/** Possible products listed at most; `possibleTotal` says how many there are. */
+export const HELP_SHOWN = 20;
+
+/**
+ * Fixes 4 and 5 of the search audit: when the shortlist is empty, help the person instead of
+ * showing nothing. A misspelt word gets catalogue spellings that are checked to find products
+ * ("chese" → "cheese"). Products that only mention the words, or match once a word no product
+ * uses is dropped ("unicorn chicken burger" → chicken burgers), are listed as possible matches.
+ * None of them is looked up or ordered: the person picks one, and it is checked like any item.
+ */
+export function searchHelp(need: Need): SearchHelp | null {
+  if (need.pinnedProductId || !need.query.trim()) return null;
+  const all = allProducts();
+  const base = { category: need.category ?? undefined, claims: (need.constraints.claims ?? []).filter((c) => c !== "FREE_FROM_MILK") };
+  const words = contentWords(need.query);
+  const unmatched = words.filter((w) => !searchMatches({ q: w, limit: 1 }).length);
+  const orderable = (q: string) => searchMatches({ ...base, q, limit: FIXED.searchLimit }).some((m) => m.tier < 3);
+  // Something to order was found: no help needed.
+  if (orderable(need.query)) return null;
+  const didYouMean: string[] = [];
+  for (const w of unmatched)
+    for (const s of didYouMeanWords(w, all)) {
+      const fixed = words.map((x) => (x === w ? s : x)).join(" ");
+      if (didYouMean.length < 3 && !didYouMean.includes(fixed) && orderable(fixed)) didYouMean.push(fixed);
+    }
+  let possible: SearchHelp["possible"] = [];
+  let possibleTotal = 0;
+  const toPossible = (q: string, reason: string, ms: ReturnType<typeof searchMatches>) =>
+    ms.slice(0, HELP_SHOWN).map((m) => ({ productId: m.product.id, name: m.product.name, category: m.product.category, categoryLabel: labelOf(m.product.category), reason, query: q }));
+  // The name mentions every word, but may be something else ("Cheese cake" for "cheese").
+  const mentions = searchPage({ ...base, q: need.query, limit: HELP_SHOWN });
+  if (mentions.total) {
+    possible = toPossible(need.query, `The name mentions "${need.query}", but it may be something else.`, mentions.matches);
+    possibleTotal = mentions.total;
+  } else if (unmatched.length && unmatched.length < words.length) {
+    const reduced = words.filter((w) => !unmatched.includes(w)).join(" ");
+    const all = searchMatches({ ...base, q: reduced, limit: 1000 });
+    const best = all.some((m) => m.tier < 3) ? all.filter((m) => m.tier < 3) : all;
+    possible = toPossible(reduced, `No product name says ${unmatched.map((w) => `"${w}"`).join(" or ")}.`, best);
+    possibleTotal = best.length;
+  }
+  if (!unmatched.length && !didYouMean.length && !possible.length) return null;
+  return { unmatched, didYouMean, possible, possibleTotal };
 }
 
 /** A saved proposal must still qualify for automatic selection before it is staged. */
@@ -197,7 +244,8 @@ export async function rankNeed(need: Need, list: Product[], pool: Pool, opts: { 
       const quantity = Math.max(1, Math.ceil(need.amount.value / content.value - 1e-9));
       if (!s.l.price || s.l.stock.kind !== "known" || s.l.stock.amount < quantity || priceValidityRule(s.p, s.l, date)) return [];
       return [{ ...asCandidate(s, 0), availableDate: date, quantity, deliveryEstimated: cutOnly.includes(s) }];
-    }).sort((a, b) => a.availableDate!.localeCompare(b.availableDate!) || a.productId.localeCompare(b.productId)).slice(0, 2);
+    // Every full-pack option, earliest first; the screen shows the first and can load the rest.
+    }).sort((a, b) => a.availableDate!.localeCompare(b.availableDate!) || a.productId.localeCompare(b.productId));
     dates.sort();
     for (const s of passing) need.excluded.push({ productId: s.p.id, name: s.p.name, reason: `Arrives ${s.l.availableDate}, after ${nb}`, ruleId: "DLV-03" });
     passing = [];
@@ -247,7 +295,17 @@ function asCandidate(s: Scored, i: number): Candidate {
     source: s.l.source,
     judgement: s.judgement,
     notes: s.notes,
+    category: s.p.category,
+    categoryLabel: labelOf(s.p.category),
   };
+}
+
+/** Category labels come from the whole catalogue, which doesn't change while the server runs. */
+const labels = new Map<string, string>();
+function labelOf(category: string): string {
+  let l = labels.get(category);
+  if (l === undefined) labels.set(category, (l = categoryLabel(category, allProducts())));
+  return l;
 }
 
 export type PackMath = { quantity: number; overshoot: { amount: number; pct: number; eur: number } | null; rules: FiredRule[] };

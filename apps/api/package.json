@@ -14,6 +14,10 @@
     "typecheck": "tsc --noEmit -p .",
     "search:check": "tsx src/scripts/search-check.ts",
     "search:audit": "tsx src/scripts/search-audit.ts",
+    "search:offline": "tsx src/scripts/search_offline_audit.ts",
+    "search:shortlist": "tsx src/scripts/q.ts",
+    "search:roles": "tsx src/scripts/roles.ts",
+    "tags": "tsx src/scripts/category-tags.ts",
     "latency:check": "tsx src/scripts/latency-check.ts"
   },
   "dependencies": {

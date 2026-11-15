@@ -66,6 +66,7 @@ What changed when the two uploads were merged is in **[CHANGES.md](CHANGES.md)**
 | `data/products_core.csv` | Flat subset for grep and spreadsheets |
 | `data/ingredients.jsonl` | Ingredient statements (en, fi) |
 | `data/categories.csv` | Category codes decoded by example |
+| `data/category_tags.json` | What each category holds, in its own product names' words (English and Finnish), with the label shown on the app's category chips. Generated: `pnpm --filter @aimo/api tags` |
 | `data/carbon_footprint.csv`, `data/delivery_reliability.csv` | Raw side files from the portal |
 | [scripts/aimo_api.py](scripts/aimo_api.py) | API client and CLI (stdlib only) |
 | [scripts/build_slim.py](scripts/build_slim.py) | Rebuilds `data/` from the raw files |

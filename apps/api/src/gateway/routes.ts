@@ -6,9 +6,9 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import { z } from "zod";
 import { AllergenAcknowledgementBody, AmendmentBody, BuilderConsentBody, ApprovalBody, LookupBody, OrderCreateBody, ProductSearchQuery, QuoteCreateBody } from "@aimo/contracts";
 import { resolveToken, tokenFrom, type Identity } from "../identity.js";
-import { searchMatches, getProduct } from "../catalog.js";
+import { searchPage, getProduct } from "../catalog.js";
 import { lookup, UpstreamError } from "../aimo/lookup.js";
-import { acknowledgeAllergenData, amendOrder, createBuilderConsent, createApproval, createQuote, getMandate, GatewayRefusal, listOrders, placeOrder } from "./service.js";
+import { acknowledgeAllergenData, amendOrder, createBuilderConsent, createApproval, createQuote, getMandate, GatewayRefusal, listOrders, placeOrder, upstreamRefusal } from "./service.js";
 import { auditView, verifyChain } from "../audit.js";
 import { buildOpenApi } from "./openapi.js";
 import { brandProfile, ExternalUnavailable } from "../external/contextdev.js";
@@ -58,11 +58,15 @@ export function gatewayRouter(): Router {
       origin: req.query.origin,
       labels: csv(req.query.labels),
       limit: req.query.limit ? Number(req.query.limit) : 50,
+      offset: req.query.offset ? Number(req.query.offset) : undefined,
     });
     const id = req.identity!;
-    const ms = searchMatches(q, id.kind === "valio" ? undefined : getMandate(id.hotelId));
-    logSearch({ source: "product_search", query: q, interpreted: { count: ms.length, top: ms.slice(0, 10).map((m) => ({ product: `${m.product.id} ${m.product.name}`, tier: m.tier, role: m.role })) } });
-    res.json({ products: ms.map((m) => m.product), relevance: ms.map((m) => ({ productId: m.product.id, tier: m.tier, role: m.role })), source: "local catalogue (data/products_slim.jsonl)" });
+    const { matches: ms, total } = searchPage(q, id.kind === "valio" ? undefined : getMandate(id.hotelId));
+    const offset = q.offset ?? 0;
+    // Every match can be loaded: page on with nextOffset until it is null.
+    const nextOffset = offset + ms.length < total ? offset + ms.length : null;
+    logSearch({ source: "product_search", query: q, interpreted: { count: ms.length, total, top: ms.slice(0, 10).map((m) => ({ product: `${m.product.id} ${m.product.name}`, tier: m.tier, role: m.role })) } });
+    res.json({ products: ms.map((m) => m.product), relevance: ms.map((m) => ({ productId: m.product.id, tier: m.tier, role: m.role })), total, offset, nextOffset, source: "local catalogue (data/products_slim.jsonl)" });
   });
   r.get("/products/:id", (req, res) => {
     const p = getProduct(String(req.params.id));
@@ -87,7 +91,7 @@ export function gatewayRouter(): Router {
       const out = await lookup(b.productIds, b.requestedDate);
       res.json(out);
     } catch (e) {
-      if (e instanceof UpstreamError) throw new GatewayRefusal(503, { error: "upstream_unavailable", message: e.message });
+      if (e instanceof UpstreamError) throw upstreamRefusal(e, "Can't check prices and stock right now. Nothing has been ordered. ");
       throw e;
     }
   });
@@ -134,7 +138,10 @@ export function gatewayRouter(): Router {
 }
 
 export function gatewayErrors(err: unknown, _req: Request, res: Response, next: NextFunction) {
-  if (err instanceof GatewayRefusal) return res.status(err.status).json(err.body);
+  if (err instanceof GatewayRefusal) {
+    if (err.body.retryAfter !== undefined) res.setHeader("Retry-After", String(err.body.retryAfter));
+    return res.status(err.status).json(err.body);
+  }
   if (err instanceof SyntaxError) return res.status(400).json({ error: "invalid", message: "Body is not valid JSON" });
   next(err);
 }

@@ -14,7 +14,7 @@ import { reliabilityRules, CLAIM_LABEL, allergenName } from "../rules/checks.js"
 import { audit, AGENT } from "../audit.js";
 import { newId, round2, eur, fmtHelsinki, isoDate } from "../util.js";
 import { gw, GatewayError } from "./gatewayClient.js";
-import { shortlist, rankNeed, packRound, verdictOf, type Pool } from "./match.js";
+import { shortlist, rankNeed, packRound, searchHelp, verdictOf, type Pool } from "./match.js";
 import { toBase, quantitySanity, checkSingle } from "./parse.js";
 import { buildAllergenQuestions, buildQuestions, expireOpenQuestions, openQuestionsForPlan } from "./questions.js";
 import { recallSubstitute } from "./memory.js";
@@ -392,6 +392,8 @@ export async function runPipeline(plan: StoredPlan): Promise<StoredPlan> {
     n.rules = n.rules.filter((r) => r.ruleId === "DLV-04" || r.ruleId === "QTY-02");
     const list = lists.get(n.id)!.filter((p) => !ov.excluded.includes(`${n.id}:${p.id}`));
     await rankNeed(n, list, pool, { lockedOk: ov.stockBlind, deliveryDays: m.deliveryDays, holidays: m.holidays, combinedPieceNeed: pieceAmounts.get(n.id) });
+    // Nothing to order from the text: spellings and possible products for the person, never ordered.
+    n.searchHelp = lists.get(n.id)!.length ? null : searchHelp(n);
     // A chef's confirmation removes the type question for that product.
     for (const c of n.candidates) if (ov.confirmed.includes(`${n.id}:${c.productId}`)) c.notes = c.notes.filter((r) => r.ruleId !== "TYP-01");
     // An alternative the person picked goes first, so it fills the line.

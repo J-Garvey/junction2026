@@ -645,7 +645,12 @@ export function appRouter(): Router {
 }
 
 export function appErrors(err: unknown, _req: Request, res: Response, next: NextFunction) {
-  if (err instanceof GatewayError) return res.status(err.status).json(err.body);
+  // A gateway refusal keeps its status and body. Valio Aimo rate limited or down is a 503 with a
+  // clear message (and Retry-After when known), never a 500 "internal".
+  if (err instanceof GatewayError) {
+    if (err.body?.retryAfter !== undefined) res.setHeader("Retry-After", String(err.body.retryAfter));
+    return res.status(err.status).json(err.body);
+  }
   if (err instanceof BasketReviewError) return res.status(err.status).json({ error: "basket_review", message: err.message });
   if (err instanceof EditConflict) return res.status(409).json({ error: "edit_conflict", message: err.message, current: err.current });
   if (err instanceof z.ZodError) return res.status(422).json({ error: "invalid", message: err.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") });

@@ -17,7 +17,27 @@ const TERMINAL_SENTINEL = 999999;
 /** Real Stock amounts top out near 68,293; the sentinel is 9,999,999,999 base units / pack size. */
 const STOCK_SENTINEL_FLOOR = 1_000_000;
 
-export class UpstreamError extends Error {}
+export class UpstreamError extends Error {
+  constructor(message: string, public status: number | null = null, public retryAfterSeconds: number | null = null) {
+    super(message);
+  }
+  /** The mock refused because of its (undisclosed) rate limit. */
+  get rateLimited() {
+    return this.status === 429;
+  }
+}
+
+/** Statuses worth one more try: rate limited, or the mock briefly down. */
+const RETRY_STATUS = new Set([429, 502, 503, 504]);
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/** Retry-After in seconds or as an HTTP date; null when absent or unreadable. */
+function retryAfterMs(h: string | null): number | null {
+  if (!h) return null;
+  const s = Number(h);
+  if (Number.isFinite(s)) return Math.max(0, s * 1000);
+  const at = Date.parse(h);
+  return Number.isFinite(at) ? Math.max(0, at - Date.now()) : null;
+}
 
 type RawAvail = Record<string, any>;
 type RawPrice = Record<string, any>;
@@ -28,21 +48,40 @@ export function dataMode(): DataMode {
   return kvGet<DataMode>("dataMode") ?? { mode: config.aimoMode, overlay: null };
 }
 
+/**
+ * One call to the mock. A 429 (rate limit) or a 5xx is retried after a short back-off, using the
+ * mock's Retry-After when it sends one (capped), so a busy moment doesn't fail the whole request.
+ * The same request is resent: lookups only read, so a retry can't order anything twice.
+ */
 async function upstream(path: string, products: string[], requestedDate: string): Promise<any> {
   if (!config.aimoKey) throw new UpstreamError("AIMO_API_KEY is not set");
+  const delays = config.aimoRetryDelaysMs;
+  for (let attempt = 0; ; attempt++) {
+    const res = await upstreamOnce(path, products, requestedDate);
+    if (res.ok) return await res.json().catch((e: Error) => { throw new UpstreamError(`${path} sent unreadable JSON: ${e.message}`, res.status); });
+    const wait = retryAfterMs(res.headers.get("retry-after"));
+    if (RETRY_STATUS.has(res.status) && attempt < delays.length) {
+      await sleep(Math.min(wait ?? delays[attempt], config.aimoRetryAfterCapMs));
+      continue;
+    }
+    const tries = attempt + 1;
+    if (res.status === 429)
+      throw new UpstreamError(`Valio Aimo's API is rate-limiting requests (HTTP 429 on ${path}, ${tries} ${tries === 1 ? "try" : "tries"}). Try again in a minute.`, 429, wait === null ? null : Math.ceil(wait / 1000));
+    throw new UpstreamError(`${path} returned HTTP ${res.status}${tries > 1 ? ` after ${tries} tries` : ""}`, res.status);
+  }
+}
+
+async function upstreamOnce(path: string, products: string[], requestedDate: string): Promise<Response> {
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), config.aimoTimeoutMs);
   try {
-    const res = await fetch(config.aimoBase + path, {
+    return await fetch(config.aimoBase + path, {
       method: "POST",
       signal: ctl.signal,
       headers: { "X-API-Key": config.aimoKey, "Content-Type": "application/json", Accept: "application/json", "User-Agent": "aimo-copilot-gateway/0.1" },
       body: JSON.stringify({ customer: "123", requestedDate, products }),
     });
-    if (!res.ok) throw new UpstreamError(`${path} returned HTTP ${res.status}`);
-    return await res.json();
   } catch (e) {
-    if (e instanceof UpstreamError) throw e;
     throw new UpstreamError(`${path} failed: ${(e as Error).message}`);
   } finally {
     clearTimeout(t);

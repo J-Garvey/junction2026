@@ -323,8 +323,12 @@ function Proposal({ plan, onDone }: { plan: Plan; onDone: (r: PlanResp) => void 
   const [err, setErr] = useState<string | null>(null);
   const lines = plan.lines.filter((l) => !l.removed && l.productId);
   const used = new Set(lines.map((l) => l.productId));
-  // Two other passing products per need, offered quietly below.
-  const alts = plan.needs.flatMap((n) => n.candidates.filter((c) => !used.has(c.productId)).slice(0, 2).map((c) => ({ n, c })));
+  // Two other passing products per need, offered quietly below; "Show all" loads every one.
+  const [allAlts, setAllAlts] = useState(false);
+  const others = plan.needs.map((n) => n.candidates.filter((c) => !used.has(c.productId)).map((c) => ({ n, c })));
+  const altCount = others.reduce((s, l) => s + l.length, 0);
+  const fewCount = others.reduce((s, l) => s + Math.min(2, l.length), 0);
+  const alts = others.flatMap((l) => (allAlts ? l : l.slice(0, 2)));
   async function run(key: string, f: () => Promise<PlanResp>) {
     if (busy || !inScope) return;
     setBusy(key);
@@ -377,6 +381,11 @@ function Proposal({ plan, onDone }: { plan: Plan; onDone: (r: PlanResp) => void 
               {busy === c.productId ? "…" : `${c.name} · ${n.amount.unit === "pcs" ? `${eur(c.costToCover?.totalExVat ?? null)} ex VAT to cover need` : `${eur(c.pricePerBase)}/${n.amount.unit}`}`}
             </button>
           ))}
+          {altCount > fewCount && (
+            <button type="button" className="linkbtn show-all" aria-expanded={allAlts} onClick={() => setAllAlts(!allAlts)}>
+              {allAlts ? "Show fewer" : `Show all ${altCount}`}
+            </button>
+          )}
         </div>
       )}
     </div>

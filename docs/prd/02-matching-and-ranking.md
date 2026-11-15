@@ -111,5 +111,5 @@ Each function is one problem that can be built and tested alone. "Deterministic 
 ## Done when
 
 - "Lactose-free milk" returns only plain drinking milks, with coffee milks and piimä excluded or asked about.
-- The same request run twice returns the same three candidates in the same order.
+- The same request run twice returns the same candidates in the same order. The screen shows the first 5 and can load every candidate that passed.
 - Each candidate shows which ranking step decided its place.

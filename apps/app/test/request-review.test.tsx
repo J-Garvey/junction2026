@@ -468,6 +468,58 @@ describe("saved request review controls", () => {
     expect(screen.getByText("0 of 1 items ready")).toBeTruthy();
   });
 
+  it("lists every passing replacement, not just the first few", () => {
+    const many = fixture(true);
+    many.plan.needs[0].candidates = Array.from({ length: 7 }, (_, i) => ({ ...candidate, productId: `46430${i}`, name: `Replacement milk ${i + 1}`, rank: i + 2 }));
+    many.plan.needs[0].candidateCount = 7;
+    show(many);
+    fireEvent.click(screen.getByRole("button", { name: "View details" }));
+    fireEvent.click(screen.getByRole("button", { name: "Suggest replacements" }));
+    expect(screen.getAllByRole("button", { name: "Use replacement" })).toHaveLength(3);
+    fireEvent.click(screen.getByRole("button", { name: "Show all 7 replacements" }));
+    expect(screen.getAllByRole("button", { name: "Use replacement" })).toHaveLength(7);
+    expect(screen.getByText("Replacement milk 7")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Show fewer" }));
+    expect(screen.getAllByRole("button", { name: "Use replacement" })).toHaveLength(3);
+  });
+
+  it("offers a spelling and possible products when nothing matched, and orders none until picked", async () => {
+    const none = fixture();
+    none.plan.lines = [];
+    none.plan.needs[0].candidates = [];
+    none.plan.needs[0].query = "chese";
+    none.plan.request!.lines[0].query = "chese";
+    none.plan.needs[0].rules = [{ ruleId: "DIET-04", outcome: "block", message: "Nothing matched", facts: {}, overridable: false }];
+    none.plan.needs[0].searchHelp = {
+      unmatched: ["chese"], didYouMean: ["cheese"], possibleTotal: 1,
+      possible: [{ productId: "466750", name: "Cheese cake", category: "41763", categoryLabel: "Cake · frozen", reason: "The name mentions \"chese\", but it may be something else.", query: "chese" }],
+    };
+    none.plan.itemReviews![0].canApprove = false;
+    const message = vi.spyOn(api, "message").mockResolvedValue({ route: "new_request", request: { ...none.plan.request!, lines: [{ ...none.plan.request!.lines[0], query: "cheese" }] }, note: null });
+    vi.spyOn(api, "requote").mockResolvedValue(fixture());
+    show(none);
+    const help = screen.getByRole("region", { name: "Suggestions for chese" });
+    expect(within(help).getByText("Possible matches")).toBeTruthy();
+    expect(within(help).getByText(/not ordered unless you pick one/)).toBeTruthy();
+    fireEvent.click(within(help).getByRole("button", { name: "cheese" }));
+    await waitFor(() => expect(message).toHaveBeenCalledWith("10 l cheese"));
+  });
+
+  it("checks a picked possible product again with its id pinned", async () => {
+    const none = fixture();
+    none.plan.lines = [];
+    none.plan.needs[0].candidates = [];
+    none.plan.needs[0].rules = [{ ruleId: "DIET-04", outcome: "block", message: "Nothing matched", facts: {}, overridable: false }];
+    none.plan.needs[0].searchHelp = { unmatched: ["unicorn"], didYouMean: [], possibleTotal: 1,
+      possible: [{ productId: "461651", name: "RF Chicken Burger", category: "41712", categoryLabel: "Breaded · frozen", reason: "No product name says \"unicorn\".", query: "chicken burger" }] };
+    none.plan.itemReviews![0].canApprove = false;
+    const message = vi.spyOn(api, "message").mockResolvedValue({ route: "new_request", request: none.plan.request!, note: null });
+    vi.spyOn(api, "requote").mockResolvedValue(fixture());
+    show(none);
+    fireEvent.click(screen.getByRole("button", { name: "Use RF Chicken Burger" }));
+    await waitFor(() => expect(message).toHaveBeenCalledWith("10 l 461651 chicken burger"));
+  });
+
   it("requires a fresh approval for an exact replacement before adding it to the order", async () => {
     const knownCandidate: Candidate = { ...candidate, stock: { kind: "known", amount: 100 } };
     const changed = fixture();

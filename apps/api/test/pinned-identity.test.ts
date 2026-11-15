@@ -32,7 +32,8 @@ describe("explicit product requests preserve primary and secondary identity", ()
   });
 
   it("does not infer arbitrary substitutes from a bare product ID", () => {
-    const request = { ...rulesParse("469363"), siteId: "site-aurora", outletId: "banquet" };
+    // With an amount: a bare id alone leaves the amount to ask for (REQ-02), so there's no need yet.
+    const request = { ...rulesParse("4 x 469363"), siteId: "site-aurora", outletId: "banquet" };
     expect(shortlist(needsFromSingle(request)[0]).map((p) => p.id)).toEqual(["469363"]);
   });
 });

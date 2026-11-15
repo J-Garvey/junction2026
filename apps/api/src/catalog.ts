@@ -7,7 +7,7 @@ import { resolve } from "node:path";
 import type { Product, ProductDetails, ProductSearchQuery } from "@aimo/contracts";
 import { config } from "./config.js";
 import { registerBrand } from "./util.js";
-import { relevance, type Match } from "./search.js";
+import { relevance, useCatalogue, type Match } from "./search.js";
 import { allergenConflicts } from "./rules/allergens.js";
 import { passesMandateOrigin, type OriginPolicy } from "./rules/origin.js";
 
@@ -18,7 +18,7 @@ let raw: Map<string, Raw> | null = null;
 let orderedProducts: Product[] = [];
 const ingredientStatements = new Map<string, { en: string | null; fi: string | null }>();
 // Only local catalogue matches are reused. Price, stock and cut-off facts are never cached here.
-const searchCache = new Map<string, { matches: Match[]; limit: number }>();
+const searchCache = new Map<string, { matches: Match[] }>();
 const SEARCH_CACHE_LIMIT = 100;
 
 function toProduct(p: Raw, ingredients: Map<string, string>): Product {
@@ -73,6 +73,7 @@ export function loadCatalog() {
     registerBrand(prod.name, prod.brand);
   }
   orderedProducts = [...products.values()].sort((a, b) => a.id.localeCompare(b.id));
+  useCatalogue(orderedProducts);
 }
 
 export function getProduct(id: string): Product | null {
@@ -135,15 +136,28 @@ export function searchProducts(q: ProductSearchQuery, mandate?: OriginPolicy): P
 
 /** The same search with each product's relevance tier, for the gateway and tests. */
 export function searchMatches(q: ProductSearchQuery, mandate?: OriginPolicy): Match[] {
+  return searchPage(q, mandate).matches;
+}
+
+/**
+ * One page of a search, and how many products match in all. The whole ranked list is kept, so
+ * paging with `offset` loads every match in the same order: the first page is never all there is.
+ */
+export function searchPage(q: ProductSearchQuery, mandate?: OriginPolicy): { matches: Match[]; total: number } {
+  const all = allMatches(q, mandate);
+  const offset = q.offset ?? 0;
+  return { matches: all.slice(offset, offset + (q.limit ?? 50)).map((m) => ({ ...m })), total: all.length };
+}
+
+function allMatches(q: ProductSearchQuery, mandate?: OriginPolicy): Match[] {
   loadCatalog();
-  const limit = q.limit ?? 50;
   const text = q.q?.trim();
   const key = text ? JSON.stringify([text.toLowerCase().normalize("NFC"), q.category ?? null, [...(q.claims ?? [])].sort(), [...(q.excludeAllergens ?? [])].sort(), q.origin ?? null, [...(q.labels ?? [])].sort(), mandate?.categoryOriginRequirements ?? []]) : null;
   const cached = key ? searchCache.get(key) : null;
-  if (cached && cached.limit >= limit) {
+  if (cached) {
     searchCache.delete(key!);
     searchCache.set(key!, cached);
-    return cached.matches.slice(0, limit).map((m) => ({ ...m }));
+    return cached.matches;
   }
   const pool: Product[] = [];
   for (const p of orderedProducts) {
@@ -154,16 +168,13 @@ export function searchMatches(q: ProductSearchQuery, mandate?: OriginPolicy): Ma
     if (q.origin && p.origin !== q.origin) continue;
     if (q.labels?.length && !q.labels.every((l) => p.labels.includes(l))) continue;
     pool.push(p);
-    if (!text && pool.length >= limit) break;
   }
   if (!text) return pool.map((product) => ({ product, tier: 0, role: null, term: "" }));
-  // Ranking already considers the whole pool; keep enough for every public page size.
-  const cacheLimit = Math.max(50, limit);
-  const matches = relevance(text, pool, orderedProducts, q.category, q.claims).slice(0, cacheLimit);
+  const matches = relevance(text, pool, orderedProducts, q.category, q.claims);
   searchCache.delete(key!);
   if (searchCache.size >= SEARCH_CACHE_LIMIT) searchCache.delete(searchCache.keys().next().value!);
-  searchCache.set(key!, { matches, limit: cacheLimit });
-  return matches.slice(0, limit).map((m) => ({ ...m }));
+  searchCache.set(key!, { matches });
+  return matches;
 }
 
 /** Every product whose name mentions the text, whatever it is (fixture recording wants them all). */
