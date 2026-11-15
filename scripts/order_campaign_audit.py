@@ -331,6 +331,8 @@ def audit(row, catalog, fixture=None):
     for related in row.get("related", []):
         if isinstance(related.get("status"), int) and related["status"] >= 400:
             limitations.append(f"{related.get('purpose', related.get('path'))}: HTTP {related['status']}; that downstream stage is not certified")
+        if request and request.get("neededBy") is None and request.get("neededByText") and related.get("body", {}).get("request", {}).get("neededBy"):
+            limitations.append("harness replaced an unresolved explicit date with a selected fixture date; original date handling is not certified downstream")
     if isinstance(response.get("planResponse"), dict) and response["planResponse"].get("status", 200) >= 400:
         limitations.append("probe planning failed; parse checks only, no plan certified")
     line_requirements = {}
