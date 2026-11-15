@@ -13,6 +13,14 @@ export const ModalParent = createContext<ModalScope | null>(null);
 const openModals: ModalScope[] = [];
 const backgroundInert = new Map<HTMLElement, string | null>();
 let previousOverflow = "";
+// Async openers can be disabled (and blurred by the browser) before a dialog
+// mounts. Keep only a weak reference; this recorder never redirects focus.
+let recentFocus: WeakRef<HTMLElement> | undefined;
+const rememberFocus = (event: FocusEvent) => {
+  if (event.target instanceof HTMLElement && event.target !== document.body && event.target !== document.documentElement) recentFocus = new WeakRef(event.target);
+};
+if (typeof document !== "undefined") document.addEventListener("focusin", rememberFocus, true);
+if (import.meta.hot) import.meta.hot.dispose(() => document.removeEventListener("focusin", rememberFocus, true));
 
 function topModal() { return openModals.at(-1); }
 
@@ -71,7 +79,8 @@ export function useModalFocus(onClose: () => void) {
   const parent = useContext(ModalParent);
   const [scope] = useState<ModalScope>(() => ({
     parent, backdrop: createRef(), dialog: createRef(), close: createRef(),
-    trigger: document.activeElement instanceof HTMLElement ? document.activeElement : null,
+    trigger: document.activeElement instanceof HTMLElement && document.activeElement !== document.body && document.activeElement !== document.documentElement
+      ? document.activeElement : recentFocus?.deref() ?? null,
     previous: topModal(),
   }));
   const onCloseRef = useRef(onClose);
@@ -114,7 +123,7 @@ export function useModalFocus(onClose: () => void) {
         const index = stops.indexOf(document.activeElement as HTMLElement);
         const next = index < 0 ? (event.shiftKey ? stops.length - 1 : 0) : (index + (event.shiftKey ? -1 : 1) + stops.length) % stops.length;
         event.preventDefault();
-        (stops[next] ?? dialog).focus({ preventScroll: true });
+        (stops[next] ?? dialog).focus();
       }
     };
     document.addEventListener("focusin", focus);
@@ -141,7 +150,11 @@ export function useModalFocus(onClose: () => void) {
         let origin: ModalScope | undefined = scope;
         while (origin && !origin.trigger?.isConnected) origin = origin.previous;
         const trigger = origin?.trigger;
-        if (trigger && available(trigger) && (!active || active.dialog.current?.contains(trigger))) trigger.focus({ preventScroll: true });
+        // A reset form may leave its submit button disabled. Return to the
+        // editable control in the same form rather than leaving focus on body.
+        const target = trigger && available(trigger) ? trigger
+          : trigger?.isConnected ? tabStops(trigger.closest("form") ?? trigger.parentElement ?? document.body)[0] : null;
+        if (target && (!active || active.dialog.current?.contains(target))) target.focus({ preventScroll: true });
         else if (active && !active.dialog.current?.contains(document.activeElement)) active.close.current?.focus({ preventScroll: true });
       });
     };
