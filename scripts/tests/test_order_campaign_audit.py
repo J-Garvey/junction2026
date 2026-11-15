@@ -85,6 +85,23 @@ class EvidenceBoundaries(unittest.TestCase):
         row = {"status": 422, "response": {"error": "invalid", "message": "too long"}}
         self.assertEqual(audit.audit(row, {})[0], "inconclusive")
 
+    def test_shared_stock_cannot_be_used_twice(self):
+        lines = [{"id": "a", "productId": "p", "quantity": 300, "stock": {"kind": "known", "amount": 384}}, {"id": "b", "productId": "p", "quantity": 300, "stock": {"kind": "known", "amount": 384}}]
+        row = {"response": {"plan": {"urgent": True, "needs": [], "lines": lines}}}
+        self.assertTrue(any(f["rule"] == "confirmed_stock_overallocation" for f in audit.audit(row, {})[1]))
+
+    def test_quote_must_retain_origin(self):
+        row = {"response": {"plan": {"needs": [{"id": "a", "constraints": {"origin": "fi"}}], "lines": [{"id": "ref", "needIds": ["a"]}]}}, "gatewayQuoteRequests": [{"body": {"lines": [{"ref": "ref", "requires": {}}]}}]}
+        self.assertTrue(any(f["rule"] == "quote_constraint_lost" for f in audit.audit(row, {})[1]))
+
+    def test_wrong_named_order_proposal_fails_without_mutation(self):
+        row = {"expected": {"scope": ["Darragh"]}, "response": {"messages": [{"reply": {"status": "proposal"}}], "conversation": {"pending": {"orderId": "p"}}}, "snapshots": {"draftDetailsBefore": [], "draftDetailsAfter": [{"event": {"id": "p", "name": "Pavit"}, "requests": []}]}}
+        self.assertTrue(any(f["rule"] == "wrong_order_proposal" for f in audit.channel_checks(row, {})[0]))
+
+    def test_unsupported_multi_order_can_safely_clarify(self):
+        row = {"expected": {"scope": "all", "mustNotSilentlySelectOne": True}, "response": {"messages": [{"reply": {"status": "clarification"}}], "conversation": {"pending": None}}, "snapshots": {"draftDetailsBefore": [], "draftDetailsAfter": []}}
+        self.assertEqual(audit.channel_checks(row, {})[0], [])
+
 
 if __name__ == "__main__":
     unittest.main()

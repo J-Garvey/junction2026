@@ -131,6 +131,82 @@ def parsed_request(response):
     return None
 
 
+def basket_state(detail):
+    """Compare observable staged content, excluding proposals and UI timestamps."""
+    staged = []
+    for request in detail.get("requests", []):
+        if not request.get("basketedAt") and not request.get("orderIds"):
+            continue
+        for line in request.get("lines", []):
+            if not line.get("removed"):
+                staged.append((line.get("productId"), line.get("quantity"), line.get("salesUnit"), line.get("outletId")))
+    receipts = sorted(o.get("id", "") for o in detail.get("orders", []))
+    return sorted(staged, key=str), receipts
+
+
+def channel_checks(row, catalog):
+    response = row.get("response", {})
+    messages = response.get("messages", [])
+    reply = next((m["reply"] for m in reversed(messages) if isinstance(m, dict) and m.get("reply")), None)
+    snapshots = row.get("snapshots", {})
+    before = snapshots.get("draftDetailsBefore")
+    after = snapshots.get("draftDetailsAfter")
+    if not reply or not isinstance(before, list) or not isinstance(after, list):
+        return [], [], ["channel snapshots or structured reply unavailable; no scope/mutation certification"]
+    checks, failures, limits = ["channel before/after staged baskets and structured reply"], [], []
+    expected = row.get("auditExpected", row.get("expected", {}))
+    before_by_id = {d["event"]["id"]: d for d in before if d.get("event")}
+    after_by_id = {d["event"]["id"]: d for d in after if d.get("event")}
+    changes = {key for key, d in after_by_id.items() if key not in before_by_id or basket_state(d) != basket_state(before_by_id[key])}
+    scope = expected.get("scope")
+    names = {key: d["event"]["name"] for key, d in after_by_id.items()}
+    allowed = {key for key, name in names.items() if isinstance(scope, list) and name in scope}
+    conversation = response.get("conversation", {})
+    pending = conversation.get("pending") or {}
+    if isinstance(scope, list):
+        checks.append("named-order scope against actual event IDs")
+        if changes - allowed:
+            failures.append({"rule": "wrong_order_mutation", "expected": scope, "observed": [names[k] for k in changes - allowed]})
+        if pending.get("orderId") and pending["orderId"] not in allowed:
+            failures.append({"rule": "wrong_order_proposal", "expected": scope, "observed": names.get(pending["orderId"], pending["orderId"])})
+    if expected.get("mustNotMutate") and changes:
+        failures.append({"rule": "forbidden_mutation", "observed": [names[k] for k in changes]})
+    if expected.get("mustNotSilentlySelectOne"):
+        checks.append("unsupported multi-order request safely clarifies or covers complete scope")
+        if pending.get("orderId") or (len(changes) == 1):
+            failures.append({"rule": "silently_selected_one_order", "observed": pending.get("orderId") or list(changes)})
+    if reply.get("status") in ("clarification", "blocked"):
+        checks.append("safe clarification/block without staged mutation")
+        if changes:
+            failures.append({"rule": "mutation_during_clarification", "observed": [names[k] for k in changes]})
+    for key, d in after_by_id.items():
+        original_ids = {r.get("id") for r in before_by_id.get(key, {}).get("requests", [])}
+        for request in d.get("requests", []):
+            if request.get("id") in original_ids:
+                continue
+            if reply.get("status") not in ("proposal", "updated", "ordered", "approval_required"):
+                continue
+            for line in request.get("lines", []):
+                product = catalog.get(str(line.get("productId")))
+                if product:
+                    checks.append("new channel selection against independently authored hard constraints")
+                    for problem in check_constraints(product, expected):
+                        failures.append({"rule": "channel_selection_hard_constraint", "productId": product["id"], "problem": problem})
+                    for problem in candidate_identity(product, expected):
+                        failures.append({"rule": "channel_selection_identity", "productId": product["id"], "problem": problem})
+    orders = snapshots.get("orders", {}).get("orders", [])
+    if expected.get("mustNotOrder"):
+        checks.append("no receipt for explicitly non-orderable request")
+        if orders:
+            failures.append({"rule": "unexpected_receipt", "orderIds": [o.get("id") for o in orders]})
+    if expected.get("noDuplicateOrders"):
+        checks.append("single-order sequence receipt count")
+        if len(orders) > 1:
+            failures.append({"rule": "duplicate_receipts", "orderIds": [o.get("id") for o in orders]})
+    limits.append("channel rules verify observable scope and selected catalog facts; precise conversation meaning/confirmation sequence still requires manual sample")
+    return failures, checks, limits
+
+
 def audit(row, catalog, fixture=None):
     failures, checks, limitations = [], [], []
     response = row.get("response", row.get("output", {}))
@@ -150,6 +226,11 @@ def audit(row, catalog, fixture=None):
         if interpretation.get("intent") != expected["intent"]:
             failures.append({"rule": "intent", "expected": expected["intent"], "observed": interpretation.get("intent")})
         limitations.append("interpreter evidence only; mutation behavior requires coordinator snapshots")
+    if row.get("channel") == "whatsapp":
+        channel_failures, channel_done, channel_limits = channel_checks(row, catalog)
+        failures.extend(channel_failures)
+        checks.extend(channel_done)
+        limitations.extend(channel_limits)
     # Expected lines are independently authored, never derived from returned parse.
     exp_lines = expected.get("lines")
     if exp_lines is None and expected.get("product") and "amount" in expected:
@@ -217,6 +298,7 @@ def audit(row, catalog, fixture=None):
             limitations.append(f"{related.get('purpose', related.get('path'))}: HTTP {related['status']}; that downstream stage is not certified")
     if isinstance(response.get("planResponse"), dict) and response["planResponse"].get("status", 200) >= 400:
         limitations.append("probe planning failed; parse checks only, no plan certified")
+    line_requirements = {}
     for path, obj in walk(evidence):
         if isinstance(obj.get("candidates"), list) and isinstance(obj.get("constraints"), dict):
             constraints = semantic_constraints(obj)
@@ -225,6 +307,13 @@ def audit(row, catalog, fixture=None):
                 constraints[key] = sorted(set(constraints.get(key, [])) | set(authored.get(key, [])))
             if authored.get("origin"):
                 constraints["origin"] = authored["origin"]
+            if isinstance(authored.get("amount"), (int, float)) and authored.get("unit") and isinstance(obj.get("amount"), dict):
+                unit = authored["unit"]
+                factor, base_unit = {"g": (.001, "kg"), "kg": (1, "kg"), "ml": (.001, "l"), "dl": (.1, "l"), "l": (1, "l"), "pcs": (1, "pcs")}.get(unit, (None, None))
+                if factor is not None:
+                    checks.append("need quantity conversion against authored per-item amount")
+                    if obj["amount"].get("unit") != base_unit or not same(obj["amount"].get("value"), authored["amount"] * factor):
+                        failures.append({"rule": "need_quantity", "path": path, "expected": {"value": authored["amount"] * factor, "unit": base_unit}, "observed": obj["amount"]})
             for c in obj["candidates"]:
                 pid = str(c.get("productId", ""))
                 p = catalog.get(pid)
@@ -256,6 +345,28 @@ def audit(row, catalog, fixture=None):
             original = {n.get("id") for n in obj["needs"]}
             if original - referenced and obj.get("status") not in ("needs_input", "blocked"):
                 failures.append({"rule": "unrepresented_need", "path": path, "needIds": sorted(original - referenced)})
+            by_need = {n.get("id"): semantic_constraints(n) for n in obj["needs"]}
+            allocations = collections.defaultdict(list)
+            for line in obj["lines"]:
+                if line.get("removed"):
+                    continue
+                line_requirements[line.get("id")] = [by_need[n] for n in line.get("needIds", []) if n in by_need]
+                if isinstance(line.get("stock"), dict) and line["stock"].get("kind") == "known":
+                    allocations[(line.get("productId"), line.get("availableDate"))].append(line)
+                pack, need = line.get("packContent"), line.get("needAmount")
+                if pack and need and pack.get("verified") and pack.get("value", 0) > 0 and pack.get("unit") == need.get("unit") and not obj.get("shortfall"):
+                    checks.append("whole-pack coverage and rounding")
+                    if line.get("allocation") == "primary" and len(line.get("needIds", [])) == 1 and line.get("status") == "covered":
+                        minimum = math.ceil(need["value"] / pack["value"] - 1e-9)
+                        if line.get("quantity") < minimum:
+                            failures.append({"rule": "pack_underfill", "path": path, "expectedMinimumSalesUnits": minimum, "observed": line.get("quantity")})
+            if obj.get("urgent"):
+                checks.append("shared confirmed stock across repeated SKU allocations")
+                for (pid, date), lines in allocations.items():
+                    total = sum(l.get("quantity", 0) for l in lines)
+                    stock = min(l["stock"]["amount"] for l in lines)
+                    if total > stock + 1e-6:
+                        failures.append({"rule": "confirmed_stock_overallocation", "path": path, "productId": pid, "date": date, "allocated": total, "knownStock": stock})
         if fixture and obj.get("productId") and obj.get("source") == "fixture" and "unitPrice" in obj:
             pid = str(obj["productId"])
             raw_price = fixture.get("price", {}).get(pid)
@@ -288,6 +399,18 @@ def audit(row, catalog, fixture=None):
             clock = dt.datetime.fromisoformat(row["scenario"]["clock"].replace("Z", "+00:00"))
             if close <= clock:
                 failures.append({"rule": "expired_candidate_cutoff", "path": path, "closingTime": obj["closingTime"], "clock": row["scenario"]["clock"]})
+    for quote in row.get("gatewayQuoteRequests", []):
+        for line in quote.get("body", {}).get("lines", []):
+            requirements = semantic_constraints(line.get("requires", {}))
+            for expected_constraints in line_requirements.get(line.get("ref"), []):
+                checks.append("requirements retained in actual gateway quote HTTP body")
+                for field in ("claims", "avoidAllergens", "labels", "origin"):
+                    wanted = expected_constraints.get(field)
+                    if not wanted:
+                        continue
+                    matches = requirements.get(field) == wanted if field == "origin" else set(wanted).issubset(requirements.get(field, []))
+                    if not matches:
+                        failures.append({"rule": "quote_constraint_lost", "ref": line.get("ref"), "field": field, "expected": wanted, "observed": requirements.get(field)})
     if candidate_count:
         checks.append(f"all {candidate_count} primary/secondary candidate catalog constraints")
     limitations.append("identity checks cover explicit selected identity rules; remaining nuanced product identity needs manual review")

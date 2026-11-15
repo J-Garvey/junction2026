@@ -21,11 +21,15 @@ const { searchMatches } = await import("../catalog.js");
 const { interpretWhatsApp } = await import("../whatsapp/interpreter.js");
 const nativeFetch = globalThis.fetch;
 const intercepted: string[] = [];
+const gatewayQuoteRequests: any[] = [];
 globalThis.fetch = (async (url: any, options: any) => {
   const target = new URL(String(url));
   if (target.hostname !== "127.0.0.1") {
     intercepted.push(`${target.origin}${target.pathname}`);
     throw new Error("Auditor network boundary: nonlocal call intercepted");
+  }
+  if (target.pathname === "/gateway/v1/quotes" && options?.method === "POST") {
+    gatewayQuoteRequests.push({ method: "POST", path: target.pathname, body: JSON.parse(options.body) });
   }
   return nativeFetch(url, options);
 }) as typeof fetch;
@@ -49,6 +53,7 @@ try {
   await call("/clock", { time: "2026-11-14T10:00:00Z" });
   for (const c of cases) {
     intercepted.length = 0;
+    gatewayQuoteRequests.length = 0;
     const start = performance.now();
     let result: any;
     if (c.channel === "whatsapp_coordinator") {
@@ -104,7 +109,7 @@ try {
     const row = { ...c, attemptId: `${c.caseId}-${sha.slice(0, 8)}-${Date.now()}`, timestamp: new Date().toISOString(),
       codeSha: sha, source: "auditor-hand-authored", parserModelMode: "disabled/fallback", stage: c.plan ? "plan" : "parse",
       http: c.channel === "whatsapp_interpreter" ? null : { method: "POST", path: c.channel === "whatsapp_coordinator" ? "/api/whatsapp/messages" : "/api/messages", body: { text: c.input } },
-      ...result, elapsedMs: performance.now() - start, network: { upstreamBlocked: true, intercepted: [...intercepted] } };
+      ...result, gatewayQuoteRequests: [...gatewayQuoteRequests], elapsedMs: performance.now() - start, network: { upstreamBlocked: true, intercepted: [...intercepted] } };
     appendFileSync(destination, JSON.stringify(row) + "\n");
     console.log(JSON.stringify({ caseId: c.caseId, status: result.status, parsedLines: result.response.request?.lines?.length, intercepted: intercepted.length }));
   }

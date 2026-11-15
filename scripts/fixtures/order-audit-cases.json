@@ -75,7 +75,8 @@
           "origin": "fi"
         }
       ]
-    }
+    },
+    "plan": true
   },
   {
     "caseId": "AUD-allergy",
@@ -1620,6 +1621,35 @@
     ],
     "expected": {
       "noUnauthorizedMutation": true
+    }
+  },
+  {
+    "caseId": "AUD-duplicate-stock",
+    "family": "duplicate-stock",
+    "channel": "main",
+    "input": "300 l lactose-free milk 469363 and 300 l lactose-free milk 469363",
+    "plan": true,
+    "expected": {
+      "lines": [
+        {
+          "product": "milk",
+          "productId": "469363",
+          "amount": 300,
+          "unit": "l",
+          "claims": [
+            "FREE_FROM_LACTOSE"
+          ]
+        },
+        {
+          "product": "milk",
+          "productId": "469363",
+          "amount": 300,
+          "unit": "l",
+          "claims": [
+            "FREE_FROM_LACTOSE"
+          ]
+        }
+      ]
     }
   }
 ]
