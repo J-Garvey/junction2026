@@ -24,11 +24,11 @@ export function Audit() {
         </div>
       </div>
       <div className="row" style={{ flexWrap: "wrap" }}>
-        <input className="search audit-filter" placeholder="Filter" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input className="search audit-filter" aria-label="Filter audit entries" placeholder="Filter" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
       {error && <div className="callout red">{error}</div>}
       {loading && !data && <div className="muted">Loading…</div>}
-      <div className="card audit">
+      <div className="card audit" role="region" aria-label="Audit entries" tabIndex={0}>
         <table className="t">
           <thead>
             <tr>
