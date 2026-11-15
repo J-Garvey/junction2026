@@ -56,7 +56,7 @@ describe("gateway chef continuation", () => {
     const saved = structuredClone(fixture.availability[potato.id]);
     try {
       // Synthetic stock fixture isolates the D35 concern from the independent D31 concern.
-      fixture.availability[potato.id] = { ...saved, logisticModel: "Stock", scheduleLines: saved.scheduleLines.map((s) => ({ ...s, availableAmount: 100 })) };
+      fixture.availability[potato.id] = { ...saved, logisticModel: "Stock", scheduleLines: saved.scheduleLines.map((s: Record<string, unknown>) => ({ ...s, availableAmount: 100 })) };
       const q = await createQuote(identity(), terms());
       expect(q.unconfirmedStock).toEqual([]);
       const a = acknowledge(q);
