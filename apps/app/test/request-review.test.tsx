@@ -7,6 +7,7 @@ import { api, ApiError, type BasketResp, type Person, type PlanResp } from "../s
 import { Ctx, type AppCtx } from "../src/ctx";
 import { RequestReviewDialog } from "../src/ui/RequestReviewDialog";
 import { BasketPage } from "../src/screens/Baskets";
+import { RequestPlan } from "../src/screens/Request";
 
 const chef: Person = { id: "aino", name: "Aino", title: "Head chef", role: "chef", outlets: ["banquet"], hotelScope: false };
 const candidate: Candidate = {
@@ -56,6 +57,49 @@ beforeEach(() => {
   vi.spyOn(api, "product").mockResolvedValue({ claims: ["FREE_FROM_LACTOSE"], contains: [], mayContain: [], hasAllergenData: false } as unknown as ProductDetails);
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+
+describe("standalone request proposal scope", () => {
+  function showProposal(me: Person) {
+    const result = fixture();
+    result.plan.eventId = null;
+    delete result.plan.itemReviews;
+    vi.spyOn(api, "plan").mockResolvedValue(result);
+    vi.spyOn(api, "rules").mockResolvedValue({ mandate: { spendCapEur: 1000 } } as Awaited<ReturnType<typeof api.rules>>);
+    vi.spyOn(api, "accept").mockResolvedValue(result);
+    vi.spyOn(api, "choose").mockResolvedValue(result);
+    const context: AppCtx = { me, people: [me], outlets: [], status: null, now: "2026-11-14T10:00:00Z", tick: 0, refresh: vi.fn(), switchPerson: vi.fn() };
+    const page = (person: Person) => <MemoryRouter initialEntries={["/requests/plan"]}><Ctx.Provider value={{ ...context, me: person }}><Routes><Route path="/requests/:id" element={<RequestPlan />} /></Routes></Ctx.Provider></MemoryRouter>;
+    return { ...render(page(me)), page };
+  }
+
+  it("keeps the proposal visible but disables acceptance and alternatives after switching to a bar-only viewer", async () => {
+    const { rerender, page } = showProposal(chef);
+    const accept = await screen.findByRole("button", { name: "Add to quote" }) as HTMLButtonElement;
+    expect(accept.disabled).toBe(false);
+    rerender(page({ ...chef, id: "mikko", name: "Mikko", outlets: ["bar"] }));
+    expect(screen.getByText("Selected milk")).toBeTruthy();
+    expect(screen.getByText(/outside your outlet scope/)).toBeTruthy();
+    for (const button of [accept, screen.getByRole("button", { name: /Replacement milk/ }) as HTMLButtonElement]) {
+      expect(button.disabled).toBe(true);
+      fireEvent.click(button);
+    }
+    expect(api.accept).not.toHaveBeenCalled();
+    expect(api.choose).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    chef,
+    { ...chef, id: "sanna", name: "Sanna", role: "approver" as const, hotelScope: true, outlets: [] },
+  ])("allows $name to accept and choose within their scope", async (person) => {
+    showProposal(person);
+    fireEvent.click(await screen.findByRole("button", { name: /Replacement milk/ }));
+    await waitFor(() => expect(api.choose).toHaveBeenCalledExactlyOnceWith("plan", "need", "464306"));
+    await waitFor(() => expect((screen.getByRole("button", { name: "Add to quote" }) as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(screen.getByRole("button", { name: "Add to quote" }));
+    await waitFor(() => expect(api.accept).toHaveBeenCalledExactlyOnceWith("plan"));
+    expect(screen.queryByText(/outside your outlet scope/)).toBeNull();
+  });
+});
 
 describe("saved request review controls", () => {
   function stagedPage(me = chef, unknownStock = false, submitted = false, committed = false) {

@@ -316,6 +316,7 @@ export function appRouter(): Router {
   r.post("/plans/:id/accept", changingPlan(async (req, res) => {
     const plan = getPlan(String(req.params.id));
     if (!plan) return res.status(404).json({ error: "No such plan" });
+    if (!inPlanScope(req, plan)) return res.status(403).json({ error: "This item is outside your hotel or outlet scope" });
     if (plan.itemReviews) return res.status(409).json({ error: "Approve the individual items and add them to the order before final finance review" });
     if (!plan.proposal) return res.status(409).json({ error: "Nothing waiting to be added" });
     const p = P(req);
