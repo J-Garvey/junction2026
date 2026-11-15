@@ -4,7 +4,7 @@
  * ORDER-DIFF, CHANGE-APPLY, ALLERGY-RECHECK, FINAL-CHECK, SHORTFALL-RESOLVE,
  * SUBSTITUTE-FIND, SILENCE-RESOLVE, COVERAGE-SUMMARY. EDIT-GUARD for events.
  */
-import type { EventSpec, Order, Question, WarningRecord, DietGroup, Need } from "@aimo/contracts";
+import { hasUnconfirmedAllergenData, type EventSpec, type Order, type Question, type WarningRecord, type DietGroup, type Need, type Quote, type AmendmentBody } from "@aimo/contracts";
 import { getDb, getJson, allJson } from "../db.js";
 import { now, nowIso } from "../clock.js";
 import { getProduct, getRaw, searchProducts } from "../catalog.js";
@@ -20,6 +20,7 @@ import { newPlan, quoteAndDecide, viability, savePlan, getPlan, runPipeline, man
 import { recallSubstitute } from "./memory.js";
 import { specCompare } from "./sidebyside.js";
 import type { Person } from "../identity.js";
+import { allergenQuestionText, constraintsForLine, eventAllergenScope, lineAllergenScope, missingAllergenProducts } from "./allergenData.js";
 
 export type StoredEvent = EventSpec & {
   version: number;
@@ -50,7 +51,15 @@ export function editEvent(id: string, baseVersion: number, by: string, what: str
   const e = getEvent(id);
   if (!e) throw new Error("No such event");
   if (e.version !== baseVersion) throw new EditConflict(e);
+  const previousAllergenScope = eventAllergenScope(e);
   mutate(e);
+  if (eventAllergenScope(e) !== previousAllergenScope) {
+    for (const q of allQuestions().filter((q) => q.eventId === id && (q.state === "open" || q.state === "waiting") &&
+      (q.type === "missing_allergen_data" || Array.isArray(q.facts.allergenAcknowledgements) && q.facts.allergenAcknowledgements.length))) {
+      q.state = "replaced";
+      saveQuestion(q);
+    }
+  }
   e.version += 1;
   e.changes.push({ at: nowIso(), by, what });
   saveEvent(e);
@@ -170,16 +179,32 @@ async function applyChange(e: StoredEvent, p: Person, what: string) {
   saveEvent(e);
   const base = e.orderedGuests ?? e.guests;
   const pct = base ? ((e.guests - base) / base) * 100 : 100;
-  const changes = diff.filter((d) => d.change !== "unchanged" && d.change !== "needs_substitute").map((d) => ({ productId: d.productId, outletId: d.outletId, quantity: d.now }));
+  const changes: AmendmentBody["changes"] = diff.filter((d) => d.change !== "needs_substitute").map((d) => {
+    const line = plan.lines.find((l) => l.productId === d.productId && l.outletId === d.outletId);
+    return { productId: d.productId, outletId: d.outletId, quantity: d.now, ...(line ? { requires: constraintsForLine(plan, line), allergenScope: lineAllergenScope(plan, line) } : {}) };
+  });
   // A product added by a person's choice (a replacement) carries that person's D31 decision on its stock.
   const continueWith = diff.filter((d) => d.change === "added" && plan.lines.some((l) => l.productId === d.productId && l.stock?.kind === "unknown")).map((d) => d.productId);
   (e as StoredEvent & { latestPlanId?: string }).latestPlanId = plan.id;
+  saveEvent(e);
   const facts = { from: base, to: e.guests, pct: `${pct >= 0 ? "+" : ""}${round2(pct)}%`, tolerance: `±${m.preAnswers.guestChangeMaxPct}%` };
-  if (!changes.length) {
+  const allergyChanged = changes.some((c) => {
+    const previous = order.lines.find((l) => !l.removed && l.productId === c.productId && l.outletId === c.outletId);
+    return previous?.allergenScope !== c.allergenScope;
+  });
+  if (diff.every((d) => d.change === "unchanged") && !allergyChanged) {
     audit({ actor: AGENT, action: "order_amended", summary: `${what}: pack rounding means no line changes`, eventId: e.id, ruleIds: ["CHG-01"], details: { diff }, visibility: "hotel" });
     return { applied: true, reason: "No change: pack rounding absorbs it.", diff };
   }
   const within = Math.abs(pct) <= m.preAnswers.guestChangeMaxPct && !diff.some((d) => d.change === "needs_substitute");
+  if ((within || outcomeOf("CHG-02") !== "block") && plan.lines.some(hasUnconfirmedAllergenData)) {
+    const { quote } = await gw.amend(order.id, { changes, quoteOnly: true });
+    plan.quoteId = quote.id;
+    plan.fingerprint = quote.fingerprint;
+    savePlan(plan);
+    const question = askChangeAllergens(e, plan, { orderId: order.id, changes, diff, continueWith, decidedBy: p.name, ...facts, requiresFinance: !within || outcomeOf("CHG-01") !== "order" }, quote);
+    if (question) return { applied: false, reason: question.body, diff, questionId: question.id };
+  }
   // RULE-POLICY: CHG-01 may be set to always ask, and CHG-02 to refuse changes over tolerance.
   if (!within && outcomeOf("CHG-02") === "block") {
     const reason = `${fire("CHG-02", facts).message} The hotel refuses such changes; the order stays as it is.`;
@@ -189,8 +214,7 @@ async function applyChange(e: StoredEvent, p: Person, what: string) {
   if (within && outcomeOf("CHG-01") === "order") {
     try {
       const r = await gw.amend(order.id, { changes, continueWithUnconfirmedStock: continueWith, decidedBy: p.name });
-      e.orderedGuests = e.guests;
-      saveEvent(e);
+      completeChange(e, plan.id, r.order, r.quote);
       audit({ actor: AGENT, action: "order_amended", summary: fire("CHG-01", facts).message, eventId: e.id, orderId: order.id, ruleIds: ["CHG-01"], details: { diff, version: r.order.version }, visibility: "hotel" });
       return { applied: true, reason: fire("CHG-01", facts).message, diff };
     } catch (err) {
@@ -221,6 +245,51 @@ function earliestCutoff(o: Order): string | null {
   return t.length ? new Date(Math.min(...t)).toISOString() : null;
 }
 
+function askChangeAllergens(e: StoredEvent, plan: StoredPlan, facts: Record<string, unknown>, quote: Quote) {
+  const missing = missingAllergenProducts(quote, plan.overrides.allergenAcknowledgements);
+  if (!missing.length) return null;
+  const outletId = missing[0].outletId;
+  const productIds = [...new Set(missing.filter((l) => l.outletId === outletId).map((l) => l.productId))];
+  const question = makeQuestion({ planId: plan.id, eventId: e.id, type: "missing_allergen_data", forRole: "chef", outletId,
+    quoteId: quote.id, fingerprint: quote.fingerprint, deadline: quote.expiresAt,
+    title: "Continue with allergen data not confirmed?", body: allergenQuestionText(plan, productIds),
+    facts: { ...facts, kind: "change_allergens", productIds, eventScope: eventAllergenScope(e), allergenAcknowledgements: plan.overrides.allergenAcknowledgements ?? [] }, ruleIds: ["ALG-03"],
+    options: [{ id: "continue", label: "Continue with missing allergen data", primary: true }, { id: "others", label: "Pick another product", primary: false }],
+  });
+  saveQuestion(question);
+  audit({ actor: AGENT, action: "question_asked", summary: question.body, eventId: e.id, quoteId: quote.id, questionId: question.id, ruleIds: ["ALG-03"], details: { planId: plan.id }, visibility: "hotel" });
+  return question;
+}
+
+function completeChange(e: StoredEvent, planId: string, order: Order, quote?: Quote) {
+  const plan = getPlan(planId);
+  if (plan) {
+    plan.orderIds = [order.id];
+    plan.status = "ordered";
+    plan.totalExVat = order.totalExVat;
+    plan.totalVat = order.totalVat;
+    plan.approvalsNeeded = [];
+    if (quote) { plan.quoteId = quote.id; plan.fingerprint = quote.fingerprint; }
+    plan.summary = `Changed · ${eur(order.totalExVat)}${order.lines.some((l) => !l.removed && hasUnconfirmedAllergenData(l)) ? " · allergen data not confirmed" : ""}`;
+    for (const line of plan.lines) {
+      const ordered = order.lines.find((l) => !l.removed && l.productId === line.productId && l.outletId === line.outletId);
+      line.allergenDataAcknowledgement = ordered?.allergenDataAcknowledgement;
+      line.riskAccepted = ordered?.riskAccepted ?? null;
+      if (ordered) {
+        line.quantity = ordered.quantity;
+        line.unitPrice = ordered.unitPrice;
+        line.lineTotal = ordered.lineTotal;
+        line.stock = ordered.stock;
+      }
+    }
+    savePlan(plan);
+    e.orderPlanId = plan.id;
+  }
+  e.orderedGuests = e.guests;
+  e.finalCheck = null;
+  saveEvent(e);
+}
+
 async function askChangeStock(e: StoredEvent, planId: string, facts: Record<string, any>, quoteId: string) {
   const reviewed = await gw.getQuote(quoteId);
   const lines = reviewed.lines.filter((l) => reviewed.unconfirmedStock.includes(l.productId));
@@ -240,21 +309,68 @@ async function askChangeStock(e: StoredEvent, planId: string, facts: Record<stri
 export async function answerChange(q: Question, p: Person, token: string) {
   const f = q.facts as any;
   const e = getEvent(q.eventId!)!;
+  if (f.allergenAcknowledgements?.length && f.eventScope && eventAllergenScope(e) !== f.eventScope)
+    throw new Error("The affected guests or menu changed. The chef must review the missing allergen data again.");
+  if (f.kind === "change_allergens") {
+    if (eventAllergenScope(e) !== f.eventScope) throw new Error("The affected guests or menu changed. Review the missing allergen data again.");
+    if (q.answer === "others") {
+      const plan = getPlan(q.planId)!;
+      for (const id of f.productIds as string[]) {
+        const line = plan.lines.find((l) => l.productId === id)!;
+        const need = plan.needs.find((n) => line.needIds.includes(n.id) && n.constraints.avoidAllergens.length);
+        const group = e.dietGroups.find((g) => g.id === need?.groupId);
+        const ing = e.dishes.flatMap((d) => d.ingredients).find((i) => i.id === need?.ingredientId);
+        const replacements = ing && group ? await findReplacements(e, id, ing, group, e.serviceDate) : [];
+        const next = makeQuestion({ planId: q.planId, eventId: q.eventId, forRole: "chef", outletId: q.outletId, quoteId: null, fingerprint: null, deadline: q.deadline, ruleIds: ["ALG-03"], title: `Choose another product: ${line.productName}`, body: "The change is held. Choose a replacement or give the affected guests another dish.",
+          type: "substitute", facts: { kind: "missing_allergen_replacement", productId: id, groupId: group?.id, replacements, dishes: e.dishes.filter((d) => d.ingredients.some((i) => i.productId === id)).map((d) => d.id) },
+          options: [...replacements.map((r, i) => ({ id: `replace_${i}`, label: `Replace for everyone: ${shortName(r.name)}`, primary: i === 0 })), { id: "other_dish", label: "Give affected guests another dish", primary: false }] });
+        saveQuestion(next);
+      }
+      return;
+    }
+    const acknowledgement = await gw.acknowledgeAllergens(token, q.quoteId!, q.fingerprint!, f.productIds);
+    const plan = getPlan(q.planId)!;
+    plan.overrides.allergenAcknowledgements = [...(plan.overrides.allergenAcknowledgements ?? []), acknowledgement];
+    savePlan(plan);
+    f.allergenAcknowledgements = plan.overrides.allergenAcknowledgements;
+    const reviewed = await gw.getQuote(q.quoteId!);
+    if (askChangeAllergens(e, plan, f, reviewed)) return;
+    if (f.requiresFinance) {
+      const finance = makeQuestion({ planId: q.planId, eventId: e.id, type: "change_outside_tolerance", forRole: "approver", outletId: null,
+        quoteId: reviewed.id, fingerprint: reviewed.fingerprint, deadline: reviewed.expiresAt,
+        title: `${f.from} → ${f.to} guests?`, body: `${f.pct} · chef continued with allergen data not confirmed; finance approval is still required.`,
+        facts: { ...f, kind: "change" }, ruleIds: ["CHG-02"],
+        options: [{ id: "approve", label: "Approve the change", primary: true }, { id: "keep", label: "Keep the order as is", primary: false }],
+      });
+      saveQuestion(finance);
+      return;
+    }
+  }
   if (q.answer === "keep") {
     audit({ actor: personActor(p), action: "order_amended", summary: `${p.name} kept the order as is (${f.from} guests ordered, event now ${f.to})`, eventId: e.id, ruleIds: ["CHG-02"], details: {}, visibility: "hotel" });
     return;
   }
   const body = { changes: f.changes, continueWithUnconfirmedStock: f.continueWith ?? [],
-    stockQuoteId: f.stockQuoteId, decidedBy: f.kind === "change_stock" ? p.name : f.decidedBy ?? undefined };
+    stockQuoteId: f.stockQuoteId, decidedBy: f.kind === "change_stock" ? p.name : f.decidedBy ?? undefined,
+    allergenAcknowledgements: (f.allergenAcknowledgements ?? []).map((a: { token: string }) => a.token) };
+  let changedOrder: Order;
+  let changedQuote: Quote;
   try {
-    try { await gw.amend(f.orderId, body); }
+    try { const result = await gw.amend(f.orderId, body); changedOrder = result.order; changedQuote = result.quote; }
     catch (err) {
       if (!(err instanceof GatewayError) || err.body.error !== "mandate_violation" || !err.body.newQuoteId || p.role !== "approver") throw err;
       const nq = await gw.getQuote(err.body.newQuoteId);
       const a = await gw.approve(token, nq.id, nq.fingerprint, nq.mandateCheck.approvalsNeeded);
-      await gw.amend(f.orderId, { ...body, approvalId: a.id });
+      const result = await gw.amend(f.orderId, { ...body, approvalId: a.id });
+      changedOrder = result.order;
+      changedQuote = result.quote;
     }
   } catch (err) {
+    if (err instanceof GatewayError && (err.body.error === "allergen_data_unconfirmed" || err.body.error === "quote_stale") && err.body.newQuoteId) {
+      const plan = getPlan(q.planId)!;
+      const reviewed = await gw.getQuote(err.body.newQuoteId);
+      if (askChangeAllergens(e, plan, f, reviewed)) return;
+    }
     if (err instanceof GatewayError && err.body.error === "stock_unconfirmed" && err.body.newQuoteId) {
       await askChangeStock(e, q.planId, f, err.body.newQuoteId);
       return;
@@ -263,15 +379,28 @@ export async function answerChange(q: Question, p: Person, token: string) {
     const finance = makeQuestion({
       planId: q.planId, eventId: e.id, type: "spend_cap", forRole: "approver", outletId: null,
       quoteId: err.body.newQuoteId, fingerprint: null, deadline: q.deadline,
-      title: "Approve the changed order?", body: "The builder reviewed its unconfirmed stock. Finance approval is still required.",
+      title: "Approve the changed order?", body: "The chef reviewed the product concerns. Finance approval is still required.",
       facts: { ...f, kind: "change", decidedBy: body.decidedBy }, ruleIds: ["MAN-01"],
       options: [{ id: "approve", label: "Approve the change", primary: true }, { id: "keep", label: "Keep the current order", primary: false }],
     });
     saveQuestion(finance);
     return;
   }
-  e.orderedGuests = e.guests;
-  saveEvent(e);
+  completeChange(e, q.planId, changedOrder!, changedQuote!);
+}
+
+export async function answerMissingAllergenReplacement(q: Question, p: Person) {
+  const f = q.facts as any;
+  const e = getEvent(q.eventId!)!;
+  editEvent(e.id, e.version, p.name, "Chose another product after missing allergen data", (x) => {
+    if (q.answer === "other_dish") {
+      for (const d of x.dishes) if (f.dishes.includes(d.id) && !d.excludesGroups.includes(f.groupId)) d.excludesGroups.push(f.groupId);
+    } else {
+      const replacement = f.replacements[Number(String(q.answer).slice(8))];
+      for (const d of x.dishes) for (const i of d.ingredients) if (i.productId === f.productId) { i.productId = replacement.productId; i.variants = undefined; }
+    }
+  });
+  return applyChange(getEvent(e.id)!, p, "Changed product");
 }
 
 // ---------- late allergy (CH-13, D28) ----------
@@ -440,7 +569,7 @@ export async function finalCheck(eventId: string) {
         }
       }
       if (f.stock.kind === "unknown") {
-        results.push({ productId: l.productId, productName: name, result: "covered_at_risk", detail: `Stock not confirmed; ${l.riskAccepted?.by ?? "a pre-answer"} chose to continue${l.riskAccepted ? ` on ${fmtHelsinki(l.riskAccepted.at, false)}` : ""}.` });
+        results.push({ productId: l.productId, productName: name, result: "covered_at_risk", detail: `Stock not confirmed; ${l.riskAccepted?.by ?? "a pre-answer"} chose to continue${l.riskAccepted ? ` on ${fmtHelsinki(l.riskAccepted.at, false)}` : ""}.${hasUnconfirmedAllergenData(l) ? " Allergen data not confirmed." : ""}` });
         continue;
       }
       if (f.stock.kind !== "known" || f.stock.amount < l.quantity) {
@@ -450,7 +579,7 @@ export async function finalCheck(eventId: string) {
         await resolveShortfall(e, o, l, stock, plan);
         continue;
       }
-      results.push({ productId: l.productId, productName: name, result: "covered", detail: fire("FIN-01", { product: name }).message });
+      results.push({ productId: l.productId, productName: name, result: hasUnconfirmedAllergenData(l) ? "allergen_data_unconfirmed" : "covered", detail: `${fire("FIN-01", { product: name }).message}${hasUnconfirmedAllergenData(l) ? " Allergen data not confirmed; chef continuation does not establish safety." : ""}` });
     }
   }
   const fc = { at: nowIso(), summary: "", lines: results };
@@ -459,7 +588,7 @@ export async function finalCheck(eventId: string) {
   fc.summary = coverageSummary(eventId).text;
   e.finalCheck = fc;
   saveEvent(e);
-  audit({ actor: AGENT, action: "final_check_run", summary: `Final check: ${fc.summary}`, eventId, ruleIds: results.map((r) => (r.result === "short" ? "FIN-02" : r.result === "price_changed" ? "PRC-03" : r.result === "covered_at_risk" ? "STK-03" : "FIN-01")), details: { results }, usesFixture: true, visibility: "shared" });
+  audit({ actor: AGENT, action: "final_check_run", summary: `Final check: ${fc.summary}`, eventId, ruleIds: results.map((r) => (r.result === "short" ? "FIN-02" : r.result === "price_changed" ? "PRC-03" : r.result === "covered_at_risk" ? "STK-03" : "FIN-01")), details: { results }, usesFixture: true, visibility: /allergen data not confirmed/i.test(fc.summary) || results.some((r) => /allergen data not confirmed/i.test(r.detail)) ? "hotel" : "shared" });
   return fc;
 }
 
@@ -472,6 +601,15 @@ export async function amendOrAsk(e: StoredEvent, orderId: string, changes: { pro
     await gw.amend(orderId, { changes, continueWithUnconfirmedStock: stock?.continueWith, decidedBy: stock?.decidedBy });
     return "applied";
   } catch (err) {
+    if (err instanceof GatewayError && err.body.newQuoteId && (err.body.error === "allergen_data_unconfirmed" || err.body.error === "stock_unconfirmed")) {
+      const facts = { orderId, changes, continueWith: stock?.continueWith ?? [], decidedBy: stock?.decidedBy ?? null };
+      if (err.body.error === "stock_unconfirmed") await askChangeStock(e, e.orderPlanId ?? "none", facts, err.body.newQuoteId);
+      else {
+        const plan = e.orderPlanId ? getPlan(e.orderPlanId) : null;
+        if (!plan || !askChangeAllergens(e, plan, facts, await gw.getQuote(err.body.newQuoteId))) throw err;
+      }
+      return "asked";
+    }
     if (!(err instanceof GatewayError) || err.body.error !== "mandate_violation") throw err;
     const q = makeQuestion({
       planId: e.orderPlanId ?? "none", eventId: e.id, type: "unknown_stock", forRole: "approver", outletId: null, quoteId: err.body.newQuoteId ?? null, fingerprint: null,
@@ -619,7 +757,7 @@ export function runCutoff(eventId: string) {
     q.state = "expired";
     saveQuestion(q);
     const f = q.facts as any;
-    const msg = q.type === "allergy_conflict" ? `Hotel has not confirmed; ${getProduct(f.productId)?.name} conflicts with a stated allergy and is still in the order.` : fire("SIL-01", { cutoff: q.deadline ? fmtHelsinki(q.deadline) : "the cut-off", told: policyParams().silenceFlagsValioAimo ? " and Valio Aimo has been told" : "" }).message;
+    const msg = q.type === "allergy_conflict" ? "Hotel has an unresolved product decision; the order remains as last approved." : fire("SIL-01", { cutoff: q.deadline ? fmtHelsinki(q.deadline) : "the cut-off", told: policyParams().silenceFlagsValioAimo ? " and Valio Aimo has been told" : "" }).message;
     flags.push(msg);
     audit({ actor: AGENT, action: "question_expired", summary: `Unanswered at the cut-off: ${q.title}`, eventId, questionId: q.id, ruleIds: ["SIL-01"], details: {}, visibility: "hotel" });
     if (q.type === "allergy_conflict" || policyParams().silenceFlagsValioAimo) audit({ actor: AGENT, action: "flag_sent_to_valio_aimo", summary: `Unresolved at cut-off: ${msg}`, eventId, orderId: f.orderId ?? null, ruleIds: ["SIL-01"], details: { productId: f.productId ?? f.original ?? null, askedAt: q.createdAt }, visibility: "shared" });
@@ -630,12 +768,20 @@ export function runCutoff(eventId: string) {
 /** COVERAGE-SUMMARY (Q07.7): never "covered" alone while anything is at risk or carries a warning. */
 export function coverageSummary(eventId: string): { level: "covered" | "at_risk" | "not_covered" | "warning" | "none"; text: string } {
   const e = getEvent(eventId);
+  const latestPlanId = (e as (StoredEvent & { latestPlanId?: string }) | null)?.latestPlanId;
+  const latestPlan = latestPlanId ? getPlan(latestPlanId) : null;
+  const concerned = new Set([
+    ...allJson<Order>("SELECT json FROM orders WHERE event_id = ?", eventId).filter((o) => o.state !== "rejected").flatMap((o) => o.lines),
+    ...(latestPlan?.lines ?? []),
+  ].filter((l) => !l.removed && hasUnconfirmedAllergenData(l)).map((l) => `${l.productId}|${l.outletId}`));
+  const allergenConcerns = concerned.size;
+  const concern = allergenConcerns ? ` · ${allergenConcerns} allergen data not confirmed` : "";
   const ws = warnings(eventId).filter((w) => w.state === "open");
   if (ws.length) return { level: "warning", text: `Allergy warning · ${ws.length} line${ws.length > 1 ? "s" : ""}` };
   const open = allQuestions().filter((q) => q.eventId === eventId && (q.state === "open" || q.state === "waiting"));
   if (open.length) {
     const d = open.map((q) => q.deadline).filter(Boolean).sort()[0];
-    return { level: "not_covered", text: `${open.length} open question${open.length > 1 ? "s" : ""}${d ? ` · by ${fmtHelsinki(d!)}` : ""}` };
+    return { level: "not_covered", text: `${open.length} open question${open.length > 1 ? "s" : ""}${d ? ` · by ${fmtHelsinki(d!)}` : ""}${concern}` };
   }
   const plan = e?.orderPlanId ? getPlan(e.orderPlanId) : null;
   if (plan && !plan.orderIds.length && plan.status === "blocked") {
@@ -647,8 +793,8 @@ export function coverageSummary(eventId: string): { level: "covered" | "at_risk"
   const fc = e?.finalCheck;
   const atRisk = fc ? fc.lines.filter((l) => l.result === "covered_at_risk").length : plan.lines.filter((l) => l.riskAccepted).length;
   const short = fc ? fc.lines.filter((l) => l.result === "short" || l.result === "price_changed").length : 0;
-  if (short) return { level: "not_covered", text: `${short} short` };
-  if (atRisk) return { level: "at_risk", text: `Ready · ${atRisk} stock not confirmed` };
+  if (short) return { level: "not_covered", text: `${short} short${concern}` };
+  if (atRisk || allergenConcerns) return { level: "at_risk", text: `Ready${atRisk ? ` · ${atRisk} stock not confirmed` : ""}${concern}` };
   return { level: "covered", text: "Ready" };
 }
 

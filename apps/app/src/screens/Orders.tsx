@@ -4,7 +4,7 @@ import type { Order } from "@aimo/contracts";
 import { Link, useSearchParams } from "react-router";
 import { api } from "../api";
 import { useApp, useLoad, outletName } from "../ctx";
-import { Fixture, Status } from "../ui/Status";
+import { AllergenDataMark, Fixture, Status } from "../ui/Status";
 import { stockText } from "../ui/Popover";
 import { day, eur, when } from "../format";
 import { OrderItemDialog } from "../ui/OrderItemDialog";
@@ -61,6 +61,7 @@ export function Orders() {
                 </span>
                 <span>{eur(l.lineTotal)}</span>
               </div>
+              <AllergenDataMark line={l} />
               {(l.removed || l.stock.kind === "unknown") && (
                 <div className="rl small muted">
                   <span className="row" style={{ gap: 6 }}>
@@ -93,6 +94,7 @@ export function Orders() {
             { label: "Line total", value: eur(selected.line.lineTotal) },
             { label: "Product ID", value: selected.line.productId },
             { label: "Stock", value: stockText(selected.line.stock) },
+            ...(selected.line.rules.some((r) => r.ruleId === "ALG-03") || selected.line.allergenDataAcknowledgement ? [{ label: "Allergen declaration", value: `Allergen data not confirmed${selected.line.allergenDataAcknowledgement ? `; ${selected.line.allergenDataAcknowledgement.by} chose to continue` : ""}. Safety is not confirmed.` }] : []),
             { label: "Delivery", value: day(selected.order.deliveryDate) },
             { label: "Placed by", value: selected.order.placedBy },
             { label: "Placed", value: when(selected.order.placedAt) },

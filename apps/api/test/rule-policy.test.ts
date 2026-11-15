@@ -30,8 +30,10 @@ describe("rule controls", () => {
   });
 
   it("safety floors can't be relaxed", () => {
-    for (const id of ["ALG-01", "ALG-02", "ALG-03", "ALG-10", "DIET-01", "DIET-02", "DLV-01", "DLV-06", "CUT-01", "CUT-02", "PRC-01", "MAN-04"])
+    for (const id of ["ALG-01", "ALG-02", "ALG-04", "ALG-10", "DIET-01", "DIET-02", "DLV-01", "DLV-06", "CUT-01", "CUT-02", "PRC-01", "MAN-04"])
       expect(CONTROLS[id].choices, id).toEqual(["block"]);
+    expect(CONTROLS["ALG-03"].choices).toEqual(["ask_chef"]);
+    expect(() => editRules(sanna(), { outcomes: { "ALG-03": "order" } })).toThrow(RuleEditError);
     expect(() => editRules(sanna(), { outcomes: { "ALG-02": "ask_chef" } })).toThrow(RuleEditError);
   });
 

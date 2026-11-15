@@ -1,5 +1,5 @@
 /** Hotel-side shapes (the agent's working state). Valio Aimo never receives these. */
-import type { AvailabilityEvidence, FiredRule, ModelJudgement, StockFact, SingleRequest, Constraints, Amount, BaseUnit } from "./index.js";
+import type { AllergenAcknowledgement, AvailabilityEvidence, FiredRule, ModelJudgement, StockFact, SingleRequest, Constraints, Amount, BaseUnit } from "./index.js";
 
 export interface OrderDeadline {
   state: "known" | "expired" | "unknown" | "unavailable";
@@ -101,6 +101,7 @@ export interface PlanLine {
   shares: { needId: string; label: string; amount: number }[];
   allocation: "primary" | "partial" | "unknown_fill" | "short";
   riskAccepted: { by: string; at: string } | null;
+  allergenDataAcknowledgement?: Omit<AllergenAcknowledgement, "token" | "productIds" | "expiresAt">;
   removed: boolean;
   /** Product-group average kg CO2e per kg, times the kg or L ordered. An estimate, labelled as such. */
   co2Kg?: number | null;
@@ -183,4 +184,9 @@ export interface WarningRecord {
   resolvedBy: string | null;
   resolution: string | null;
   createdAt: string;
+}
+
+/** Older snapshots may have only the rule; a continuation never clears the concern. */
+export function hasUnconfirmedAllergenData(line: { rules?: { ruleId: string }[]; allergenDataAcknowledgement?: unknown }): boolean {
+  return !!line.allergenDataAcknowledgement || !!line.rules?.some((rule) => rule.ruleId === "ALG-03");
 }
