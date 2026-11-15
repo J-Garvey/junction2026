@@ -4,7 +4,7 @@ import type { Need, Order, Plan, PlanLine, StatusLabel, WarningRecord } from "@a
 import { countdown, eur, qty, when, fi, plural, parseTime } from "../format";
 import { useApp, outletName } from "../ctx";
 import type { DiffLine } from "../api";
-import { AllergenDataMark, Status, Fixture, UnknownStockMark } from "./Status";
+import { AllergenDataMark, Status, UnknownStockMark } from "./Status";
 import { Pop, LineSource, CandidateSource, stockText } from "./Popover";
 import { Icon } from "./icons";
 import { useCategoryFilter, useShowAll } from "./ShowAll";
@@ -206,7 +206,6 @@ export function Candidates({ need, lines }: { need: Need; lines: PlanLine[] }) {
                   <CandidateSource c={c} />
                 </Pop>
                 {c.stock.kind === "unknown" && <UnknownStockMark reason={c.stock.reason} />}
-                {c.source === "fixture" && <Fixture />}
               </td>
               <td className="num">
                 {eur(c.unitPrice)}

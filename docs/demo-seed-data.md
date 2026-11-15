@@ -27,7 +27,7 @@ The clock opens at **Wednesday 11 November 2026, 10:00 Helsinki**, before Thursd
 
 Only the listed procurement components are seeded; these are not complete breakfast or conference menus. The bakery quantities use whole cases. The salmon uses the mock's whole-kilogram sales unit, as the wedding does. No delivery hour is promised.
 
-Order cards and details show the same saved guest count and creator. For the partner reception, these are 96 guests and Mikko; Sanna's note still asks for the final head count before resubmission. A stock warning refers to supplier availability. The **Demo data** badge explains that the displayed supplier terms come from saved responses; it was previously labelled “Fixture”.
+Order cards and details show the same saved guest count and creator. For the partner reception, these are 96 guests and Mikko; Sanna's note still asks for the final head count before resubmission. A stock warning refers to supplier availability. The displayed supplier terms come from saved responses; their source remains available in product and calculation details.
 
 Seeded activity runs forward on the same mock clock: breakfast approval on 9 Nov, reception return on 10 Nov, then the pending forum, milk and allergy work on 11 Nov. Pending quotes are issued on the morning of 11 Nov so their 24-hour validity has not expired on opening. The saved supplier terms remain labelled as fixtures, including when replayed at an earlier simulated date.
 

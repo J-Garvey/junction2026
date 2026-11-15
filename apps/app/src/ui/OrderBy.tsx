@@ -1,7 +1,6 @@
 import type { OrderDeadline } from "@aimo/contracts";
 import type { ReactNode } from "react";
 import { clockTime, day } from "../format";
-import { Fixture } from "./Status";
 
 const CUTOFF_NOTE = "Supplier ordering cutoff; stock and delivery terms are rechecked when ordering.";
 
@@ -58,7 +57,6 @@ export function OrderBy({ deadline, detail = false }: { deadline: OrderDeadline;
           {deadline.reason && <p>{deadline.reason}</p>}
           {deadline.excludedItems > 0 && <Excluded deadline={deadline} />}
         </Info>
-        <Fixture show={deadline.usesFixtures} />
       </div>
       <strong>{when}</strong>
     </div>

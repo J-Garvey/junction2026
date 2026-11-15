@@ -10,7 +10,7 @@ import { stockText } from "../ui/Popover";
 import { QuestionCard } from "../ui/QuestionCard";
 import { ProcessingTime } from "../ui/ProcessingTime";
 import { CarbonEstimate } from "../ui/CarbonEstimate";
-import { Status, planStatusKind, PLAN_STATUS_TEXT, Fixture } from "../ui/Status";
+import { Status, planStatusKind, PLAN_STATUS_TEXT } from "../ui/Status";
 import { claimLabel, day, eur, qty, when, helsinkiDate, addDays } from "../format";
 import { LineCalculation, TotalCalculation } from "../ui/CalculationEvidence";
 import { Pop } from "../ui/Popover";

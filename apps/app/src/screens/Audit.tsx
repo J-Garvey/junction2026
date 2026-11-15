@@ -3,7 +3,6 @@ import { Link, useSearchParams } from "react-router";
 import type { AuditEntry } from "@aimo/contracts";
 import { api } from "../api";
 import { useLoad } from "../ctx";
-import { Fixture } from "../ui/Status";
 import { when, fi } from "../format";
 
 type Viewer = "hotel" | "valio";
@@ -118,10 +117,6 @@ function AuditLog({ viewer, eventId }: { viewer: Viewer; eventId?: string }) {
 
                 </td>
                 <td>
-                  <div className="row small" style={{ gap: 6, flexWrap: "wrap" }}>
-
-                    <Fixture show={e.usesFixture} />
-                  </div>
                   <div style={{ color: "var(--ink)" }}>{e.summary}</div>
                   {refs.length > 0 && (
                     <div className="row small" style={{ gap: "4px 12px", flexWrap: "wrap", overflowWrap: "anywhere" }} aria-label="References">

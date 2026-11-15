@@ -159,10 +159,6 @@ h4 { font-size: 13px; font-weight: 700; text-transform: uppercase; color: var(--
 .stamp.block { color: var(--red-ink); background: var(--red-soft); }
 .stamp.unknown { color: var(--mute); background: transparent; box-shadow: inset 0 0 0 1px var(--hairline); }
 .stamp.info { color: var(--blue-ink); background: var(--blue-soft); }
-.stamp.fixture { color: var(--purple); background: var(--purple-soft); }
-.fixture-info > button { border: 0; }
-.fixture-info > button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
-.fixture-info .popover { font-weight: 400; text-transform: none; letter-spacing: normal; }
 .stock-unknown-mark { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 16px; height: 16px; margin-left: 6px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--ash); color: var(--mute); font-size: 11px; font-weight: 700; line-height: 1; vertical-align: 1px; cursor: help; }
 .tag { display: inline-block; font-size: 12px; font-weight: 500; color: var(--body); background: var(--soft); border-radius: 4px; padding: 1px 8px; white-space: nowrap; }
 .rulechip { display: inline-block; font-size: 11px; font-weight: 600; color: var(--ink); background: var(--card); border: 1px solid var(--hairline); border-radius: 4px; padding: 0 5px; line-height: 18px; white-space: nowrap; }
