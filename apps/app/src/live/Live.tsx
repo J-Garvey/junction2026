@@ -2,7 +2,7 @@
  * The demo screen. Left: the hotel's purchasing agent, a real model calling the
  * gateway's public API. Right: what Valio Aimo sees at its front door, live.
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import "./live.css";
 
 type CallStep = { kind: "call"; n: number; method: string; path: string; summary: string; tone: "ok" | "warn" | "err" | "run"; ms: number | null };
@@ -60,31 +60,35 @@ export function Live() {
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
   const [showReads, setShowReads] = useState(true);
+  const [connected, setConnected] = useState(false);
   const leftEnd = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let es: EventSource | null = null;
     let stop = false;
+    let retry: ReturnType<typeof setTimeout> | undefined;
     const connect = () => {
       es = new EventSource("/api/live/stream", { withCredentials: true });
-      es.addEventListener("state", (e) => setS(JSON.parse((e as MessageEvent).data)));
+      es.addEventListener("state", (e) => { setS(JSON.parse((e as MessageEvent).data)); setConnected(true); });
       es.addEventListener("session", (e) => setS((p) => (p ? { ...p, session: JSON.parse((e as MessageEvent).data) } : p)));
       es.addEventListener("feed", (e) => setS((p) => (p ? { ...p, feed: [...p.feed, JSON.parse((e as MessageEvent).data)] } : p)));
       es.onerror = () => {
         es?.close();
-        if (!stop) setTimeout(connect, 1500);
+        setConnected(false);
+        if (!stop) retry = setTimeout(connect, 1500);
       };
     };
     connect();
     return () => {
       stop = true;
+      clearTimeout(retry);
       es?.close();
     };
   }, []);
 
   useEffect(() => {
     const t = leftEnd.current?.parentElement;
-    if (t) t.scrollTo({ top: t.scrollHeight, behavior: "smooth" });
+    if (t) t.scrollTo({ top: t.scrollHeight, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   }, [s?.session.steps.length, s?.session.status]);
 
   async function act(fn: () => Promise<unknown>) {
@@ -119,8 +123,8 @@ export function Live() {
           <span>Aimo Agent Gateway</span>
         </div>
         <div className="lv-tools">
-          <span className="lv-live">
-            <i /> Live API monitor
+          <span className={`lv-live ${connected ? "connected" : ""}`} role="status">
+            <i aria-hidden="true" /> {connected ? "Live API monitor" : "Reconnecting to gateway"}
           </span>
           <button className="lv-ghost" disabled={busy} onClick={() => act(() => post("/api/live/rogue"))}>
             Send unvetted agent
@@ -201,7 +205,7 @@ export function Live() {
               </div>
             )}
             <div className="lv-row">
-              <input value={text} onChange={(e) => setText(e.target.value)} placeholder={waiting ? "Answer the card above" : "Type what the kitchen needs…"} disabled={working || waiting} />
+              <input aria-label="Kitchen request" value={text} onChange={(e) => setText(e.target.value)} placeholder={waiting ? "Answer the card above" : "Type what the kitchen needs…"} disabled={working || waiting} />
               <button className="lv-send" disabled={busy || working || waiting || !text.trim()}>
                 Send
               </button>
@@ -214,7 +218,7 @@ export function Live() {
         <section className="lv-right">
           <div className="lv-rh">
             <div className="lv-h">
-              <h1>Valio Aimo gateway</h1>
+              <h2>Valio Aimo gateway</h2>
               <p>Incoming external agent requests</p>
             </div>
             <div className="lv-rules">
@@ -233,12 +237,13 @@ export function Live() {
           </div>
 
           <div className="lv-feedbar">
+            <span className="lv-feedhint">Scroll for amount and verdict.</span>
             <label>
               <input type="checkbox" checked={showReads} onChange={(e) => setShowReads(e.target.checked)} /> Show lookups
             </label>
           </div>
 
-          <div className="lv-table">
+          <div className="lv-table" role="region" aria-label="Gateway activity, scroll for all columns" tabIndex={0}>
             <div className="lv-tr lv-th">
               <span>Time</span>
               <span>Agent</span>
@@ -261,7 +266,16 @@ export function Live() {
                   <span>{f.reason}</span>
                 </div>
               ) : (
-                <div key={f.id} className={`lv-tr lv-row-${f.verdict} ${f.orderId ? "lv-click" : ""}`} onClick={() => f.orderId && setOpen(f.orderId)}>
+                <div key={f.id} className={`lv-tr lv-row-${f.verdict} ${f.orderId ? "lv-click" : ""}`}
+                  role={f.orderId ? "button" : undefined} tabIndex={f.orderId ? 0 : undefined}
+                  aria-label={f.orderId ? `View signed order ${f.orderId}` : undefined}
+                  onClick={() => f.orderId && setOpen(f.orderId)}
+                  onKeyDown={(event) => {
+                    if (f.orderId && (event.key === "Enter" || event.key === " ")) {
+                      event.preventDefault();
+                      setOpen(f.orderId);
+                    }
+                  }}>
                   <span className="lv-time">{hhmm(f.at)}</span>
                   <span className="lv-agent">{f.agent}</span>
                   <span>
@@ -327,6 +341,18 @@ type RecordResp = {
 function Record({ id, onClose }: { id: string; onClose: () => void }) {
   const [r, setR] = useState<RecordResp | null>(null);
   const [e, setE] = useState<string | null>(null);
+  const dialog = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  useEffect(() => {
+    const element = dialog.current!;
+    const previous = document.activeElement;
+    element.showModal();
+    element.querySelector<HTMLButtonElement>("button")?.focus();
+    return () => {
+      element.close();
+      if (previous instanceof HTMLElement && previous.isConnected) previous.focus();
+    };
+  }, []);
   useEffect(() => {
     fetch(`/api/live/orders/${id}`, { credentials: "same-origin" })
       .then((x) => (x.ok ? x.json() : Promise.reject(new Error(`HTTP ${x.status}`))))
@@ -334,30 +360,35 @@ function Record({ id, onClose }: { id: string; onClose: () => void }) {
       .catch((x) => setE(x.message));
   }, [id]);
   return (
-    <div className="lv-modal" onClick={onClose}>
+    <dialog ref={dialog} className="lv-modal" aria-labelledby={titleId}
+      onCancel={(event) => { event.preventDefault(); onClose(); }}
+      onKeyDown={(event) => {
+        if (event.key !== "Tab") return;
+        const controls = [...event.currentTarget.querySelectorAll<HTMLElement>("button:not(:disabled), a[href]")];
+        const first = controls[0], last = controls.at(-1);
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+      }}
+      onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <div className="lv-sheet" onClick={(ev) => ev.stopPropagation()}>
-        <button className="lv-x" onClick={onClose}>
+        <button className="lv-x" aria-label="Close signed order" onClick={onClose}>
           ×
         </button>
-        <h2>Signed order {id}</h2>
+        <h2 id={titleId}>Signed order {id}</h2>
         {e && <div className="lv-err">{e}</div>}
         {r && (
           <>
             <div className={`lv-verify ${r.signature.valid ? "ok" : "bad"}`}>{r.signature.valid ? `Signature valid · ${r.signature.alg} · key in ${r.signature.jwks}` : "Signature not valid"}</div>
-            <table className="lv-lines">
-              <tbody>
-                {r.order.lines.map((l) => (
-                  <tr key={l.productId}>
-                    <td>{l.name}</td>
-                    <td>
-                      {l.quantity} {l.salesUnit}
-                    </td>
-                    <td>{eur(l.lineTotal)}</td>
-                    <td>{l.riskAccepted ? `Stock not confirmed · ${l.riskAccepted.by} accepted` : ""}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <ul className="lv-lines" aria-label="Order items">
+              {r.order.lines.map((l, index) => (
+                <li key={`${l.productId}-${index}`}>
+                  <span className="lv-line-name">{l.name}</span>
+                  <span>{l.quantity} {l.salesUnit}</span>
+                  <span>{eur(l.lineTotal)}</span>
+                  {l.riskAccepted && <span className="lv-line-risk">Stock not confirmed · {l.riskAccepted.by} accepted</span>}
+                </li>
+              ))}
+            </ul>
             <p>
               <b>{eur(r.order.totalExVat)}</b> ex VAT · delivery {r.order.deliveryDate} · {r.order.approvalId ? "approval attached" : "no approval needed"}
             </p>
@@ -373,6 +404,6 @@ function Record({ id, onClose }: { id: string; onClose: () => void }) {
           </>
         )}
       </div>
-    </div>
+    </dialog>
   );
 }
