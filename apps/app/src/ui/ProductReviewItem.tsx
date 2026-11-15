@@ -1,11 +1,11 @@
 import { type ReactNode, useId, useState } from "react";
 import type { Candidate, ItemReview, Need, PlanLine, SingleLine } from "@aimo/contracts";
-import { useApp, useLoad } from "../ctx";
-import { api } from "../api";
+import { useApp } from "../ctx";
 import { claimLabel, day, eur, parseTime, qty, when } from "../format";
 import { stockText } from "./Popover";
-import { Status, UnknownStockMark } from "./Status";
+import { UnknownStockMark } from "./Status";
 import { Icon } from "./icons";
+import { ProductDetailsPanel, allergenLabel } from "./ProductDetails";
 
 /** One compact table group per requested item; supporting evidence opens on demand. */
 export function ProductReviewItem({ line, need, lines, deliveryDate, checked, disabled, review, onApprove, onSalesQuantity, onEdit, onDiscard, onChoose, children }: {
@@ -86,23 +86,7 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
                 <div className="add-review-matches">
                   <h4>Product details</h4>
                   {found.map((product) => (
-                    <div key={product.id} className="add-review-product">
-                      <span className="add-review-product-name">
-                        <small>Product {product.productId}{product.source === "fixture" ? " · Fixture" : ""}</small>
-                        <small>{product.packContent ? `${qty(product.packContent.value)} ${product.packContent.unit} per ${product.salesUnit ?? "sales unit"} (${product.packContent.verified ? "checked" : "unverified"}; ${product.packContent.source})` : "Pack conversion unknown; do not infer pieces from weight."}</small>
-                        {product.needIds.length > 1 && <small>Shared pack: quantity and price also cover {product.shares.filter((share) => share.needId !== line.id).map((share) => share.label).join(", ")}.</small>}
-                        {product.status !== "unknown_stock" && product.status !== "covered_at_risk" && <Status k={product.status} />}
-                      </span>
-                      <span className="add-review-product-price"><small>Unit price ex VAT</small><b>{eur(product.unitPrice)} / {product.salesUnit ?? "sales unit"}</b></span>
-                      <dl className="add-review-product-facts small">
-                        <dt>Stock</dt><dd>{stockText(product.stock, product.salesUnit)}</dd>
-                        <dt>Available date</dt><dd>{product.availableDate ? day(product.availableDate) : "Not supplied"}</dd>
-                        <dt>Order cutoff (Helsinki)</dt><dd>{product.closingTime ? when(product.closingTime) : "Not supplied"}</dd>
-                        {product.overshoot && <><dt>Pack rounding</dt><dd>{qty(product.overshoot.amount)} {product.needAmount.unit} extra ({qty(product.overshoot.pct)}%)</dd></>}
-                      </dl>
-                      <SupplierSchedule terms={product} />
-                      {hasDietRequirements && product.productId && <ProductDietFacts key={product.productId} productId={product.productId} />}
-                    </div>
+                    <ProductDetailsPanel key={`${product.id}-${product.productId}`} line={product} />
                   ))}
                 </div>
               )}
@@ -178,28 +162,11 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
   );
 }
 
-/** Catalogue declarations are supporting facts, never an assurance about absent data. */
-function ProductDietFacts({ productId }: { productId: string }) {
-  const { data: product, error, loading, reload } = useLoad(() => api.product(productId), [productId]);
-  if (loading && !product) return <p className="small muted">Loading dietary information...</p>;
-  if (error || !product) return <div className="small muted" role="status">Dietary information could not be loaded. <button type="button" className="linkbtn" onClick={reload}>Try again</button></div>;
-  const contains = product.contains.filter((code) => code !== "X99");
-  return <dl className="add-review-product-facts small">
-    <dt>Diet claims</dt><dd>{product.claims.map(claimLabel).join(", ") || "No claims supplied"}</dd>
-    <dt>Allergen declarations</dt><dd>{product.hasAllergenData ? [contains.length ? `Contains: ${contains.map(allergenLabel).join(", ")}` : "No contains entries supplied", product.mayContain.length ? `May contain: ${product.mayContain.map(allergenLabel).join(", ")}` : "No may-contain entries supplied"].join(". ") : "No allergen declaration supplied. Dietary suitability is unknown."}</dd>
-  </dl>;
-}
-
 function SupplierSchedule({ terms }: { terms: Pick<PlanLine, "availabilityEvidence" | "availableDate" | "closingTime"> }) {
   const schedule = terms.availabilityEvidence?.schedules[0];
   if (!schedule) return <p className="add-review-supplier-note small muted">Original supplier schedule not saved. Recheck the item terms before ordering.</p>;
   if (schedule.availableDate === terms.availableDate && schedule.closingTime === terms.closingTime) return null;
   return <p className="add-review-supplier-note small muted">Quoted delivery and cutoff are demo estimates. Original supplier schedule: {schedule.availableDate ? day(schedule.availableDate) : "date not supplied"}; cutoff (Helsinki): {schedule.closingTime ? when(schedule.closingTime) : "not supplied"}. A delivery hour is not supplied.</p>;
-}
-
-function allergenLabel(code: string) {
-  const names: Record<string, string> = { AM: "milk", AE: "eggs", AF: "fish", AC: "crustaceans", UM: "molluscs", AP: "peanuts", AN: "tree nuts", AY: "soybeans", AS: "sesame", BC: "celery", BM: "mustard", NL: "lupin", AU: "sulphites", AW: "cereals containing gluten", ML: "lactose" };
-  return names[code] ? `${names[code]} (${code})` : code;
 }
 
 function replacementQuantity(candidate: Candidate, need: Need) {
