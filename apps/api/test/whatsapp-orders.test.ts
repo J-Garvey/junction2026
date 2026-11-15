@@ -297,7 +297,8 @@ describe("synthetic WhatsApp order flow", () => {
     await send(id);
     await send("confirm order");
     expect((await send("confirm order")).status).toBe("ordered");
-    expect((await send("add 2 kg butter")).status).toBe("proposal");
+    // Keep this finance-review flow on a specific product with confirmed stock.
+    expect((await send("add 2 kg butter 476740")).status).toBe("proposal");
     expect((await send("confirm change")).status).toBe("updated");
     expect((await send("add 3 kg salmon 469672")).status).toBe("proposal");
     expect((await send("confirm change")).status).toBe("updated");

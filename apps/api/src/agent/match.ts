@@ -73,14 +73,13 @@ export function matchesSelectedProducts(needs: Need[], lines: PlanLine[]): boole
   });
 }
 
-type Scored = { p: Product; l: LookupLine; content: ReturnType<typeof packContent>; pricePerBase: number | null; stockBand: number; judgement: ModelJudgement | null; notes: FiredRule[]; pinned: boolean };
+type Scored = { p: Product; l: LookupLine; content: ReturnType<typeof packContent>; pricePerBase: number | null; judgement: ModelJudgement | null; notes: FiredRule[]; pinned: boolean };
 
-/** RANK: explicit recipe choice, then confirmed stock and price; missing prices last. */
+/** RANK: explicit recipe choice, then price and reliability; stock is disclosed separately. */
 const relBand = (r: number | null) => (r === null ? 1 : r >= FIXED.reliabilityAmber ? 0 : 2);
 const STEPS: [string, (s: Scored) => number | string][] = [
   ["known price", (s) => (s.l.price === null ? 1 : 0)],
   ["recipe-approved product", (s) => (s.pinned ? 0 : 1)],
-  ["confirmed stock", (s) => s.stockBand],
   ["price per kg or L after rounding", (s) => (s.pricePerBase === null ? Number.MAX_SAFE_INTEGER : Math.round(s.pricePerBase * 100))],
   ["delivery reliability", (s) => relBand(s.p.reliability) * 10 - (s.p.reliability ?? 0)],
   ["product id (tie-break)", (s) => s.p.id],
@@ -135,12 +134,7 @@ export async function rankNeed(need: Need, list: Product[], pool: Pool, opts: { 
     }
     const content = packContent(p, l, need.amount.unit);
     const pricePerBase = content && l.price ? l.price.value / content.value : null;
-    const packs = content && content.value > 0 && content.verified && content.unit === need.amount.unit
-      ? Math.max(1, Math.ceil(need.amount.value / content.value - 1e-9)) : null;
-    const stockBand = l.stock.kind === "known" && l.stock.amount >= 1
-      ? packs !== null && l.stock.amount >= packs ? 0 : 1
-      : l.stock.kind === "unknown" ? 2 : 3;
-    const scored: Scored = { p, l, content, pricePerBase, stockBand, judgement: null, notes: [...diet.filter((r) => r.outcome !== "block"), ...supply.filter((r) => r.ruleId === "PRC-01")], pinned };
+    const scored: Scored = { p, l, content, pricePerBase, judgement: null, notes: [...diet.filter((r) => r.outcome !== "block"), ...supply.filter((r) => r.ruleId === "PRC-01")], pinned };
     if (cut) {
       cutOnly.push(scored);
       need.excluded.push({ productId: p.id, name: p.name, reason: cut.message, ruleId: cut.ruleId });
@@ -162,7 +156,7 @@ export async function rankNeed(need: Need, list: Product[], pool: Pool, opts: { 
       }
     }
   }
-  // Preserve explicit recipe choices; automatic picks prefer confirmed stock, then price.
+  // Preserve explicit recipe choices; automatic picks prefer price, with stock shown separately.
   passing.sort(compare);
   // NOT-IN-TIME (DLV-06): nothing that passes every other check arrives by the needed-by date.
   // One clear rule with the earliest date replaces the per-product reasons.
