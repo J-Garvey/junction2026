@@ -390,11 +390,17 @@ describe("order baskets", () => {
     const orders = (await call("GET", `/orders?eventId=${id}`)).orders;
     expect(orders).toHaveLength(1);
     expect(orders[0].lines[0]).toMatchObject({ stock: { kind: "unknown" }, riskAccepted: { by: "Aino" } });
-    expect((await call("GET", "/baskets")).baskets.find((b: any) => b.id === id)).toMatchObject({ confirmed: false, approvalLevels: [], orderBy: { state: "unknown", at: null } });
+    expect((await call("GET", "/baskets")).baskets.find((b: any) => b.id === id)).toMatchObject({ confirmed: false, approvalLevels: [], orderBy: { state: "known", at: "2026-11-15T15:00:00.000Z", excludedItems: 0, unconfirmedStockItems: 1, reason: expect.stringContaining("Stock is unconfirmed") } });
   });
 
-  it("reads list and detail deadlines from saved terms without new supplier lookups", async () => {
-    const { id } = await readyBasket();
+  it.each([false, true])("reads matching list/detail deadlines from saved terms without supplier lookups (partial: %s)", async (partial) => {
+    const { id, planId } = await readyBasket();
+    if (partial) {
+      // Synthetic saved terms: one dated item and one unresolved supplier snapshot.
+      const saved = getPlan(planId)!;
+      saved.lines.push({ ...saved.lines[0], id: "unknown-terms", productId: "unknown", availabilityEvidence: undefined });
+      savePlan(saved);
+    }
     const nativeFetch = globalThis.fetch;
     const lookups: string[] = [];
     const spy = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
@@ -406,6 +412,8 @@ describe("order baskets", () => {
       const detail = await call("GET", `/baskets/${id}`);
       expect(card.orderBy).toEqual(detail.orderBy);
       expect(card.orderBy.state).toBe("known");
+      expect(card.orderBy.excludedItems).toBe(partial ? 1 : 0);
+      expect(card.confirmed).toBe(false);
       expect(lookups).toEqual([]);
     } finally {
       spy.mockRestore();
