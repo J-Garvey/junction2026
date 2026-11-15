@@ -131,6 +131,8 @@ Where the build differs from the demo plan, by rule:
 
 The automatic pick prioritises price: 1,000 L of Valio Eila (464306), with unconfirmed stock visibly disclosed. The chef decides whether to continue (D31); keeping only the confirmed 435 L from 469363 and 462775 remains an alternative and requires partial-fill approval.
 
+**Selection funnel** opens under each searched need in the event's dish view, under the request's candidate table, and through **View details** in item review. For the 40 L lactose-free milk line, each stage uses the saved bounded shortlist and actual ranking exclusions; opening it lists product IDs, names, rule IDs and reasons. A product removed at both cutoff and type checks counts once, with both saved reasons visible. Product-type evidence preserves uncertain verdicts, probabilities, thresholds and recorded sources. The final ranking lists every retained candidate and marks products selected in the plan separately from alternatives. Ranking does not confirm stock or approval. Recipe-pinned lines such as the seeded salmon do not claim a search funnel. Older snapshots without a trace show only saved evidence and explain that the original shortlist cannot be reconstructed.
+
 ## Answers the build had to choose
 
 The PRD left these open. Each choice follows the chunk's recommended answer unless noted. The team can still change them; each is a setting or a small, local code change.

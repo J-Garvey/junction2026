@@ -69,6 +69,12 @@ export interface Need {
   excluded: { productId: string; name: string; reason: string; ruleId: string }[];
   rules: FiredRule[];
   judgements: ModelJudgement[];
+  /** Display evidence from the bounded shortlist passed to ranking, after saved buyer exclusions. Older plans omit it. */
+  selectionTrace?: {
+    shortlist: { productId: string; name: string }[];
+    /** Each product leaves the funnel once; additional reasons remain in excluded. */
+    stages: { key: "lookup" | "eligibility" | "cutoff" | "type" | "delivery"; removedProductIds: string[] }[];
+  };
   substituteFor: string | null;
   /** Set when nothing arrives by the needed-by date (DLV-06): the earliest date something can. */
   earliestDelivery?: string | null;
