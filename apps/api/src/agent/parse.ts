@@ -12,7 +12,7 @@ import { isoDate, isCalendarDate } from "../util.js";
 import { structured, ModelUnavailable } from "./openai.js";
 import { headIndex, isLiteralProductQuery, queryTerms, QUERY_FORMS } from "../search.js";
 import { z } from "zod";
-import { ALLERGEN_NAMES } from "../rules/checks.js";
+import { ALLERGEN_NAMES, expandAllergens } from "../rules/checks.js";
 
 /** Known product words: the type asked for and a category hint (CATEGORY-HINT, deterministic tier). */
 export const PRODUCT_WORDS: { re: RegExp; word: string; type: string | null; category: string | null }[] = [
@@ -72,7 +72,7 @@ const normalizeNumbers = (text: string) => text.replace(/\b\d{1,3}(?:[, \u00a0]\
 const LIST_SEPARATOR = /\s*(?:,(?!\d)|\band\b|\+|;|\r?\n)\s*/i;
 const DATE_WORD = "(?:mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?|today|tomorrow|20\\d\\d-\\d\\d-\\d\\d)";
 const ALLERGEN_WORDS: [string, string[]][] = [
-  ["(?:tree[- ]?)?nuts?", ["AN", "AP"]], ["peanuts?", ["AP"]], ["almonds?", ["SA"]],
+  ["tree[- ]nuts?", ["AN"]], ["nuts?", ["AN", "AP"]], ["peanuts?", ["AP"]], ["almonds?", ["SA"]],
   ["milk|dairy", ["AM"]], ["eggs?", ["AE"]], ["soy|soya", ["AY"]], ["sesame", ["AS"]],
   ["fish", ["AF"]], ["shellfish", ["UN", "AC", "UM"]], ["wheat", ["UW"]], ["gluten", ["AW"]],
 ];
@@ -95,7 +95,7 @@ function restrictions(text: string) {
     return " ";
   });
   for (const [word, codes] of ALLERGEN_WORDS) {
-    rest = rest.replace(new RegExp(`\\b(?:${word})[- ]free\\b|\\b(?:without|no)\\s+(?:${word})\\b`, "g"), () => {
+    rest = rest.replace(new RegExp(`\\b(?:${word})[- ]free\\b|\\b(?:without|no)\\s+(?:${word})\\b|\\b(?:for\\s+)?(?:an?\\s+)?(?:${word})\\s+allerg(?:y|ies)\\b|\\b(?:allergic|allergy)\\s+to\\s+(?:${word})\\b`, "g"), () => {
       avoidAllergens.push(...codes);
       return " ";
     });
@@ -259,7 +259,7 @@ const MODEL_RESULT = z.object({
     unit: z.enum(["g", "kg", "ml", "dl", "l", "pcs"]).nullable(),
     claims: z.array(z.enum(["FREE_FROM_LACTOSE", "FREE_FROM_GLUTEN", "VEGAN", "FREE_FROM_MILK"])),
     avoidAllergens: z.array(z.enum(ALLERGEN_CODES)),
-    origin: z.string().regex(/^[a-z]{2}$/).nullable().optional(),
+    origin: z.string().regex(/^[a-z]{2}$/).nullable(),
   })),
 });
 
@@ -302,15 +302,22 @@ export async function parseRequest(text: string): Promise<{ request: Omit<Single
     const rawResult = await structured<unknown>({
       name: "purchase_request",
       system:
-        "You turn a hotel kitchen's purchasing message to a food wholesaler into structured lines. Fill in only what the text says. Never invent a quantity, unit, date or product. Retain EVERY requested item, including long lists and repetitions. Translate Finnish to English in productWord but keep the original text. Preserve brand, species and form. Use diet claims, allergen exclusions and required origin only when stated. Apply item-specific constraints only to that item; apply explicit global constraints to every item. Nut-free excludes both tree nuts (AN) and peanuts (AP). Never infer origin from a brand. Keep country requirements in origin, not in productWord. Do not turn an alternative into an additional ordered item. Unsupported or unclear quantities must have null amount and unit.",
+        "You turn a hotel kitchen's purchasing message to a food wholesaler into structured lines. Fill in only what the text says. Never invent a quantity, unit, date or product. Retain EVERY requested item, including long lists and repetitions. Translate Finnish to English in productWord but keep the original text. Preserve brand, species and form. Use diet claims, allergen exclusions and required origin only when stated. Apply item-specific constraints only to that item; apply explicit global constraints to every item. Nut-free excludes both tree nuts (AN) and peanuts (AP). Never infer origin from a brand. Keep country requirements in origin, not in productWord. Do not turn an alternative into an additional ordered item. Unsupported or unclear quantities must have null amount and unit. Allergen codes are exact identifiers; AM is milk, SA is almond. Code dictionary: " + JSON.stringify(ALLERGEN_NAMES),
       user: text,
       schema: PARSE_SCHEMA,
     });
     const parsed = MODEL_RESULT.safeParse(rawResult);
     if (!parsed.success) throw new ModelUnavailable("The parser returned an invalid request");
     const r = parsed.data;
+    const requested = restrictions(text.toLowerCase());
+    const interpretedAllergens = expandAllergens(r.lines.flatMap((line) => line.avoidAllergens));
+    if (requested.avoidAllergens.some((code) => !interpretedAllergens.includes(code)))
+      throw new ModelUnavailable("The model missed an explicit allergy requirement");
     const date = resolveDate(r.neededByText ?? text);
     const lines: SingleLine[] = r.lines.map((l) => {
+      const stated = restrictions((r.lines.length === 1 ? text : l.text).toLowerCase());
+      if (stated.avoidAllergens.some((code) => !expandAllergens(l.avoidAllergens).includes(code)))
+        throw new ModelUnavailable("The model changed an item's explicit allergy requirement");
       const pw = productWord(String(l.productWord));
       return {
         id: lineId(),
@@ -321,7 +328,7 @@ export async function parseRequest(text: string): Promise<{ request: Omit<Single
         productId: l.productId && /^\d{6}$/.test(l.productId) ? l.productId : null,
         // A count without a unit is pieces; an unclear or invalid amount needs clarification.
         quantity: typeof l.amount === "number" && l.amount >= 0 && !UNSUPPORTED_SPEC.test(`${l.text} ${l.productWord}`) && !unclearQuantity(l.text) ? { amount: l.amount, unit: l.unit ?? "pcs" } : null,
-        constraints: { claims: l.claims, avoidAllergens: l.avoidAllergens, labels: [], ...(l.origin ? { origin: l.origin } : {}) },
+        constraints: { claims: l.claims, avoidAllergens: [...new Set([...l.avoidAllergens, ...stated.avoidAllergens])], labels: [], ...(l.origin ? { origin: l.origin } : {}) },
       };
     });
     return { request: { kind: "single", originalText: text, neededBy: date.date, neededByText: date.text, lines, parsedBy: "openai" }, note: null };
