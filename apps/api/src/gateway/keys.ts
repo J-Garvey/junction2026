@@ -58,7 +58,7 @@ function keys() {
 export const jwks = () => ({ keys: [keys().jwk] });
 export const issuer = () => process.env.GATEWAY_ISSUER ?? "https://aimo-copilot-j26.bestinhop23.com";
 
-export type JwtType = "aimo-quote+jwt" | "aimo-order+jwt" | "aimo-approval+jwt" | "aimo-mandate+jwt";
+export type JwtType = "aimo-quote+jwt" | "aimo-order+jwt" | "aimo-approval+jwt" | "aimo-mandate+jwt" | "aimo-allergen-ack+jwt";
 
 /** AP2 v0.2 checkout_hash: base64url(SHA-256(checkout_jwt)). */
 export const checkoutHash = (jwt: string) => b64u(createHash("sha256").update(jwt, "ascii").digest());

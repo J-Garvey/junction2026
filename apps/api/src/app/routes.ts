@@ -161,6 +161,7 @@ export function appRouter(): Router {
     const p = P(req);
     const plan = newPlan("single", { personId: p.id, name: p.name }, request.outletId, { request, title: title ?? (request.lines.map((l) => `${l.quantity ? `${l.quantity.amount} ${l.quantity.unit} ` : ""}${l.constraints.claims.includes("FREE_FROM_LACTOSE") ? "lactose-free " : ""}${l.query}`).join(", ") || request.originalText.slice(0, 60)) });
     plan.eventId = eventId;
+    plan.event = eventId ? getEvent(eventId) : null;
     plan.siteId = request.siteId ?? plan.siteId;
     plan.reviewing = reviewing;
     if (itemReview) plan.itemReviews = [];
@@ -237,6 +238,8 @@ export function appRouter(): Router {
     const { continueWithWarnings } = z.object({ continueWithWarnings: z.boolean().default(false) }).parse(req.body ?? {});
     const issueRules = [...plan.inputRules, ...plan.lines.flatMap((line) => line.rules)].filter((rule) => rule.outcome !== "order");
     const hardIssues = issueRules.filter((rule) => rule.outcome === "block" || !rule.overridable);
+    if (plan.lines.some((line) => line.rules.some((rule) => rule.ruleId === "ALG-03") && !line.allergenDataAcknowledgement))
+      return res.status(409).json({ error: "The chef must explicitly continue with missing allergen data before adding this request" });
     if (plan.tooLate || plan.error || hardIssues.length) return res.status(409).json({ error: "Resolve the stock, delivery or product issues before adding this request" });
     if (issueRules.length && !continueWithWarnings && !plan.itemReviews) return res.status(409).json({ error: "Confirm that you want to add this request with its warnings" });
     const p = P(req);
@@ -251,6 +254,7 @@ export function appRouter(): Router {
     plan.proposal = false;
     plan.status = "waiting";
     plan.summary = "In the order · awaiting final order";
+    if (plan.lines.some((l) => l.rules.some((r) => r.ruleId === "ALG-03"))) plan.summary += " · allergen data not confirmed";
     audit({ actor: personActor(p), action: "request_received", summary: `${p.name} added ${plan.title} to the order`, eventId: plan.eventId, details: { kind: "confirmation", planId: plan.id, lines: plan.lines.map((l) => l.productId) }, visibility: "hotel" });
     savePlan(plan);
     invalidateBasketReview(plan.eventId);

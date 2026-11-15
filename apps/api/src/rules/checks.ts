@@ -8,6 +8,8 @@ import type { Constraints, FiredRule, LookupLine, Mandate, Product, BaseUnit } f
 import { fire, FIXED } from "./catalogue.js";
 import { mandateOriginRules, type OriginPolicy } from "./origin.js";
 import { parseAimoTime, fmtHelsinki, eur, round2 } from "../util.js";
+import { allergenConflicts } from "./allergens.js";
+export { expandAllergens } from "./allergens.js";
 
 export const ALLERGEN_NAMES: Record<string, string> = {
   AM: "milk", AE: "eggs", AF: "fish", AC: "crustaceans", UM: "molluscs", AP: "peanuts", AN: "tree nuts", AY: "soybeans",
@@ -16,19 +18,6 @@ export const ALLERGEN_NAMES: Record<string, string> = {
   SW: "walnut", SP: "pecan", ST: "pistachio", SM: "macadamia", SR: "brazil nut", PN: "pine nuts", UN: "shellfish",
 };
 export const allergenName = (c: string) => ALLERGEN_NAMES[c] ?? c;
-
-/**
- * An allergy names a family; the data codes members separately. "Tree nuts" (AN) must
- * also catch almond (SA) and the other individual nuts, and "cereals containing gluten"
- * (AW) must catch wheat, rye and the rest. A "free from" entry never outweighs a
- * "contains" entry: only CONTAINS and MAY_CONTAIN are read here.
- */
-const FAMILIES: Record<string, string[]> = {
-  AN: ["AN", "SA", "SC", "SH", "SW", "SP", "ST", "SM", "SR"],
-  AW: ["AW", "UW", "GB", "NR", "GO", "GS", "GK"],
-  AM: ["AM", "ML"],
-};
-export const expandAllergens = (codes: string[]) => [...new Set(codes.flatMap((c) => FAMILIES[c] ?? [c]))];
 
 /** Allergen codes whose absence confirms a diet when the claim is missing (Q02.3, declaration path). */
 const DIET_CODES: Record<string, string[]> = {
@@ -65,11 +54,11 @@ export function dietRules(p: Product, c: Constraints, group: string): FiredRule[
     out.push(fire("DIET-01", { product: name, productId: p.id, claim: CLAIM_LABEL[claim] ?? claim, group }));
   }
   const asked = c.avoidAllergens ?? [];
-  if (asked.length && !p.hasAllergenData) out.push(fire("ALG-03", { product: name, productId: p.id, group, allergen: asked.map(allergenName).join(", ") }));
-  else for (const a of expandAllergens(asked)) {
-    if (a === "X99") continue;
-    if (p.contains.includes(a)) out.push(fire("ALG-01", { product: name, productId: p.id, allergen: allergenName(a), code: a, group }));
-    else if (p.mayContain.includes(a)) out.push(fire("ALG-02", { product: name, productId: p.id, allergen: allergenName(a), code: a, group }));
+  const conflicts = allergenConflicts(p, asked);
+  if (asked.length && !p.hasAllergenData && !conflicts.length) out.push(fire("ALG-03", { product: name, productId: p.id, group, allergen: asked.map(allergenName).join(", ") }));
+  for (const { code, level } of conflicts) {
+    const ruleId = level === "contains" ? "ALG-01" : level === "may contain" ? "ALG-02" : "ALG-04";
+    out.push(fire(ruleId, { product: name, productId: p.id, allergen: allergenName(code), code, group }));
   }
   if (c.origin && p.origin !== c.origin) out.push(fire("ORG-01", { product: name, origin: p.origin ?? "unknown", required: c.origin }));
   for (const l of c.labels ?? []) if (!p.labels.includes(l)) out.push(fire("LBL-01", { product: name, label: l }));
