@@ -123,6 +123,20 @@ describe("WhatsApp item additions", () => {
     ]);
   });
 
+  it.each(["add 1 additional kilo of salmon", "add an additional kilo of salmon", "add another kilo of salmon"])("preserves additive kilo wording or asks for its quantity: %s", async (text) => {
+    const reply = await interpretWhatsApp(text, context());
+    expect(["add_items", "clarify"]).toContain(reply.intent);
+    if (reply.intent === "add_items") expect(reply.request?.lines[0].quantity).toEqual({ amount: 1, unit: "kg" });
+    else expect(reply.question).toMatch(/quantity/);
+  });
+
+  it("carries a global suffix requirement across every item", async () => {
+    const reply = await interpretWhatsApp("add 10 l milk and 12 bread both vegan", context());
+    expect(reply.intent).toBe("add_items");
+    expect(reply.request?.lines).toHaveLength(2);
+    for (const item of reply.request!.lines) expect(item.constraints.claims).toContain("VEGAN");
+  });
+
   it("preserves named allergen exclusions in the offline parser fallback", async () => {
     const reply = await interpretWhatsApp("add 12 peanut-free bread", context());
     expect(reply.intent).toBe("add_items");

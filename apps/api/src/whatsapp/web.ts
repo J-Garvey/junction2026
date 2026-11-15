@@ -182,6 +182,12 @@ export class WhatsAppWebBridge {
         this.state.handledMessages++;
         this.state.lastError = null;
       } catch {
+        // A failed request or uncertain reply must not leave an old or unseen
+        // proposal actionable. Never restore context after reset/reconnection.
+        if (epoch === this.epoch && this.selection()?.revision === selection.revision && resolveToken(owner.token)) {
+          const latest = kvGet<WhatsAppConversation>(conversationKey) ?? conversation;
+          kvSet(conversationKey, { ...latest, pending: null });
+        }
         // Never echo arbitrary upstream errors or message contents into a group.
         this.state.lastError = "A group message could not be completed or its reply confirmed. Check the order and group before sending a new request.";
       }

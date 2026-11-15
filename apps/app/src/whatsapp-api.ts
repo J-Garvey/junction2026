@@ -12,7 +12,7 @@ async function request<T = WhatsAppSession>(path: string, body?: unknown): Promi
     });
   } catch {
     // A lost response can follow a successful action. Retrying the same id checks
-    // its cached result; do not claim the action never happened.
+    // the latest session without repeating it; do not claim it never happened.
     throw new ApiError(0, { error: "Couldn't reach the demo chat. Retry to check the result." });
   }
   let data: T & { error?: string; message?: string };
