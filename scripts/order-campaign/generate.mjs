@@ -147,6 +147,12 @@ export function buildCorpus() {
     const text=lines.map(l=>`${l.amount} ${l.unit} ${qualifier}${l.product} ${l.productId}`).join('; ')+suffix;
     add(text,'fixture_focused_plan',{lineCount:count,lines,globalQualifier:qualifier.trim(),...(n%5===0?{neededBy:'2026-11-13',mustNotOrder:true}:n%5===1?{neededBy:'2026-11-16'}:n%5===2?{globalClaims:['FREE_FROM_GLUTEN']}:n%5===3?{globalAvoidAllergens:['AN','AP']}:{globalOrigin:'fi'})},{plan:true,tags:['fixture_focused','full_planning','diet_origin_cutoff']});
   }
+  for(let n=0;n<250;n++){
+    const indices=[n%5,Math.floor(n/5)%5,Math.floor(n/25)%5];
+    const lines=indices.map((i,j)=>({...fixturePool[i],amount:[2,10,40][j]}));
+    const global=n<125?'all products must be gluten-free':'all products must be Finnish';
+    add(lines.map(l=>`${l.amount} ${l.unit} ${l.product} ${l.productId}`).join('; ')+`, ${global} by 2026-11-16`,'fixture_combinations',{lineCount:3,lines,neededBy:'2026-11-16',...(n<125?{globalClaims:['FREE_FROM_GLUTEN']}:{globalOrigin:'fi'})},{plan:true,tags:['fixture_focused','full_planning','product_combinations']});
+  }
   return cases;
 }
 if(process.argv[1]&&resolve(process.argv[1])===resolve(import.meta.filename)) {
