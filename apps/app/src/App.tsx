@@ -7,7 +7,6 @@ import { api, authHooks, type Outlet, type Person, type StatusResp, type SceneKe
 import { Ctx, type AppCtx, useLoad } from "./ctx";
 import { Icon, Lockup, Mark } from "./ui/icons";
 import { AllergyBanner } from "./ui/Banner";
-import { Fixture } from "./ui/Status";
 import { day, initials, when } from "./format";
 import { Home } from "./screens/Home";
 import { FinanceHome } from "./screens/Finance";
@@ -327,7 +326,6 @@ function DemoSettings({ status, onChange, onOpenWhatsApp, person }: { status: St
   const [err, setErr] = useState<string | null>(null);
   if (!status) return <div className="demoset muted">Loading demo settings…</div>;
   const dm = typeof status.dataMode === "string" ? status.dataMode : status.dataMode.mode;
-  const overlay = typeof status.dataMode === "string" ? null : status.dataMode.overlay;
   async function run(key: string, fn: () => Promise<unknown>) {
     setBusy(key);
     setErr(null);
@@ -348,7 +346,7 @@ function DemoSettings({ status, onChange, onOpenWhatsApp, person }: { status: St
         <span className="small muted">
           <Icon n="clock" s={14} /> {when(status.clock.now)}
         </span>
-        {dm === "fixture" ? <Fixture name={overlay} /> : <span className="stamp info">Live</span>}
+        {dm === "live" && <span className="stamp info">Live</span>}
       </div>
       <div className="small muted">Time</div>
       <div className="demotimes" role="group" aria-label="Demo time">

@@ -3,7 +3,6 @@ import { CandidateRanking } from "./CandidateRanking";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import type { Candidate, FiredRule, ModelJudgement, PlanLine, StockFact } from "@aimo/contracts";
 import { eur, qty, when, day, fi } from "../format";
-import { Fixture } from "./Status";
 import { get } from "../api";
 import { LineCalculation } from "./LineCalculation";
 
@@ -158,7 +157,7 @@ export function LineSource({ line, judgements, savedOnly = false }: { line: Plan
       </div>
       <div className="popsec">
         <div className="pophead">
-          Price and stock <Fixture show={line.source === "fixture"} />
+          Price and stock
         </div>
         <dl className="kv small">
           <dt>Price</dt>
@@ -212,7 +211,7 @@ export function CandidateSource({ c }: { c: Candidate }) {
         <dl className="kv small">
           <dt>Price</dt>
           <dd>
-            {eur(c.unitPrice)} / {c.salesUnit ?? "unit"} <Fixture show={c.source === "fixture"} />
+            {eur(c.unitPrice)} / {c.salesUnit ?? "unit"}
           </dd>
           <dt>Per {c.baseUnit ?? "unit"}</dt>
           <dd>{eur(c.pricePerBase)}</dd>

@@ -26,10 +26,10 @@ describe("order cards", () => {
     expect(html).not.toContain("excluded from the calculation");
   });
 
-  it("labels the order deadline and fixtures in the detail", () => {
+  it("labels the order deadline without a demo data tag in the detail", () => {
     const html = renderToStaticMarkup(<OrderBy deadline={basket.orderBy} detail />);
     expect(html).toContain("Order by");
-    expect(html).toContain("Demo data");
+    expect(html).not.toContain("Demo data");
   });
 
   it("shows the saved creator alongside the guest count", () => {

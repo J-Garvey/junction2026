@@ -1,12 +1,10 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { cleanup, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { api, type BasketResp, type Person } from "../src/api";
 import { Ctx, type AppCtx } from "../src/ctx";
 import { BasketPage } from "../src/screens/Baskets";
-import { Fixture } from "../src/ui/Status";
 
 const aino: Person = { id: "aino", name: "Aino", title: "Head chef", role: "chef", outlets: ["banquet", "bar"], hotelScope: false };
 const ctx: AppCtx = { me: aino, people: [aino], outlets: [], status: null, now: "2026-11-11T08:00:00Z", tick: 0, refresh: vi.fn(), switchPerson: vi.fn() };
@@ -28,8 +26,7 @@ describe("booking context", () => {
     expect(screen.getByText("Created by Mikko")).toBeTruthy();
     expect(screen.queryByText("Created by Aino")).toBeNull();
     expect(screen.queryByText("Guest count not entered")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Demo data" }));
-    expect(screen.getByRole("note", { name: "About demo data" }).textContent).toContain("rather than a fresh supplier check");
+    expect(screen.queryByRole("button", { name: "Demo data" })).toBeNull();
   });
 
   it("labels missing legacy booking facts without borrowing the current viewer's identity", async () => {
@@ -37,21 +34,5 @@ describe("booking context", () => {
     expect(await screen.findByText("Guest count not entered")).toBeTruthy();
     expect(screen.getByText("Creator not recorded")).toBeTruthy();
     expect(screen.queryByText("Created by Aino")).toBeNull();
-  });
-});
-
-describe("demo data explanation", () => {
-  it("can be opened and dismissed with a keyboard", async () => {
-    const user = userEvent.setup();
-    render(<Fixture name="base" />);
-    const badge = screen.getByRole("button", { name: "Demo data" });
-    await user.tab();
-    expect(document.activeElement).toBe(badge);
-    await user.keyboard("{Enter}");
-    expect(badge.getAttribute("aria-expanded")).toBe("true");
-    expect(screen.getByRole("note").textContent).toContain("Data set: base");
-    await user.keyboard("{Escape}");
-    expect(screen.queryByRole("note")).toBeNull();
-    expect(document.activeElement).toBe(badge);
   });
 });

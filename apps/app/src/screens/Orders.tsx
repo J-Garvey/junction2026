@@ -4,7 +4,7 @@ import type { Order } from "@aimo/contracts";
 import { Link, useSearchParams } from "react-router";
 import { api } from "../api";
 import { useApp, useLoad, outletName } from "../ctx";
-import { AllergenDataMark, Fixture, Status } from "../ui/Status";
+import { AllergenDataMark, Status } from "../ui/Status";
 import { stockText } from "../ui/Popover";
 import { day, eur, when } from "../format";
 import { OrderItemDialog } from "../ui/OrderItemDialog";
@@ -35,7 +35,6 @@ export function Orders() {
             <b>Order {o.id}</b>
             <span className="row" style={{ gap: 6 }}>
               <span className={`stamp ${o.state === "rejected" ? "block" : "order"}`}>{o.state}</span>
-              <Fixture show={o.lines.some((l) => l.source === "fixture")} />
             </span>
           </div>
           <div className="rl muted">

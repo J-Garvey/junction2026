@@ -4,7 +4,7 @@ import { Link, useParams } from "react-router";
 import type { PlanLine } from "@aimo/contracts";
 import { api, ApiError, type ChangeResp, type SceneKey, type StoredEvent } from "../api";
 import { splitMine, useApp, useLoad } from "../ctx";
-import { CoverageLine, Fixture, Status } from "../ui/Status";
+import { CoverageLine, Status } from "../ui/Status";
 import { OthersWaiting, QuestionCard } from "../ui/QuestionCard";
 import { CutoffBoard, DiffView, DishView, LinesList, MoneyView, Section, sortGapsFirst, lineStatus, isGap } from "../ui/PlanView";
 import { Outcome } from "./Request";
