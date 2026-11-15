@@ -30,4 +30,9 @@ The review uses the current Aimo Copilot application and synthetic hotel data. T
 
 ## Results
 
-Review and implementation results are pending.
+| Finding | Severity | Reproduction and impact | Assignment |
+| --- | --- | --- | --- |
+| R04-01 | P2 | As Jonas on Rules, edit the spend cap or blocked products, open Switch user, then Cancel. The unsaved policy draft silently disappears. | F01: preserve the draft when canceling the picker |
+| R04-02 | P2 | Change reliability from 80 to 85 and add blocked product 469363, select Changed, then save. Saved non-default parameters disappear and the filter incorrectly says no rules changed. | F02: compare effective parameter values against defaults |
+
+R04 reproduced both issues in the browser against isolated fixtures. Its build passed, and 12 existing rule-policy tests passed. Implementation and remaining reviews are pending.
