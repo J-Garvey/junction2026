@@ -211,6 +211,7 @@ export const QuoteLine = z.object({
   source: z.enum(["live", "fixture"]),
   rules: z.array(FiredRule),
   outcome: Outcome,
+  requires: Constraints.optional().describe("Hard product requirements retained for rechecks and amendments"),
 });
 export type QuoteLine = z.infer<typeof QuoteLine>;
 

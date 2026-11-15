@@ -168,6 +168,11 @@ describe("the request parser keeps the product the chef named", () => {
 describe("automatic shortlisting", () => {
   const needFor = (query: string) => needsFromSingle({ ...rulesParse(`10 pcs ${query} by Monday`), siteId: "site-main", outletId: "out-kitchen" })[0];
 
+  it("keeps unknown houses/brand substrings out of automatic product identity (AUD-MAIN-008)", () => {
+    expect(shortlist(needFor("houses"))).toEqual([]);
+    expect(searchMatches({ q: "houses", limit: 50 }).every((match) => match.tier === 3)).toBe(true);
+  });
+
   it("never falls back to the category when the requested product is absent", () => {
     expect(shortlist({ ...needFor("milk"), query: "unlistedbrand milk" })).toEqual([]);
   });

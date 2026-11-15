@@ -12,6 +12,7 @@ import { isoDate } from "../util.js";
 import { structured, ModelUnavailable } from "./openai.js";
 import { headIndex, isLiteralProductQuery, queryTerms, QUERY_FORMS } from "../search.js";
 import { z } from "zod";
+import { ALLERGEN_NAMES } from "../rules/checks.js";
 
 /** Known product words: the type asked for and a category hint (CATEGORY-HINT, deterministic tier). */
 export const PRODUCT_WORDS: { re: RegExp; word: string; type: string | null; category: string | null }[] = [
@@ -67,19 +68,30 @@ const UNSUPPORTED_SPEC = /\d+(?:[.,]\d+)?\s*%/;
 const normalizeNumbers = (text: string) => text.replace(/\b\d{1,3}(?:[, \u00a0]\d{3})+(?!\d)/g, (s) => s.replace(/[, \u00a0]/g, ""));
 const LIST_SEPARATOR = /\s*(?:,(?!\d)|\band\b|\+|;|\r?\n)\s*/i;
 const DATE_WORD = "(?:mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?|today|tomorrow|20\\d\\d-\\d\\d-\\d\\d)";
+const ALLERGEN_WORDS: [string, string[]][] = [
+  ["(?:tree[- ]?)?nuts?", ["AN", "AP"]], ["peanuts?", ["AP"]], ["almonds?", ["SA"]],
+  ["milk|dairy", ["AM"]], ["eggs?", ["AE"]], ["soy|soya", ["AY"]], ["sesame", ["AS"]],
+  ["fish", ["AF"]], ["shellfish", ["UN", "AC", "UM"]], ["wheat", ["UW"]], ["gluten", ["AW"]],
+];
+const ALLERGEN_WORD = ALLERGEN_WORDS.map(([word]) => `(?:${word})`).join("|");
+const AVOID_LIST = new RegExp(`\\b(?:without|no)\\s+((?:${ALLERGEN_WORD})(?:\\s+(?:and|or)\\s+(?:${ALLERGEN_WORD}))+)(?![\\p{L}])`, "gu");
+const onlyRestrictionJoiners = (rest: string) => !rest.replace(/\band\b|,/g, "").trim();
+const ALLERGEN_CODES = [...Object.keys(ALLERGEN_NAMES), "SO", "PO", "BF", "CM", "ABD", "ADQ", "NP", "NC", "NE", "NK", "NM", "NW", "BP"];
 
 /** Only explicit countries are facts; a brand or missing origin proves nothing. */
 function restrictions(text: string) {
-  let rest = text;
+  let rest = text.replace(/\uE000/g, "and");
   const claims = CLAIM_WORDS.filter(([re]) => re.test(text)).map(([, claim]) => claim);
   rest = rest.replace(/\b(?:lactose[- ]?free|laktoositon|gluten[- ]?free|gluteeniton|vegan|milk[- ]?free|maidoton)\b/g, " ");
   const avoidAllergens: string[] = [];
-  const allergens: [string, string[]][] = [
-    ["(?:tree[- ]?)?nuts?", ["AN", "AP"]], ["peanuts?", ["AP"]], ["almonds?", ["SA"]],
-    ["milk|dairy", ["AM"]], ["eggs?", ["AE"]], ["soy|soya", ["AY"]], ["sesame", ["AS"]],
-    ["fish", ["AF"]], ["shellfish", ["UN", "AC", "UM"]], ["wheat", ["UW"]], ["gluten", ["AW"]],
-  ];
-  for (const [word, codes] of allergens) {
+  rest = rest.replace(AVOID_LIST, (_match, list: string) => {
+    for (const item of list.split(/\s+(?:and|or)\s+/)) {
+      const codes = ALLERGEN_WORDS.find(([word]) => new RegExp(`^(?:${word})$`).test(item))?.[1];
+      if (codes) avoidAllergens.push(...codes);
+    }
+    return " ";
+  });
+  for (const [word, codes] of ALLERGEN_WORDS) {
     rest = rest.replace(new RegExp(`\\b(?:${word})[- ]free\\b|\\b(?:without|no)\\s+(?:${word})\\b`, "g"), () => {
       avoidAllergens.push(...codes);
       return " ";
@@ -132,21 +144,22 @@ const lineId = () => `ln${Date.now().toString(36)}${(lineSeq++).toString(36)}`;
 export function rulesParse(text: string): Omit<SingleRequest, "siteId" | "outletId"> {
   const date = resolveDate(text);
   // "1,000 litres" and "1 000 l" are thousands, not two items; "1,5 l" stays a decimal.
-  let clean = normalizeNumbers(text.toLowerCase());
+  let clean = normalizeNumbers(text.toLowerCase()).replace(new RegExp(`\\b(?:by|before|on|for)\\s+${DATE_WORD}\\b`, "gi"), "").trim();
   let global = restrictions("");
   const globalPrefix = clean.match(/^(?:all(?:\s+(?:items|products))?|everything)(?:\s+(?:must|should))?(?:\s+be)?\s+([^:]+):\s*/);
   if (globalPrefix) {
     const parsed = restrictions(globalPrefix[1]);
-    if (!parsed.rest.trim() && (parsed.claims.length || parsed.avoidAllergens.length || parsed.origin)) {
+    if (onlyRestrictionJoiners(parsed.rest) && (parsed.claims.length || parsed.avoidAllergens.length || parsed.origin)) {
       global = parsed;
       clean = clean.slice(globalPrefix[0].length);
     }
   }
-  const globalText = clean.match(/(?:[,;]\s*|\s+)(?:all(?:\s+(?:items|products))?|both(?:\s+(?:items|products))?|everything)(?:\s+(?:must|should))?(?:\s+be)?\s+(.+)$/);
+  const globalText = clean.match(/(?:[,;]\s*|\s+)(?:all(?:\s+(?:items|products))?|both(?:\s+(?:items|products))?|everything)(?:\s+(?:must|should))?(?:\s+be)?\s+(.+)$/)
+    ?? clean.match(/[,;]\s*([^,;]+?)\s+products\s+only$/);
   if (globalText) {
     const parsed = restrictions(globalText[1]);
     const scopeClear = !/\bboth\b/.test(globalText[0]) || clean.slice(0, globalText.index).split(LIST_SEPARATOR).length === 2;
-    if (scopeClear && !parsed.rest.trim() && (parsed.claims.length || parsed.avoidAllergens.length || parsed.origin)) {
+    if (scopeClear && onlyRestrictionJoiners(parsed.rest) && (parsed.claims.length || parsed.avoidAllergens.length || parsed.origin)) {
       global = {
         ...parsed,
         claims: [...new Set([...global.claims, ...parsed.claims])],
@@ -158,7 +171,8 @@ export function rulesParse(text: string): Omit<SingleRequest, "siteId" | "outlet
     }
   }
   const parts = clean
-    .replace(new RegExp(`\\b(?:by|before|on|for)\\s+${DATE_WORD}\\b`, "gi"), "")
+    // Keep the conjunction inside "without milk and nuts" within its item's scope.
+    .replace(AVOID_LIST, (phrase) => phrase.replace(/\band\b/g, "\uE000"))
     .split(LIST_SEPARATOR)
     .filter((s) => s.trim());
   const lines: SingleLine[] = [];
@@ -182,7 +196,7 @@ export function rulesParse(text: string): Omit<SingleRequest, "siteId" | "outlet
       .replace(/\s+/g, " ")
       .trim();
     const pw = productWord(leftover || s);
-    if (!pw && !pid && !leftover) continue;
+    if (!pw && !pid && !leftover && !claims.length && !local.avoidAllergens.length && !local.origin) continue;
     lines.push({
       id: lineId(),
       text: raw.trim(),
@@ -191,7 +205,7 @@ export function rulesParse(text: string): Omit<SingleRequest, "siteId" | "outlet
       productType: pw?.type ?? null,
       category: pw?.category ?? null,
       productId: pid?.[1] ?? null,
-      quantity,
+      quantity: !pw && !pid && !leftover ? null : quantity,
       constraints: {
         claims,
         avoidAllergens: [...new Set([...global.avoidAllergens, ...local.avoidAllergens])],
@@ -223,7 +237,7 @@ const PARSE_SCHEMA = {
           amount: { type: ["number", "null"] },
           unit: { type: ["string", "null"], enum: ["g", "kg", "ml", "dl", "l", "pcs", null] },
           claims: { type: "array", items: { type: "string", enum: ["FREE_FROM_LACTOSE", "FREE_FROM_GLUTEN", "VEGAN", "FREE_FROM_MILK"] } },
-          avoidAllergens: { type: "array", items: { type: "string" }, description: "GS1 allergen codes to avoid, only if stated" },
+          avoidAllergens: { type: "array", items: { type: "string", enum: ALLERGEN_CODES }, description: "GS1 allergen codes to avoid, only if stated" },
           origin: { type: ["string", "null"], description: "Required ISO alpha-2 country of origin, lowercase (Finnish = fi); null if none. Never infer origin from a brand." },
         },
       },
@@ -238,7 +252,7 @@ const MODEL_RESULT = z.object({
     productId: z.string().regex(/^\d{6}$/).nullable(), amount: z.number().nullable(),
     unit: z.enum(["g", "kg", "ml", "dl", "l", "pcs"]).nullable(),
     claims: z.array(z.enum(["FREE_FROM_LACTOSE", "FREE_FROM_GLUTEN", "VEGAN", "FREE_FROM_MILK"])),
-    avoidAllergens: z.array(z.string().regex(/^[A-Z]{2,3}$/)),
+    avoidAllergens: z.array(z.enum(ALLERGEN_CODES)),
     origin: z.string().regex(/^[a-z]{2}$/).nullable().optional(),
   })),
 });
