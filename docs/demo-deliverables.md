@@ -4,7 +4,7 @@
 >
 > **Where the states come from:** the code on `main` on 15 Nov 2026, the team's [build notes](build.md), and the end-to-end test file (`apps/api/test/e2e.test.ts`). See "Test run" at the end for whether the tests were re-run for this list.
 >
-> **The main finding:** almost everything the video needs is already built and covered by tests. What is left is mostly decisions, because the build and the demo plan have drifted apart in seven places.
+> **The main finding:** almost everything the video needs is already built and covered by tests. What is left is mostly decisions, because the build and the demo plan still differ in six places. A seventh, the ranking rule, was settled on 15 Nov while this list was being written (see A1).
 
 ## How to read it
 
@@ -30,11 +30,11 @@
 
 ## A. Decide first
 
-Seven places where the build and the demo plan disagree. None needs code to decide; five of them only need the plan's numbers or wording updated.
+Six open decisions where the build and the demo plan disagree, and one that is now settled. None needs code to decide; most only need the plan's wording updated.
 
 | # | Decision | What the plan says | What the build does | Recommended | Who | Done when |
 |---|---|---|---|---|---|---|
-| A1 | **Which ranking rule the video follows** | D32: best on reliability and price. Milk is Valio's Eila; booking €2,003.37; four lines in the stock question | D33, recorded on 15 Nov, replaced D32: enough confirmed stock first, then price. Milk is Arla's (469363); booking €2,062.17; three lines in the stock question; Sanna's card says €112.17 over | Follow the build. D33 is the later decision and the tests assert it | Jack, with the team | The booking table in demo-plan.md shows the same products, total and overage as the app after Reset |
+| A1 | **Which ranking rule the video follows** (settled) | D32: best on reliability and price. Milk is Valio's Eila; booking €2,003.37; four lines in the stock question | D34, recorded on 15 Nov in pull request #125, replaced D33: price first, then reliability, and stock doesn't affect rank at all. The build now gives the plan's booking exactly: Valio's Eila, €2,003.37, four lines in the stock question, €53.37 over | Nothing to decide. The plan and the build agree on the figures | Jack | demo-plan.md cites D34 instead of D32 for the ranking |
 | A2 | **What the video calls the model** | "Gemini's decision model" | OpenAI only (`gpt-6-astra`), for reading requests and for the yes/no judgements. With no key, a built-in parser and a hand-checked list run instead, and the app says so | Say "a language model" and "a yes/no judgement with a confidence". Don't name Gemini | Jack | No line of the script or the plan names a model the build doesn't run |
 | A3 | **The potatoes and Onni's allergy** | Only the cake stops | The potatoes (460541) stop too: they have no allergen declaration, and rule ALG-03 says missing data is never safe for an allergy. Aino has to give Onni another side | Swap the seed's potato for one that has an allergen declaration. It keeps the rule intact and the story to one stop | Darragh picks the product; Ben changes the seed | The first clarification shows one allergy stop, the cake |
 | A4 | **Which cake replaces the princess cake** | Elonen raspberry pastry cake (473522) | The agent's own top two that declare themselves free from tree nuts and are cakes. Today the first is a Fazer gluten-free caramel cake | Use the agent's pick. It is the real behaviour, and it is what "suggestions" means | Jack | The plan's totals after the first clarification match the app |
@@ -53,7 +53,7 @@ These carry the four beats the plan protects: the plain-words line, the booking 
 | B1 | **`LOOKUP`**: price and availability from Valio Aimo's mock, in batches of up to 1,000, with both stock placeholders turned into "unknown", empty schedules into "not deliverable", and live or fixture mode. `POST /gateway/v1/lookup`; code in `aimo/lookup.ts` | Built | Pavit | Verify | A lookup of 469672, 467767 and 461955 returns: 311 kg in stock at €29.84 per kg; stock unknown; and a price with no delivery. Each line says whether it came from the live mock or a fixture |
 | B2 | **`PRODUCT-SEARCH`**: the local catalogue filtered by text, category, claims, allergens to exclude, origin and labels, capped at 50. `GET /gateway/v1/products`; code in `search.ts` | Built, tested (`search.test.ts`) | Pavit | Verify | `q=salmon&origin=fi` returns only Finnish products. `category=10400&claims=FREE_FROM_LACTOSE` returns only lactose-free products. The same query twice gives the same order |
 | B3 | **`TYPE-CHECK`**: a yes/no judgement on whether a product is the type asked for, with a confidence. 0.90 or above is a fact, 0.10 or below rejects, anything between asks. Answers are stored and reused. Code in `agent/judge.ts` | Built | Pavit | Verify with the key set, and once with it unset | For the milk line, Arla Café milk (463380) and the soured milks are rejected. Each judgement in the audit shows its probability and whether it came from the model, the store or the hand-checked list |
-| B4 | **`RANK`**: the fixed order. Recipe-approved product, then enough confirmed stock, partial stock, unknown stock, then price, reliability, product ID. Products with no price go last. Code in `agent/match.ts` | Built (D33) | Pavit | Settle A1, then verify | The milk line picks the product the plan names, and shows the step that decided it |
+| B4 | **`RANK`**: the fixed order (D34). A recipe-approved product first; then price per kg or L, delivery reliability and product ID. Products with no price go last. Stock doesn't affect rank; unconfirmed stock is disclosed and the person decides. Code in `agent/match.ts` | Built, tested (test case 2: "picks the cheapest milk, discloses unknown stock and asks the chef before ordering") | Pavit | Verify | The milk line picks Valio's Eila (464306) and shows the step that decided it |
 
 ### Parameters and rules
 
@@ -64,7 +64,7 @@ These carry the four beats the plan protects: the plain-words line, the booking 
 | B7 | **Allergy and diet rules** (ALG-01, 02, 03, 10; DIET-01 to 05): an allergy to a family catches its members, so tree nuts catch almond; "free from" never outweighs "contains"; missing data is never safe | Built, tested (`rules.test.ts`, `model-allergy-boundary.test.ts`) | Darragh | Verify | Adding Onni's tree-nut allergy stops the princess cake (467767) with "Contains almond", and the card has no approve button |
 | B8 | **Quantity rules** (QTY-01, 06): amount per guest × guests, combined per product, rounded up once to whole sales units; ask only when the overshoot is above both limits | Built, tested (`quantity-boundaries.test.ts`) | Ben | Verify | 180 guests gives 31 kg, 3 cases, 45, 12 cases, 1 case, 40 and 5 cases, in the menu's order |
 | B9 | **Stock question** (STK-01, 03): one card for every line whose stock can't be confirmed; the chef continues or picks another | Built, tested (scene 2) | Darragh, Jack | Verify | After the booking is built, Aino sees one card listing the unconfirmed lines, and Sanna sees nothing until Aino has answered |
-| B10 | **Budget rule and approval** (MAN-01, MAN-04): over the cap needs Sanna; her approval is signed and tied to that exact quote | Built, tested (scene 2 and test case 3) | Darragh, Pavit | Verify | Sanna gets one card naming MAN-01 and the amount over. After she approves, the plan's status is "ordered". Changing the order voids the approval |
+| B10 | **Budget rule and approval** (MAN-01, MAN-04): over the cap needs Sanna; her approval is signed and tied to that exact quote | Built, tested (scene 2 and test case 3) | Darragh, Pavit | Verify | Sanna gets one card naming MAN-01 and the amount over, €53.37. After she approves, the plan's status is "ordered". Changing the order voids the approval |
 
 ### Orders and the gateway
 
@@ -96,7 +96,7 @@ These carry the four beats the plan protects: the plain-words line, the booking 
 | C2 | **The no-shows**: 194 to 188 applied with no question, inside the 5% | Built, tested (scene 4) | Darragh | Verify | Salmon goes from 33 kg to 32 kg and nobody is asked |
 | C3 | **The final check** (FIN-01, 02; STK-02, 04): run 24 hours before the cut-off; finds the cream short | Built, tested (scene 4) | Darragh | Verify | The card reads "37 of 47 in stock · 10 l to fill" |
 | C4 | **Suggestion: cream substitutes, side by side** (SUB-01) | Built, tested (scene 4: the candidates include 464194) | Darragh, Jack | Verify | Aino keeps 37 L of the Arla cream and adds 10 L of the Valio cream; the order shows both |
-| C5 | **The result line** | Differs: the build says "Ready · 4 stock not confirmed"; the plan says "Ready for Tuesday. Valio Aimo can't confirm stock on 5 lines" | Jack | Use the build's line in the plan | The plan quotes the line the app shows |
+| C5 | **The result line** | Differs in wording only: the build says "Ready · 5 stock not confirmed"; the plan says "Ready for Tuesday. Valio Aimo can't confirm stock on 5 lines" | Jack | Use the build's line in the plan | The plan quotes the line the app shows |
 | C6 | **Finnish fish** (ORG-01) | Differs: the origin sits on Aino's recipe line for the salmon, not in Sanna's rules | Jack | Change the script to "Aino's recipe asks for Finnish salmon", or ask Darragh to add an origin rule to the mandate | The video's claim about who set the rule matches where the rule lives |
 | C7 | **Time per step**: milliseconds on each gateway call in the live console | Built | Jack | Verify it is readable on camera | Each row on the gateway side shows its time |
 | C8 | **Fixture labels** | Built | Ben | Verify | In fixture mode, lines fed by saved data carry the label |
@@ -109,7 +109,7 @@ These carry the four beats the plan protects: the plain-words line, the booking 
 | D1 | **Carbon on each line** | Built in the plan view; not checked on the screens the video uses | Ben | Verify, or drop from Sanna's rules in the script | Each line shows a figure labelled as a product-group average, or "no figure" |
 | D2 | **The Reads, Judges, Decides strip** | Missing | Jack | Drop it. The live console's gateway side already labels every call ALLOWED, NEEDS APPROVAL, ASKS CHEF or REFUSED, which shows the same thing. Keep the voiceover line "AI reads and judges. Rules decide." | The plan no longer promises the strip |
 | D3 | **The "not available" salmon fillet** | Built as a rule (DLV-01); not in the seed's story, because the salmon is fixed by the recipe | Jack | Drop from the script, or show it with one product search | The script doesn't promise a moment the app won't show |
-| D4 | **A test title that no longer matches**: scene 2 is titled "€2,003.37 … 4 lines" and asserts €2,062.17 and 3 lines | Differs | Ben | Rename the test | The title states what the test asserts |
+| D4 | **A test title that no longer matched** | Done. Pull request #125 brought the test and its title back in line: €2,003.37 and 4 lines | Ben | Nothing | Already true |
 
 ## Rules that fire in the video
 
@@ -124,18 +124,22 @@ For whoever writes the voiceover. Every one is in the rule catalogue (`apps/api/
 
 ## Order of work
 
-1. **A1 to A7**, together, in one sitting. They are decisions, not work.
+1. **A2 to A7**, together, in one sitting. They are decisions, not work. A1 is settled.
 2. **A3's seed change** (Ben), since it changes what the tests should expect.
-3. **B21**: Jack brings the demo plan in line with the build.
+3. **B21**: Jack brings the demo plan in line with the build. After D34 the booking figures already match, so this is A2 to A6 plus citing D34.
 4. **Verify B1 to B20** on the running app, one person per table.
 5. **C9**, the funnel, if there is time. It is the only real build left.
 6. **B22**: record.
 
 ## Test run
 
-The API's test suite was run for this list on 15 Nov 2026 at commit `0cb5841`, on a clean install, with no model key set (so the scripted model and the hand-checked list were used):
+The API's test suite was run for this list on 15 Nov 2026, on a clean install, with no model key set (so the scripted model and the hand-checked list were used). It was run twice:
 
-- **28 test files, 477 tests, all passed**, in 37 seconds.
-- That covers every item marked "Built, tested" above, including the wedding through its four scenes, run twice from a fresh reset.
+| Commit | When | Result |
+|---|---|---|
+| `0cb5841` | Before the ranking change (D33) | 28 files, 477 tests, all passed |
+| `0d02ad9` | After the ranking change (D34, pull request #125) | 28 files, 478 tests, all passed |
+
+That covers every item marked "Built, tested" above, including the wedding through its four scenes, run twice from a fresh reset.
 
 What the tests don't cover: anything marked "Built" without "tested", how the screens look on camera, and the live model. Items B1, B3, B5, B6, B13, B17, B18, C7 and C8 still need a person to check them on the running app.
