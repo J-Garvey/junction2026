@@ -435,6 +435,7 @@ export const AuditAction = z.enum([
 export type AuditAction = z.infer<typeof AuditAction>;
 
 export const AuditEntry = z.object({
+  hotelId: z.string().nullable().optional().describe("Server-resolved owner; absent on legacy entries"),
   seq: z.number().int(),
   id: z.string(),
   simTime: z.string(),

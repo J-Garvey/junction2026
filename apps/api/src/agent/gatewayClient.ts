@@ -39,7 +39,7 @@ export const gw = {
   consent: (personToken: string, quote: Quote, productIds: string[]) => call<{ id: string }>("POST", "/builder-consents", { quoteId: quote.id, fingerprint: quote.fingerprint, productIds }, { token: personToken }),
   order: (quoteId: string, idemKey: string, approvalId?: string, continueWithUnconfirmedStock: string[] = [], decidedBy?: string, builderConsentId?: string) =>
     call<Order>("POST", "/orders", { quoteId, approvalId, continueWithUnconfirmedStock, builderConsentId: builderConsentId ?? undefined }, { headers: { "Idempotency-Key": idemKey } }),
-  getOrder: (id: string) => call<Order>("GET", `/orders/${id}`),
-  orders: (eventId?: string) => call<{ orders: Order[] }>("GET", `/orders${eventId ? `?eventId=${encodeURIComponent(eventId)}` : ""}`),
+  getOrder: (id: string, token?: string) => call<Order>("GET", `/orders/${id}`, undefined, { token }),
+  orders: (eventId?: string, token?: string) => call<{ orders: Order[] }>("GET", `/orders${eventId ? `?eventId=${encodeURIComponent(eventId)}` : ""}`, undefined, { token }),
   amend: (orderId: string, body: AmendmentBody) => call<{ order: Order; quote: Quote }>("POST", `/orders/${orderId}/amendments`, body),
 };

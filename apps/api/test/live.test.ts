@@ -56,10 +56,12 @@ function scripted() {
 }
 
 const post = async (p: string, b: unknown = {}) => {
-  const r = await fetch(`${BASE}/api/live${p}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) });
+  const r = await fetch(`${BASE}/api/live${p}`, { method: "POST", headers: { "Content-Type": "application/json", ...hotelHeaders() }, body: JSON.stringify(b) });
   return { status: r.status, body: (await r.json()) as any };
 };
-const state = async () => (await (await fetch(`${BASE}/api/live/state`)).json()) as any;
+const { issueToken } = await import("../src/identity.js");
+const hotelHeaders = () => ({ Authorization: `Bearer ${issueToken({ kind: "person", personId: "p-aino" })}` });
+const state = async () => (await (await fetch(`${BASE}/api/live/state`, { headers: hotelHeaders() })).json()) as any;
 async function settle() {
   for (let i = 0; i < 100; i++) {
     const s = await state();
@@ -109,7 +111,7 @@ describe("Live console: real gateway, scripted model", () => {
 
   it("serves the signed record with a valid ES256 signature", async () => {
     const id = final.feed.find((f: any) => f.action === "ORDER").orderId;
-    const r = (await (await fetch(`${BASE}/api/live/orders/${id}`)).json()) as any;
+    const r = (await (await fetch(`${BASE}/api/live/orders/${id}`, { headers: hotelHeaders() })).json()) as any;
     expect(r.signature.valid).toBe(true);
     expect(r.order.lines[0]).toMatchObject({ productId: "464306", quantity: 2000, riskAccepted: { by: "Aino" } });
   });

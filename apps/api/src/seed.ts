@@ -95,7 +95,7 @@ export function seedReset() {
   putMandate(MANDATE);
   issueFixedToken(OUTSIDE_AGENT_TOKEN, { kind: "agent", hotelId: HOTEL_ID, name: "Unvetted script (safety drill)", scopes: ["search", "quote", "order"] });
   issueFixedToken(HOTEL_AGENT_TOKEN, { kind: "agent", hotelId: HOTEL_ID, name: "Demo Hotel purchasing agent", scopes: ["search", "quote", "order"] });
-  issueFixedToken(VALIO_VIEWER_TOKEN, { kind: "valio", name: "Katri, Valio Aimo account manager" });
+  issueFixedToken(VALIO_VIEWER_TOKEN, { kind: "valio", hotelIds: [HOTEL_ID], name: "Katri, Valio Aimo account manager" });
   kvSet("agentToken", HOTEL_AGENT_TOKEN);
   kvSet("dataMode", { mode: "fixture", overlay: null });
   kvSet("seedProfile", { id: "story", version: 1, label: "Wedding story (fictional fixture)" });

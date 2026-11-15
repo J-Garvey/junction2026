@@ -75,7 +75,10 @@ export function Live() {
         if (!stop) setTimeout(connect, 1500);
       };
     };
-    connect();
+    void fetch("/api/live/state", { credentials: "same-origin" }).then(async r => {
+      if (!r.ok) throw new Error("Sign in as a Demo Hotel user to open this console.");
+      if (!stop) { setS(await r.json()); connect(); }
+    }).catch(e => { if (!stop) setErr(e.message); });
     return () => {
       stop = true;
       es?.close();
@@ -104,7 +107,7 @@ export function Live() {
       setText("");
     });
 
-  if (!s) return <div className="lv-boot">Connecting to the gateway…</div>;
+  if (!s) return <div className="lv-boot">{err ? <span>{err} <a href="/">Open hotel sign-in</a></span> : "Connecting to the gateway..."}</div>;
   const sess = s.session;
   const working = sess.status === "running";
   const waiting = sess.status === "waiting";
