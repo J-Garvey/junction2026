@@ -52,7 +52,7 @@ async function staged(productId = "469672", amount = 10, eventId?: string) {
   expect(draft.status).toBe(200);
   const stage = await approveAndStage(draft.plan);
   expect(stage.status).toBe(200);
-  return { id, planId: draft.plan.id };
+  return { id, planId: draft.plan.id, stage };
 }
 async function approveAndStage(plan: any) {
   for (const item of plan.itemReviews ?? []) {
@@ -67,6 +67,16 @@ async function correct(id: string, planId: string, action: "edit" | "remove", ch
 }
 
 describe("uncommitted staged corrections", () => {
+  it("accepts the staging response's correction token after HTTP processing timing is saved", async () => {
+    const { id, planId, stage } = await staged();
+    expect(stage.plan.processing).toBeDefined();
+    const offered = stage.basket.requests.find((plan: any) => plan.id === planId);
+    expect(offered.changeToken).toEqual(expect.any(String));
+    // Use the mutation response directly, without a GET refreshing its token.
+    expect((await correct(id, planId, "edit", offered.changeToken)).status).toBe(200);
+    expect(getPlan(planId)!.basketedAt).toBeNull();
+  });
+
   it.each([["469672", 10, 5], ["464306", 1000, 40]])("returns %s for reduction, fresh item checks and fresh finance review", async (sku, amount, reduced) => {
     const { id, planId } = await staged(String(sku), Number(amount));
     const first = (await call("POST", `/baskets/${id}/submit-review`)).review;

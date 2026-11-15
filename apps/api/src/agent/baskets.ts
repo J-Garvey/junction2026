@@ -28,7 +28,10 @@ export async function changeBasket<T>(eventId: string, change: () => Promise<T>)
 
 export function basketChangeToken(plan: StoredPlan) {
   const event = plan.eventId ? getEvent(plan.eventId) : null;
-  return sha256(stableStringify({ plan, siteId: event?.siteId, deliveryDate: event?.serviceDate, version: event?.version }));
+  // HTTP processing time is saved after the response basket is assembled. It
+  // does not change order terms or invalidate the correction just offered.
+  const changeState = { ...plan, processing: undefined };
+  return sha256(stableStringify({ plan: changeState, siteId: event?.siteId, deliveryDate: event?.serviceDate, version: event?.version }));
 }
 
 /** Withdraw only an uncommitted request; all product/quantity edits use item review. */
