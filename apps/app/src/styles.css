@@ -71,7 +71,6 @@ h4 { font-size: 13px; font-weight: 700; text-transform: uppercase; color: var(--
 .order-switcher-order b { overflow: hidden; color: var(--ink); text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; text-decoration: none; }
 .order-switcher-order span { color: var(--mute); font-size: 12px; text-decoration: none; }
 .order-switcher-count { min-width: 20px; padding: 1px 6px; border-radius: 10px; background: var(--yellow-soft); color: var(--ink); font-size: 11px; font-weight: 700; text-align: center; }
-.order-switcher-check { width: 24px; height: 24px; flex: 0 0 24px; display: grid; place-items: center; border-radius: 50%; color: var(--ink); background: var(--primary); }
 .order-switcher-menu a.order-switcher-all { min-height: 44px; margin-top: 8px; padding-top: 9px; border-top: 1px solid var(--hairline-soft); border-radius: 0 0 6px 6px; color: var(--ink); font-size: 13px; font-weight: 600; }
 .order-switcher-all span { flex: 1; }
 .side-brand { padding: 4px 8px 14px; }
