@@ -13,10 +13,13 @@ process.env.AIMO_DB = ':memory:';
 globalThis.fetch = async () => { throw Error('No network in local P1 benchmark'); };
 const { rulesParse, parseSimpleRequest } = await import('../../agent/parse.js');
 const { searchMatches } = await import('../../catalog.js');
+const { setClock } = await import('../../clock.js');
+const clock = '2026-11-14T10:00:00Z';
+setClock({ time: clock });
 const bytes = readFileSync(manifest);
 const rows = bytes.toString('utf8').split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line));
 const samples: Record<string, unknown>[] = [];
-for (const row of rows.filter(r => r.benchmark.shape === 'compact-literal')) {
+for (const row of rows.filter(r => ['compact-literal', 'fixture-sku-literal'].includes(r.benchmark.shape))) {
   for (const [name, parse] of [['rulesParse', rulesParse], ['parseSimpleRequest', parseSimpleRequest]] as const) {
     const start = performance.now();
     const parsed = parse(row.input);
@@ -40,6 +43,8 @@ for (let pass = 0; pass < 2; pass++) for (const [index, q] of queries.entries())
     resultHash: createHash('sha256').update(JSON.stringify(result.map(m => [m.product.id, m.tier, m.role]))).digest('hex') });
 }
 writeFileSync(output, JSON.stringify({ sha: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
+  dirty: Boolean(execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], { encoding: 'utf8' }).trim()),
+  clock, scriptHash: createHash('sha256').update(readFileSync(new URL(import.meta.url))).digest('hex'),
   manifest, manifestSha256: createHash('sha256').update(bytes).digest('hex'), node: process.version,
   model: 'disabled; direct deterministic functions; network refused', samples, rssBytes: process.memoryUsage().rss,
   limitations: ['Local functions are not HTTP end-to-end latency.', 'First cold search includes catalog loading; only 29 other unique misses, so no cold p95 claim.',
