@@ -14,6 +14,7 @@ const { SEED_EVENT, MANDATE, seedReset } = await import("../src/seed.js");
 const { setClock } = await import("../src/clock.js");
 const { getProduct } = await import("../src/catalog.js");
 const { scaleMenu } = await import("../src/agent/menu.js");
+const { getEvent, saveEvent } = await import("../src/agent/events.js");
 const { needsFromEvent, newPlan, quoteAndDecide, runPipeline } = await import("../src/agent/plan.js");
 const { rankNeed } = await import("../src/agent/match.js");
 const { gw } = await import("../src/agent/gatewayClient.js");
@@ -191,6 +192,8 @@ describe("fixed event totals in preview and generation (R06-02)", () => {
 
   it("keeps the exact 40 L through the event matching pipeline", async () => {
     const event = coffee([lactoseFree(180)]);
+    // The pipeline reloads saved event state to bind D35 consent to current terms.
+    saveEvent({ ...getEvent(event.id)!, ...event });
     const plan = newPlan("event", { personId: "p-aino", name: "Aino" }, "banquet", { event, eventId: event.id, reviewing: true });
     await runPipeline(plan);
     expect(plan.inputRules).toEqual([]);

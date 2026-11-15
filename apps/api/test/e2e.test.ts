@@ -261,11 +261,14 @@ describe("Test case 1: the wedding through four scenes (docs/demo-plan.md)", () 
     const toast = a.allergyQs.find((q: any) => q.facts.productId === "477125");
     expect(toast.ruleIds).toContain("ALG-04");
     expect(toast.options[0].id).toBe("replace_0");
-    // Its replacement has checked stock, so the increased toast quantity no
-    // longer asks the chef to accept unknown stock on the original product.
-    expect(a.beforeStockDecision[0].lines.find((l: any) => l.productId === "477090")).toMatchObject({ quantity: 6, stock: { kind: "known", amount: 81 }, removed: false });
-    expect(a.beforeStockDecision[0].lines.find((l: any) => l.productId === "477125").removed).toBe(true);
-    expect(a.changeStock).toEqual([]);
+    // D35 changes the dietary scope before the amendment, so stock consent is
+    // renewed before applying it, including its confirmed-stock toast replacement.
+    expect(a.changeStock).toHaveLength(1);
+    expect(a.changeStock[0]).toMatchObject({ forRole: "chef", quoteId: expect.any(String), fingerprint: expect.any(String) });
+    expect(a.financeStockTry.status).toBe(409);
+    expect(a.changeStockAnswer.error).toBeUndefined();
+    expect(a.orders[0].lines.find((l: any) => l.productId === "477090")).toMatchObject({ quantity: 6, stock: { kind: "known", amount: 81 }, removed: false });
+    expect(a.orders.flatMap((order: any) => order.lines).filter((line: any) => line.productId === "477125" && !line.removed)).toEqual([]);
   });
   it("scene 4: changed dietary scope needs fresh chef consent; the final check keeps 37 L and fills 10 L", () => {
     expect(a.g188.applied).toBe(false);
