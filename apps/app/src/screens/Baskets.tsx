@@ -15,6 +15,7 @@ import { stockText } from "../ui/Popover";
 import { tooLateText } from "../ui/TooLate";
 import { addDays, day, eur, helsinkiDate, plural, qty } from "../format";
 import "./baskets.css";
+import { useMessagePreparation } from "../useMessagePreparation";
 
 
 export function BasketsHome() {
@@ -284,6 +285,8 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
   const [review, setReview] = useState<PlanResp | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ cls: string; body: React.ReactNode } | null>(null);
+  useMessagePreparation(busy || review ? "" : text);
+
   async function search() {
     if (!text.trim() || busy) return;
     setBusy(true);
@@ -307,10 +310,23 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
     <section className="composer-wrap">
       <form className="composer" onSubmit={(event) => { event.preventDefault(); search(); }}>
         <div className="txt">
-          <textarea rows={1} value={text} placeholder="Add to this order, e.g. 40 l lactose-free milk" onChange={(event) => setText(event.target.value)} onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); search(); }
-          }} aria-label="Add to this order" />
-          <button type="submit" className={`send ${text.trim() ? "go" : ""}`} disabled={busy} aria-label="Search">{busy ? "..." : <Icon n="plus" s={18} w={2.2} />}</button>
+          <textarea
+            rows={1}
+            value={text}
+            maxLength={2000}
+            placeholder="Add to this order, e.g. 40 l lactose-free milk"
+            onChange={(event) => setText(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                search();
+              }
+            }}
+            aria-label="Add to this order"
+          />
+          <button type="submit" className={`send ${text.trim() ? "go" : ""}`} disabled={busy} aria-label="Search">
+            {busy ? "..." : <Icon n="plus" s={18} w={2.2} />}
+          </button>
         </div>
       </form>
       {busy && <div className="small muted" role="status">Checking products, stock and delivery...</div>}

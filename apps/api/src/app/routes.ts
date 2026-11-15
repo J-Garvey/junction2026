@@ -12,12 +12,11 @@ import { audit, auditView, verifyChain, decisionCount, SYSTEM } from "../audit.j
 import { kvGet, kvSet } from "../db.js";
 import { RULES, FIXED } from "../rules/catalogue.js";
 import { getProduct, catalogSize } from "../catalog.js";
-import { parseRequest, parseSimpleRequest } from "../agent/parse.js";
+import { interpretMessage } from "../agent/message.js";
 import { logSearch } from "../searchlog.js";
-import { messageRoute } from "../agent/judge.js";
-import { matchesCurrentShortlists } from "../agent/match.js";
+import { matchesCurrentShortlists, shortlist } from "../agent/match.js";
 import { allItemsApproved, quantityScope, refreshItemReviews } from "../agent/itemReview.js";
-import { newPlan, quoteAndDecide, getPlan, listPlans, mandate, savePlan, emptyOverrides, HOTEL_ID } from "../agent/plan.js";
+import { newPlan, quoteAndDecide, getPlan, listPlans, mandate, savePlan, emptyOverrides, HOTEL_ID, needsFromSingle } from "../agent/plan.js";
 import { questionsFor, allQuestions, getQuestion, canAnswer } from "../agent/questions.js";
 import { answer } from "../agent/answers.js";
 import { addDietGroup, changeEvent, changeGuests, coverageSummary, EditConflict, eventView, finalCheck, getEvent, listEvents, orderEvent, removeNeed, runCutoff, runViability, saveEvent, warnings, personActor, type StoredEvent } from "../agent/events.js";
@@ -104,17 +103,30 @@ export function appRouter(): Router {
     res.json({ questions: mine, events, plans, warnings: warnings().filter((w) => w.state === "open") });
   });
 
+  const messageBody = z.object({ text: z.string().trim().min(1).max(2000) });
+
+  // Warm only interpretation and local catalogue caches while the person types.
+  // Never create a plan, audit a submission, or fetch supplier/quote terms here.
+  r.post("/messages/prepare", async (req, res) => {
+    const { text } = messageBody.parse(req.body);
+    const { parsed } = await interpretMessage(text);
+    if (parsed && !res.destroyed) {
+      const request = { ...parsed.request, siteId: mandate().sites[0].id, outletId: P(req).outlets[0] ?? "banquet" };
+      for (const need of needsFromSingle(request)) shortlist(need, { log: false });
+    }
+    res.json({ ok: true });
+  });
+
   // Chat box: route the message (MESSAGE-ROUTE), then parse a new request into chips (REQUEST-PARSE).
   r.post("/messages", async (req, res) => {
-    const { text } = z.object({ text: z.string().min(1).max(2000) }).parse(req.body);
-    const simple = parseSimpleRequest(text);
-    const route = simple ? { route: "new_request" as const, judgement: null } : await messageRoute(text);
+    const { text } = messageBody.parse(req.body);
+    const { route, parsed } = await interpretMessage(text);
     if (route.route === "event_change") {
       const m = text.match(/(\d{1,5})\s*guests?/i);
       return res.json({ route: "event_change", guests: m ? Number(m[1]) : null, events: listEvents().map((e) => ({ id: e.id, name: e.name, guests: e.guests, version: e.version })), judgement: route.judgement });
     }
     if (route.route === "neither") return res.json({ route: "neither", message: "I can take a new request or a change to an event." });
-    const parsed = simple ? { request: simple, note: null } : await parseRequest(text);
+    if (!parsed) throw new Error("Missing request interpretation");
     logSearch({ source: "request_parse", query: text, interpreted: { route: route.route, parsedBy: parsed.request.parsedBy, note: parsed.note, neededBy: parsed.request.neededBy, neededByText: parsed.request.neededByText, lines: parsed.request.lines } });
     audit({ actor: personActor(P(req)), action: "request_parsed", summary: `Parsed "${text.slice(0, 80)}" into ${parsed.request.lines.length} line(s) (${parsed.request.parsedBy})`, details: { request: parsed.request }, visibility: "hotel", judgements: route.judgement ? [route.judgement] : [] });
     res.json({ route: route.route === "unsure" ? "new_request_unsure" : "new_request", request: { ...parsed.request, siteId: mandate().sites[0].id, outletId: P(req).outlets[0] ?? "banquet" }, note: parsed.note });

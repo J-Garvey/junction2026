@@ -20,7 +20,7 @@ const MIXED_TYPE_CATEGORIES = ["10400", "10401"];
 export type Pool = Map<string, LookupLine>;
 
 /** Step 1–2 of Q02.1: the shortlist for a need, before lookup. */
-export function shortlist(need: Need): Product[] {
+export function shortlist(need: Need, opts: { log?: boolean } = {}): Product[] {
   const claims = need.constraints.claims ?? [];
   if (need.pinnedProductId) {
     const pinned = getProduct(need.pinnedProductId);
@@ -38,7 +38,7 @@ export function shortlist(need: Need): Product[] {
   // Mention-only search results are useful for browsing, but cannot establish what to
   // buy. A failed text match must not turn into an unrelated category-wide pick.
   const list = searchMatches({ ...base, q: need.query }).filter((m) => m.tier < 3).map((m) => m.product);
-  logSearch({ source: "shortlist", query: { need: need.label, text: need.text, q: need.query, ...base }, interpreted: { count: list.length, fellBackToCategory: false, top: brief(list) } });
+  if (opts.log !== false) logSearch({ source: "shortlist", query: { need: need.label, text: need.text, q: need.query, ...base }, interpreted: { count: list.length, fellBackToCategory: false, top: brief(list) } });
   return list;
 }
 
