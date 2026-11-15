@@ -243,7 +243,7 @@ function TopBar({ status, me, onSwitch }: { status: StatusResp | null; me: Perso
         </Link>
         <OrderSwitcher currentId={basketId ? decodeURIComponent(basketId) : undefined} />
       </div>
-      {status && !status.chain.ok && <span className="stamp block">Audit chain broken</span>}
+      {status && !status.chain.ok && <span className="stamp block audit-chain-warning" role="alert">Audit chain broken</span>}
       <div className="account-slot"><AccountMenu me={me} onSwitch={onSwitch} /></div>
     </div>
   );

@@ -13,6 +13,8 @@
   transform: translateY(-160%);
 }
 .skip-to-content:focus { transform: translateY(0); }
+.shell .topbar { flex-wrap: wrap; }
+.audit-chain-warning { order: 1; flex-basis: 100%; white-space: normal; }
 .shell .topbar .order-switcher-slot { flex: 1; min-width: 0; gap: 16px; }
 .app-brand {
   display: flex;

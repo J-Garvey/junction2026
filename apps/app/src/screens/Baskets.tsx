@@ -433,7 +433,7 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
             rows={1}
             value={text}
             maxLength={2000}
-            placeholder="Add to this order, e.g. 40 l lactose-free milk"
+            placeholder="e.g. 40 L lactose-free milk"
             onChange={(event) => setText(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) {
