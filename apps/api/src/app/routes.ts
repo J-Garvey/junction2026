@@ -176,11 +176,8 @@ export function appRouter(): Router {
 
   const ownEvents = (req: Request) => listEvents().filter(e => hotelFor({ eventId: e.id }) === P(req).hotelId);
   const ownPlans = (req: Request) => listPlans().filter(pl => hotelFor({ details: { planId: pl.id } }) === P(req).hotelId && inPlanScope(req, pl));
-  const ownWarnings = (req: Request) => warnings().filter((w) => w.state === "open" && hotelFor({ eventId: w.eventId }) === P(req).hotelId);
 
   r.get("/me", (req, res) => res.json({ person: P(req) }));
-  // The shell only needs the allergy banner, not every plan and decision.
-  r.get("/warnings", (req, res) => res.json({ warnings: ownWarnings(req) }));
 
   // UI-01: home opens on the decisions waiting for this person, then their events.
   r.get("/home", (req, res) => {
@@ -188,7 +185,7 @@ export function appRouter(): Router {
     const mine = questionsFor(p).filter(q => hotelFor({ questionId: q.id }) === p.hotelId);
     const events = ownEvents(req).map((e) => ({ id: e.id, name: e.name, serviceDate: e.serviceDate, guests: e.guests, coverage: coverageSummary(e.id), version: e.version, outlets: [...new Set(e.dishes.map((d) => d.outletId))] }));
     const plans = ownPlans(req).filter((pl) => pl.kind === "single" && !pl.reviewing).slice(0, 10).map((pl) => ({ id: pl.id, title: pl.title, status: pl.status, summary: pl.summary, createdAt: pl.createdAt, createdBy: pl.createdBy.name }));
-    res.json({ questions: mine, events, plans, warnings: ownWarnings(req) });
+    res.json({ questions: mine, events, plans, warnings: warnings().filter((w) => w.state === "open" && hotelFor({ eventId: w.eventId }) === p.hotelId) });
   });
 
   const messageBody = z.object({ text: z.string().trim().min(1).max(2000) });

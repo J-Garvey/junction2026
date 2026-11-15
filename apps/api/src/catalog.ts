@@ -10,7 +10,6 @@ import { registerBrand } from "./util.js";
 import { relevance, useCatalogue, type Match } from "./search.js";
 import { allergenConflicts } from "./rules/allergens.js";
 import { passesMandateOrigin, type OriginPolicy } from "./rules/origin.js";
-import { buildCategoryTags } from "./categoryTags.js";
 
 type Raw = Record<string, any>;
 
@@ -75,9 +74,6 @@ export function loadCatalog() {
   }
   orderedProducts = [...products.values()].sort((a, b) => a.id.localeCompare(b.id));
   useCatalogue(orderedProducts);
-  // Build immutable language/category statistics before accepting HTTP requests,
-  // so the first unfamiliar search cannot stall saves and page reads.
-  buildCategoryTags(orderedProducts);
 }
 
 export function getProduct(id: string): Product | null {
