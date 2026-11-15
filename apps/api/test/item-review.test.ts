@@ -50,6 +50,15 @@ async function approve(plan: any, index: number) {
 }
 
 describe("per-item order review", () => {
+  it("stages an exact match without a separate item approval", async () => {
+    const { plan } = await draft("10 kg salmon", ["469672"]);
+    expect(plan.itemReviews[0]).toMatchObject({ canApprove: true, requiresApproval: false, approvedAt: null });
+    const staged = await call("POST", `/plans/${plan.id}/basket`);
+    expect(staged.status).toBe(200);
+    expect(staged.plan.basketedAt).toBeTruthy();
+    expect(staged.plan.orderIds).toHaveLength(0);
+  });
+
   it("resumes a visible saved proposal, stages it after review, and places it once through finance", async () => {
     const { basket, plan } = await draft("5 l lactose-free milk", ["464306"], "2026-11-20", true);
     expect((await call("GET", `/plans/${plan.id}`)).plan.itemReviews).toBeUndefined();
@@ -137,12 +146,13 @@ describe("per-item order review", () => {
     expect((await approve(specified.plan, 0)).status).toBe(200);
   });
 
-  it("requires every item approval and keeps unknown stock unknown through finance and one order", async () => {
+  it("requires decisions only for exceptions and keeps unknown stock unknown through finance and one order", async () => {
     const { basket, plan } = await draft("10 kg salmon, 5 l lactose-free milk", ["469672", "464306"]);
     expect(plan.itemReviews).toHaveLength(2);
+    expect(plan.itemReviews.map((item: any) => item.requiresApproval)).toEqual([false, true]);
     expect((await call("POST", `/plans/${plan.id}/accept`)).status).toBe(409);
-    const first = await approve(plan, 0);
-    expect(first.plan.itemReviews[0].approvedBy).toBe("Aino");
+    const first = { plan };
+    expect(first.plan.itemReviews[0].approvedAt).toBeNull();
     expect(first.plan.itemReviews[1].approvedAt).toBeNull();
     // A basket-wide bypass does not replace the remaining item's decision.
     expect((await call("POST", `/plans/${plan.id}/basket`, { continueWithWarnings: true })).status).toBe(409);
@@ -203,7 +213,7 @@ describe("per-item order review", () => {
 
   it("invalidates approval when supplier price changes and refuses expired cutoffs", async () => {
     const { plan } = await draft("10 kg salmon", ["469672"]);
-    await approve(plan, 0);
+    expect(plan.itemReviews[0].requiresApproval).toBe(false);
     const fixture = loadFixture("base")!;
     const original = fixture.price["469672"].catalogPrice.value;
     fixture.price["469672"].catalogPrice.value = original + 1;
@@ -211,6 +221,8 @@ describe("per-item order review", () => {
       const changed = await call("POST", `/plans/${plan.id}/basket`);
       expect(changed.status).toBe(409);
       expect(changed.plan.itemReviews[0].approvedAt).toBeNull();
+      expect(changed.plan.itemReviews[0].requiresApproval).toBe(true);
+      expect((await call("POST", `/plans/${plan.id}/basket`)).status).toBe(409);
       expect((await approve(changed.plan, 0)).status).toBe(200);
       await call("POST", "/clock", { time: "2026-11-19T18:00:00Z" });
       expect((await approve(changed.plan, 0)).status).toBe(409);

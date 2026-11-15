@@ -38,12 +38,98 @@ function show(initialReview: PlanResp, me = chef) {
   render(<MemoryRouter><Ctx.Provider value={context}><RequestReviewDialog initialReview={initialReview} deliveryDate="2026-11-20" onClose={vi.fn()} onAdded={onAdded} onChanged={onChanged} /></Ctx.Provider></MemoryRouter>);
   return { onAdded, onChanged, refresh };
 }
+async function searchOrder(result: PlanResp) {
+  vi.spyOn(api, "basket").mockResolvedValue({
+    event: { id: "event", name: "Conference dinner", serviceDate: "2026-11-20", guests: 0 },
+    questions: [], orders: [], review: null, confirmed: false, requests: [],
+    orderBy: { state: "unknown", at: null, reason: "Recheck supplier terms.", usesFixtures: true },
+  } as unknown as BasketResp);
+  vi.spyOn(api, "message").mockResolvedValue({ route: "new_request", request: result.plan.request!, note: null });
+  vi.spyOn(api, "request").mockResolvedValue(result);
+  vi.spyOn(api, "approveItem");
+  const context: AppCtx = { me: chef, people: [chef], outlets: [], status: null, now: "2026-11-14T10:00:00Z", tick: 0, refresh: vi.fn(), switchPerson: vi.fn() };
+  render(<MemoryRouter initialEntries={["/baskets/event"]}><Ctx.Provider value={context}><Routes><Route path="/baskets/:id" element={<BasketPage />} /></Routes></Ctx.Provider></MemoryRouter>);
+  fireEvent.change(await screen.findByRole("textbox", { name: "Add to this order" }), { target: { value: "10 l milk" } });
+  fireEvent.click(screen.getByRole("button", { name: "Search" }));
+}
 beforeEach(() => {
   vi.spyOn(api, "product").mockResolvedValue({ claims: ["FREE_FROM_LACTOSE"], contains: [], mayContain: [], hasAllergenData: false } as unknown as Product);
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("saved request review controls", () => {
+  it("adds a new exact match directly without opening review", async () => {
+    const exact = fixture();
+    exact.plan.itemReviews![0].requiresApproval = false;
+    vi.spyOn(api, "basketPlan").mockResolvedValue(exact);
+    await searchOrder(exact);
+    await screen.findByText("Added to the order.");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(api.basketPlan).toHaveBeenCalledExactlyOnceWith("plan");
+    expect(api.approveItem).not.toHaveBeenCalled();
+    expect(api.product).not.toHaveBeenCalled();
+  });
+
+  it("opens review for an exception without staging it", async () => {
+    vi.spyOn(api, "basketPlan");
+    await searchOrder(fixture());
+    await screen.findByRole("dialog");
+    expect(screen.getByRole("button", { name: "Approve milk" })).toBeTruthy();
+    expect(api.basketPlan).not.toHaveBeenCalled();
+  });
+
+  it("opens review when an exact match changes while being added", async () => {
+    const exact = fixture();
+    exact.plan.itemReviews![0].requiresApproval = false;
+    const changed = fixture();
+    changed.plan.lines[0].stock = { kind: "unknown", reason: "terminal_sentinel" };
+    vi.spyOn(api, "basketPlan").mockRejectedValue(new ApiError(409, { error: "Supplier terms changed.", plan: changed.plan }));
+    await searchOrder(exact);
+    await screen.findByRole("dialog");
+    expect(screen.getByRole("button", { name: "Approve milk" })).toBeTruthy();
+    expect(screen.queryByText("Added to the order.")).toBeNull();
+    expect(api.basketPlan).toHaveBeenCalledOnce();
+  });
+
+  it("adds an exact match without item approval or loading supporting dietary facts", async () => {
+    const exact = fixture();
+    exact.plan.itemReviews![0].requiresApproval = false;
+    vi.spyOn(api, "basketPlan").mockResolvedValue(exact);
+    vi.spyOn(api, "approveItem");
+    const { onAdded } = show(exact);
+    expect(screen.getByText("Matches your request")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Approve milk" })).toBeNull();
+    expect(screen.queryByText("Stock")).toBeNull();
+    expect(screen.queryByText("Order cutoff (Helsinki)")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Suggest replacements" })).toBeNull();
+    expect(api.product).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Add to order" }));
+    await waitFor(() => expect(onAdded).toHaveBeenCalledOnce());
+    expect(api.basketPlan).toHaveBeenCalledOnce();
+    expect(api.approveItem).not.toHaveBeenCalled();
+  });
+
+  it("reveals exact-match evidence only when details are requested", async () => {
+    const exact = fixture();
+    exact.plan.itemReviews![0].requiresApproval = false;
+    show(exact);
+    fireEvent.click(screen.getByRole("button", { name: "View details" }));
+    expect(screen.getByText("Order cutoff (Helsinki)")).toBeTruthy();
+    await screen.findByText(/Dietary suitability is unknown/);
+    expect(api.product).toHaveBeenCalledWith("469363");
+  });
+
+  it("does not load dietary details for an exception without dietary requirements", () => {
+    const exception = fixture();
+    exception.plan.request!.lines[0].constraints.claims = [];
+    exception.plan.lines[0].stock = { kind: "unknown", reason: "terminal_sentinel" };
+    show(exception);
+    expect(screen.getByRole("button", { name: "Approve milk" })).toBeTruthy();
+    expect(screen.getByText("Order cutoff (Helsinki)")).toBeTruthy();
+    expect(api.product).not.toHaveBeenCalled();
+    expect(screen.queryByText(/No dietary requirements/)).toBeNull();
+  });
+
   it("resumes item review, requires approval, stages once and refreshes the order", async () => {
     const saved = fixture();
     delete saved.plan.itemReviews;
@@ -82,7 +168,7 @@ describe("saved request review controls", () => {
     expect((screen.getByRole("button", { name: "Add to order" }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getAllByText(/Unknown: ships from the supplier/).length).toBeGreaterThan(0);
     expect(onChanged).toHaveBeenCalledOnce();
-    expect(screen.getByText("0 of 1 items approved")).toBeTruthy();
+    expect(screen.getByText("0 of 1 items ready")).toBeTruthy();
   });
 
   it("shows changed supplier terms after an add conflict and allows review and retry", async () => {
