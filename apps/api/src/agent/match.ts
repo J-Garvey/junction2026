@@ -6,7 +6,7 @@
 import type { Candidate, FiredRule, LookupLine, Need, PlanLine, Product, StatusLabel, Verdict, BaseUnit, ModelJudgement } from "@aimo/contracts";
 import { getProduct, searchProducts } from "../catalog.js";
 import { fire, FIXED, RULE_INDEX } from "../rules/catalogue.js";
-import { cutoffRule, dietRules, earliestDelivery, packContent, reliabilityRules, supplyRules, blocks } from "../rules/checks.js";
+import { cutoffRule, dietRules, earliestDelivery, packContent, priceValidityRule, reliabilityRules, supplyRules, blocks } from "../rules/checks.js";
 import { typeCheck } from "./judge.js";
 import { round2, eur, fmtHelsinki } from "../util.js";
 import { now } from "../clock.js";
@@ -71,9 +71,10 @@ export async function rankNeed(need: Need, list: Product[], pool: Pool, opts: { 
   const at = now();
   need.excluded = [];
   need.earliestDelivery = null;
+  need.lateDeliveryOptions = [];
   let passing: Scored[] = [];
   // Products whose only fault is a passed cut-off: a later date would fix them.
-  const cutOnly: LookupLine[] = [];
+  const cutOnly: Scored[] = [];
   let lastFilter = "the catalogue search";
   // Type check only where claims can't separate types.
   let judgements = new Map<string, ModelJudgement>();
@@ -87,8 +88,6 @@ export async function rankNeed(need: Need, list: Product[], pool: Pool, opts: { 
     // A change to a placed order keeps lines whose cut-off has passed (they are locked, not lost);
     // the gateway refuses any attempt to change them (CUT-02).
     const cut = opts.lockedOk && pinned ? null : cutoffRule(p, l, at);
-    if (cut) hard.push(cut);
-    if (cut && hard.length === 1) cutOnly.push(l);
     if (hard.length) {
       need.excluded.push({ productId: p.id, name: p.name, reason: hard[0].message, ruleId: hard[0].ruleId });
       lastFilter = RULE_INDEX.get(hard[0].ruleId)?.area.toLowerCase() ?? hard[0].ruleId;
@@ -97,19 +96,26 @@ export async function rankNeed(need: Need, list: Product[], pool: Pool, opts: { 
     }
     const content = packContent(p, l, need.amount.unit);
     const pricePerBase = content && l.price ? l.price.value / content.value : null;
-    passing.push({ p, l, content, pricePerBase, judgement: null, notes: diet.filter((r) => r.outcome !== "block"), pinned });
+    const scored: Scored = { p, l, content, pricePerBase, judgement: null, notes: diet.filter((r) => r.outcome !== "block"), pinned };
+    if (cut) {
+      cutOnly.push(scored);
+      need.excluded.push({ productId: p.id, name: p.name, reason: cut.message, ruleId: cut.ruleId });
+      if (pinned) need.rules.push(cut);
+    } else passing.push(scored);
   }
-  if (typeTarget && passing.length) {
-    judgements = await typeCheck(typeTarget, passing.map((s) => s.p));
+  if (typeTarget && (passing.length || cutOnly.length)) {
+    judgements = await typeCheck(typeTarget, [...passing, ...cutOnly].map((s) => s.p));
     need.judgements.push(...judgements.values());
-    for (let i = passing.length - 1; i >= 0; i--) {
-      const j = judgements.get(passing[i].p.id);
-      passing[i].judgement = j ?? null;
-      if (j?.verdict === "no") {
-        need.excluded.push({ productId: passing[i].p.id, name: passing[i].p.name, reason: `Not ${typeTarget} (model ${j.probability?.toFixed(2)})`, ruleId: "TYP-02" });
-        passing.splice(i, 1);
-        lastFilter = "product type check";
-      } else if (j?.verdict === "unsure") passing[i].notes.push(fire("TYP-01", { product: passing[i].p.name, type: typeTarget, probability: j.probability === null ? "model unreachable" : j.probability.toFixed(2) }));
+    for (const group of [passing, cutOnly]) {
+      for (let i = group.length - 1; i >= 0; i--) {
+        const j = judgements.get(group[i].p.id);
+        group[i].judgement = j ?? null;
+        if (j?.verdict === "no") {
+          need.excluded.push({ productId: group[i].p.id, name: group[i].p.name, reason: `Not ${typeTarget} (model ${j.probability?.toFixed(2)})`, ruleId: "TYP-02" });
+          group.splice(i, 1);
+          lastFilter = "product type check";
+        } else if (j?.verdict === "unsure") group[i].notes.push(fire("TYP-01", { product: group[i].p.name, type: typeTarget, probability: j.probability === null ? "model unreachable" : j.probability.toFixed(2) }));
+      }
     }
   }
   // The recipe's own product wins whenever it passes every hard rule (recipe-approved, D6):
@@ -119,8 +125,16 @@ export async function rankNeed(need: Need, list: Product[], pool: Pool, opts: { 
   // One clear rule with the earliest date replaces the per-product reasons.
   const nb = need.neededBy;
   // Every product's own earliest date must fall after the needed-by date; an empty list proves nothing.
-  const dates = nb && !opts.lockedOk ? [...passing.map((s) => s.l), ...cutOnly].map((l) => earliestDelivery(l, at, opts.deliveryDays ?? [1, 2, 3, 4, 5], opts.holidays ?? [])) : [];
+  const dates = nb && !opts.lockedOk ? [...passing, ...cutOnly].map((s) => earliestDelivery(s.l, at, opts.deliveryDays ?? [1, 2, 3, 4, 5], opts.holidays ?? [])) : [];
   if (nb && dates.length && dates.every((d) => d !== null && d > nb)) {
+    need.lateDeliveryOptions = [...passing, ...cutOnly].flatMap((s) => {
+      const date = earliestDelivery(s.l, at, opts.deliveryDays ?? [1, 2, 3, 4, 5], opts.holidays ?? []);
+      const content = s.content;
+      if (!date || !content?.verified || content.value <= 0 || content.unit !== need.amount.unit || s.judgement?.verdict === "unsure") return [];
+      const quantity = Math.max(1, Math.ceil(need.amount.value / content.value - 1e-9));
+      if (s.l.stock.kind !== "known" || s.l.stock.amount < quantity || priceValidityRule(s.p, s.l, date)) return [];
+      return [{ ...asCandidate(s, 0), availableDate: date, quantity, deliveryEstimated: cutOnly.includes(s) }];
+    }).sort((a, b) => a.availableDate!.localeCompare(b.availableDate!) || a.productId.localeCompare(b.productId)).slice(0, 2);
     dates.sort();
     for (const s of passing) need.excluded.push({ productId: s.p.id, name: s.p.name, reason: `Arrives ${s.l.availableDate}, after ${nb}`, ruleId: "DLV-03" });
     passing = [];
@@ -131,11 +145,28 @@ export async function rankNeed(need: Need, list: Product[], pool: Pool, opts: { 
   }
   need.candidateCount = passing.length;
   need.candidates = passing.map((s, i): Candidate => ({
+    ...asCandidate(s, i),
+    rankStep: i === 0 ? decidingStep(s, passing[1]) : decidingStep(passing[i - 1], s),
+  }));
+  if (!passing.length && !need.rules.some((r) => r.ruleId === "DLV-06")) {
+    if (need.pinnedProductId && !getProduct(need.pinnedProductId)) {
+      need.rules.push(fire("REQ-04", { product: need.pinnedProductId }));
+    } else {
+      const ruleNames = [...(need.constraints.claims ?? []), ...(need.constraints.avoidAllergens ?? []).map((a) => `no ${a}`)].join(", ") || "delivery and price checks";
+      need.rules.push(fire("DIET-04", { need: need.label, rules: ruleNames, filter: lastFilter }));
+    }
+  } else if (need.pinnedProductId && passing[0] && passing[0].p.id !== need.pinnedProductId) {
+    need.substituteFor = need.pinnedProductId;
+  }
+}
+
+function asCandidate(s: Scored, i: number): Candidate {
+  return {
     productId: s.p.id,
     name: s.p.name,
     brand: s.p.brand,
     rank: i + 1,
-    rankStep: i === 0 ? decidingStep(s, passing[1]) : decidingStep(passing[i - 1], s),
+    rankStep: "earliest delivery",
     label: i === 0 ? "best" : i === 1 ? "better" : i === 2 ? "good" : "more",
     unitPrice: s.l.price?.value ?? null,
     pricePerBase: s.pricePerBase === null ? null : round2(s.pricePerBase),
@@ -149,17 +180,7 @@ export async function rankNeed(need: Need, list: Product[], pool: Pool, opts: { 
     source: s.l.source,
     judgement: s.judgement,
     notes: s.notes,
-  }));
-  if (!passing.length && !need.rules.some((r) => r.ruleId === "DLV-06")) {
-    if (need.pinnedProductId && !getProduct(need.pinnedProductId)) {
-      need.rules.push(fire("REQ-04", { product: need.pinnedProductId }));
-    } else {
-      const ruleNames = [...(need.constraints.claims ?? []), ...(need.constraints.avoidAllergens ?? []).map((a) => `no ${a}`)].join(", ") || "delivery and price checks";
-      need.rules.push(fire("DIET-04", { need: need.label, rules: ruleNames, filter: lastFilter }));
-    }
-  } else if (need.pinnedProductId && passing[0].p.id !== need.pinnedProductId) {
-    need.substituteFor = need.pinnedProductId;
-  }
+  };
 }
 
 export type PackMath = { quantity: number; overshoot: { amount: number; pct: number; eur: number } | null; rules: FiredRule[] };
