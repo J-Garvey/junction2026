@@ -105,11 +105,18 @@ describe("product ranking and late delivery options", () => {
     o.product.reliability = reliability;
     return o;
   }
-  it("prefers confirmed full stock, then partial stock, then unknown stock, then zero stock", async () => {
+  it("ranks by price across full, partial, unknown and zero stock without losing stock facts", async () => {
     const n = need();
     await rank(n, [priced("unknown", 1, { kind: "unknown", reason: "terminal_sentinel" }), priced("zero", 0.5, { kind: "known", amount: 0 }), priced("partial", 2, { kind: "known", amount: 6 }), priced("full", 5, undefined, 0.5)]);
-    expect(n.candidates.map((c) => c.productId)).toEqual(["full", "partial", "unknown", "zero"]);
-    expect(n.candidates[0].rankStep).toBe("confirmed stock");
+    expect(n.candidates.map((c) => c.productId)).toEqual(["zero", "unknown", "partial", "full"]);
+    expect(n.candidates[0].rankStep).toBe("price per kg or L after rounding");
+    expect(n.candidates[1].stock).toEqual({ kind: "unknown", reason: "terminal_sentinel" });
+  });
+  it("prefers a cheaper unknown-stock product even with lower reliability", async () => {
+    const n = need();
+    await rank(n, [priced("expensive", 3), priced("cheap", 2, { kind: "unknown", reason: "terminal_sentinel" }, 0.5)]);
+    expect(n.candidates.map((c) => c.productId)).toEqual(["cheap", "expensive"]);
+    expect(n.candidates[0].rankStep).toBe("price per kg or L after rounding");
   });
   it("compares price before reliability within confirmed stock", async () => {
     const n = need();
@@ -135,9 +142,10 @@ describe("product ranking and late delivery options", () => {
   });
   it("breaks price ties by reliability and then product ID regardless of input order", async () => {
     const n = need();
-    const options = [priced("3", 2, undefined, 0.5), priced("2", 2), priced("1", 2)];
+    const options = [priced("3", 2, undefined, 0.5), priced("2", 2), priced("1", 2, { kind: "unknown", reason: "terminal_sentinel" })];
     await rank(n, options);
     expect(n.candidates.map((c) => c.productId)).toEqual(["1", "2", "3"]);
+    expect(n.candidates[0].rankStep).toBe("product id (tie-break)");
     await rank(n, options.reverse());
     expect(n.candidates.map((c) => c.productId)).toEqual(["1", "2", "3"]);
   });
