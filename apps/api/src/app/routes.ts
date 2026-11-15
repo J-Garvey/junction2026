@@ -18,6 +18,7 @@ import { interpretMessage } from "../agent/message.js";
 import { logSearch } from "../searchlog.js";
 import { matchesCurrentShortlists, shortlist } from "../agent/match.js";
 import { allItemsResolved, quantityScope, refreshItemReviews } from "../agent/itemReview.js";
+import { toBase } from "../agent/parse.js";
 import { newPlan, quoteAndDecide, getPlan, listPlans, mandate, savePlan, emptyOverrides, HOTEL_ID, needsFromSingle } from "../agent/plan.js";
 import { questionsFor, allQuestions, getQuestion, canAnswer } from "../agent/questions.js";
 import { answer } from "../agent/answers.js";
@@ -189,12 +190,19 @@ export function appRouter(): Router {
     if (plan.kind !== "single" || plan.orderIds.length || plan.overrides.accepted || plan.basketedAt) return res.status(409).json({ error: "This request can no longer be changed" });
     const request = SingleRequest.parse(req.body.request);
     const p = P(req);
-    // Editing or discarding one row retains explicit choices for unchanged rows.
+    // A product choice belongs to a stable need, so compatible quantity edits keep it.
+    // Text, product, diet or unit-dimension changes require a fresh choice.
     // Rechecking retains item approvals only if their complete terms still match.
     const previous = plan.request;
     const sameScope = previous?.siteId === request.siteId && previous?.outletId === request.outletId && previous?.neededBy === request.neededBy;
     const unchanged = new Set(sameScope ? request.lines.filter((line) => previous?.lines.some((old) => old.id === line.id && JSON.stringify(old) === JSON.stringify(line))).map((line) => line.id) : []);
-    const chosen = plan.overrides.chosen?.filter((choice) => [...unchanged].some((id) => choice.startsWith(`${id}:`)));
+    const sameNeeds = new Set(sameScope ? request.lines.filter((line) => {
+      const old = previous?.lines.find((old) => old.id === line.id);
+      return old?.quantity && line.quantity
+        && toBase(old.quantity).unit === toBase(line.quantity).unit
+        && JSON.stringify({ ...old, quantity: line.quantity }) === JSON.stringify(line);
+    }).map((line) => line.id) : []);
+    const chosen = plan.overrides.chosen?.filter((choice) => [...sameNeeds].some((id) => choice.startsWith(`${id}:`)));
     const salesQuantities = plan.overrides.salesQuantities?.filter((quantity) => unchanged.has(quantity.needId));
     plan.request = request;
     plan.siteId = request.siteId ?? plan.siteId;
