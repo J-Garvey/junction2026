@@ -9,7 +9,7 @@ This addition was explicitly requested after the earlier product decision to cut
 Use fixture mode and the demo clock before the fixture cutoffs, for example 14 November 2026 at 12:00 Helsinki. Create an empty order basket in the app for 16 November 2026. In chat:
 
 1. Send the basket's name or ID. If several orders fit, select one of the offered choices.
-2. Send `add 10 kg salmon`. The existing request parser and product pipeline produce a proposal.
+2. Send `add 10 kg salmon 469672` for the known-stock fixture example. The existing request parser and product pipeline produce a proposal. A generic product request also works, but the selected product may have unconfirmed stock.
 3. Choose **Confirm change** to stage the reviewed items. This does not submit a supplier order.
 4. Send `remove salmon` to propose removal of an entire matching line, then confirm the change. Ambiguous matches need clarification. To reduce a quantity, remove the line and add the desired quantity.
 5. Send `confirm order` to review the complete basket. Choose **Confirm final order** to submit that exact basket through the gateway. A basket inside the hotel mandate produces a mock receipt; one that needs approval produces a card in the existing app's **Waiting** view.

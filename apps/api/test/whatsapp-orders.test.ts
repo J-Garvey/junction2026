@@ -1,20 +1,17 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Server } from "node:http";
-import type { WhatsAppConversation } from "@aimo/contracts";
+import type { WhatsAppReply } from "@aimo/contracts";
 process.env.AIMO_DB = ":memory:";
 process.env.OPENAI_API_KEY = "";
 process.env.AIMO_MODE = "fixture";
 process.env.PREVIEW_PASSWORD = "";
 const { createApp } = await import("../src/server.js");
 const { config } = await import("../src/config.js");
-const { getPerson } = await import("../src/identity.js");
-const { handleWhatsAppMessage } = await import("../src/whatsapp/service.js");
 const { getPlan } = await import("../src/agent/plan.js");
 const { allQuestions } = await import("../src/agent/questions.js");
 let server: Server;
 let base = "";
 let token = "";
-let conversation: WhatsAppConversation;
 let seq = 0;
 beforeAll(async () => {
   server = createApp().listen(0, "127.0.0.1");
@@ -32,13 +29,12 @@ beforeEach(async () => {
   await call("/reset", {});
   token = (await call("/session", { personId: "p-aino" })).token;
   await call("/clock", { time: "2026-11-14T10:00:00Z" });
-  conversation = { activeOrderId: null, pending: null };
+  await call("/whatsapp/connect", {});
 });
 async function basket(name = "Conference") { return (await call("/baskets", { name, deliveryDate: "2026-11-16" })).basket.id as string; }
-async function send(text: string) {
-  const output = await handleWhatsAppMessage({ person: getPerson("p-aino")!, token, conversation, text, messageId: `test-${seq++}` });
-  conversation = output.conversation;
-  return output.reply;
+async function send(text: string, id = `test-${seq++}`): Promise<WhatsAppReply> {
+  const output = await call("/whatsapp/messages", { id, text });
+  return output.messages.at(-1).reply;
 }
 async function stage(id: string, text = "10 kg salmon") {
   const parsed = await call("/messages", { text });
@@ -54,7 +50,7 @@ describe("synthetic WhatsApp order flow", () => {
     await basket("Breakfast");
     expect((await send("add 10 kg salmon")).status).toBe("clarification");
     expect((await send(id)).status).toBe("summary");
-    const proposal = await send("add 10 kg salmon");
+    const proposal = await send("add 10 kg salmon 469672");
     expect(proposal.status, proposal.text).toBe("proposal");
     expect((await call(`/baskets/${id}`)).requests).toHaveLength(0);
     const changed = await send("confirm change");
@@ -62,8 +58,9 @@ describe("synthetic WhatsApp order flow", () => {
     expect((await call(`/baskets/${id}`)).requests).toHaveLength(1);
     expect((await call("/orders")).orders).toHaveLength(0);
     expect((await send("confirm order")).status).toBe("proposal");
-    const receipt = await send("confirm order");
+    const receipt = await send("confirm order", "checkout-final");
     expect(receipt.status, receipt.text).toBe("ordered");
+    expect(await send("confirm order", "checkout-final")).toEqual(receipt);
     expect((await send("confirm order")).status).toBe("ordered");
     expect((await call(`/orders?eventId=${id}`)).orders).toHaveLength(1);
     expect((await call(`/baskets/${id}`)).requests[0].orderIds).toHaveLength(1);

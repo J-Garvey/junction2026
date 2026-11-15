@@ -119,7 +119,12 @@ export async function handleWhatsAppMessage(input: { person: Person; token: stri
         if (hard(plan) || !plan.proposal) { conversation.pending = null; return blocked(plan.summary, warnings(plan).join(" ")); }
         if (previous !== pendingFingerprint(id, plan)) { conversation.pending = null; return blocked("The product, price or delivery terms changed. Send the request again to review them."); }
         // Unknown stock requires its own explicit chef decision in the existing app.
-        if (plan.lines.some((l) => l.stock?.kind !== "known")) { conversation.pending = null; return blocked("Stock is not confirmed.", "Review the stock decision in the app before adding these items. A chat confirmation cannot confirm stock."); }
+        if (plan.lines.some((l) => l.stock?.kind !== "known")) {
+          conversation.pending = null;
+          plan.reviewing = false;
+          savePlan(plan);
+          return blocked("Stock is not confirmed.", "The proposal is available in this basket in the app. Review the stock decision there before adding these items. A chat confirmation cannot confirm stock.");
+        }
         tx(() => {
           plan.reviewing = false; plan.basketedAt = nowIso(); plan.proposal = false;
           plan.status = "waiting"; plan.summary = "In the order · awaiting final order";

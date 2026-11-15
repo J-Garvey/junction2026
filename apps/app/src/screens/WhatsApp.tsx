@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Link } from "react-router";
 import type { WhatsAppMessage, WhatsAppSession } from "@aimo/contracts";
 import { useApp } from "../ctx";
 import { Icon } from "../ui/icons";
@@ -147,6 +148,7 @@ function WhatsAppChat() {
           <header className="wa-chat-header">
             <div className="wa-avatar"><Icon n="chat" s={24} /></div>
             <div className="wa-contact"><h2>Aimo Copilot</h2><span>Demo connected · {session.displayName}</span></div>
+            {session.conversation.activeOrderId && <Link className="wa-disconnect" to={`/baskets/${encodeURIComponent(session.conversation.activeOrderId)}`}>Open basket</Link>}
             <button type="button" className="wa-disconnect" disabled={sending || !!operation || loading} onClick={() => void connection("disconnect")}>{operation === "disconnect" ? "Disconnecting…" : "Disconnect"}</button>
           </header>
           <div className="wa-log" ref={log} role="log" aria-label="Demo chat messages" aria-live="polite" aria-relevant="additions">
