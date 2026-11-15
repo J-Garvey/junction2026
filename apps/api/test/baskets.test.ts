@@ -457,7 +457,7 @@ describe("order baskets", () => {
     expect(approved.error).toBeUndefined();
     const orders = (await call("GET", `/orders?eventId=${id}`)).orders;
     expect(orders).toHaveLength(1);
-    expect(orders[0].lines[0]).toMatchObject({ stock: { kind: "unknown" }, riskAccepted: { by: "Aino" } });
+    expect(orders[0].lines[0]).toMatchObject({ stock: { kind: "unknown" }, riskAccepted: { by: "Demo Hotel purchasing agent on behalf of Aino (unverified)" } });
     expect((await call("GET", "/baskets")).baskets.find((b: any) => b.id === id)).toMatchObject({ confirmed: false, approvalLevels: [], orderBy: { state: "known", at: "2026-11-15T15:00:00.000Z", excludedItems: 0, unconfirmedStockItems: 1, reason: expect.stringContaining("Stock is unconfirmed") } });
   });
 

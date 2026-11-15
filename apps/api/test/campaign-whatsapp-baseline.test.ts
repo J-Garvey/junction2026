@@ -131,7 +131,7 @@ beforeEach(async () => {
     next();
   }, whatsappRouter(handler));
   app.use(createApp());
-  server = app.listen(Number(process.env.E2_PORT ?? 8892), "127.0.0.1");
+  server = app.listen(Number(process.env.E2_PORT ?? 0), "127.0.0.1");
   await new Promise<void>((r, reject) => { server.once("listening", r); server.once("error", reject); });
   base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
   config.gatewayUrl = `${base}/gateway/v1`;
@@ -142,7 +142,7 @@ beforeEach(async () => {
       log("network-blocked", { origin: url.origin, path: url.pathname });
       return new Response(JSON.stringify({ error: "E2_fixture_only_no_external_network" }), { status: 503 });
     }
-    // Every case owns a fresh server on the same isolated port. Do not retain
+    // Every case owns a fresh server. Do not retain
     // Undici sockets to the previous server between cases (ECONNRESET on reuse).
     const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
     headers.set("connection", "close");
@@ -160,7 +160,7 @@ afterEach(async () => {
   globalThis.fetch = nativeFetch;
 });
 afterAll(() => {
-  writeFileSync(resolve(artifacts, "run.json"), JSON.stringify({ sha, runtime, port: process.env.E2_PORT ?? 8892,
+  writeFileSync(resolve(artifacts, "run.json"), JSON.stringify({ sha, runtime, port: process.env.E2_PORT ?? 0,
     testSourceSha256: createHash("sha256").update(testSource).digest("hex"),
     clock: new Date(NOW).toISOString(), mode: process.env.E2_EVIDENCE_MODE ?? "fixture-fallback-fake-browser", blockedExternalRequests: blocked,
     notes: "No model, real supplier, phone pairing or real browser. Results in Vitest JSON, observations append-only."
@@ -518,7 +518,7 @@ describe("I3 current supplier facts authorize commit", () => {
     const body = { quoteId: quote.id, continueWithUnconfirmedStock: ["469672"], decidedBy: "I3 builder" };
     const accepted = await gatewayAudit("/orders", body, "agent", "I3-reviewed-choice");
     expect(accepted.status).toBe(201);
-    expect(accepted.body.lines[0]).toMatchObject({ stock: { kind: "unknown" }, riskAccepted: { by: "I3 builder" } });
+    expect(accepted.body.lines[0]).toMatchObject({ stock: { kind: "unknown" }, riskAccepted: { by: "Unvetted script (safety drill) on behalf of I3 builder (unverified)" } });
     const same = await gatewayAudit(`/orders/${accepted.body.id}/amendments`, { changes: [{ productId: "469672", outletId: "banquet", quantity: 1 }] });
     expect(same.status).toBe(200);
     expect(same.body.order.lines[0].riskAccepted).toEqual(accepted.body.lines[0].riskAccepted);
@@ -529,7 +529,7 @@ describe("I3 current supplier facts authorize commit", () => {
     }
     const increased = await gatewayAudit(`/orders/${accepted.body.id}/amendments`, { changes: [{ productId: "469672", outletId: "banquet", quantity: 2 }], continueWithUnconfirmedStock: ["469672"], decidedBy: "I3 new decision" });
     expect(increased.status).toBe(200);
-    expect(increased.body.order.lines[0]).toMatchObject({ stock: { kind: "unknown" }, riskAccepted: { by: "I3 new decision" } });
+    expect(increased.body.order.lines[0]).toMatchObject({ stock: { kind: "unknown" }, riskAccepted: { by: "Unvetted script (safety drill) on behalf of I3 new decision (unverified)" } });
     const retry = await gatewayAudit("/orders", body, "agent", "I3-reviewed-choice");
     expect(retry.status).toBe(200);
     expect(retry.body.id).toBe(accepted.body.id);

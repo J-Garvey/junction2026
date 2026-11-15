@@ -81,7 +81,7 @@ describe("per-item order review", () => {
     await call("POST", `/questions/${review.review.id}/answer`, { optionId: "approve" });
     const orders = (await call("GET", `/orders?eventId=${basket.id}`)).orders;
     expect(orders).toHaveLength(1);
-    expect(orders[0].lines[0]).toMatchObject({ stock: { kind: "unknown" }, riskAccepted: { by: "Aino" } });
+    expect(orders[0].lines[0]).toMatchObject({ stock: { kind: "unknown" }, riskAccepted: { by: "Demo Hotel purchasing agent on behalf of Aino (unverified)" } });
   });
 
   it("resets a saved request's item approval after choosing a replacement", async () => {
@@ -170,7 +170,7 @@ describe("per-item order review", () => {
     await call("POST", `/questions/${review.review.id}/answer`, { optionId: "approve" });
     const orders = (await call("GET", `/orders?eventId=${basket.id}`)).orders;
     expect(orders).toHaveLength(1);
-    expect(orders[0].lines.find((line: any) => line.productId === "464306")).toMatchObject({ stock: { kind: "unknown" }, riskAccepted: { by: "Aino" } });
+    expect(orders[0].lines.find((line: any) => line.productId === "464306")).toMatchObject({ stock: { kind: "unknown" }, riskAccepted: { by: "Demo Hotel purchasing agent on behalf of Aino (unverified)" } });
   });
 
   it("approves a valid row while a missing row is fixed, and retains only unchanged decisions", async () => {

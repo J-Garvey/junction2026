@@ -35,6 +35,8 @@ import { modelConfigured, modelName } from "../agent/openai.js";
 import { basketReview, submitBasketForReview, invalidateBasketReview, BasketReviewError } from "../agent/baskets.js";
 import { approvalLevels, basketStatus, pendingQuestions } from "../agent/basketSummary.js";
 import { measureProcessing, processingClock } from "./processing.js";
+import { allowsOutlets } from "../authorization.js";
+import { listOrders } from "../gateway/service.js";
 
 type Authed = Request & { person: Person; token: string };
 
@@ -48,7 +50,14 @@ function person(req: Request, res: Response, next: NextFunction) {
 
 const P = (req: Request) => (req as Authed).person;
 const T = (req: Request) => (req as Authed).token;
-const inPlanScope = (req: Request, plan: { outletId: string }) => P(req).hotelId === HOTEL_ID && (P(req).hotelScope || P(req).outlets.includes(plan.outletId));
+const inPlanScope = (req: Request, plan: { outletId: string }) => allowsOutlets(P(req), HOTEL_ID, [plan.outletId]);
+const inEventScope = (req: Request, event: StoredEvent) => allowsOutlets(P(req), HOTEL_ID, [
+  ...event.dishes.map((dish) => dish.outletId),
+  ...listPlans().filter((plan) => plan.eventId === event.id && plan.status !== "rejected" && plan.tooLateChoice !== "removed")
+    .flatMap((plan) => plan.lines.filter((line) => !line.removed).map((line) => line.outletId)),
+  ...listOrders(HOTEL_ID, event.id).filter((order) => order.state !== "rejected")
+    .flatMap((order) => order.lines.filter((line) => !line.removed).map((line) => line.outletId)),
+]);
 
 function sessionCookie(res: Response, token: string) {
   res.setHeader("Set-Cookie", `aimo_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax`);
@@ -148,6 +157,7 @@ export function appRouter(): Router {
   // UI-04 confirmed chips → a plan → quote → questions or an order.
   r.post("/requests", async (req, res) => {
     const request = SingleRequest.parse(req.body.request);
+    if (!inPlanScope(req, request)) return res.status(403).json({ error: "This item is outside your hotel or outlet scope" });
     // An order basket (an event) the request is added to; its delivery date is the needed-by date.
     const eventId = req.body.eventId == null ? null : z.string().parse(req.body.eventId);
     const reviewing = req.body.reviewing === true;
@@ -175,6 +185,7 @@ export function appRouter(): Router {
   r.get("/plans/:id", (req, res) => {
     const plan = getPlan(String(req.params.id));
     if (!plan) return res.status(404).json({ error: "No such plan" });
+    if (!inPlanScope(req, plan)) return res.status(403).json({ error: "This item is outside your hotel or outlet scope" });
     res.json({ plan, questions: allQuestions().filter((q) => q.planId === plan.id) });
   });
 
@@ -339,6 +350,7 @@ export function appRouter(): Router {
   r.post("/plans/:id/too-late", (req, res) => {
     const plan = getPlan(String(req.params.id));
     if (!plan) return res.status(404).json({ error: "No such plan" });
+    if (!inPlanScope(req, plan)) return res.status(403).json({ error: "This item is outside your hotel or outlet scope" });
     if (!plan.tooLate) return res.status(409).json({ error: "This request isn't too late" });
     const { choice } = z.object({ choice: z.enum(["remove", "review"]) }).parse(req.body);
     const p = P(req);
@@ -424,13 +436,22 @@ export function appRouter(): Router {
   });
   r.get("/baskets/:id", async (req, res) => {
     const id = String(req.params.id);
-    if (!getEvent(id)) return res.status(404).json({ error: "No such order" });
+    const event = getEvent(id);
+    if (!event) return res.status(404).json({ error: "No such order" });
+    if (!inEventScope(req, event)) return res.status(403).json({ error: "This order is outside your hotel or outlet scope" });
     const { orders } = await gw.orders(id);
     const review = basketReview(id, orders);
     res.json({ ...eventView(id), requests: basketPlans(id).map(planRow), orders, review, ...basketSummary(getEvent(id)!, orders) });
   });
   r.post("/baskets/:id/submit-review", async (req, res) => res.json({ review: await submitBasketForReview(String(req.params.id), P(req)) }));
 
+  // All event detail and mutation routes share the basket's all-outlets policy.
+  r.use("/events/:id", (req, res, next) => {
+    const event = getEvent(String(req.params.id));
+    if (!event) return res.status(404).json({ error: "No such order" });
+    if (!inEventScope(req, event)) return res.status(403).json({ error: "This order is outside your hotel or outlet scope" });
+    next();
+  });
   r.get("/events", (_req, res) => res.json({ events: listEvents().map((e) => ({ ...e, coverage: coverageSummary(e.id) })) }));
   r.get("/events/:id", (req, res) => res.json(eventView(String(req.params.id))));
   r.post("/events/:id/viability", async (req, res) => res.json({ plan: await runViability(String(req.params.id), P(req)) }));
@@ -461,7 +482,10 @@ export function appRouter(): Router {
   r.put("/events/:id/menu", (req, res) => {
     const id = String(req.params.id);
     if (!getEvent(id)) return res.status(404).json({ error: "No such order" });
-    const e = saveMenu(id, MenuBody.parse(req.body), P(req));
+    const body = MenuBody.parse(req.body);
+    if (!allowsOutlets(P(req), HOTEL_ID, body.dishes.map((dish) => dish.outletId)))
+      return res.status(403).json({ error: "This menu is outside your hotel or outlet scope" });
+    const e = saveMenu(id, body, P(req));
     audit({ actor: personActor(P(req)), action: "request_received", summary: `${P(req).name} saved the menu for ${e.name}: ${e.dishes.length} dish${e.dishes.length === 1 ? "" : "es"}, ${e.guests} guests`, eventId: id, details: { kind: "review", version: e.version }, visibility: "hotel" });
     res.json({ event: e, scale: scaleMenu(e) });
   });

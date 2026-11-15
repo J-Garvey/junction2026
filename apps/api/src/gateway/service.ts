@@ -17,6 +17,7 @@ import { newId, round2, sha256, stableStringify, parseAimoTime, eur, isCalendarD
 import { signJwt, verifyJwt, jcs, checkoutHash } from "./keys.js";
 import type { Identity } from "../identity.js";
 import { actorOf } from "../identity.js";
+import { allowsOutlets } from "../authorization.js";
 
 export class GatewayRefusal extends Error {
   constructor(public status: number, public body: Refusal) {
@@ -230,8 +231,21 @@ function requireHotel(id: Identity): string {
   return id.hotelId;
 }
 
+function requireOutletScope(id: Identity, hotelId: string, lines: readonly { outletId: string }[]) {
+  if (id.kind === "person" && !allowsOutlets(id.person, hotelId, lines.map((line) => line.outletId)))
+    throw new GatewayRefusal(403, { error: "forbidden", message: "This order is outside your hotel or outlet scope", rules: [fire("MAN-03", { actor: id.person.name, site: "the requested outlets" })] });
+}
+
+/** Agent-mediated builder names remain useful, but are not authenticated people. */
+function riskDecisionBy(id: Identity, claimed?: string): string {
+  if (id.kind === "person") return id.person.name;
+  if (id.kind === "agent") return claimed ? `${id.name} on behalf of ${claimed} (unverified)` : id.name;
+  return id.name;
+}
+
 export async function createQuote(id: Identity, body: QuoteCreateBody, actor?: Actor): Promise<Quote> {
   const hotelId = requireHotel(id);
+  requireOutletScope(id, hotelId, body.lines);
   if (!isCalendarDate(body.deliveryDate))
     throw new GatewayRefusal(400, { error: "invalid", message: "Choose a valid delivery date (YYYY-MM-DD)." });
   const mandate = getMandate(hotelId);
@@ -267,6 +281,7 @@ export async function createApproval(id: Identity, body: ApprovalBody): Promise<
     throw new GatewayRefusal(403, { error: "forbidden", message: "Only a person with the Approver role can approve" });
   const q = getQuote(body.quoteId);
   if (q.hotelId !== id.hotelId) throw new GatewayRefusal(403, { error: "forbidden", message: "Quote belongs to another hotel" });
+  requireOutletScope(id, q.hotelId, q.lines);
   if (q.fingerprint !== body.fingerprint)
     throw new GatewayRefusal(409, { error: "mandate_violation", message: "The approval doesn't match this quote version", rules: [fire("MAN-04", {})] });
   if (q.outcome === "block") {
@@ -371,10 +386,14 @@ export async function placeOrder(id: Identity, quoteId: string, idemKey: string,
   const existing = getDb().prepare("SELECT json, body_hash FROM orders WHERE idem_key = ?").get(idemKey) as { json: string; body_hash: string } | undefined;
   if (existing) {
     if (existing.body_hash !== bodyHash) throw new GatewayRefusal(422, { error: "idempotency_conflict", message: "This Idempotency-Key was used with a different body; the first order is untouched" });
-    return { order: JSON.parse(existing.json), replay: true };
+    const order = JSON.parse(existing.json) as Order;
+    // Replaying another caller's order must still respect this person's scope.
+    requireOutletScope(id, hotelId, order.lines);
+    return { order, replay: true };
   }
   const q = getQuote(quoteId);
   if (q.hotelId !== hotelId) throw new GatewayRefusal(403, { error: "forbidden", message: "Quote belongs to another hotel" });
+  requireOutletScope(id, hotelId, q.lines);
   if ((q as StoredQuote).amendsOrderId)
     throw new GatewayRefusal(409, { error: "invalid", message: "Use this amendment quote only to amend its existing order" });
   const by = actor ?? actorOf(id);
@@ -424,7 +443,7 @@ export async function placeOrder(id: Identity, quoteId: string, idemKey: string,
       (l): OrderLine => ({
         ...l,
         removed: false,
-        riskAccepted: l.stock.kind === "unknown" ? { by: continued.includes(l.productId) ? stock.decidedBy ?? by.name : "pre-answer", at: at.toISOString() } : null,
+        riskAccepted: l.stock.kind === "unknown" ? { by: continued.includes(l.productId) ? riskDecisionBy(id, stock.decidedBy) : "pre-answer", at: at.toISOString() } : null,
       }),
     ),
     totalExVat: q.totalExVat,
@@ -492,6 +511,7 @@ export async function amendOrder(id: Identity, orderId: string, body: AmendmentB
   const hotelId = requireHotel(id);
   const o = getOrder(orderId);
   if (o.hotelId !== hotelId) throw new GatewayRefusal(403, { error: "forbidden", message: "Order belongs to another hotel" });
+  requireOutletScope(id, hotelId, [...o.lines.filter((line) => !line.removed), ...body.changes]);
   const by = actor ?? actorOf(id);
   let at = now();
   const key = (p: string, out: string) => `${p}|${out}`;
@@ -583,7 +603,7 @@ export async function amendOrder(id: Identity, orderId: string, body: AmendmentB
     return {
       ...l,
       removed: false,
-      riskAccepted: l.stock.kind === "unknown" ? inherited.get(key(l.productId, l.outletId)) ?? { by: continued.has(l.productId) ? body.decidedBy ?? by.name : "pre-answer", at: at.toISOString() } : null,
+      riskAccepted: l.stock.kind === "unknown" ? inherited.get(key(l.productId, l.outletId)) ?? { by: continued.has(l.productId) ? riskDecisionBy(id, body.decidedBy) : "pre-answer", at: at.toISOString() } : null,
     };
   });
   for (const [k, l] of prevLines) if (!next.has(k) && !l.removed) newLines.push({ ...l, removed: true });

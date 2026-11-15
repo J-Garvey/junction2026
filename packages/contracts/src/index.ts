@@ -336,7 +336,7 @@ export const OrderCreateBody = z.object({
   quoteId: z.string(),
   approvalId: z.string().optional(),
   continueWithUnconfirmedStock: z.array(z.string()).optional().describe("D31: product IDs whose stock Valio Aimo can't confirm and the hotel chose to order anyway"),
-  decidedBy: z.string().optional().describe("Who at the hotel made that choice, for the record"),
+  decidedBy: z.string().optional().describe("Agent-claimed builder attribution, recorded as unverified. Person tokens always use the authenticated person's name."),
 });
 
 export const OrderState = z.enum(["placed", "amended", "checked", "locked", "rejected"]);
@@ -381,7 +381,7 @@ export const AmendmentBody = z.object({
   approvalId: z.string().optional(),
   stockQuoteId: z.string().optional().describe("Amendment quote the builder reviewed when continuing with unconfirmed stock; changes require a fresh decision"),
   continueWithUnconfirmedStock: z.array(z.string()).optional(),
-  decidedBy: z.string().optional(),
+  decidedBy: z.string().optional().describe("Agent-claimed builder attribution, recorded as unverified. Person tokens always use the authenticated person's name."),
 });
 export type AmendmentBody = z.infer<typeof AmendmentBody>;
 
