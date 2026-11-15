@@ -57,6 +57,7 @@ export async function summarize(dir) {
   // in evidence on disk, never all resident in the report process at once.
   const raw = await readRows(resolve(dir, 'raw-observations.jsonl'), r => {
     if (r.kind === 'http-response') { const { rawText, body, response, ...rest } = r; return { ...rest, response: response?.plan ? { plan: { timings: response.plan.timings } } : null }; }
+    if (r.kind === 'http-request') return { kind: r.kind, callId: r.callId, at: r.at };
     return ['run-start', 'host-config', 'run-complete'].includes(r.kind) ? r : null;
   });
   const rows = await readRows(resolve(dir, 'requests.jsonl'), r => {
@@ -69,6 +70,7 @@ export async function summarize(dir) {
       telemetry: (r.telemetry || []).map(t => ({ kind: t.kind, status: t.status, schema: t.schema, elapsedMs: t.elapsedMs, usage: t.usage })) };
   });
   const responses = raw.filter(r => r.kind === 'http-response'), starts = raw.filter(r => r.kind === 'run-start');
+  const requestedAt = new Map(raw.filter(r => r.kind === 'http-request').map(r => [r.callId, Date.parse(r.at)]));
   const requestPaths = new Set(['/api/messages', '/api/whatsapp/messages', '/api/requests']);
   const selectionIds = new Set(rows.flatMap(r => (r.related || []).filter(c => c.purpose === 'select-active-order').map(c => c.callId)));
   const useful = responses.filter(r => !String(r.attempt).startsWith('support') && requestPaths.has(r.path) && !selectionIds.has(r.callId));
@@ -90,6 +92,7 @@ export async function summarize(dir) {
     groups.get(key).rows.push({ caseId: row.caseId, attempt: row.attemptId, itemCount: row.itemCount,
       parsedLineCount: parsed?.lines?.length ?? null, parsedBy: parsed?.parsedBy ?? null, fallbackNote: row.response?.note ?? null,
       usefulMs: calls.reduce((n, c) => n + c.elapsedMs, 0), caseEnvelopeMs: row.elapsedMs,
+      executionSpanMs: calls.length && requestedAt.has(calls[0].callId) ? Date.parse(calls.at(-1).at) - requestedAt.get(calls[0].callId) : null,
       headersMs: primary?.headersMs, firstByteMs: primary?.firstByteMs, primaryCompleteMs: primary?.bodyCompleteMs,
       parseOrRouteHttpMs: row.channel === 'main' ? primary?.elapsedMs : null,
       planHttpMs: planCall?.elapsedMs ?? null, planTimings: timings ?? null,
@@ -99,7 +102,7 @@ export async function summarize(dir) {
       supplierBlocks: (row.telemetry || []).filter(t => t.kind === 'supplier_blocked').length });
   }
   const aggregate = groups.size ? [...groups.values()].map(g => ({ stratum: g.stratum, n: g.rows.length,
-    timings: Object.fromEntries(['usefulMs', 'caseEnvelopeMs', 'headersMs', 'firstByteMs', 'primaryCompleteMs', 'parseOrRouteHttpMs', 'planHttpMs', 'searchMs', 'lookupMs', 'rankMs', 'planningTotalMs'].map(k => [k, distribution(g.rows.map(r => r[k]))])),
+    timings: Object.fromEntries(['usefulMs', 'executionSpanMs', 'caseEnvelopeMs', 'headersMs', 'firstByteMs', 'primaryCompleteMs', 'parseOrRouteHttpMs', 'planHttpMs', 'searchMs', 'lookupMs', 'rankMs', 'planningTotalMs'].map(k => [k, distribution(g.rows.map(r => r[k]))])),
     modelCalls: g.rows.reduce((n, r) => n + r.modelCalls, 0), modelElapsedMs: g.rows.reduce((n, r) => n + r.modelElapsedMs, 0),
     supplierBlocks: g.rows.reduce((n, r) => n + r.supplierBlocks, 0), rows: g.rows })) : [];
   const totalMs = xs => xs.reduce((n, r) => n + r.elapsedMs, 0);
@@ -118,7 +121,7 @@ export async function summarize(dir) {
     limitations: ['No semantic pass verdict: complete line count does not prove quantities, constraints or product identity.',
       'Simulator response is a workflow outcome, not proof of a complete semantic parse; inspect plans/snapshots independently.',
       'TTFU unavailable: these JSON routes do not stream useful content. Headers and first body byte are transport metrics; useful response arrives at full JSON completion.',
-      'Useful HTTP sums parse+plan for web; simulator includes both. Case envelope additionally includes support and evidence work. Totals overlap and must not be added.',
+      'Useful HTTP sums parse+plan for web; simulator includes both. Execution span also includes intervening runner journaling (millisecond wall clock); case envelope additionally includes setup/support/snapshots. Totals overlap and must not be added.',
       'resJsonSyncMs includes Express stringify and synchronous send; it is not a pure serializer CPU measurement. CPU is process-wide; nested/concurrent calls overlap.',
       'Reset clears SQLite but preserves process search/model caches. First pass is cold only at process start; second pass is repeat traffic, not a guaranteed cache hit.',
       'Profile is opt-in harness overhead. Event-loop stats include setup/idle. No browser or real WhatsApp evidence.',
