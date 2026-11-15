@@ -276,7 +276,7 @@ export const api = {
   accept: (id: string) => post<PlanResp>(`/api/plans/${encodeURIComponent(id)}/accept`),
   tooLate: (id: string, choice: "remove" | "review") => post<PlanResp>(`/api/plans/${encodeURIComponent(id)}/too-late`, { choice }),
   choose: (id: string, needId: string, productId: string) => post<PlanResp>(`/api/plans/${encodeURIComponent(id)}/choose`, { needId, productId }),
-  answer: (id: string, optionId: string) => post<AnswerResp>(`/api/questions/${encodeURIComponent(id)}/answer`, { optionId }),
+  answer: (id: string, optionId: string, note?: string) => post<AnswerResp>(`/api/questions/${encodeURIComponent(id)}/answer`, { optionId, ...(note !== undefined ? { note } : {}) }),
   event: (id: string) => get<EventResp>(`/api/events/${encodeURIComponent(id)}`),
   events: () => get<{ events: (StoredEvent & { coverage: Coverage })[] }>("/api/events"),
   viability: (id: string) => post<{ plan: Plan }>(`/api/events/${id}/viability`),

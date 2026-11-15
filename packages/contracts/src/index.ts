@@ -508,13 +508,15 @@ export const Question = z.object({
   deadline: z.string().nullable(),
   state: z.enum(["open", "waiting", "answered", "expired", "replaced"]),
   answer: z.string().nullable(),
+  /** Required for a manager returning an order review; absent on older decisions. */
+  answerNote: z.string().optional(),
   answeredBy: z.object({ personId: z.string(), name: z.string() }).nullable(),
   answeredAt: z.string().nullable(),
   createdAt: z.string(),
 });
 export type Question = z.infer<typeof Question>;
 
-export const AnswerBody = z.object({ optionId: z.string() });
+export const AnswerBody = z.object({ optionId: z.string(), note: z.string().trim().max(2000).optional() });
 
 export const ClockSetBody = z.object({ time: z.string().optional(), scene: z.enum(["1", "2", "3", "4", "live"]).optional() });
 export * from "./hotel.js";

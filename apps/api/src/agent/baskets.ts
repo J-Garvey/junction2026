@@ -118,13 +118,13 @@ export async function submitBasketForReview(eventId: string, person: Person): Pr
       title: `Review order: ${event.name}`,
       body: `${person.name} submitted this order to finance for approval · ${eur(total)} ex VAT · ${lines.length} items`,
       facts: {
-        kind: "approval", snapshot: before, planIds: plans.map((p) => p.id), lines, total,
+        kind: "approval", hotelId: HOTEL_ID, snapshot: before, planIds: plans.map((p) => p.id), lines, total,
         deliveryDate: quote?.deliveryDate ?? event.serviceDate, grants: quote?.mandateCheck.approvalsNeeded ?? [],
         items: [...new Map(rules.map((r) => [r.ruleId, { text: r.message }])).values()],
         continued, decidedBy: plans.find((p) => p.overrides.stockDecidedBy)?.overrides.stockDecidedBy ?? person.name,
       },
       ruleIds: [...new Set(rules.map((r) => r.ruleId))], deadline: deadlines.sort()[0] ?? null,
-      options: [{ id: "approve", label: "Approve order", primary: true }, { id: "reject", label: "Return to order builder", primary: false }],
+      options: [{ id: "approve", label: "Approve order", primary: true }, { id: "reject", label: "Refuse order", primary: false }],
     });
     saveQuestion(question);
     audit({ actor: personActor(person), action: "question_asked", summary: `${person.name} submitted ${event.name} to finance for review`, eventId, questionId: question.id, quoteId: question.quoteId, details: { kind: "confirmation", total, planIds: question.facts.planIds }, visibility: "hotel", usesFixture: quote?.usesFixtures ?? false });

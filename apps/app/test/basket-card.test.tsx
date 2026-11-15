@@ -25,6 +25,12 @@ describe("order cards", () => {
     expect(html).not.toContain("excluded from the calculation");
   });
 
+  it("explains the supplier cutoff in the detail without treating it as review expiry", () => {
+    const html = renderToStaticMarkup(<OrderBy deadline={basket.orderBy} detail />);
+    expect(html).toContain("Supplier ordering cutoff; stock and delivery terms are rechecked when ordering.");
+    expect(html).not.toContain("Review expires");
+  });
+
   it("omits both irrelevant approval rows and a zero-count footer", () => {
     const html = render({ approvalLevels: [{ role: "chef", count: 0 }, { role: "approver", count: 0 }] });
     expect(html).not.toContain("Chef review");

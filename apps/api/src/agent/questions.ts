@@ -1,7 +1,8 @@
 /**
  * Chunk 06: QUESTION-BUILD, QUESTION-ROUTE, ANSWER-RECORD. One card per
- * decision, naming the rule that raised it; answers are buttons, never text
- * (D26). Recipe fit goes to the outlet's chef first; money and policy to an
+ * decision, naming the rule that raised it; answers are buttons (D26), with
+ * a required note when a manager returns a final order review for changes.
+ * Recipe fit goes to the outlet's chef first; money and policy to an
  * approver after (D6, AP-09). The first answer closes the card for everyone (TM-03).
  */
 import type { Plan, PlanLine, Question, QuestionType, Quote } from "@aimo/contracts";
@@ -169,16 +170,28 @@ export function questionsFor(p: Person): Question[] {
 }
 
 /** ANSWER-RECORD: one transaction; the first answer wins. */
-export function recordAnswer(qId: string, p: Person, optionId: string): { ok: true; question: Question } | { ok: false; question: Question | null; reason: string } {
+export function recordAnswer(qId: string, p: Person, optionId: string, note?: string): { ok: true; question: Question } | { ok: false; question: Question | null; reason: string } {
   return tx(() => {
     const q = getQuestion(qId);
     if (!q) return { ok: false as const, question: null, reason: "No such question" };
     if (q.state === "answered") return { ok: false as const, question: q, reason: `Answered by ${q.answeredBy?.name}, ${q.answeredAt}` };
     if (q.state !== "open") return { ok: false as const, question: q, reason: q.state === "waiting" ? "Waiting for the chef to answer first" : `This question was ${q.state}` };
     if (!canAnswer(q, p)) return { ok: false as const, question: q, reason: `This question is for the ${q.forRole}${q.outletId ? ` of ${q.outletId}` : ""}` };
+    if (q.type === "order_review") {
+      if (q.facts.hotelId && q.facts.hotelId !== p.hotelId)
+        return { ok: false as const, question: q, reason: "This order belongs to another hotel" };
+      if (q.deadline && new Date(q.deadline).getTime() <= now().getTime()) {
+        q.state = "expired";
+        saveQuestion(q);
+        return { ok: false as const, question: q, reason: "This review expired. Ask the order builder to submit it again." };
+      }
+      if (optionId === "reject" && (!note?.trim() || note.trim().length > 2000))
+        return { ok: false as const, question: q, reason: "Add a refusal note for the order builder (1–2000 characters)." };
+    }
     if (!q.options.some((o) => o.id === optionId)) return { ok: false as const, question: q, reason: "Unknown option" };
     q.state = "answered";
     q.answer = optionId;
+    if (q.type === "order_review" && optionId === "reject") q.answerNote = note!.trim();
     q.answeredBy = { personId: p.id, name: p.name };
     q.answeredAt = nowIso();
     saveQuestion(q);

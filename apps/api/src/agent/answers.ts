@@ -14,20 +14,20 @@ import { nowIso } from "../clock.js";
 import type { Person } from "../identity.js";
 import { answerBasketReview } from "./baskets.js";
 
-export async function answer(qId: string, p: Person, optionId: string, token: string) {
-  const r = recordAnswer(qId, p, optionId);
+export async function answer(qId: string, p: Person, optionId: string, token: string, note?: string) {
+  const r = recordAnswer(qId, p, optionId, note);
   if (!r.ok) return r;
   const q = r.question;
   const label = q.options.find((o) => o.id === optionId)?.label ?? optionId;
   audit({
     actor: personActor(p),
     action: "question_answered",
-    summary: `${p.name} answered "${q.title}": ${label}`,
+    summary: `${p.name} answered "${q.title}": ${label}${q.answerNote ? `. Note to order builder: ${q.answerNote}` : ""}`,
     eventId: q.eventId,
     quoteId: q.quoteId,
     questionId: q.id,
     ruleIds: q.ruleIds,
-    details: { option: optionId, type: q.type, kind: "decision" },
+    details: { option: optionId, type: q.type, kind: "decision", ...(q.answerNote ? { note: q.answerNote } : {}) },
     visibility: "hotel",
   });
   try {

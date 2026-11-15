@@ -338,8 +338,8 @@ export function appRouter(): Router {
     res.json({ question: q, canAnswer: canAnswer(q, P(req)) });
   });
   r.post("/questions/:id/answer", async (req, res) => {
-    const { optionId } = AnswerBody.parse(req.body);
-    const out = await answer(String(req.params.id), P(req), optionId, T(req));
+    const { optionId, note } = AnswerBody.parse(req.body);
+    const out = await answer(String(req.params.id), P(req), optionId, T(req), note);
     if (!out.ok) return res.status(409).json(out);
     const q = out.question;
     res.json({ ...out, plan: q.planId ? getPlan(q.planId) : null });
