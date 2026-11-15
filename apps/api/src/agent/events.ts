@@ -194,6 +194,10 @@ async function applyChange(e: StoredEvent, p: Person, what: string) {
       audit({ actor: AGENT, action: "order_amended", summary: fire("CHG-01", facts).message, eventId: e.id, orderId: order.id, ruleIds: ["CHG-01"], details: { diff, version: r.order.version }, visibility: "hotel" });
       return { applied: true, reason: fire("CHG-01", facts).message, diff };
     } catch (err) {
+      if (err instanceof GatewayError && err.body.error === "stock_unconfirmed" && err.body.newQuoteId) {
+        const question = await askChangeStock(e, plan.id, { orderId: order.id, changes }, err.body.newQuoteId);
+        return { applied: false, reason: question.body, diff, questionId: question.id };
+      }
       if (!(err instanceof GatewayError) || err.body.error !== "mandate_violation") throw err;
       // Falls through to a question: the gateway needs an approval for this amendment.
     }
@@ -217,6 +221,22 @@ function earliestCutoff(o: Order): string | null {
   return t.length ? new Date(Math.min(...t)).toISOString() : null;
 }
 
+async function askChangeStock(e: StoredEvent, planId: string, facts: Record<string, any>, quoteId: string) {
+  const reviewed = await gw.getQuote(quoteId);
+  const lines = reviewed.lines.filter((l) => reviewed.unconfirmedStock.includes(l.productId));
+  const question = makeQuestion({
+    planId, eventId: e.id, type: "unknown_stock", forRole: "chef", outletId: lines[0]?.outletId ?? null,
+    quoteId: reviewed.id, fingerprint: reviewed.fingerprint, deadline: reviewed.expiresAt,
+    title: "Continue with changed unconfirmed stock?",
+    body: `Stock not confirmed: ${lines.map((l) => `${l.quantity} ${l.salesUnit} ${shortName(l.productName)}`).join(", ")}`,
+    facts: { ...facts, kind: "change_stock", stockQuoteId: reviewed.id, continueWith: reviewed.unconfirmedStock, lines }, ruleIds: ["STK-01"],
+    options: [{ id: "continue", label: "Continue with these quantities", primary: true }, { id: "keep", label: "Keep the current order", primary: false }],
+  });
+  saveQuestion(question);
+  audit({ actor: AGENT, action: "question_asked", summary: question.title, eventId: e.id, orderId: facts.orderId, quoteId, questionId: question.id, ruleIds: ["STK-01"], details: { fingerprint: reviewed.fingerprint }, visibility: "hotel" });
+  return question;
+}
+
 export async function answerChange(q: Question, p: Person, token: string) {
   const f = q.facts as any;
   const e = getEvent(q.eventId!)!;
@@ -224,13 +244,31 @@ export async function answerChange(q: Question, p: Person, token: string) {
     audit({ actor: personActor(p), action: "order_amended", summary: `${p.name} kept the order as is (${f.from} guests ordered, event now ${f.to})`, eventId: e.id, ruleIds: ["CHG-02"], details: {}, visibility: "hotel" });
     return;
   }
+  const body = { changes: f.changes, continueWithUnconfirmedStock: f.continueWith ?? [],
+    stockQuoteId: f.stockQuoteId, decidedBy: f.kind === "change_stock" ? p.name : f.decidedBy ?? undefined };
   try {
-    await gw.amend(f.orderId, { changes: f.changes, continueWithUnconfirmedStock: f.continueWith ?? [], decidedBy: f.decidedBy ?? undefined });
+    try { await gw.amend(f.orderId, body); }
+    catch (err) {
+      if (!(err instanceof GatewayError) || err.body.error !== "mandate_violation" || !err.body.newQuoteId || p.role !== "approver") throw err;
+      const nq = await gw.getQuote(err.body.newQuoteId);
+      const a = await gw.approve(token, nq.id, nq.fingerprint, nq.mandateCheck.approvalsNeeded);
+      await gw.amend(f.orderId, { ...body, approvalId: a.id });
+    }
   } catch (err) {
+    if (err instanceof GatewayError && err.body.error === "stock_unconfirmed" && err.body.newQuoteId) {
+      await askChangeStock(e, q.planId, f, err.body.newQuoteId);
+      return;
+    }
     if (!(err instanceof GatewayError) || err.body.error !== "mandate_violation" || !err.body.newQuoteId) throw err;
-    const nq = await gw.getQuote(err.body.newQuoteId);
-    const a = await gw.approve(token, nq.id, nq.fingerprint, nq.mandateCheck.approvalsNeeded);
-    await gw.amend(f.orderId, { changes: f.changes, approvalId: a.id, continueWithUnconfirmedStock: f.continueWith ?? [], decidedBy: f.decidedBy ?? undefined });
+    const finance = makeQuestion({
+      planId: q.planId, eventId: e.id, type: "spend_cap", forRole: "approver", outletId: null,
+      quoteId: err.body.newQuoteId, fingerprint: null, deadline: q.deadline,
+      title: "Approve the changed order?", body: "The builder reviewed its unconfirmed stock. Finance approval is still required.",
+      facts: { ...f, kind: "change", decidedBy: body.decidedBy }, ruleIds: ["MAN-01"],
+      options: [{ id: "approve", label: "Approve the change", primary: true }, { id: "keep", label: "Keep the current order", primary: false }],
+    });
+    saveQuestion(finance);
+    return;
   }
   e.orderedGuests = e.guests;
   saveEvent(e);

@@ -274,6 +274,7 @@ export const Quote = z.object({
   outcome: Outcome,
   usesFixtures: z.boolean(),
   unconfirmedStock: z.array(z.string()).default([]).describe("D31: product IDs whose stock Valio Aimo can't confirm. An order must list them in continueWithUnconfirmedStock"),
+  stockPolicy: z.string().optional().describe("Fingerprint of the hotel policy used for the stock decision; changes require a new review"),
   jws: z.string().optional().describe("AP2 v0.2 merchant checkout_jwt: compact JWS, typ aimo-quote+jwt, alg ES256, signed by Valio Aimo. Verify with /.well-known/jwks.json"),
   checkoutHash: z.string().optional().describe("AP2 checkout_hash: base64url(SHA-256(jws))"),
 });
@@ -352,6 +353,7 @@ export const AmendmentBody = z.object({
     )
     .min(1),
   approvalId: z.string().optional(),
+  stockQuoteId: z.string().optional().describe("Amendment quote the builder reviewed when continuing with unconfirmed stock; changes require a fresh decision"),
   continueWithUnconfirmedStock: z.array(z.string()).optional(),
   decidedBy: z.string().optional(),
 });
