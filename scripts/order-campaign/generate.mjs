@@ -133,6 +133,12 @@ export function buildCorpus() {
     const date=['2026-11-16','2026-11-17','2026-11-20','2026-12-25'][next()%4];
     add(lines.map(l=>l.phrase).join('; ')+` by ${date}`,`composed_${count}`,{lineCount:count,lines:lines.map(({phrase,...l})=>l),neededBy:date},{plan:n%8===0,tags:['multi_item',`items_${count}`,'mixed_constraints','independent_composition']});
   }
+  for(const count of [2,5,10,30,60])for(const variant of ['plain','mixed','global_vegan','global_nuts']){
+    const ps=['rice','milk','bread','eggs','tofu','salt','sugar','salmon','butter','pasta'];
+    const lines=Array.from({length:count},(_,j)=>({product:ps[(j+count)%ps.length],amount:j%3+1,unit:/milk/.test(ps[(j+count)%ps.length])?'l':'kg',...(variant==='mixed'&&j%2?{claims:['FREE_FROM_GLUTEN']}:{})}));
+    const text=lines.map(l=>`${l.amount} ${l.unit} ${l.claims?'gluten-free ':''}${l.product}`).join('; ')+(variant==='global_vegan'?', everything vegan':variant==='global_nuts'?', everything nut-free':'');
+    add(text,`compact_${count}_${variant}`,{lineCount:count,lines,...(variant==='global_vegan'?{globalClaims:['VEGAN']}:variant==='global_nuts'?{globalAvoidAllergens:['AN','AP']}:{})},{plan:true,modelSample:true,tags:[`items_${count}`,'compact_length_boundary']});
+  }
   return cases;
 }
 if(process.argv[1]&&resolve(process.argv[1])===resolve(import.meta.filename)) {

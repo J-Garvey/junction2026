@@ -13,6 +13,7 @@ if(args.ids){const ids=new Set(String(args.ids).split(','));cases=cases.filter(c
 if(args['model-only'])cases=cases.filter(c=>c.modelSample);
 if(args['whatsapp-only'])cases=cases.filter(c=>c.channel==='whatsapp');
 cases=cases.slice(start,start+limit);
+if(args['cross-channel'])cases=cases.filter(c=>c.channel==='main').map(c=>({...c,caseId:`${c.caseId}-wa`,channel:'whatsapp',crossChannelOf:c.caseId,scenario:{drafts:['Darragh','Pavit','Conference'],selectActive:'Darragh'}}));
 let token='',executed=0,setupCalls=0,errors=0,plans=0;
 let meta=await (await fetch(base+'/campaign/status')).json();
 const http=async(path,body,attempt='support',auth=token)=>{
@@ -56,6 +57,7 @@ for(const c of cases){
    if(c.channel==='whatsapp'){
      snapshots.before=await support('/api/baskets');snapshots.draftDetailsBefore=[];
      for(const d of scenario.drafts)snapshots.draftDetailsBefore.push(await support(`/api/baskets/${d.id}`));
+     if(c.scenario?.selectActive)related.push({...await http('/api/whatsapp/messages',{id:`${attemptId}:select`,text:c.scenario.selectActive,groupId:'demo-hotel-orders'},attemptId),purpose:'select-active-order'});
      const sequence=c.sequence||[c.input];let main;
      for(const [i,text] of sequence.entries()){
        body={id:`${attemptId}:${i}`,text,groupId:'demo-hotel-orders'};

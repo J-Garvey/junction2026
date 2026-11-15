@@ -24,7 +24,7 @@ if(command==='refresh'){
 }
 await stop();
 const out=openSync(resolve(dir,'generator-runtime/host.log'),'a');
-const child=spawn(process.execPath,[resolve(root,'apps/api/node_modules/tsx/dist/cli.mjs'),resolve(root,'apps/api/src/scripts/order-campaign/host.ts')],{cwd:root,env:{...process.env,CAMPAIGN_DIR:dir,CAMPAIGN_MODEL:mode},windowsHide:true,detached:true,stdio:['ignore',out,out]});
+const child=spawn(process.execPath,['--import',resolve(root,'apps/api/node_modules/tsx/dist/loader.mjs'),resolve(root,'apps/api/src/scripts/order-campaign/host.ts')],{cwd:root,env:{...process.env,CAMPAIGN_DIR:dir,CAMPAIGN_MODEL:mode},windowsHide:true,detached:!process.argv.includes('--hold'),stdio:['ignore',out,out]});
 child.unref();
 let ready;
 for(let i=0;i<100;i++){try{ready=await(await fetch('http://127.0.0.1:8891/campaign/status',{signal:AbortSignal.timeout(200)})).json();break;}catch{await new Promise(r=>setTimeout(r,100));}}
