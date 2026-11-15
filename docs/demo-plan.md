@@ -8,18 +8,18 @@
 
 ## ESSENTIAL: jobs to be done before recording
 
-Added 15 Nov. **Pavit left the team on 15 Nov.** Everything that was his is now shared by the group: Jack, Darragh and Ben. A shared item that has to be built still needs one named person before work starts. These are the jobs the video can't be recorded without. Each one is somebody's, and each has a check that says it is done. The full detail is in [demo-deliverables.md](demo-deliverables.md) under the item numbers given.
+Added 15 Nov. **Pavit left the team on 15 Nov.** Everything that was his is now shared by the group: Jack, Darragh and Ben. A shared item that has to be built still needs one named person before work starts; the ranking job below went to Darragh. These are the jobs the video can't be recorded without. Each one is somebody's, and each has a check that says it is done. The full detail is in [demo-deliverables.md](demo-deliverables.md) under the item numbers given.
 
 | Who | Job (ESSENTIAL) | Why it is needed | Done when |
 |---|---|---|---|
 | **Darragh** | **Let the chef continue past missing allergen data, and keep it marked** (B23, decision D35). Change rule ALG-03 from a stop to a question, for missing declarations only | The wedding's potatoes have no allergen declaration, so today they stop on Onni's allergy and the first clarification can't go the way the story tells it | After Onni's allergy is added, the potatoes produce a question that can be continued past. A product listing the allergen under "contains" or "may contain" is still blocked. A test asserts both |
 | **Jack** | **Build the card and the label for that question** (B23) | The concern has to stay visible after the chef continues, the same way unconfirmed stock does | Aino sees one question naming the product, the allergen and the number of guests. After she continues, "allergen data not confirmed" shows on the event page, the order, the result line and the audit |
-| **The group** (was Pavit's; needs one named person) | **Rank lines counted in pieces on the cost to cover the need** (B24, decision D36) | On price per kg the agent offers the Fazer caramel cake first, though it costs more for the event. The story has Aino choose the Elonen raspberry pastry cake | With Onni's allergy added, the replacement card offers the Elonen cake (473522) first, at 5 cases and €310.60, and the Fazer cake (466509) second, at 13 cases and €316.42. Lines in kg or L rank as before. A test asserts both |
+| **Darragh** (took it over from Pavit) | **Rank lines counted in pieces on the cost to cover the need** (B24, decision D36) | On price per kg the agent offers the Fazer caramel cake first, though it costs more for the event. The story has Aino choose the Elonen raspberry pastry cake | With Onni's allergy added, the replacement card offers the Elonen cake (473522) first, at 5 cases and €310.60, and the Fazer cake (466509) second, at 13 cases and €316.42. Lines in kg or L rank as before. A test asserts both |
 | **Ben** | **Re-record the fixtures and update the tests that those two jobs change** | The wedding has to give the same result twice from a fresh Reset, or takes recorded at different times won't match | The full test suite passes, and two runs from Reset produce the same orders and the same totals |
 | **Jack** | **Bring this plan in line with the build** (B21) | The figures and wording below were written before the build settled. The voiceover is read from this file | Every figure in this plan can be read off the running app: the ranking under D34, no vendor named for the model, the potatoes' question, the coffee case on Sanna's first card, and the finished wedding order as Katri's record |
 | **Everyone** | **Verify your own items on the running app** (B1 to B20) | 478 tests pass, but nine built items have no test, and no test shows how a screen looks on camera | Each item's check in demo-deliverables.md has been done by its owner after a Reset |
 
-Order: Darragh, Jack (card) and whoever takes the ranking job first, in parallel. Then Ben. Then Jack's update of this plan. Then everyone verifies, and the team records.
+Order: Darragh (both of his jobs) and Jack (the card) first, in parallel. Then Ben. Then Jack's update of this plan. Then everyone verifies, and the team records.
 
 ## The story in one line
 
