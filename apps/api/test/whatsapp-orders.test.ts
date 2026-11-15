@@ -7,7 +7,7 @@ process.env.AIMO_MODE = "fixture";
 process.env.PREVIEW_PASSWORD = "";
 const { createApp } = await import("../src/server.js");
 const { config } = await import("../src/config.js");
-const { getPlan } = await import("../src/agent/plan.js");
+const { getPlan, savePlan } = await import("../src/agent/plan.js");
 const { mandate } = await import("../src/agent/plan.js");
 const { putMandate } = await import("../src/gateway/service.js");
 const { allQuestions } = await import("../src/agent/questions.js");
@@ -160,6 +160,90 @@ describe("synthetic WhatsApp order flow", () => {
     expect(result.status).toBe("blocked");
     expect(result.text).toContain("basket changed");
     expect((await call(`/baskets/${id}`)).requests).toHaveLength(1);
+  });
+
+  it("does not confirm an older addition after a newer request needs clarification", async () => {
+    const id = await basket();
+    await send(id);
+    expect((await send("add 10 kg salmon 469672")).status).toBe("proposal");
+    expect((await send("add milk")).status).toBe("clarification");
+    expect((await call("/whatsapp/session")).conversation.pending).toBeNull();
+    expect((await send("confirm change")).status).toBe("clarification");
+    expect((await call(`/baskets/${id}`)).requests).toHaveLength(0);
+    expect((await call("/orders")).orders).toHaveLength(0);
+  });
+
+  it("requires a fresh final review after an intervening ambiguous request", async () => {
+    const id = await basket();
+    await stage(id, "10 kg salmon 469672");
+    await send(id);
+    expect((await send("confirm order")).status).toBe("proposal");
+    expect((await send("add milk")).status).toBe("clarification");
+    expect((await send("confirm order")).status).toBe("proposal");
+    expect((await call("/orders")).orders).toHaveLength(0);
+  });
+
+  it("does not mutate either named basket for an unsupported multi-order change", async () => {
+    const darragh = await basket("Darragh");
+    const pavit = await basket("Pavit");
+    await send(darragh);
+    for (const text of ["add 1 kg salmon 469672 to Darragh and Pavit", "add 1 kg salmon 469672 to all orders", `confirm order ${darragh} and ${pavit}`]) {
+      expect((await send(text)).status).toBe("clarification");
+      expect((await call("/whatsapp/session")).conversation.pending).toBeNull();
+      expect((await call(`/baskets/${darragh}`)).requests).toHaveLength(0);
+      expect((await call(`/baskets/${pavit}`)).requests).toHaveLength(0);
+    }
+  });
+
+  it("keeps a confirmed addition additive and placed orders immutable", async () => {
+    const id = await basket("Darragh");
+    await stage(id, "10 kg salmon 469672");
+    await send(id);
+    expect((await send("add another 1 kg salmon 469672")).status).toBe("proposal");
+    expect((await send("confirm change")).status).toBe("updated");
+    const requests = (await call(`/baskets/${id}`)).requests;
+    expect(requests).toHaveLength(2);
+    expect(requests.map((r: any) => r.lines[0].quantity)).toEqual([10, 1]);
+    await send("confirm order");
+    expect((await send("confirm order")).status).toBe("ordered");
+    expect((await call(`/orders?eventId=${id}`)).orders[0].lines[0].quantity).toBe(11);
+    for (const text of ["add 1 kg salmon 469672", "remove salmon", "confirm change"]) {
+      expect(["ordered", "clarification"]).toContain((await send(text)).status);
+    }
+    expect((await call(`/baskets/${id}`)).requests).toHaveLength(2);
+    const orders = (await call(`/orders?eventId=${id}`)).orders;
+    expect(orders).toHaveLength(1);
+    expect(orders[0].lines[0].quantity).toBe(11);
+  });
+
+  it("does not reveal a placed banquet basket to a bar-only person", async () => {
+    const id = await basket("Darragh banquet");
+    await stage(id, "10 kg salmon 469672");
+    await send(id);
+    await send("confirm order");
+    expect((await send("confirm order")).status).toBe("ordered");
+    token = (await call("/session", { personId: "p-mikko" })).token;
+    await call("/whatsapp/connect", {});
+    const response = await send(`show ${id}`);
+    expect(response.status).toBe("clarification");
+    expect(response.text).not.toContain("salmon");
+    expect((await call("/whatsapp/session")).conversation.activeOrderId).toBeNull();
+  });
+
+  it.each([
+    { origin: "zz" },
+    { labels: ["REQUIRED_TEST_CERTIFICATION"] },
+  ])("rechecks origin and certification requirements in the final basket quote: %j", async (requires) => {
+    const id = await basket();
+    const source = getPlan(await stage(id, "10 kg salmon 469672"))!;
+    // A saved requirement must reach the fresh gateway check even if the
+    // existing source quote predates it. Neither origin nor labels are optional.
+    Object.assign(source.needs[0].constraints, requires);
+    savePlan(source);
+    await send(id);
+    expect((await send("confirm order")).status).toBe("proposal");
+    expect((await send("confirm order")).status).toBe("blocked");
+    expect((await call("/orders")).orders).toHaveLength(0);
   });
 
   it("blocks a product that fails the request's stated dietary restriction", async () => {
