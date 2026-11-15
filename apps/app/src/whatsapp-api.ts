@@ -1,4 +1,4 @@
-import type { WhatsAppSession, WhatsAppGroupConfig, WhatsAppMessageResult } from "@aimo/contracts";
+import type { WhatsAppSession, WhatsAppGroupConfig, WhatsAppMessageResult, WhatsAppWebStatus } from "@aimo/contracts";
 import { ApiError, authHooks } from "./api";
 
 async function request<T = WhatsAppSession>(path: string, body?: unknown): Promise<T> {
@@ -31,6 +31,13 @@ async function request<T = WhatsAppSession>(path: string, body?: unknown): Promi
 }
 
 export const whatsappApi = {
+  web: {
+    status: () => request<WhatsAppWebStatus>("/web/status"),
+    connect: () => request<WhatsAppWebStatus>("/web/connect", {}),
+    disconnect: () => request<WhatsAppWebStatus>("/web/disconnect", {}),
+    selectGroup: (groupId: string | null) => request<WhatsAppWebStatus>("/web/group", { groupId }),
+    refreshGroups: () => request<WhatsAppWebStatus>("/web/groups/refresh", {}),
+  },
   config: () => request<WhatsAppGroupConfig>("/config"),
   selectGroup: (groupId: string) => request<WhatsAppGroupConfig>("/config", { groupId }),
   session: () => request("/session"),

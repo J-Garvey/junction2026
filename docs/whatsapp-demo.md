@@ -1,14 +1,51 @@
-# Simulated WhatsApp ordering
+# WhatsApp Web and offline simulator
 
-From **Demo settings**, select **Open WhatsApp demo**, choose a demo person if prompted, then select **Connect demo chat**.
+## Link regular WhatsApp
 
-In Demo settings, **Respond only in this group** selects the single group the agent listens to. The default is **Demo Hotel · Orders**; the fixed demo choices also include **Conference kitchen** and **Hotel staff**. All other groups and direct messages are ignored on the server, before interpretation, cached replies or order changes. The chat's **Demo chat** selector lets you send test messages from each group or a direct chat. An ignored message produces only a local transport notice, with no agent reply or history returned.
+Open **Demo settings** and choose **Connect WhatsApp Web**. If you have not selected a demo person yet, use **Link WhatsApp Web**, then choose a person. The same pairing controls are available at `/whatsapp`.
+
+1. On your phone open **WhatsApp → Linked devices → Link a device** and scan the QR shown in the app.
+2. Wait for **Connected** and your real group list to load.
+3. Choose **Respond only in this group**. No group is enabled automatically on first pairing. Choose the empty option to pause the agent.
+4. Send text in that group from your linked phone or another group member, such as an order name, `add 10 kg salmon 469672`, `confirm change`, or `confirm order`. Replies include the exact text to send next. The bridge records its own outbound replies before sending and ignores their echoes to prevent reply loops.
+
+The connection uses [whatsapp-web.js](https://github.com/wwebjs/whatsapp-web.js) to run regular WhatsApp Web in a dedicated local Chrome/Edge browser. It does not use WhatsApp Business or the Cloud API. This is an unofficial browser integration, so WhatsApp changes may require library updates. WhatsApp messages and replies are real; purchasing still uses the synthetic Junction gateway and mock order receipts.
+
+Only new text from the exact selected group ID can reach the interpreter. Other groups, private chats, statuses, old history, attachments and agent-generated replies are ignored without a reply or read receipt. Each sender has separate order selection and pending confirmations. A sender cannot confirm another sender's pending edit. Choosing a different group or reconnecting starts fresh conversation context. Financial approvals remain in the app.
+
+The person who starts pairing controls the connection and supplies the hotel's demo identity for group requests. Other demo people cannot view the QR or reconfigure the connection. After a demo reset, select a person, reconnect and choose the group again. Group changes and disconnect wait until any active order request finishes.
+
+## Server setup
+
+Run the normal long-lived Node API (`pnpm start`). Chrome or Edge is detected automatically on Windows; standard Chrome/Chromium paths are also checked on macOS/Linux. Set `WHATSAPP_CHROME_PATH` in the ignored `.env.local` for another browser executable. Dependency installation intentionally skips Puppeteer's automatic browser download; the browser sandbox stays enabled.
+
+`WHATSAPP_AUTH_DIR` defaults to ignored `apps/api/var/whatsapp-web`. The folder contains the browser's linked-device credentials and cached WhatsApp data. Keep it local, private, persistent and out of Git. Use a separate directory for each running app instance and never share a browser profile between processes. Closing the API preserves the profile; explicit **Disconnect WhatsApp** logs out and closes the dedicated browser. You can also revoke the device on your phone. Pairing QR data is held in memory and is served only to the controlling authenticated person with `Cache-Control: no-store`.
+
+The API starts the browser only after **Connect WhatsApp Web** is selected. After restarting the API, select that button again to resume the saved browser session. No real account is paired by tests. The local smoke test verified that the actual WhatsApp Web browser generated a pairing QR; final phone approval and a live group exchange require the account owner's phone.
+
+Live endpoints under `/api/whatsapp/web` all require a person session:
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/status` | Pairing phase, owner-only QR image, account name and group selection |
+| POST | `/connect` | Start or resume the dedicated WhatsApp Web browser |
+| POST | `/disconnect` | Log out and close the browser |
+| POST | `/groups/refresh` | Refresh real groups from the linked account |
+| POST | `/group` | Select `{ "groupId": "...@g.us" }`, or null to pause |
+
+There is no HTTP endpoint that injects messages into the real bridge. Sender, group and message IDs come from WhatsApp Web events. Replayed or interrupted message deliveries never repeat an order operation. A failed or uncertain outbound reply is not automatically resent; check the group and order before sending a new request.
+
+## Offline simulator
+
+The original offline chat remains at `/whatsapp/simulator`. It has no access to the live connection or selected real group. Its configuration endpoints and fixed demo groups below apply only to the simulator.
+
+The simulator defaults to **Demo Hotel · Orders**; its other fixed choices are **Conference kitchen** and **Hotel staff**. Its **Demo chat** selector lets you test messages from each group or a direct chat. Change the simulator's allowed group through its test-only `/api/whatsapp/config` endpoint. This setting cannot enable a real group. Ignored simulator messages produce only a local transport notice, with no agent reply or history returned.
 
 Changing the selected group clears every person's previous chat context, history and pending confirmation the next time their session is read. Existing orders remain. Delivery IDs from earlier group selections cannot be replayed in the newly selected group. Finish any messages currently being sent before changing the group. Group selection is a test-mode setting, like the existing demo clock.
 
-Open **WhatsApp** in the hotel app, or visit `/whatsapp`, after choosing a demo person. Connect the demo account and send a message. This is a synthetic web chat: it does not contact WhatsApp, connect a phone, collect Meta credentials, or send messages to anyone. The existing preview gate and person session still apply. The display name is cosmetic; the server chooses the person, hotel, outlets and credentials from the existing session.
+Visit `/whatsapp/simulator` after choosing a demo person. Connect the demo chat and send a message. This screen is synthetic and does not contact WhatsApp or connect a phone. The existing preview gate and person session still apply. The display name is cosmetic; the server chooses the person, hotel, outlets and credentials from the existing session.
 
-This addition was explicitly requested after the earlier product decision to cut WhatsApp. Real WhatsApp transport, phone verification and Meta account setup remain outside this prototype.
+Both channels were explicitly requested after the earlier product decision to cut WhatsApp. The live transport above uses regular WhatsApp Web linked-device pairing; WhatsApp Business and Meta Cloud API setup are not used.
 
 ## Try it
 

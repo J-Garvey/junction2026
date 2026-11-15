@@ -3,3 +3,5 @@ packages:
   - "packages/*"
 allowBuilds:
   esbuild: true
+  # Use installed Chrome/Edge or WHATSAPP_CHROME_PATH; no browser download on install.
+  puppeteer: false
