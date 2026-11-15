@@ -7,11 +7,16 @@ import { api, type Person, type PlanResp } from "../src/api";
 import { Ctx, type AppCtx } from "../src/ctx";
 import { RequestNew } from "../src/screens/Request";
 
-// The DOM test uses only the clock's key/value state; keep SQLite out of the
-// browser environment while exercising the real parser and catalogue matching.
+// Keep SQLite out of the DOM test while using the real clock and the seeded
+// standing mandate for catalogue matching, including its Finnish-fish rule.
+const testDb = vi.hoisted(() => ({ mandate: null as unknown }));
 vi.mock("../../api/src/db.js", () => {
   const values = new Map<string, unknown>();
-  return { kvGet: (key: string) => values.get(key) ?? null, kvSet: (key: string, value: unknown) => values.set(key, value) };
+  return {
+    kvGet: (key: string) => values.get(key) ?? null,
+    kvSet: (key: string, value: unknown) => values.set(key, value),
+    getJson: (table: string) => table === "mandates" ? structuredClone(testDb.mandate) : null,
+  };
 });
 process.env.AIMO_DB = ":memory:";
 process.env.AIMO_MODE = "fixture";
@@ -22,6 +27,7 @@ const { rulesParse } = await import("../../api/src/agent/parse.js");
 const { needsFromSingle } = await import("../../api/src/agent/plan.js");
 const { shortlist } = await import("../../api/src/agent/match.js");
 const { setClock } = await import("../../api/src/clock.js");
+testDb.mandate = (await import("../../api/src/seed.js")).MANDATE;
 
 const chef: Person = { id: "p-aino", name: "Aino", title: "Head chef", role: "chef", outlets: ["banquet"], hotelScope: false };
 function request(text = "10 l milk by Monday"): SingleRequest {
@@ -70,7 +76,8 @@ describe("RequestNew product chip identity", () => {
     const [need] = needsFromSingle(sent);
     expect(need.label).toBe("10 kg salmon");
     const matches = shortlist(need, { log: false });
-    expect(matches.map((p) => p.id)).toContain("462150");
+    expect(matches.length).toBeGreaterThan(0);
+    expect(matches.map((p) => p.id)).not.toContain("462150");
     expect(matches.every((p) => p.category !== "10400")).toBe(true);
   }, 60_000);
 
