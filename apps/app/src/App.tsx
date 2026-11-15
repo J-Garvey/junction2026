@@ -19,6 +19,7 @@ import { Rules } from "./screens/Rules";
 import { WhatsApp, WhatsAppSimulator } from "./screens/WhatsApp";
 import { WhatsAppWebConnection } from "./screens/WhatsAppWebConnection";
 import "./shell-navigation.css";
+import { useMenu } from "./ui/useMenu";
 
 
 export function App() {
@@ -170,46 +171,30 @@ function PrimaryNavigation({ me }: { me: Person }) {
   );
 }
 
-function OrderSwitcher({ currentId }: { currentId?: string }) {
+export function OrderSwitcher({ currentId }: { currentId?: string }) {
   const { data } = useLoad(() => api.baskets(), []);
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const menu = useMenu();
   const orders = [...(data?.baskets ?? [])].sort((a, b) => a.deliveryDate.localeCompare(b.deliveryDate));
   const current = orders.find((order) => order.id === currentId);
 
-  useEffect(() => {
-    if (!open) return;
-    const closeOutside = (event: MouseEvent) => {
-      if (!ref.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", closeOutside);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("mousedown", closeOutside);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [open]);
-
   return (
-    <div className="order-switcher" ref={ref}>
-      <button type="button" className="profile order-switcher-trigger" onClick={() => setOpen((value) => !value)} aria-haspopup="menu" aria-expanded={open}>
+    <div className="order-switcher" {...menu.rootProps}>
+      <button type="button" className="profile order-switcher-trigger" {...menu.triggerProps}>
         <b>{current?.name ?? (currentId ? "Loading…" : "My orders")}</b>
         <Icon n="down" s={14} />
       </button>
-      {open && (
-        <div className="order-switcher-menu" role="menu" aria-label="Switch order">
+      {menu.open && (
+        <div className="order-switcher-menu" {...menu.menuProps} aria-label="Switch order">
           <div className="order-switcher-list">
             {orders.map((order) => (
               <Link
                 key={order.id}
                 to={`/baskets/${order.id}`}
                 role="menuitem"
+                tabIndex={-1}
                 className={order.id === currentId ? "selected" : ""}
                 aria-current={order.id === currentId ? "page" : undefined}
-                onClick={() => setOpen(false)}
+                onClick={menu.close}
               >
                 <span className="order-switcher-order">
                   <b>{order.name}</b>
@@ -219,7 +204,7 @@ function OrderSwitcher({ currentId }: { currentId?: string }) {
               </Link>
             ))}
           </div>
-          <Link to="/" role="menuitem" className="order-switcher-all" onClick={() => setOpen(false)}>
+          <Link to="/" role="menuitem" tabIndex={-1} className="order-switcher-all" onClick={menu.close}>
             <span>View all orders</span>
             <Icon n="chev" s={14} />
           </Link>
@@ -260,29 +245,12 @@ function TopBar({ status, me, onSwitch }: { status: StatusResp | null; me: Perso
   );
 }
 
-function AccountMenu({ me, onSwitch }: { me: Person; onSwitch: () => void }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const closeOutside = (event: MouseEvent) => {
-      if (!ref.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", closeOutside);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("mousedown", closeOutside);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [open]);
+export function AccountMenu({ me, onSwitch }: { me: Person; onSwitch: () => void }) {
+  const menu = useMenu();
 
   return (
-    <div className="account-menu" ref={ref}>
-      <button type="button" className="profile" onClick={() => setOpen((value) => !value)} aria-label={`Signed in as ${me.name}`} aria-haspopup="menu" aria-expanded={open} title={`Signed in as ${me.name}`}>
+    <div className="account-menu" {...menu.rootProps}>
+      <button type="button" className="profile" {...menu.triggerProps} aria-label={`Signed in as ${me.name}`} title={`Signed in as ${me.name}`}>
         <span className="avatar">{initials(me.name)}</span>
         <span className="account-details">
           <b>{me.name}</b>
@@ -290,8 +258,8 @@ function AccountMenu({ me, onSwitch }: { me: Person; onSwitch: () => void }) {
         </span>
         <span className="account-chevron"><Icon n="down" s={14} /></span>
       </button>
-      {open && (
-        <div className="account-panel" role="menu">
+      {menu.open && (
+        <div className="account-panel" {...menu.menuProps}>
           <div className="account-current">
             <span className="avatar">{initials(me.name)}</span>
             <span>
@@ -300,9 +268,9 @@ function AccountMenu({ me, onSwitch }: { me: Person; onSwitch: () => void }) {
               <span className="small muted">{me.title}</span>
             </span>
           </div>
-          <NavLink to="/audit" role="menuitem" onClick={() => setOpen(false)}><Icon n="list" s={17} /> Audit log</NavLink>
-          <NavLink to="/rules" role="menuitem" onClick={() => setOpen(false)}><Icon n="shield" s={17} /> Rules</NavLink>
-          <button type="button" className="account-action" role="menuitem" onClick={() => { setOpen(false); onSwitch(); }}><Icon n="users" s={17} /> Switch user</button>
+          <NavLink to="/audit" role="menuitem" tabIndex={-1} onClick={menu.close}><Icon n="list" s={17} /> Audit log</NavLink>
+          <NavLink to="/rules" role="menuitem" tabIndex={-1} onClick={menu.close}><Icon n="shield" s={17} /> Rules</NavLink>
+          <button type="button" className="account-action" role="menuitem" tabIndex={-1} onClick={() => { menu.close(); onSwitch(); }}><Icon n="users" s={17} /> Switch user</button>
         </div>
       )}
     </div>
