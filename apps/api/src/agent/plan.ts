@@ -20,8 +20,9 @@ import { recallSubstitute } from "./memory.js";
 import { basketSnapshot } from "../whatsapp/snapshot.js";
 import { forEachConcurrent } from "./concurrency.js";
 import { quantityScope, refreshItemReviews } from "./itemReview.js";
+import { HOTEL_ID, mandate } from "./mandate.js";
 
-export const HOTEL_ID = "hotel-aurora";
+export { HOTEL_ID, mandate } from "./mandate.js";
 
 export type Overrides = {
   confirmed: string[]; // "needId:productId" the chef confirmed (type or substitute)
@@ -45,10 +46,6 @@ export type StoredPlan = Plan & {
 };
 
 export const emptyOverrides = (): Overrides => ({ confirmed: [], excluded: [], removedNeeds: [], keepShort: false, approvedSoft: [], stockContinued: [], useConfirmed: false });
-
-export function mandate(): Mandate {
-  return getJson<Mandate>("mandates", HOTEL_ID, "hotel_id")!;
-}
 
 export function savePlan(p: StoredPlan) {
   refreshItemReviews(p);
