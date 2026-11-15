@@ -26,6 +26,7 @@ beforeEach(() => {
   vi.spyOn(api, "people").mockResolvedValue({ people, outlets: [] });
   vi.spyOn(api, "status").mockResolvedValue(status);
   vi.spyOn(api, "home").mockResolvedValue({ questions: [], events: [], plans: [], warnings: [] });
+  vi.spyOn(api, "warnings").mockResolvedValue({ warnings: [] });
   vi.spyOn(api, "baskets").mockResolvedValue({ baskets: [] });
   vi.spyOn(api, "orders").mockResolvedValue({ orders: [] });
   vi.spyOn(api, "events").mockResolvedValue({ events: [] });

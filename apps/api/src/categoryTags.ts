@@ -99,7 +99,13 @@ export const TAG_SHARE = 0.1;
 export const TAG_FOCUS = 0.1;
 
 export function buildCategoryTags(all: Product[]): Built {
-  if (built && sameProducts(all)) return built;
+  if (built && sameProducts(all)) {
+    // Ranking reuses a stable catalogue array after labels passed a copy.
+    // Remember that validated array instead of checking every SKU again for
+    // each compound-word test in the same search.
+    builtFor = all;
+    return built;
+  }
   const size = new Map<string, number>();
   const df = { en: new Map<string, Map<string, number>>(), fi: new Map<string, Map<string, number>>() };
   const gdf = { en: new Map<string, number>(), fi: new Map<string, number>() };

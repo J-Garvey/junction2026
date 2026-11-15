@@ -103,13 +103,13 @@ describe("hotel ownership on every trade read", () => {
     expect((await call(unassigned, `/gateway/v1/quotes/${first.q.id}`)).status).toBe(403);
   });
   it("closes direct app and live console backdoors, including SSE", async () => {
-    for (const path of ["/home", "/rules", "/plans", "/events", "/events/evt-wedding", "/baskets", "/baskets/evt-wedding"])
+    for (const path of ["/home", "/warnings", "/rules", "/plans", "/events", "/events/evt-wedding", "/baskets", "/baskets/evt-wedding"])
       expect((await call(foreignPerson, `/api${path}`)).status).toBe(403);
     expect((await call(foreignPerson, `/api/orders/${first.o.id}`)).status).toBe(403);
     expect((await call(person, `/api/orders/${first.o.id}`)).status).toBe(200);
     for (const path of ["/events/event-second", "/baskets/event-second", "/events/%65vent-second"])
       expect((await call(person, `/api${path}`)).status, path).toBe(403);
-    for (const path of ["/home", "/events", "/baskets"])
+    for (const path of ["/home", "/warnings", "/events", "/baskets"])
       expect((await call(person, `/api${path}`)).text).not.toContain("PRIVATE_SECOND_EVENT");
     expect((await call(foreignPerson, "/api/audit?eventId=event-first")).body.entries).toEqual([]);
     expect((await call(foreignPerson, "/api/orders?eventId=event-first")).body.orders).toEqual([]);
@@ -136,5 +136,25 @@ describe("hotel ownership on every trade read", () => {
     expect(unknown.hotelId).toBeNull();
     expect(auditView("hotel").some(e => e.id === unknown.id)).toBe(false);
     expect(verifyChain()).toEqual({ ...before, entries: before.entries + 1 });
+  });
+  it("serves only current hotel warnings without loading the full inbox", async () => {
+    const rows = [
+      { id: "warning-own", eventId: SEED_EVENT.id, state: "open" },
+      { id: "warning-resolved", eventId: SEED_EVENT.id, state: "resolved" },
+      { id: "warning-foreign", eventId: "event-second", state: "open" },
+      { id: "warning-unowned", eventId: "missing-event", state: "open" },
+    ];
+    try {
+      for (const row of rows) getDb().prepare("INSERT INTO warnings (id, event_id, state, json) VALUES (?, ?, ?, ?)")
+        .run(row.id, row.eventId, row.state, JSON.stringify(row));
+      expect((await call("", "/api/warnings")).status).toBe(401);
+      const response = await call(person, "/api/warnings");
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ warnings: [rows[0]] });
+      const home = await call(person, "/api/home");
+      expect(response.body.warnings).toEqual(home.body.warnings);
+    } finally {
+      for (const row of rows) getDb().prepare("DELETE FROM warnings WHERE id = ?").run(row.id);
+    }
   });
 });
