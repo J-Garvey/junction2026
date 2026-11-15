@@ -1,5 +1,5 @@
 /** Shared item review used for new items and saved pending requests. */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { SingleRequest, Unit } from "@aimo/contracts";
 import { api, ApiError, type PlanResp } from "../api";
 import { useApp } from "../ctx";
@@ -24,6 +24,11 @@ export function RequestReviewDialog({ initialReview, deliveryDate, onClose, onCh
   const [editTarget, setEditTarget] = useState<{ lineId: string; field: "quantity" | "description"; amount: string; unit: Unit; description: string } | null>(null);
   const [busy, setBusy] = useState<"check" | "replace" | "remove" | "approve" | "quantity" | "add" | null>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
+  // Refresh external changes when no local decision/edit is in progress. Mutations
+  // themselves return the authoritative plan, including conflicts with changed terms.
+  useEffect(() => {
+    if (!busy && !editTarget) setReview(initialReview);
+  }, [initialReview]);
   const inScope = me.hotelScope || me.outlets.includes(review.plan.outletId);
   const editable = inScope && !review.plan.basketedAt && !review.plan.orderIds.length
     && !review.questions.some((q) => q.state === "open" || q.state === "waiting");
@@ -43,9 +48,13 @@ export function RequestReviewDialog({ initialReview, deliveryDate, onClose, onCh
   }
 
   async function reloadDecision() {
-    const result = await api.plan(review.plan.id);
-    setReview(result);
-    onChanged();
+    setDialogError(null);
+    try {
+      setReview(await api.plan(review.plan.id));
+      onChanged();
+    } catch (e) {
+      setDialogError((e as Error).message);
+    }
   }
 
   function edit(line: SingleRequest["lines"][number], field: "quantity" | "description") {
@@ -129,7 +138,7 @@ export function RequestReviewDialog({ initialReview, deliveryDate, onClose, onCh
   }
 
   async function add() {
-    if (!review || busy || !editable) return;
+    if (!canAdd || busy) return;
     setBusy("add");
     setDialogError(null);
     try {
@@ -179,7 +188,7 @@ export function RequestReviewDialog({ initialReview, deliveryDate, onClose, onCh
       title={plan?.title ?? "Review the item"}
       description="Check what was understood and whether it can arrive with this order."
       fields={[
-        { label: "Next step", value: plan?.basketedAt ? "Submit order for review" : editable ? "Review items, then add to order" : "Resolve the decision below" },
+        { label: "Next step", value: !inScope ? "Waiting for the order builder" : plan?.basketedAt ? "Submit order for review" : canAdd ? "Add to order" : editable ? "Review items, then add to order" : "Resolve the decision below" },
         { label: "Total ex VAT", value: eur(plan?.totalExVat) },
         { label: "Requested by", value: plan?.createdBy.name ?? "Not supplied" },
         { label: "Needed by", value: day(plan?.neededBy) },
@@ -208,7 +217,7 @@ export function RequestReviewDialog({ initialReview, deliveryDate, onClose, onCh
               onApprove={() => resolveItem(line.id)}
               onSalesQuantity={(productId, quantity) => resolveItem(line.id, { productId, quantity })}
               onEdit={(field) => edit(line, field)}
-              onDiscard={() => discard(line.id)}
+              onDiscard={request.lines.length > 1 || plan?.reviewing ? () => discard(line.id) : undefined}
               onChoose={(productId) => choose(line.id, productId)}
             >
               {editTarget?.lineId === line.id && (
@@ -231,7 +240,7 @@ export function RequestReviewDialog({ initialReview, deliveryDate, onClose, onCh
       </div>
 
       {busy === "check" && !plan && <div className="add-review-loading">Checking products, stock and delivery…</div>}
-      {dialogError && <div className="callout red" role="alert">{dialogError}</div>}
+      {dialogError && <div className="callout red" role="alert">{dialogError} <button type="button" className="btn sm" disabled={!!busy} onClick={reloadDecision}>Refresh details</button></div>}
       {busy && <div className="small muted" role="status">{busy === "replace" ? "Checking replacement, stock and price..." : "Saving and checking current terms..."}</div>}
 
       {plan && editable && !editTarget && (

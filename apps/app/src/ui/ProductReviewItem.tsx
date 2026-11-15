@@ -19,7 +19,7 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
   onApprove: () => void;
   onSalesQuantity: (productId: string, quantity: number) => void;
   onEdit: (field: "quantity" | "description") => void;
-  onDiscard: () => void;
+  onDiscard?: () => void;
   onChoose: (productId: string) => void;
   children?: ReactNode;
 }) {
@@ -48,7 +48,7 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
           <small>Description</small>
           <span id={headingId}>{line.constraints.claims.map(claimLabel).concat(line.query).join(" ")}</span>
         </button>
-        <button type="button" className="btn sm ghost" disabled={disabled} onClick={onDiscard} aria-label={`Discard ${line.query} from order`}>Discard</button>
+        {onDiscard && <button type="button" className="btn sm ghost" disabled={disabled} onClick={onDiscard} aria-label={`Discard ${line.query} from order`}>Discard</button>}
       </div>
 
       {children || (
@@ -75,6 +75,7 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
                         <dt>Order cutoff (Helsinki)</dt><dd>{product.closingTime ? when(product.closingTime) : "Not supplied"}</dd>
                         {product.overshoot && <><dt>Pack rounding</dt><dd>{qty(product.overshoot.amount)} {product.needAmount.unit} extra ({qty(product.overshoot.pct)}%)</dd></>}
                       </dl>
+                      <SupplierSchedule terms={product} />
                       {product.productId && <ProductDietFacts key={product.productId} productId={product.productId} />}
                     </div>
                   ))}
@@ -91,7 +92,7 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
               {warnings.length > 0 && <ul className="add-review-item-warnings small">{warnings.map((message) => <li key={message}>{message}</li>)}</ul>}
               <p className="small muted">{[
                 ...line.constraints.claims.map(claimLabel),
-                ...line.constraints.avoidAllergens.map((code) => `Avoid allergen ${code}`),
+                ...line.constraints.avoidAllergens.map((code) => `Avoid ${allergenLabel(code)}`),
                 ...line.constraints.labels.map(claimLabel),
                 ...(line.constraints.origin ? [`Required origin: ${line.constraints.origin}`] : []),
               ].join(" · ") || "No dietary requirements stated on this request."}</p>
@@ -134,6 +135,7 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
                         <span className="add-review-product-name"><b>{candidate.name}</b><small>Product {candidate.productId} · {stockText(candidate.stock, candidate.salesUnit)} · {candidate.availableDate ? `delivery ${day(candidate.availableDate)}` : "delivery date not supplied"}{candidate.source === "fixture" ? " · Fixture" : ""}</small><small>Cutoff (Helsinki): {candidate.closingTime ? when(candidate.closingTime) : "Not supplied"}</small><button type="button" className="btn sm" disabled={disabled || !usable} title={!usable ? "Stock, price, pack size or delivery needs checking." : undefined} onClick={() => onChoose(candidate.productId)}>Use replacement</button></span>
                         <span className="add-review-product-quantity"><small>Quantity</small><b>{quantity === null ? "TBC" : `${qty(quantity)} ${candidate.salesUnit ?? "sales units"}`}</b></span>
                         <span className="add-review-product-price"><small>Price ex VAT</small><b>{eur(quantity === null || candidate.unitPrice === null ? null : quantity * candidate.unitPrice)}</b><small>{eur(candidate.unitPrice)} / {candidate.salesUnit ?? "sales unit"}</small></span>
+                        <SupplierSchedule terms={candidate} />
                       </div>
                     );
                   })}
@@ -165,10 +167,23 @@ function ProductDietFacts({ productId }: { productId: string }) {
   const { data: product, error, loading, reload } = useLoad(() => api.product(productId), [productId]);
   if (loading && !product) return <p className="small muted">Loading dietary information...</p>;
   if (error || !product) return <div className="small muted" role="status">Dietary information could not be loaded. <button type="button" className="linkbtn" onClick={reload}>Try again</button></div>;
+  const contains = product.contains.filter((code) => code !== "X99");
   return <dl className="add-review-product-facts small">
     <dt>Diet claims</dt><dd>{product.claims.map(claimLabel).join(", ") || "No claims supplied"}</dd>
-    <dt>Allergen declarations</dt><dd>{product.hasAllergenData ? [product.contains.length ? `Contains (supplier codes): ${product.contains.join(", ")}` : "No contains entries supplied", product.mayContain.length ? `May contain (supplier codes): ${product.mayContain.join(", ")}` : "No may-contain entries supplied"].join(". ") : "No allergen declaration supplied. Dietary suitability is unknown."}</dd>
+    <dt>Allergen declarations</dt><dd>{product.hasAllergenData ? [contains.length ? `Contains: ${contains.map(allergenLabel).join(", ")}` : "No contains entries supplied", product.mayContain.length ? `May contain: ${product.mayContain.map(allergenLabel).join(", ")}` : "No may-contain entries supplied"].join(". ") : "No allergen declaration supplied. Dietary suitability is unknown."}</dd>
   </dl>;
+}
+
+function SupplierSchedule({ terms }: { terms: Pick<PlanLine, "availabilityEvidence" | "availableDate" | "closingTime"> }) {
+  const schedule = terms.availabilityEvidence?.schedules[0];
+  if (!schedule) return <p className="add-review-supplier-note small muted">Original supplier schedule not saved. Recheck the item terms before ordering.</p>;
+  if (schedule.availableDate === terms.availableDate && schedule.closingTime === terms.closingTime) return null;
+  return <p className="add-review-supplier-note small muted">Quoted delivery and cutoff are demo estimates. Original supplier schedule: {schedule.availableDate ? day(schedule.availableDate) : "date not supplied"}; cutoff (Helsinki): {schedule.closingTime ? when(schedule.closingTime) : "not supplied"}. A delivery hour is not supplied.</p>;
+}
+
+function allergenLabel(code: string) {
+  const names: Record<string, string> = { AM: "milk", AE: "eggs", AF: "fish", AC: "crustaceans", UM: "molluscs", AP: "peanuts", AN: "tree nuts", AY: "soybeans", AS: "sesame", BC: "celery", BM: "mustard", NL: "lupin", AU: "sulphites", AW: "cereals containing gluten", ML: "lactose" };
+  return names[code] ? `${names[code]} (${code})` : code;
 }
 
 function replacementQuantity(candidate: Candidate, need: Need) {

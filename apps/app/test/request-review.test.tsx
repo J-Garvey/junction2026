@@ -1,11 +1,12 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, Route, Routes } from "react-router";
 import { SingleRequest, type Candidate, type Need, type Plan, type PlanLine, type Product } from "@aimo/contracts";
-import { api, ApiError, type Person, type PlanResp } from "../src/api";
+import { api, ApiError, type BasketResp, type Person, type PlanResp } from "../src/api";
 import { Ctx, type AppCtx } from "../src/ctx";
 import { RequestReviewDialog } from "../src/ui/RequestReviewDialog";
+import { BasketPage } from "../src/screens/Baskets";
 
 const chef: Person = { id: "aino", name: "Aino", title: "Head chef", role: "chef", outlets: ["banquet"], hotelScope: false };
 const candidate: Candidate = {
@@ -113,7 +114,7 @@ describe("saved request review controls", () => {
     vi.spyOn(api, "approveItem");
     show(fixture(), { ...chef, id: "mikko", name: "Mikko", outlets: ["bar"] });
     expect(screen.getByText(/outside your outlet scope/)).toBeTruthy();
-    for (const name of ["Approve milk", "Suggest replacements", "Edit quantity for milk", "Discard milk from order"]) {
+    for (const name of ["Approve milk", "Suggest replacements", "Edit quantity for milk"]) {
       const button = screen.getByRole("button", { name }) as HTMLButtonElement;
       expect(button.disabled).toBe(true);
       fireEvent.click(button);
@@ -154,5 +155,30 @@ describe("saved request review controls", () => {
     await waitFor(() => expect((screen.getByRole("button", { name: "Approve milk" }) as HTMLButtonElement).disabled).toBe(false));
     expect((screen.getByRole("button", { name: "Add to order" }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getAllByText(/60,00/).length).toBeGreaterThan(0);
+  });
+
+  it("opens from the pending row and moves the item into the order with a persistent success message", async () => {
+    const initial = fixture();
+    let staged = false;
+    vi.spyOn(api, "basket").mockImplementation(async () => ({
+      event: { id: "event", name: "Conference dinner", serviceDate: "2026-11-20", guests: 0 },
+      questions: [], orders: [], review: null, confirmed: false,
+      requests: [{ ...initial.plan, createdBy: "Jonas", basketedAt: staged ? "2026-11-14T10:00:00Z" : null }],
+      orderBy: { state: "unknown", at: null, reason: "Recheck supplier terms.", usesFixtures: true },
+    } as unknown as BasketResp));
+    vi.spyOn(api, "plan").mockResolvedValue(initial);
+    vi.spyOn(api, "approveItem").mockResolvedValue(fixture(true));
+    vi.spyOn(api, "basketPlan").mockImplementation(async () => { staged = true; return fixture(true); });
+    const context: AppCtx = { me: chef, people: [chef], outlets: [], status: null, now: "2026-11-14T10:00:00Z", tick: 0, refresh: vi.fn(), switchPerson: vi.fn() };
+    render(<MemoryRouter initialEntries={["/baskets/event"]}><Ctx.Provider value={context}><Routes><Route path="/baskets/:id" element={<BasketPage />} /></Routes></Ctx.Provider></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: /^10 l milk/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Approve milk" }));
+    await waitFor(() => expect((screen.getByRole("button", { name: "Add to order" }) as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(screen.getByRole("button", { name: "Add to order" }));
+    await screen.findByText("Awaiting final order");
+    expect(screen.getByText("Added to the order. Submit the final order for finance review.")).toBeTruthy();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^10 l milk/ })).toBeNull();
+    expect((screen.getByRole("button", { name: "Submit order for review" }) as HTMLButtonElement).disabled).toBe(false);
   });
 });

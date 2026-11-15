@@ -101,6 +101,7 @@ export function BasketPage() {
   const { data, error, reload } = useLoad(() => api.basket(id!), [id]);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [requestNote, setRequestNote] = useState<string | null>(null);
 
   async function submitForReview() {
     setSubmitting(true);
@@ -147,6 +148,7 @@ export function BasketPage() {
       <div className="basket-context small muted">Delivery {day(ev.serviceDate)}<OrderBy deadline={data.orderBy} detail /></div>
 
       {submitError && <div className="callout red" role="alert">{submitError}</div>}
+      {requestNote && <div className="callout green small" role="status">{requestNote}</div>}
       {review && <div className="callout green small" role="status">Submitted to finance. This order is ready for approval.</div>}
 
       <AddToBasket eventId={ev.id} deliveryDate={ev.serviceDate} onAdded={reload} />
@@ -168,7 +170,7 @@ export function BasketPage() {
           {pending.length > 0 && (
             <div className="card" style={{ marginTop: 12 }}>
               {pending.map((r) => (
-                <RequestRow key={r.id} r={r} onChanged={reload} question={questions.find((q) => q.planId === r.id && (q.state === "open" || q.state === "waiting"))} />
+                <RequestRow key={r.id} r={r} onChanged={reload} onAdded={() => { setRequestNote("Added to the order. Submit the final order for finance review."); reload(); }} question={questions.find((q) => q.planId === r.id && (q.state === "open" || q.state === "waiting"))} />
               ))}
             </div>
           )}
@@ -187,11 +189,10 @@ export function BasketPage() {
   );
 }
 
-function RequestRow({ r, question, onChanged }: { r: BasketPlan; question?: Question; onChanged: () => void }) {
+function RequestRow({ r, question, onChanged, onAdded }: { r: BasketPlan; question?: Question; onChanged: () => void; onAdded: () => void }) {
   const { me, people } = useApp();
   const waitingLabel = question ? waitingForText(question, me, people) : undefined;
   const [open, setOpen] = useState(false);
-  const [added, setAdded] = useState(false);
   return <>
     <button type="button" className="li evrow item-dialog-trigger" onClick={() => setOpen(true)}>
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -200,8 +201,7 @@ function RequestRow({ r, question, onChanged }: { r: BasketPlan; question?: Ques
       </div>
       {r.tooLate ? <span className="stamp ask">Too late</span> : <Status k={planStatusKind(r.status)} title={waitingLabel ?? PLAN_STATUS_TEXT[r.status]} label={r.status === "waiting" ? waitingLabel : undefined} />}
     </button>
-    {added && <div className="callout green small" role="status">Added to the order. Submit the final order for finance review.</div>}
-    {open && <SavedRequestDetails id={r.id} title={r.title} onClose={() => setOpen(false)} onChanged={onChanged} onAdded={() => { setAdded(true); setOpen(false); onChanged(); }} />}
+    {open && <SavedRequestDetails id={r.id} title={r.title} onClose={() => setOpen(false)} onChanged={onChanged} onAdded={() => { setOpen(false); onAdded(); }} />}
   </>;
 }
 
