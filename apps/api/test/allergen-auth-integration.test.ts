@@ -10,6 +10,7 @@ let server: Server, base: string, chef: string, finance: string, demo: string;
 const agent = "agent_demo_hotel_aurora";
 beforeAll(async () => {
   server = createApp().listen(0, "127.0.0.1");
+  server.keepAliveTimeout = 60_000;
   await new Promise(resolve => server.once("listening", resolve));
   base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
   config.gatewayUrl = `${base}/gateway/v1`;
