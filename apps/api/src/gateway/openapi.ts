@@ -176,7 +176,7 @@ export function buildOpenApi() {
           summary: "Change quantities until each line's cut-off; re-runs the mandate check",
           parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
           requestBody: { required: true, ...json(ref("AmendmentBody")) },
-          responses: { "200": { description: "Amended order", ...json({ type: "object", properties: { order: ref("Order"), quote: ref("Quote") } }) }, ...refusals },
+          responses: { "200": { description: "Amended order, or rechecked terms without a commit when quoteOnly is true", ...json({ type: "object", properties: { order: ref("Order"), quote: ref("Quote"), stockReviewRequired: { type: "array", items: { type: "string" }, description: "Product IDs requiring fresh builder consent before this amendment can commit. Review these before requesting finance approval." } } }) }, ...refusals },
         },
       },
       "/mandate": { get: { operationId: "getMandate", summary: "The hotel's signed standing mandate", responses: { "200": { description: "Mandate", ...json(ref("Mandate")) } } } },

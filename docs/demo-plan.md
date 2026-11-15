@@ -7,6 +7,8 @@
 > **Format:** a recorded video, three minutes. The team records it, with different people taking different parts. Each beat is its own take, cut together.
 >
 > For wording that is safe to say, and what not to say, use [pitch-knowledge-base.md](pitch-knowledge-base.md).
+>
+> The latest recording checks and verified fixture totals are in [demo-verification.md](demo-verification.md).
 
 ## Where the essential jobs stand
 
@@ -160,7 +162,7 @@ Because the allergy changed what the order has to satisfy, Aino is asked once mo
 
 **A caution on the sparkling.** In the tests, the first replacement offered for the toast is a non-alcoholic red wine (Ebony Vale Cabernet Sauvignon, 477090), which has confirmed stock. A chef would not toast with red wine. Before recording, look at what the card offers and either pick a sparkling alternative if one is offered, or cut this line from the video.
 
-**Total after the change:** about €1,965, worked out from the prices above with the red wine at €26.80 a case. It is not asserted by a test. Read the real figure off the app.
+**Total after the change:** €1,965.17 with the red wine at €26.80 a case, asserted by the wedding regression. Different choices can change the total.
 
 ## Second clarification, before the cut-off (1:42–2:10)
 
@@ -177,6 +179,8 @@ Because the allergy changed what the order has to satisfy, Aino is asked once mo
 - **The final check runs** and finds the cream short: 37 in stock for 47 ordered.
 
 **Aino decides:** she keeps the 37 litres of Arla cream and adds 10 litres of Valio whipping cream 1 L UHT (464194), shown side by side.
+
+**Fixture totals:** €1,920.59 after the no-shows, then €1,885.99 after the cream substitution. Both are asserted by the wedding regression. The event's order view and signed receipt show the same final lines and total.
 
 **The result line, exactly as the app shows it:** "Ready · 4 stock not confirmed · 1 allergen data not confirmed".
 

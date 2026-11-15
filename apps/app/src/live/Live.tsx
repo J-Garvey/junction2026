@@ -36,6 +36,7 @@ type FeedEntry = {
   signed: boolean;
   quoteId: string | null;
   orderId: string | null;
+  ms: number;
 };
 type Rules = { hotel: string; spendCapEur: number; delivery: string; site: string; unconfirmedStock: string; signed: boolean };
 type State = { session: Session; feed: FeedEntry[]; rules: Rules; clock: string; model: string; modelReady: boolean };
@@ -253,7 +254,7 @@ export function Live() {
             {feed.map((f) =>
               f.verdict === "INFO" ? (
                 <div key={f.id} className="lv-tr lv-info">
-                  <span>{hhmm(f.at)}</span>
+                  <span>{hhmm(f.at)}<span className="lv-duration">{f.ms} ms</span></span>
                   <span>{f.agent}</span>
                   <span>
                     <code>
@@ -265,7 +266,7 @@ export function Live() {
                 </div>
               ) : (
                 <div key={f.id} className={`lv-tr lv-row-${f.verdict} ${f.orderId ? "lv-click" : ""}`} onClick={() => f.orderId && setOpen(f.orderId)}>
-                  <span className="lv-time">{hhmm(f.at)}</span>
+                  <span className="lv-time">{hhmm(f.at)}<span className="lv-duration">{f.ms} ms</span></span>
                   <span className="lv-agent">{f.agent}</span>
                   <span>
                     <span className={`lv-act a-${f.action}`}>{f.action}</span>
