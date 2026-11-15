@@ -51,25 +51,30 @@ export function summarize(dir) {
   const groups = new Map();
   for (const row of rows) {
     const calls = useful.filter(r => r.attempt === row.attemptId), primary = calls.find(r => r.path !== '/api/requests');
-    const parsed = row.response?.request;
+    const savedPlan = row.snapshots?.persistedAfter?.tables?.plans?.at(-1);
+    const parsed = row.response?.request ?? savedPlan?.request;
+    const reply = row.response?.messages?.findLast(m => m.direction === 'outbound')?.reply;
+    const planCall = calls.find(r => r.path === '/api/requests');
     const limit = row.status >= 400 && row.status < 500;
     const outcome = row.unsupported ? 'unsupported' : limit ? 'http-client-rejection' : row.status === null || row.status >= 500 ? 'http-error' :
-      row.channel === 'main' ? parsed ? parsed.lines.length === row.itemCount ? 'parsed-line-count-complete' : 'parsed-line-count-mismatch' : 'no-parsed-request' : `simulator-${row.response?.reply?.status ?? row.response?.status ?? 'response'}`;
+      row.channel === 'main' ? parsed ? parsed.lines.length === row.itemCount ? `parsed-line-count-complete${planCall?.status >= 400 || planCall?.status === null ? '-plan-http-error' : ''}` : 'parsed-line-count-mismatch' : 'no-parsed-request' : `simulator-${reply?.status ?? row.response?.status ?? 'response'}`;
     const key = JSON.stringify([row.benchmark?.bucket, row.benchmark?.pass, row.benchmark?.shape, row.channel, outcome]);
     if (!groups.has(key)) groups.set(key, { stratum: JSON.parse(key), rows: [] });
     const models = (row.telemetry || []).filter(t => t.kind === 'model');
-    const timings = row.related?.find(c => c.purpose === 'parse-to-plan')?.response?.plan?.timings;
+    const timings = planCall?.response?.plan?.timings ?? savedPlan?.timings;
     groups.get(key).rows.push({ caseId: row.caseId, attempt: row.attemptId, itemCount: row.itemCount,
       parsedLineCount: parsed?.lines?.length ?? null, parsedBy: parsed?.parsedBy ?? null, fallbackNote: row.response?.note ?? null,
       usefulMs: calls.reduce((n, c) => n + c.elapsedMs, 0), caseEnvelopeMs: row.elapsedMs,
       headersMs: primary?.headersMs, firstByteMs: primary?.firstByteMs, primaryCompleteMs: primary?.bodyCompleteMs,
-      planHttpMs: calls.find(r => r.path === '/api/requests')?.elapsedMs ?? null, planTimings: timings ?? null,
+      parseOrRouteHttpMs: row.channel === 'main' ? primary?.elapsedMs : null,
+      planHttpMs: planCall?.elapsedMs ?? null, planTimings: timings ?? null,
+      searchMs: timings?.searchMs, lookupMs: timings?.lookupMs, rankMs: timings?.rankMs, planningTotalMs: timings?.totalMs,
       modelCalls: models.length, modelStatuses: models.map(t => t.status), modelElapsedMs: models.reduce((n, t) => n + t.elapsedMs, 0),
       usage: models.map(t => t.usage), modelSchemas: models.map(t => t.schema),
       supplierBlocks: (row.telemetry || []).filter(t => t.kind === 'supplier_blocked').length });
   }
   const aggregate = groups.size ? [...groups.values()].map(g => ({ stratum: g.stratum, n: g.rows.length,
-    timings: Object.fromEntries(['usefulMs', 'caseEnvelopeMs', 'headersMs', 'firstByteMs', 'primaryCompleteMs', 'planHttpMs'].map(k => [k, distribution(g.rows.map(r => r[k]))])),
+    timings: Object.fromEntries(['usefulMs', 'caseEnvelopeMs', 'headersMs', 'firstByteMs', 'primaryCompleteMs', 'parseOrRouteHttpMs', 'planHttpMs', 'searchMs', 'lookupMs', 'rankMs', 'planningTotalMs'].map(k => [k, distribution(g.rows.map(r => r[k]))])),
     modelCalls: g.rows.reduce((n, r) => n + r.modelCalls, 0), modelElapsedMs: g.rows.reduce((n, r) => n + r.modelElapsedMs, 0),
     supplierBlocks: g.rows.reduce((n, r) => n + r.supplierBlocks, 0), rows: g.rows })) : [];
   const totalMs = xs => xs.reduce((n, r) => n + r.elapsedMs, 0);
