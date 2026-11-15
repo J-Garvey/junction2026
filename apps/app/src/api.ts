@@ -25,7 +25,8 @@ async function call<T>(method: string, path: string, body?: unknown, signal?: Ab
     });
   } catch (error) {
     if (signal?.aborted) throw error;
-    throw new ApiError(0, { message: "Can't reach the server right now. Nothing has been ordered." });
+    // A lost response cannot tell us whether a mutation committed.
+    throw new ApiError(0, { message: "Can't reach the server right now." });
   }
   const text = await res.text();
   let data: any = null;
@@ -275,6 +276,7 @@ export interface RulesResp {
   rules: RuleDef[];
   mandate: Mandate;
   params: Record<string, ParamDef>;
+  defaultParams: Record<string, ParamValue>;
   policy: { params: Record<string, ParamValue>; version: number; updatedBy: string | null; updatedAt: string | null };
   canEdit: boolean;
   changes?: string[];
@@ -306,6 +308,8 @@ export interface Basket extends BasketStatus {
 }
 export interface BasketPlan {
   id: string;
+  outletId?: string;
+  changeToken?: string;
   title: string;
   status: Plan["status"];
   summary: string;
@@ -338,6 +342,7 @@ export const api = {
   baskets: () => get<{ baskets: Basket[] }>("/api/baskets"),
   basket: (id: string) => get<BasketResp>(`/api/baskets/${encodeURIComponent(id)}`),
   submitBasketForReview: (id: string) => post<{ review: Question; basket?: BasketResp }>(`/api/baskets/${encodeURIComponent(id)}/submit-review`),
+  correctBasketRequest: (eventId: string, planId: string, changeToken: string, action: "edit" | "remove") => post<PlanResp>(`/api/baskets/${encodeURIComponent(eventId)}/requests/${encodeURIComponent(planId)}/correct`, { changeToken, action }),
   newBasket: (name: string, deliveryDate: string) => post<{ basket: { id: string; name: string; deliveryDate: string } }>("/api/baskets", { name, deliveryDate }),
   plan: (id: string) => get<PlanResp>(`/api/plans/${encodeURIComponent(id)}`),
   product: (id: string) => get<ProductDetails>(`/api/products/${encodeURIComponent(id)}`),

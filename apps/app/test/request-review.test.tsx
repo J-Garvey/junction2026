@@ -3,11 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
-import { SingleRequest, type Candidate, type Need, type Plan, type PlanLine, type ProductDetails } from "@aimo/contracts";
+import { SingleRequest, type Candidate, type Need, type Plan, type PlanLine, type ProductDetails, type Question } from "@aimo/contracts";
 import { api, ApiError, type BasketResp, type Person, type PlanResp } from "../src/api";
 import { Ctx, type AppCtx } from "../src/ctx";
 import { RequestReviewDialog } from "../src/ui/RequestReviewDialog";
 import { BasketPage } from "../src/screens/Baskets";
+import { RequestPlan } from "../src/screens/Request";
 
 const chef: Person = { id: "aino", name: "Aino", title: "Head chef", role: "chef", outlets: ["banquet"], hotelScope: false };
 const candidate: Candidate = {
@@ -58,7 +59,161 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
+describe("standalone request proposal scope", () => {
+  function showProposal(me: Person) {
+    const result = fixture();
+    result.plan.eventId = null;
+    delete result.plan.itemReviews;
+    vi.spyOn(api, "plan").mockResolvedValue(result);
+    vi.spyOn(api, "rules").mockResolvedValue({ mandate: { spendCapEur: 1000 } } as Awaited<ReturnType<typeof api.rules>>);
+    vi.spyOn(api, "accept").mockResolvedValue(result);
+    vi.spyOn(api, "choose").mockResolvedValue(result);
+    const context: AppCtx = { me, people: [me], outlets: [], status: null, now: "2026-11-14T10:00:00Z", tick: 0, refresh: vi.fn(), switchPerson: vi.fn() };
+    const page = (person: Person) => <MemoryRouter initialEntries={["/requests/plan"]}><Ctx.Provider value={{ ...context, me: person }}><Routes><Route path="/requests/:id" element={<RequestPlan />} /></Routes></Ctx.Provider></MemoryRouter>;
+    return { ...render(page(me)), page };
+  }
+
+  it("keeps the proposal visible but disables acceptance and alternatives after switching to a bar-only viewer", async () => {
+    const { rerender, page } = showProposal(chef);
+    const accept = await screen.findByRole("button", { name: "Add to quote" }) as HTMLButtonElement;
+    expect(accept.disabled).toBe(false);
+    rerender(page({ ...chef, id: "mikko", name: "Mikko", outlets: ["bar"] }));
+    expect(screen.getByText("Selected milk")).toBeTruthy();
+    expect(screen.getByText(/outside your outlet scope/)).toBeTruthy();
+    for (const button of [accept, screen.getByRole("button", { name: /Replacement milk/ }) as HTMLButtonElement]) {
+      expect(button.disabled).toBe(true);
+      fireEvent.click(button);
+    }
+    expect(api.accept).not.toHaveBeenCalled();
+    expect(api.choose).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    chef,
+    { ...chef, id: "sanna", name: "Sanna", role: "approver" as const, hotelScope: true, outlets: [] },
+  ])("allows $name to accept and choose within their scope", async (person) => {
+    showProposal(person);
+    fireEvent.click(await screen.findByRole("button", { name: /Replacement milk/ }));
+    await waitFor(() => expect(api.choose).toHaveBeenCalledExactlyOnceWith("plan", "need", "464306"));
+    await waitFor(() => expect((screen.getByRole("button", { name: "Add to quote" }) as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(screen.getByRole("button", { name: "Add to quote" }));
+    await waitFor(() => expect(api.accept).toHaveBeenCalledExactlyOnceWith("plan"));
+    expect(screen.queryByText(/outside your outlet scope/)).toBeNull();
+  });
+});
+
 describe("saved request review controls", () => {
+  function stagedPage(me = chef, unknownStock = false, submitted = false, committed = false) {
+    const initial = fixture(true);
+    if (unknownStock) initial.plan.lines[0].stock = { kind: "unknown", reason: "stock_sentinel" };
+    if (committed) initial.plan.orderIds = ["placed"];
+    const returned = { id: "refusal", type: "order_review", planId: "basket:event", eventId: "event", title: "Review order", body: "Review", facts: { total: 20 }, ruleIds: [], options: [], state: "answered", answer: "reject", answerNote: "Reduce milk to 5 l", answeredBy: { name: "Sanna" }, answeredAt: "2026-11-14T10:00:00Z", createdAt: "2026-11-14T09:00:00Z" } as unknown as Question;
+    let state: "staged" | "pending" | "removed" = "staged";
+    vi.spyOn(api, "basket").mockImplementation(async () => ({
+      event: { id: "event", name: "Conference dinner", serviceDate: "2026-11-20", guests: 0 },
+      questions: [returned], orders: committed ? [{ id: "placed", eventId: "event", state: "placed", totalExVat: 20, lines: [{ ...initial.plan.lines[0], lineNo: 1 }] }] : [], review: submitted ? { ...returned, id: "pending", state: "open", answer: null } : null, confirmed: false,
+      requests: state === "removed" ? [] : [{ ...initial.plan, createdBy: "Jonas", basketedAt: state === "staged" ? "2026-11-14T10:00:00Z" : null, changeToken: "saved-token" }],
+      orderBy: { state: "unknown", at: null, reason: "Recheck supplier terms.", usesFixtures: true },
+    } as unknown as BasketResp));
+    const pending = fixture();
+    pending.plan.itemReviews = undefined;
+    pending.plan.proposal = false;
+    vi.spyOn(api, "correctBasketRequest").mockImplementation(async (_event, _plan, _token, action) => { state = action === "edit" ? "pending" : "removed"; return pending; });
+    vi.spyOn(api, "plan").mockResolvedValue(pending);
+    vi.spyOn(api, "reviewItems").mockResolvedValue(fixture());
+    vi.spyOn(api, "basketPlan").mockImplementation(async () => { state = "staged"; return fixture(true); });
+    vi.spyOn(api, "submitBasketForReview").mockResolvedValue({ review: returned });
+    const context: AppCtx = { me, people: [chef], outlets: [], status: null, now: "2026-11-14T10:00:00Z", tick: 0, refresh: vi.fn(), switchPerson: vi.fn() };
+    render(<MemoryRouter initialEntries={["/baskets/event"]}><Ctx.Provider value={context}><Routes><Route path="/baskets/:id" element={<BasketPage />} /></Routes></Ctx.Provider></MemoryRouter>);
+  }
+
+  it.each([false, true])("preserves saved unknown-stock disclosure alongside staged processing status (submitted=%s)", async (submitted) => {
+    stagedPage(chef, true, submitted);
+    const request = await screen.findByRole("group", { name: "10 l milk" });
+    expect(within(request).getByText("Stock not confirmed")).toBeTruthy();
+    expect(within(request).getByText(submitted ? "Awaiting finance approval" : "Ready to order")).toBeTruthy();
+    expect(within(request).queryByText("Ready")).toBeNull();
+  });
+
+  it("shows placed supplier items without correction or removal controls", async () => {
+    stagedPage(chef, false, false, true);
+    await screen.findByText("Selected milk");
+    expect(screen.getByText("1 order placed with Valio Aimo")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Edit request:/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Remove request:/ })).toBeNull();
+    expect(api.correctBasketRequest).not.toHaveBeenCalled();
+  });
+
+  it("edits a returned staged request through existing item review, then stages and resubmits", async () => {
+    const reduced = fixture();
+    reduced.plan.request!.lines[0].quantity!.amount = 5;
+    reduced.plan.lines[0].quantity = 1;
+    reduced.plan.itemReviews![0].fingerprint = "reduced-fp";
+    vi.spyOn(api, "requote").mockResolvedValue(reduced);
+    const approved = structuredClone(reduced);
+    approved.plan.itemReviews![0].approvedBy = "Aino";
+    approved.plan.itemReviews![0].approvedAt = "2026-11-14T10:00:00Z";
+    vi.spyOn(api, "approveItem").mockResolvedValue(approved);
+    stagedPage();
+    await screen.findByText("Changes requested");
+    fireEvent.click(screen.getByRole("button", { name: "Edit request: 10 l milk" }));
+    await screen.findByRole("button", { name: "Edit quantity for milk" });
+    expect(api.correctBasketRequest).toHaveBeenCalledExactlyOnceWith("event", "plan", "saved-token", "edit");
+    await waitFor(() => expect(api.reviewItems).toHaveBeenCalledExactlyOnceWith("plan"));
+    fireEvent.click(screen.getByRole("button", { name: "Edit quantity for milk" }));
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Quantity for milk" }), { target: { value: "5" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check item" }));
+    await waitFor(() => expect(api.requote).toHaveBeenCalledWith("plan", expect.objectContaining({ lines: [expect.objectContaining({ quantity: { amount: 5, unit: "l" } })] })));
+    await screen.findByRole("button", { name: "Approve milk" });
+    fireEvent.click(screen.getByRole("button", { name: "Approve milk" }));
+    await waitFor(() => expect((screen.getByRole("button", { name: "Add to order" }) as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(screen.getByRole("button", { name: "Add to order" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.getAllByText("Reduce milk to 5 l").length).toBeGreaterThan(0);
+    await waitFor(() => expect((screen.getByRole("button", { name: "Submit order for review" }) as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(screen.getByRole("button", { name: "Submit order for review" }));
+    await waitFor(() => expect(api.submitBasketForReview).toHaveBeenCalledExactlyOnceWith("event"));
+    expect(api.basketPlan).toHaveBeenCalledExactlyOnceWith("plan");
+  }, 20_000);
+
+  it("confirms removing a returned staged request and keeps refusal history", async () => {
+    stagedPage();
+    fireEvent.click(await screen.findByRole("button", { name: "Remove request: 10 l milk" }));
+    let dialog = screen.getByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(api.correctBasketRequest).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Remove request: 10 l milk" }));
+    dialog = screen.getByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Remove request" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(api.correctBasketRequest).toHaveBeenCalledExactlyOnceWith("event", "plan", "saved-token", "remove");
+    expect(screen.getByText("Changes requested")).toBeTruthy();
+    expect(screen.getAllByText("Reduce milk to 5 l").length).toBeGreaterThan(0);
+    await waitFor(() => expect((screen.getByRole("button", { name: "Submit order for review" }) as HTMLButtonElement).disabled).toBe(true));
+  });
+
+  it("keeps stale staged rows unchanged and shows the correction conflict", async () => {
+    stagedPage();
+    vi.mocked(api.correctBasketRequest).mockRejectedValue(new ApiError(409, { message: "This request changed. Refresh the order before editing or removing it." }));
+    fireEvent.click(await screen.findByRole("button", { name: "Edit request: 10 l milk" }));
+    expect((await screen.findByRole("alert")).textContent).toContain("This request changed");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByText("Selected milk")).toBeTruthy();
+    expect(api.reviewItems).not.toHaveBeenCalled();
+    expect(api.basketPlan).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { ...chef, outlets: ["bar"] },
+    { ...chef, role: "approver" as const, hotelScope: true },
+  ])("hides staged correction controls outside the builder scope", async (person) => {
+    stagedPage(person);
+    await screen.findByText("Selected milk");
+    expect(screen.queryByRole("button", { name: /^Edit request:/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Remove request:/ })).toBeNull();
+    expect(api.correctBasketRequest).not.toHaveBeenCalled();
+  });
+
   it("carries fresh description-parsing evidence into a request edit", async () => {
     const initial = fixture();
     initial.plan.request!.parseAuditId = "old-parsing";
@@ -388,7 +543,7 @@ describe("saved request review controls", () => {
   });
 
   it("keeps the selection after a failed replacement and allows a retry", async () => {
-    vi.spyOn(api, "choose").mockRejectedValue(new ApiError(0, { message: "Can't reach the server right now. Nothing has been ordered." }));
+    vi.spyOn(api, "choose").mockRejectedValue(new ApiError(0, { message: "Can't reach the server right now." }));
     show(fixture());
     fireEvent.click(screen.getByRole("button", { name: "View details" }));
     fireEvent.click(screen.getByRole("button", { name: "Suggest replacements" }));
@@ -419,6 +574,48 @@ describe("saved request review controls", () => {
     await waitFor(() => expect((screen.getByRole("button", { name: "Approve milk" }) as HTMLButtonElement).disabled).toBe(false));
     expect((screen.getByRole("button", { name: "Add to order" }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getAllByText(/60,00/).length).toBeGreaterThan(0);
+  });
+
+  it.each([null, { value: 8.16, unit: "kg", source: "catalog", verified: false }] as const)("keeps checked sales units correctable without converting the requested pieces (pack %j)", async (packContent) => {
+    function eggs(quantity: number, fingerprint: string, approved = false, unitPrice = 28.48) {
+      const result = fixture(approved);
+      const request = result.plan.request!;
+      request.lines[0] = { ...request.lines[0], query: "468445", quantity: { amount: 30, unit: "pcs" } };
+      result.plan.needs[0].amount = { value: 30, unit: "pcs" };
+      result.plan.lines[0] = { ...result.plan.lines[0], productId: "468445", productName: "Kieku eggs", needAmount: { value: 30, unit: "pcs" }, quantity, packContent, unitPrice, lineTotal: quantity * unitPrice };
+      result.plan.totalExVat = quantity * unitPrice;
+      result.plan.itemReviews![0] = { ...result.plan.itemReviews![0], fingerprint, quantityRequired: quantity === 0, canApprove: quantity > 0 };
+      return result;
+    }
+    vi.spyOn(api, "requote");
+    vi.spyOn(api, "itemSalesQuantity").mockResolvedValueOnce(eggs(2, "two-fp")).mockResolvedValueOnce(eggs(1, "one-fp", false, 30));
+    vi.spyOn(api, "approveItem").mockResolvedValueOnce(eggs(2, "two-fp", true)).mockResolvedValueOnce(eggs(1, "one-fp", true, 30));
+    show(eggs(0, "unresolved-fp"));
+
+    let input = screen.getByRole("spinbutton", { name: "Sales units for 468445" }) as HTMLInputElement;
+    expect(input.step).toBe("1");
+    expect(input.min).toBe("1");
+    fireEvent.change(input, { target: { value: "0.5" } });
+    expect(input.checkValidity()).toBe(false);
+    fireEvent.change(input, { target: { value: "2" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check quantity" }));
+    await waitFor(() => expect(api.itemSalesQuantity).toHaveBeenNthCalledWith(1, "plan", "need", "unresolved-fp", "468445", 2));
+    await waitFor(() => expect((screen.getByRole("spinbutton", { name: "Sales units for 468445" }) as HTMLInputElement).value).toBe("2"));
+    expect(screen.getAllByText(/56,96/).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "Approve 468445" }));
+    await waitFor(() => expect((screen.getByRole("button", { name: "Add to order" }) as HTMLButtonElement).disabled).toBe(false));
+
+    input = screen.getByRole("spinbutton", { name: "Sales units for 468445" }) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Check quantity" }));
+    await waitFor(() => expect(api.itemSalesQuantity).toHaveBeenNthCalledWith(2, "plan", "need", "two-fp", "468445", 1));
+    await waitFor(() => expect((screen.getByRole("spinbutton", { name: "Sales units for 468445" }) as HTMLInputElement).value).toBe("1"));
+    expect(screen.getAllByText(/30,00/).length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Edit quantity for 468445" }).textContent).toBe("30 pcs");
+    expect((screen.getByRole("button", { name: "Add to order" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Approve 468445" }));
+    await waitFor(() => expect(api.approveItem).toHaveBeenLastCalledWith("plan", "need", "one-fp"));
+    expect(api.requote).not.toHaveBeenCalled();
   });
 
   it("opens from the pending row and moves the item into the order with a persistent success message", async () => {

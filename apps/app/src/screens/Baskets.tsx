@@ -18,7 +18,7 @@ import { FinanceOrderSummary } from "./Finance";
 import { Pop, stockText } from "../ui/Popover";
 import { LineCalculation, TotalCalculation } from "../ui/CalculationEvidence";
 import { tooLateText } from "../ui/TooLate";
-import { addDays, day, eur, helsinkiDate, plural, qty, when } from "../format";
+import { addDays, countdown, day, eur, helsinkiDate, plural, qty, when } from "../format";
 import "./baskets.css";
 import { useMessagePreparation } from "../useMessagePreparation";
 import { addAttachment, fileSize, isText, listAttachments, removeAttachment, type Attachment } from "../attachments";
@@ -103,7 +103,7 @@ function NewBasketTile() {
 }
 
 export function BasketPage() {
-  const { me, people, refresh } = useApp();
+  const { me, people, now, refresh } = useApp();
   const { id } = useParams();
   const { data, error, reload, setData } = useLoad(() => api.basket(id!), [id]);
   const [submitting, setSubmitting] = useState(false);
@@ -111,6 +111,18 @@ export function BasketPage() {
   const [reviewFeedback, setReviewFeedback] = useState<{ eventId: string; message: string; error: boolean } | null>(null);
   const [requestNote, setRequestNote] = useState<string | null>(null);
   const [addMode, setAddMode] = useState<"product" | "menu">("product");
+  const [editingRequest, setEditingRequest] = useState<{ id: string; title: string } | null>(null);
+  const pendingSubmission = useRef(false);
+  const reconciledReview = useRef<string | null>(null);
+  const expiredReviewId = data?.review?.deadline && countdown(data.review.deadline, now).past ? data.review.id : null;
+
+  useEffect(() => {
+    // Status polling advances the scene clock without changing useLoad's tick.
+    // Read once per expired review to reconcile history and current supplier terms.
+    if (!expiredReviewId || reconciledReview.current === expiredReviewId) return;
+    reconciledReview.current = expiredReviewId;
+    reload();
+  }, [expiredReviewId, reload]);
 
   function updateBasket(basket?: BasketResp) {
     if (basket) setData(basket);
@@ -118,6 +130,8 @@ export function BasketPage() {
   }
 
   async function submitForReview() {
+    if (pendingSubmission.current) return;
+    pendingSubmission.current = true;
     setSubmitting(true);
     setSubmitError(null);
     setReviewFeedback(null);
@@ -128,13 +142,18 @@ export function BasketPage() {
     } catch (e) {
       setSubmitError((e as Error).message);
     } finally {
+      pendingSubmission.current = false;
       setSubmitting(false);
     }
   }
 
   if (error && !data) return <div className="callout red">{error}</div>;
   if (!data) return <div className="muted">Loading…</div>;
-  const { event: ev, questions, requests, orders, review } = data;
+  const { event: ev, requests, orders } = data;
+  // Derive every review-dependent view from the same simulated clock, even while
+  // the reconciliation read is pending or fails. Keep all submitted terms in history.
+  const questions = data.questions.map((q): Question => q.type === "order_review" && q.state === "open" && countdown(q.deadline, now).past ? { ...q, state: "expired" } : q);
+  const review = data.review?.state === "open" && !countdown(data.review.deadline, now).past ? data.review : null;
   const latestReview = questions.find((q) => q.type === "order_review");
   const returned = latestReview?.state === "answered" && latestReview.answer === "reject" ? latestReview : null;
   const live = orders.filter((o) => o.state !== "rejected");
@@ -222,7 +241,7 @@ export function BasketPage() {
           {!isApprover && pending.length > 0 && (
             <div className="card" style={{ marginTop: 12 }}>
               {pending.map((r) => (
-                <RequestRow key={r.id} r={r} onChanged={reload} onAdded={(basket) => { updateBasket(basket); setRequestNote("Added to the order. Submit the final order for finance review."); }} question={questions.find((q) => q.planId === r.id && (q.state === "open" || q.state === "waiting"))} />
+                <RequestRow key={r.id} eventId={ev.id} r={r} onChanged={reload} onAdded={(basket) => { updateBasket(basket); setRequestNote("Added to the order. Submit the final order for finance review."); }} question={questions.find((q) => q.planId === r.id && (q.state === "open" || q.state === "waiting"))} />
               ))}
             </div>
           )}
@@ -234,15 +253,16 @@ export function BasketPage() {
           <h2>In the order</h2>
           {(live.length > 0 || staged.length > 0) && <span id="order-calculation" className="small muted"><TotalCalculation title="current order total" total={orderTotal} parts={currentParts} note="Placed supplier orders plus staged requests. Pending proposals and rejected orders are excluded; requests already placed are not added twice." /> ex VAT</span>}
         </div>
-        <StagedLines plans={staged} submitted={!!review} />
+        <StagedLines eventId={ev.id} plans={staged} submitted={!!review} onChanged={() => { setRequestNote(null); refresh(); reload(); }} onEdit={(plan) => setEditingRequest({ id: plan.id, title: plan.title })} />
         <OrderedLines orders={live} showEmpty={!staged.length} emptyText={isApprover ? "No items in this order yet. The kitchen is preparing it." : undefined} />
       </section>
       <OrderReviewHistory questions={questions} />
+      {editingRequest && <SavedRequestDetails key={editingRequest.id} id={editingRequest.id} title={editingRequest.title} onClose={() => setEditingRequest(null)} onChanged={reload} onAdded={(basket) => { setEditingRequest(null); updateBasket(basket); setRequestNote("Added to the order. Submit the final order for finance review."); refresh(); }} />}
     </div>
   );
 }
 
-function RequestRow({ r, question, onChanged, onAdded }: { r: BasketPlan; question?: Question; onChanged: () => void; onAdded: (basket?: BasketResp) => void }) {
+function RequestRow({ eventId, r, question, onChanged, onAdded }: { eventId: string; r: BasketPlan; question?: Question; onChanged: () => void; onAdded: (basket?: BasketResp) => void }) {
   const { me, people } = useApp();
   const waitingLabel = question ? waitingForText(question, me, people) : undefined;
   const [open, setOpen] = useState(false);
@@ -254,6 +274,7 @@ function RequestRow({ r, question, onChanged, onAdded }: { r: BasketPlan; questi
       </div>
       {r.tooLate ? <span className="stamp ask">Too late</span> : <Status k={planStatusKind(r.status)} title={waitingLabel ?? PLAN_STATUS_TEXT[r.status]} label={r.status === "waiting" ? waitingLabel : undefined} />}
     </button>
+    <RequestCorrectionActions eventId={eventId} plan={r} onChanged={onChanged} />
     {open && <SavedRequestDetails id={r.id} title={r.title} onClose={() => setOpen(false)} onChanged={onChanged} onAdded={(basket) => { setOpen(false); onAdded(basket); }} />}
   </>;
 }
@@ -267,25 +288,68 @@ function SavedRequestDetails({ id, title, onClose, onChanged, onAdded }: { id: s
   return <RequestReviewDialog initialReview={data} deliveryDate={data.plan.neededBy ?? ""} onClose={onClose} onChanged={onChanged} onAdded={onAdded} />;
 }
 
-function StagedLines({ plans, submitted }: { plans: BasketPlan[]; submitted: boolean }) {
-  const lines = plans.flatMap((plan) => plan.lines.map((line) => ({ ...line, planId: plan.id })));
-  if (!lines.length) return null;
+function StagedLines({ eventId, plans, submitted, onChanged, onEdit }: { eventId: string; plans: BasketPlan[]; submitted: boolean; onChanged: () => void; onEdit: (plan: BasketPlan) => void }) {
+  if (!plans.length) return null;
   return (
     <div className="card staged-lines">
-      {lines.map((line) => (
-        <div key={`${line.planId}-${line.id}`} className="li">
+      {plans.map((plan) => <div key={plan.id} className="staged-request" role="group" aria-label={plan.title}>
+        {plan.lines.map((line) => <div key={line.id} className="li staged-line">
           <span className="bqty"><Pop ariaLabel={`Explain quantity for ${line.productName}`} label={`${qty(line.quantity)} ${line.salesUnit ?? ""}`}><LineCalculation line={line} /></Pop></span>
-          <span style={{ flex: 1, minWidth: 0, color: "var(--ink)" }}>
-            <span className="trunc">{line.productName}</span>
-            <AllergenDataMark line={line} />
-            <CarbonEstimate line={line} />
+          <span className="staged-line-name"><span>{line.productName}</span><AllergenDataMark line={line} /><CarbonEstimate line={line} /></span>
+          <span className="staged-line-status">
+            {line.stock?.kind === "unknown" && <Status k="unknown_stock" title="Valio Aimo has not confirmed stock. Continuing does not confirm fulfillment." />}
+            <span className="stamp ask">{submitted ? "Awaiting finance approval" : "Ready to order"}</span>
           </span>
-          <span className="stamp ask">{submitted ? "Awaiting finance approval" : "Ready to order"}</span>
-          <span className="small"><Pop ariaLabel={`Explain line amount for ${line.productName}`} label={eur(line.lineTotal)}><LineCalculation line={line} /></Pop></span>
-        </div>
-      ))}
+          <span className="small staged-line-price"><Pop ariaLabel={`Explain line amount for ${line.productName}`} label={eur(line.lineTotal)}><LineCalculation line={line} /></Pop></span>
+        </div>)}
+        <RequestCorrectionActions eventId={eventId} plan={plan} onChanged={onChanged} onEdit={() => onEdit(plan)} />
+      </div>)}
     </div>
   );
+}
+
+function RequestCorrectionActions({ eventId, plan, onChanged, onEdit }: { eventId: string; plan: BasketPlan; onChanged: () => void; onEdit?: () => void }) {
+  const { me, refresh } = useApp();
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const outlets = [plan.outletId, ...plan.lines.map((line) => line.outletId)];
+  if (me.role !== "chef" || !plan.changeToken || plan.orderIds.length || (!me.hotelScope && outlets.some((outlet) => outlet && !me.outlets.includes(outlet)))) return null;
+
+  async function correct(action: "edit" | "remove") {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.correctBasketRequest(eventId, plan.id, plan.changeToken!, action);
+      setConfirmRemove(false);
+      refresh();
+      onChanged();
+      if (action === "edit") onEdit?.();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return <>
+    <div className="li row request-correction-actions" style={{ flexWrap: "wrap" }}>
+      {onEdit && <button type="button" className="btn sm" aria-label={`Edit request: ${plan.title}`} disabled={busy} onClick={() => correct("edit")}>Edit request</button>}
+      <button type="button" className="btn sm ghost" aria-label={`Remove request: ${plan.title}`} disabled={busy} onClick={() => { setError(null); setConfirmRemove(true); }}>Remove request</button>
+      {onEdit && <span className="small muted">Changes need fresh item checks and finance review.</span>}
+      {error && !confirmRemove && <div className="callout red small" role="alert">{error} <button type="button" className="btn sm" onClick={onChanged}>Refresh order</button></div>}
+    </div>
+    {confirmRemove && <OrderItemDialog eyebrow="Uncommitted request" title="Remove this request?" onClose={() => { if (!busy) setConfirmRemove(false); }}>
+      <p>{plan.title}</p>
+      <p>Remove all {plan.lines.length} {plan.lines.length === 1 ? "item" : "items"} in this request. Submit the remaining order for fresh finance review. Placed supplier orders stay unchanged.</p>
+      {error && <div className="callout red" role="alert">{error}</div>}
+      <div className="row">
+        <button type="button" className="btn primary" disabled={busy} onClick={() => correct("remove")}>{busy ? "Removing…" : "Remove request"}</button>
+        <button type="button" className="btn ghost" disabled={busy} onClick={() => setConfirmRemove(false)}>Cancel</button>
+      </div>
+    </OrderItemDialog>}
+  </>;
 }
 
 function OrderedLines({ orders, showEmpty = true, emptyText = "Nothing ordered yet. Add something above." }: { orders: Order[]; showEmpty?: boolean; emptyText?: string }) {

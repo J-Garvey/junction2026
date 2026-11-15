@@ -41,7 +41,7 @@ async function draft(text: string, productIds: (string | null)[], date = "2026-1
   const { request } = await call("POST", "/messages", { text });
   const response = await call("POST", "/requests", { eventId: basket.id, reviewing: !saved, itemReview: !saved,
     request: { ...request, neededBy: date, lines: request.lines.map((line: any, index: number) => ({ ...line, productId: productIds[index] })) } });
-  expect(response.status).toBe(200);
+  expect(response.status, JSON.stringify(response.error)).toBe(200);
   return { basket, plan: response.plan };
 }
 async function approve(plan: any, index: number) {
@@ -165,7 +165,7 @@ describe("per-item order review", () => {
     const fixture = loadFixture("base")!;
     fixture.availability["467139"] = { productId: "467139", salesBlock: false, logisticModel: "Stock", closingTime: "2026-11-15T17:00:00+0200", scheduleLines: [{ salesBlock: false, availableAmount: 100, availableDate: "2026-11-16", salesUnit: "KG" }] };
     fixture.price["467139"] = { ...fixture.price["469672"], productId: "467139", catalogPrice: { ...fixture.price["469672"].catalogPrice, value: 21.14 }, comparisonPrice: { ...fixture.price["469672"].comparisonPrice, value: 21.14 } };
-    const { plan } = await draft("10 pcs duck", ["467139"], "2026-11-17", true);
+    const { plan } = await draft("10 pcs 467139", ["467139"], "2026-11-17", true);
     const checked = await call("POST", `/plans/${plan.id}/review-items`);
     expect(checked.plan.lines[0]).toMatchObject({ productId: "467139", quantity: 0, salesUnit: "KG" });
     expect(checked.plan.itemReviews[0]).toMatchObject({ canApprove: false, quantityRequired: true });
@@ -247,7 +247,7 @@ describe("per-item order review", () => {
   });
 
   it("asks for explicit whole sales units when the eggs pack cannot be converted, then prices and processes it", async () => {
-    const { basket, plan } = await draft("30 pcs eggs", ["468445"]);
+    const { basket, plan } = await draft("30 pcs 468445", ["468445"]);
     expect(plan.lines[0]).toMatchObject({ productId: "468445", quantity: 0, packContent: null });
     expect(plan.itemReviews[0]).toMatchObject({ canApprove: false, quantityRequired: true });
     expect((await approve(plan, 0)).status).toBe(409);
@@ -267,6 +267,50 @@ describe("per-item order review", () => {
     await signIn("p-sanna");
     expect((await call("POST", `/questions/${review.review.id}/answer`, { optionId: "approve" })).error).toBeUndefined();
     expect((await call("GET", `/orders?eventId=${basket.id}`)).orders[0].lines[0]).toMatchObject({ quantity: 2, salesUnit: "KI" });
+  });
+
+  it("corrects checked sales units, reprices them and invalidates approval while preserving the original demand", async () => {
+    const { plan } = await draft("30 pcs 468445", ["468445"]);
+    const item = plan.itemReviews[0];
+    const path = `/plans/${plan.id}/items/${item.needId}/quantity`;
+    const checked = await call("POST", path, { fingerprint: item.fingerprint, productId: "468445", quantity: 2 });
+    expect(checked.plan.lines[0]).toMatchObject({ quantity: 2, salesUnit: "KI", lineTotal: 56.96 });
+    const approved = await approve(checked.plan, 0);
+    expect(approved.plan.itemReviews[0].approvedBy).toBe("Aino");
+    const fixture = loadFixture("base")!;
+    fixture.price["468445"].catalogPrice.value = 30;
+    const correction = { fingerprint: approved.plan.itemReviews[0].fingerprint, productId: "468445", quantity: 1 };
+    // Neither an old fingerprint nor a fractional sales unit can change the checked quantity.
+    expect((await call("POST", path, { ...correction, fingerprint: item.fingerprint })).status).toBe(409);
+    expect((await call("POST", path, { ...correction, quantity: 1.5 })).status).toBe(422);
+    const revised = await call("POST", path, correction);
+    expect(revised.status).toBe(200);
+    expect(revised.plan.lines[0]).toMatchObject({ quantity: 1, salesUnit: "KI", unitPrice: 30, lineTotal: 30, packContent: null, needAmount: { value: 30, unit: "pcs" } });
+    expect(revised.plan.totalExVat).toBe(30);
+    expect(revised.plan.request).toEqual(plan.request);
+    expect(revised.plan.needs[0].amount).toEqual({ value: 30, unit: "pcs" });
+    expect(revised.plan.itemReviews[0]).toMatchObject({ canApprove: true, quantityRequired: false, requiresApproval: true, approvedAt: null, approvedBy: null });
+    expect(revised.plan.itemReviews[0].fingerprint).not.toBe(correction.fingerprint);
+    expect((await approve(approved.plan, 0)).status).toBe(409);
+    expect((await call("POST", `/plans/${plan.id}/basket`)).status).toBe(409);
+    expect((await approve(revised.plan, 0)).status).toBe(200);
+    const staged = await call("POST", `/plans/${plan.id}/basket`);
+    expect(staged.status).toBe(200);
+    expect(staged.plan.lines[0]).toMatchObject({ quantity: 1, lineTotal: 30 });
+  });
+
+  it("rechecks supplier cutoff when correcting a checked sales quantity", async () => {
+    const { plan } = await draft("30 pcs 468445", ["468445"]);
+    const item = plan.itemReviews[0];
+    const path = `/plans/${plan.id}/items/${item.needId}/quantity`;
+    const checked = await call("POST", path, { fingerprint: item.fingerprint, productId: "468445", quantity: 2 });
+    const approved = await approve(checked.plan, 0);
+    await call("POST", "/clock", { time: "2026-11-19T18:00:00Z" });
+    const corrected = await call("POST", path, { fingerprint: approved.plan.itemReviews[0].fingerprint, productId: "468445", quantity: 1 });
+    expect(corrected.status).toBe(200);
+    expect(corrected.plan.itemReviews[0]).toMatchObject({ canApprove: false, approvedAt: null });
+    expect((await approve(corrected.plan, 0)).status).toBe(409);
+    expect((await call("POST", `/plans/${plan.id}/basket`)).status).toBe(409);
   });
 
   it("invalidates approval when supplier price changes and refuses expired cutoffs", async () => {

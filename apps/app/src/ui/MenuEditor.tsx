@@ -3,7 +3,7 @@
  * guest, with the head count and diet groups. The server scales it (NEED-TOTAL), combines
  * the same product across dishes and returns one request for the shared item review.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { DietGroup, Unit } from "@aimo/contracts";
 import { api, ApiError, type BasketResp, type EventDish, type EventIngredient, type MenuScale, type PlanResp, type StoredEvent } from "../api";
 import { qty, plural } from "../format";
@@ -42,7 +42,14 @@ function scaled(amount: number, unit: Unit, guests: number) {
   return `${qty(v)} ${unit}`;
 }
 
-export function MenuEditor({ event, menuInOrder, onSaved, onAdded }: { event: StoredEvent; menuInOrder: boolean; onSaved: () => void; onAdded: (basket?: BasketResp) => void }) {
+type MenuEditorProps = { event: StoredEvent; menuInOrder: boolean; onSaved: () => void; onAdded: (basket?: BasketResp) => void };
+
+export function MenuEditor(props: MenuEditorProps) {
+  // An event owns its entire editing session, even when two events share a version.
+  return <EventMenuEditor key={props.event.id} {...props} />;
+}
+
+function EventMenuEditor({ event, menuInOrder, onSaved, onAdded }: MenuEditorProps) {
   const [draft, setDraft] = useState<Draft>(() => draftOf(event));
   const [version, setVersion] = useState(event.version);
   const [dirty, setDirty] = useState(false);
@@ -50,6 +57,13 @@ export function MenuEditor({ event, menuInOrder, onSaved, onAdded }: { event: St
   const [busy, setBusy] = useState<"save" | "order" | null>(null);
   const [note, setNote] = useState<{ cls: string; text: string } | null>(null);
   const [review, setReview] = useState<PlanResp | null>(null);
+  const mounted = useRef(false);
+  const scaleRevision = useRef(0);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
 
   // Someone else saved the menu: take the new one unless there are unsaved edits here.
   useEffect(() => {
@@ -59,7 +73,13 @@ export function MenuEditor({ event, menuInOrder, onSaved, onAdded }: { event: St
     }
   }, [event.version]);
   useEffect(() => {
-    api.menu(event.id).then((r) => setScale(r.scale)).catch(() => {});
+    let active = true;
+    const revision = scaleRevision.current;
+    api.menu(event.id).then((r) => {
+      // A slow initial load must not replace the result of a later save/generate.
+      if (active && revision === scaleRevision.current) setScale(r.scale);
+    }).catch(() => {});
+    return () => { active = false; };
   }, [event.id]);
 
   const dietTotal = draft.dietGroups.reduce((s, g) => s + g.count, 0);
@@ -82,10 +102,12 @@ export function MenuEditor({ event, menuInOrder, onSaved, onAdded }: { event: St
   }
 
   async function save(): Promise<number | null> {
+    scaleRevision.current++;
     setBusy("save");
     setNote(null);
     try {
       const r = await api.saveMenu(event.id, body());
+      if (!mounted.current) return null;
       setVersion(r.event.version);
       setDraft(draftOf(r.event));
       setScale(r.scale);
@@ -93,6 +115,7 @@ export function MenuEditor({ event, menuInOrder, onSaved, onAdded }: { event: St
       onSaved();
       return r.event.version;
     } catch (e) {
+      if (!mounted.current) return null;
       if (e instanceof ApiError && e.status === 409 && e.body?.error === "edit_conflict") {
         const cur = e.body.current as StoredEvent;
         setNote({ cls: "yellow", text: `${cur.changes.at(-1)?.by ?? "Someone"} changed the menu while you were editing. Your edits are kept here; save again to replace theirs.` });
@@ -100,24 +123,27 @@ export function MenuEditor({ event, menuInOrder, onSaved, onAdded }: { event: St
       } else setNote({ cls: "red", text: (e as Error).message });
       return null;
     } finally {
-      setBusy(null);
+      if (mounted.current) setBusy(null);
     }
   }
 
   async function generate() {
     const v = dirty ? await save() : version;
-    if (v === null) return;
+    if (v === null || !mounted.current) return;
+    scaleRevision.current++;
     setBusy("order");
     setNote(null);
     try {
       const r = await api.menuOrder(event.id, v);
+      if (!mounted.current) return;
       setScale(r.scale);
       setReview(r);
     } catch (e) {
+      if (!mounted.current) return;
       if (e instanceof ApiError && e.body?.scale) setScale(e.body.scale);
       setNote({ cls: "red", text: (e as Error).message });
     } finally {
-      setBusy(null);
+      if (mounted.current) setBusy(null);
     }
   }
 
@@ -255,8 +281,9 @@ export function MenuEditor({ event, menuInOrder, onSaved, onAdded }: { event: St
           initialReview={review}
           deliveryDate={event.serviceDate}
           onClose={() => setReview(null)}
-          onChanged={onAdded}
+          onChanged={() => { if (mounted.current) onAdded(); }}
           onAdded={(basket) => {
+            if (!mounted.current) return;
             setReview(null);
             setNote({ cls: "green", text: "Menu order added. Submit the final order for finance review." });
             onAdded(basket);

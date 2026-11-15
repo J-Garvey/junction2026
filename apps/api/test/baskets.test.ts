@@ -291,14 +291,14 @@ describe("order baskets", () => {
     expect((await call("GET", `/orders?eventId=${id}`)).orders).toEqual([]);
   });
 
-  it("resets a row's replacement when that row changes", async () => {
+  it("resets a row's replacement when its product description changes", async () => {
     const parsed = await call("POST", "/messages", { text: "10 l lactose-free milk" });
     const request = { ...parsed.request, neededBy: "2026-11-30" };
     const result = await call("POST", "/requests", { request, reviewing: true });
     const need = result.plan.needs[0];
     const replacement = need.candidates[1];
     expect((await call("POST", `/plans/${result.plan.id}/choose`, { needId: need.id, productId: replacement.productId })).status).toBe(200);
-    const changed = { ...request, lines: request.lines.map((line: any) => ({ ...line, quantity: { amount: 20, unit: "l" } })) };
+    const changed = { ...request, lines: request.lines.map((line: any) => ({ ...line, query: "whole milk", quantity: { amount: 20, unit: "l" } })) };
     const checked = await call("POST", `/plans/${result.plan.id}/requote`, { request: changed });
     expect(checked.status).toBe(200);
     expect(getPlan(result.plan.id)!.overrides.chosen).toEqual([]);
