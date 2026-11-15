@@ -181,6 +181,11 @@ export function buildCorpus() {
   }
   add('Proposal then newer fixture-miss failure then confirmation','failed_newer_preview',{mustInvalidatePendingOnFailure:true,finalSeededSalmonKg:2,mustNotApplyOlderProposal:true},{channel:'whatsapp',scenario:{drafts:['Darragh'],noSeedEvent:true},sequence:['add 1 kg salmon 469672 to Darragh','add 2 kg chicken burger to Darragh','confirm change']});
   add('Older completed delivery retried with a newer pending proposal','older_delivery_replay',{mustReturnCurrentSession:true,mustNotRestorePriorPending:true},{channel:'whatsapp',scenario:{drafts:['Darragh'],noSeedEvent:true},sequence:['add 1 kg salmon 469672 to Darragh','confirm change','add 2 kg salmon 469672 to Darragh'],special:'older_delivery_replay'});
+  for(const[input,expected]of[
+    ['5 l lactose-free milk 469363 and 5 kg lactose-free milk 469363 by 2027-03-01',{dimensions:['volume','mass'],mustNotInventDensity:true,mustNotCombineAsTenLitres:true}],
+    ['1 kg salmon 469672 and 500 g salmon 469672 by 2027-03-01',{productId:'469672',totalKg:1.5}],
+    ['4 l lactose-free milk 469363 and 250 ml lactose-free milk 469363 by 2027-03-01',{productId:'469363',totalLitres:4.25,wholePackLitres:5}],
+  ])add(input,'mixed_unit_aggregation',expected,{plan:true,tags:['published_finding_replay','unit_dimensions','nonurgent']});
   return cases;
 }
 if(process.argv[1]&&resolve(process.argv[1])===resolve(import.meta.filename)) {
