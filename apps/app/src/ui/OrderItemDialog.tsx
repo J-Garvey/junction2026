@@ -1,6 +1,7 @@
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "./icons";
+import { ModalParent, useModalFocus } from "./useModalFocus";
 
 export interface DetailField {
   label: string;
@@ -23,37 +24,18 @@ export function OrderItemDialog({
   onClose: () => void;
 }) {
   const titleId = useId();
-  const closeRef = useRef<HTMLButtonElement>(null);
-  const onCloseRef = useRef(onClose);
-
-  useEffect(() => {
-    onCloseRef.current = onClose;
-  }, [onClose]);
-
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    closeRef.current?.focus();
-    const escape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onCloseRef.current();
-    };
-    window.addEventListener("keydown", escape);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", escape);
-    };
-  }, []);
+  const { scope, isTop } = useModalFocus(onClose);
 
   // Keep the fixed overlay outside page spacing and containing-block styles.
-  return createPortal(
-    <div className="item-dialog-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section className="item-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId}>
+  return <ModalParent.Provider value={scope}>{createPortal(
+    <div ref={scope.backdrop} className="item-dialog-backdrop" onMouseDown={(event) => event.target === event.currentTarget && isTop() && onClose()}>
+      <section ref={scope.dialog} className="item-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
         <header className="item-dialog-head">
           <div>
             <div className="item-dialog-eyebrow">{eyebrow}</div>
             <h2 id={titleId}>{title}</h2>
           </div>
-          <button ref={closeRef} type="button" className="item-dialog-close" onClick={onClose} aria-label="Close details">
+          <button ref={scope.close} type="button" className="item-dialog-close" onClick={onClose} aria-label="Close details">
             <Icon n="x" s={22} />
           </button>
         </header>
@@ -74,5 +56,5 @@ export function OrderItemDialog({
       </section>
     </div>,
     document.body,
-  );
+  )}</ModalParent.Provider>;
 }
