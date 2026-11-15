@@ -16,7 +16,7 @@ import { OrderReviewHistory } from "../ui/OrderReviewHistory";
 import { FinanceOrderSummary } from "./Finance";
 import { stockText } from "../ui/Popover";
 import { tooLateText } from "../ui/TooLate";
-import { addDays, day, eur, helsinkiDate, plural, qty, when } from "../format";
+import { addDays, countdown, day, eur, helsinkiDate, plural, qty, when } from "../format";
 import "./baskets.css";
 import { useMessagePreparation } from "../useMessagePreparation";
 import { addAttachment, fileSize, isText, listAttachments, removeAttachment, type Attachment } from "../attachments";
@@ -101,7 +101,7 @@ function NewBasketTile() {
 }
 
 export function BasketPage() {
-  const { me, people, refresh } = useApp();
+  const { me, people, now, refresh } = useApp();
   const { id } = useParams();
   const { data, error, reload } = useLoad(() => api.basket(id!), [id]);
   const [submitting, setSubmitting] = useState(false);
@@ -109,8 +109,21 @@ export function BasketPage() {
   const [reviewFeedback, setReviewFeedback] = useState<{ eventId: string; message: string; error: boolean } | null>(null);
   const [requestNote, setRequestNote] = useState<string | null>(null);
   const [addMode, setAddMode] = useState<"product" | "menu">("product");
+  const pendingSubmission = useRef(false);
+  const reconciledReview = useRef<string | null>(null);
+  const expiredReviewId = data?.review?.deadline && countdown(data.review.deadline, now).past ? data.review.id : null;
+
+  useEffect(() => {
+    // Status polling advances the scene clock without changing useLoad's tick.
+    // Read once per expired review to reconcile history and current supplier terms.
+    if (!expiredReviewId || reconciledReview.current === expiredReviewId) return;
+    reconciledReview.current = expiredReviewId;
+    reload();
+  }, [expiredReviewId, reload]);
 
   async function submitForReview() {
+    if (pendingSubmission.current) return;
+    pendingSubmission.current = true;
     setSubmitting(true);
     setSubmitError(null);
     setReviewFeedback(null);
@@ -121,13 +134,18 @@ export function BasketPage() {
     } catch (e) {
       setSubmitError((e as Error).message);
     } finally {
+      pendingSubmission.current = false;
       setSubmitting(false);
     }
   }
 
   if (error && !data) return <div className="callout red">{error}</div>;
   if (!data) return <div className="muted">Loading…</div>;
-  const { event: ev, questions, requests, orders, review } = data;
+  const { event: ev, requests, orders } = data;
+  // Derive every review-dependent view from the same simulated clock, even while
+  // the reconciliation read is pending or fails. Keep all submitted terms in history.
+  const questions = data.questions.map((q): Question => q.type === "order_review" && q.state === "open" && countdown(q.deadline, now).past ? { ...q, state: "expired" } : q);
+  const review = data.review?.state === "open" && !countdown(data.review.deadline, now).past ? data.review : null;
   const latestReview = questions.find((q) => q.type === "order_review");
   const returned = latestReview?.state === "answered" && latestReview.answer === "reject" ? latestReview : null;
   const live = orders.filter((o) => o.state !== "rejected");
