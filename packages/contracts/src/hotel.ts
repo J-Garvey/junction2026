@@ -90,6 +90,16 @@ export interface PlanLine {
 
 export type PlanStatus = "needs_input" | "viability" | "waiting" | "ordered" | "blocked" | "rejected" | "kept_short" | "failed";
 
+export interface ItemReview {
+  needId: string;
+  fingerprint: string;
+  canApprove: boolean;
+  quantityRequired: boolean;
+  reason: string | null;
+  approvedBy: string | null;
+  approvedAt: string | null;
+}
+
 export interface Plan {
   id: string;
   kind: "single" | "event";
@@ -132,6 +142,8 @@ export interface Plan {
   basketedAt?: string | null;
   /** The add-item modal is reviewing this plan; it is hidden from order lists until staged. */
   reviewing?: boolean;
+  /** Per-item decisions in the add-to-order modal, bound to the displayed terms. */
+  itemReviews?: ItemReview[];
   /** Measured while running: how long each agent step took. */
   timings?: { products: number; searchMs?: number; lookupMs: number; rankMs: number; quoteMs?: number; totalMs: number } | null;
 }

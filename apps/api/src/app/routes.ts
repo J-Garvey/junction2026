@@ -16,7 +16,8 @@ import { parseRequest, parseSimpleRequest } from "../agent/parse.js";
 import { logSearch } from "../searchlog.js";
 import { messageRoute } from "../agent/judge.js";
 import { matchesCurrentShortlists } from "../agent/match.js";
-import { newPlan, quoteAndDecide, getPlan, listPlans, mandate, savePlan, emptyOverrides } from "../agent/plan.js";
+import { allItemsApproved, quantityScope, refreshItemReviews } from "../agent/itemReview.js";
+import { newPlan, quoteAndDecide, getPlan, listPlans, mandate, savePlan, emptyOverrides, HOTEL_ID } from "../agent/plan.js";
 import { questionsFor, allQuestions, getQuestion, canAnswer } from "../agent/questions.js";
 import { answer } from "../agent/answers.js";
 import { addDietGroup, changeEvent, changeGuests, coverageSummary, EditConflict, eventView, finalCheck, getEvent, listEvents, orderEvent, removeNeed, runCutoff, runViability, saveEvent, warnings, personActor, type StoredEvent } from "../agent/events.js";
@@ -127,7 +128,9 @@ export function appRouter(): Router {
     const p = P(req);
     const plan = newPlan("single", { personId: p.id, name: p.name }, request.outletId, { request, title: request.lines.map((l) => `${l.quantity ? `${l.quantity.amount} ${l.quantity.unit} ` : ""}${l.constraints.claims.includes("FREE_FROM_LACTOSE") ? "lactose-free " : ""}${l.query}`).join(", ") || request.originalText.slice(0, 60) });
     plan.eventId = eventId;
+    plan.siteId = request.siteId ?? plan.siteId;
     plan.reviewing = reviewing;
+    if (reviewing && req.body.itemReview === true) plan.itemReviews = [];
     audit({ actor: personActor(p), action: "request_received", summary: reviewing ? `${p.name} checked the request: ${plan.title}` : `${p.name} confirmed the request: ${plan.title}`, details: { kind: reviewing ? "review" : "confirmation", planId: plan.id }, visibility: "hotel" });
     savePlan(plan);
     await quoteAndDecide(plan, T(req));
@@ -150,14 +153,17 @@ export function appRouter(): Router {
     const request = SingleRequest.parse(req.body.request);
     const p = P(req);
     // Editing or discarding one row retains explicit choices for unchanged rows.
-    // Everything is still rechecked; approvals and stock decisions are reset.
+    // Rechecking retains item approvals only if their complete terms still match.
     const previous = plan.request;
     const sameScope = previous?.siteId === request.siteId && previous?.outletId === request.outletId && previous?.neededBy === request.neededBy;
     const unchanged = new Set(sameScope ? request.lines.filter((line) => previous?.lines.some((old) => old.id === line.id && JSON.stringify(old) === JSON.stringify(line))).map((line) => line.id) : []);
     const chosen = plan.overrides.chosen?.filter((choice) => [...unchanged].some((id) => choice.startsWith(`${id}:`)));
+    const salesQuantities = plan.overrides.salesQuantities?.filter((quantity) => unchanged.has(quantity.needId));
     plan.request = request;
+    plan.siteId = request.siteId ?? plan.siteId;
+    plan.outletId = request.outletId;
     plan.title = request.lines.map((l) => `${l.quantity ? `${l.quantity.amount} ${l.quantity.unit} ` : ""}${l.constraints.claims.includes("FREE_FROM_LACTOSE") ? "lactose-free " : ""}${l.query}`).join(", ") || request.originalText.slice(0, 60);
-    plan.overrides = { ...emptyOverrides(), chosen };
+    plan.overrides = { ...emptyOverrides(), chosen, salesQuantities };
     audit({ actor: personActor(p), action: "request_received", summary: `${p.name} changed the request: ${plan.title}`, eventId: plan.eventId, details: { kind: "confirmation", planId: plan.id }, visibility: "hotel" });
     savePlan(plan);
     await quoteAndDecide(plan, T(req));
@@ -166,7 +172,7 @@ export function appRouter(): Router {
 
   // Adding to an order only stages the checked lines. Supplier submission happens later,
   // when the hotel sends its final order for approval and processing.
-  r.post("/plans/:id/basket", (req, res) => {
+  r.post("/plans/:id/basket", async (req, res) => {
     const plan = getPlan(String(req.params.id));
     if (!plan) return res.status(404).json({ error: "No such plan" });
     if (!plan.eventId || !plan.proposal || plan.orderIds.length) return res.status(409).json({ error: "This request is not ready to add to the order" });
@@ -174,16 +180,23 @@ export function appRouter(): Router {
     // Reject changed matches so the chef reviews the result before anything is staged.
     if (!matchesCurrentShortlists(plan.needs, plan.lines))
       return res.status(409).json({ error: "The product matches changed. Review this request again before adding it." });
+    if (plan.itemReviews) {
+      // Check current supplier terms before accepting the collection of item decisions.
+      await quoteAndDecide(plan, T(req));
+      if (!allItemsApproved(plan) || !plan.proposal)
+        return res.status(409).json({ error: "Approve every unresolved item before adding this request. Changed terms need approval again.", plan });
+    }
     const { continueWithWarnings } = z.object({ continueWithWarnings: z.boolean().default(false) }).parse(req.body ?? {});
     const issueRules = [...plan.inputRules, ...plan.lines.flatMap((line) => line.rules)].filter((rule) => rule.outcome !== "order");
     const hardIssues = issueRules.filter((rule) => rule.outcome === "block" || !rule.overridable);
     if (plan.tooLate || plan.error || hardIssues.length) return res.status(409).json({ error: "Resolve the stock, delivery or product issues before adding this request" });
-    if (issueRules.length && !continueWithWarnings) return res.status(409).json({ error: "Confirm that you want to add this request with its warnings" });
+    if (issueRules.length && !continueWithWarnings && !plan.itemReviews) return res.status(409).json({ error: "Confirm that you want to add this request with its warnings" });
     const p = P(req);
     const unconfirmed = plan.lines.filter((line) => line.productId && line.rules.some((rule) => rule.ruleId === "STK-01")).map((line) => line.productId!);
-    if (continueWithWarnings && unconfirmed.length) {
+    if ((continueWithWarnings || plan.itemReviews) && unconfirmed.length) {
       plan.overrides.stockContinued = [...new Set([...(plan.overrides.stockContinued ?? []), ...unconfirmed])];
-      plan.overrides.stockDecidedBy = p.name;
+      const stockApprovers = plan.itemReviews?.filter((item) => plan.lines.some((line) => line.needIds.includes(item.needId) && unconfirmed.includes(line.productId!))).map((item) => item.approvedBy!);
+      plan.overrides.stockDecidedBy = stockApprovers?.length ? [...new Set(stockApprovers)].join(", ") : p.name;
     }
     plan.basketedAt = now().toISOString();
     plan.reviewing = false;
@@ -196,10 +209,59 @@ export function appRouter(): Router {
     res.json({ plan, questions: allQuestions().filter((q) => q.planId === plan.id) });
   });
 
+  r.post("/plans/:id/items/:needId/approve", (req, res) => {
+    const plan = getPlan(String(req.params.id));
+    if (!plan) return res.status(404).json({ error: "No such plan" });
+    const p = P(req);
+    if (p.hotelId !== HOTEL_ID || (!p.hotelScope && !p.outlets.includes(plan.outletId)))
+      return res.status(403).json({ error: "This item is outside your hotel or outlet scope" });
+    if (!plan.itemReviews || !plan.reviewing || plan.basketedAt || plan.orderIds.length)
+      return res.status(409).json({ error: "This request is no longer being reviewed" });
+    refreshItemReviews(plan);
+    const item = plan.itemReviews.find((item) => item.needId === String(req.params.needId));
+    if (!item) return res.status(404).json({ error: "No such item" });
+    const { fingerprint } = z.object({ fingerprint: z.string() }).parse(req.body);
+    if (item.fingerprint !== fingerprint || !item.canApprove)
+      return res.status(409).json({ error: item.reason ?? "This item changed. Review its current terms and approve again.", plan });
+    if (!item.approvedAt) {
+      item.approvedBy = p.name;
+      item.approvedAt = now().toISOString();
+      audit({ actor: personActor(p), action: "request_received", summary: `${p.name} approved ${plan.needs.find((n) => n.id === item.needId)!.label}`, eventId: plan.eventId, details: { kind: "confirmation", planId: plan.id, needId: item.needId, fingerprint }, visibility: "hotel" });
+      savePlan(plan);
+    }
+    res.json({ plan, questions: [] });
+  });
+
+  // A piece/weight conversion cannot be invented: the buyer enters whole sales units.
+  r.post("/plans/:id/items/:needId/quantity", async (req, res) => {
+    const plan = getPlan(String(req.params.id));
+    if (!plan) return res.status(404).json({ error: "No such plan" });
+    const p = P(req);
+    if (p.hotelId !== HOTEL_ID || (!p.hotelScope && !p.outlets.includes(plan.outletId)))
+      return res.status(403).json({ error: "This item is outside your hotel or outlet scope" });
+    if (!plan.itemReviews || !plan.reviewing || plan.basketedAt || plan.orderIds.length)
+      return res.status(409).json({ error: "This request is no longer being reviewed" });
+    const { fingerprint, productId, quantity } = z.object({ fingerprint: z.string(), productId: z.string(), quantity: z.number().int().positive().max(1_000_000) }).parse(req.body);
+    refreshItemReviews(plan);
+    const item = plan.itemReviews.find((item) => item.needId === String(req.params.needId));
+    const need = plan.needs.find((n) => n.id === item?.needId);
+    const line = plan.lines.find((line) => line.productId === productId && line.needIds.includes(need?.id ?? ""));
+    if (!item || !need || !line?.salesUnit) return res.status(404).json({ error: "No such product on this item" });
+    if (item.fingerprint !== fingerprint) return res.status(409).json({ error: "This item changed. Review its current terms again.", plan });
+    if (line.packContent && line.packContent.unit === need.amount.unit)
+      return res.status(409).json({ error: "Edit the requested quantity for this product instead" });
+    plan.overrides.salesQuantities = [...(plan.overrides.salesQuantities ?? []).filter((q) => q.needId !== need.id), { needId: need.id, productId, quantity, scope: quantityScope(need) }];
+    plan.overrides.chosen = [...(plan.overrides.chosen ?? []).filter((choice) => !choice.startsWith(`${need.id}:`)), `${need.id}:${productId}`];
+    audit({ actor: personActor(p), action: "request_received", summary: `${p.name} specified ${quantity} ${line.salesUnit} of ${line.productName}`, eventId: plan.eventId, details: { kind: "confirmation", planId: plan.id, needId: need.id, productId, quantity, salesUnit: line.salesUnit }, visibility: "hotel" });
+    await quoteAndDecide(plan, T(req));
+    res.json({ plan, questions: [] });
+  });
+
   // The person approves adding the proposed products to the quote, or picks an alternative first.
   r.post("/plans/:id/accept", async (req, res) => {
     const plan = getPlan(String(req.params.id));
     if (!plan) return res.status(404).json({ error: "No such plan" });
+    if (plan.itemReviews) return res.status(409).json({ error: "Approve the individual items and add them to the order before final finance review" });
     if (!plan.proposal) return res.status(409).json({ error: "Nothing waiting to be added" });
     const p = P(req);
     plan.overrides.accepted = true;
