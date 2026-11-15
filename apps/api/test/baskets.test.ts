@@ -98,6 +98,23 @@ describe("order baskets", () => {
     expect(noMatch.plan.needs[0].rules.map((rule: any) => rule.ruleId)).toContain("DIET-04");
   });
 
+  it("lets the chef add unconfirmed stock after explicitly accepting the warning", async () => {
+    await call("POST", "/clock", { time: "2026-11-14T10:00:00Z" });
+    const id = (await call("POST", "/baskets", { name: "Stock warning", deliveryDate: "2026-11-20" })).basket.id;
+    const m = await call("POST", "/messages", { text: "1000 l lactose-free milk" });
+    const r = await call("POST", "/requests", { request: { ...m.request, neededBy: "2026-11-20" }, eventId: id, reviewing: true });
+
+    expect(r.plan.proposal).toBe(true);
+    expect(r.plan.lines.some((line: any) => line.rules.some((rule: any) => rule.ruleId === "STK-01"))).toBe(true);
+    expect((await call("POST", `/plans/${r.plan.id}/basket`)).status).toBe(409);
+
+    const staged = await call("POST", `/plans/${r.plan.id}/basket`, { continueWithWarnings: true });
+    expect(staged.status).toBe(200);
+    expect(staged.plan.basketedAt).toEqual(expect.any(String));
+    expect(staged.plan.overrides.stockContinued).toContain(staged.plan.lines[0].productId);
+    expect(staged.plan.overrides.stockDecidedBy).toBe("Aino");
+  });
+
   it("too late: removed from the quote, or kept in the order for review", async () => {
     await call("POST", "/clock", { time: "2026-11-14T10:00:00Z" });
     const id = (await call("POST", "/baskets", { name: "Tomorrow lunch", deliveryDate: "2026-11-15" })).basket.id;

@@ -393,7 +393,7 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
     setBusy("add");
     setDialogError(null);
     try {
-      await api.basketPlan(review.plan.id);
+      await api.basketPlan(review.plan.id, !noIssues);
       setRequest(null);
       setReview(null);
       setText("");
@@ -418,6 +418,8 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
     ...plan.inputRules.filter((rule) => rule.outcome !== "order").map((rule) => rule.message),
     ...plan.lines.flatMap((line) => line.rules.filter((rule) => rule.outcome !== "order" && rule.ruleId !== "REQ-04" && rule.ruleId !== "DIET-04" && rule.ruleId !== "DLV-06").map((rule) => rule.message)),
   ])] : [];
+  const blockingRules = plan ? [...plan.inputRules, ...plan.lines.flatMap((line) => line.rules)]
+    .filter((rule) => rule.outcome === "block" || !rule.overridable) : [];
   const selected = new Set(plan?.lines.map((line) => line.productId).filter(Boolean));
   const alternatives = plan?.needs.flatMap((need) => need.candidates
     .filter((candidate) => !selected.has(candidate.productId))
@@ -425,6 +427,7 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
     .slice(0, 2)
     .map((candidate) => ({ need, candidate }))) ?? [];
   const noIssues = !!plan?.proposal && issues.length === 0 && plan.lines.length > 0;
+  const canAdd = !!plan?.proposal && plan.lines.length > 0 && !plan.error && !plan.tooLate && blockingRules.length === 0;
 
   return (
     <section className="composer-wrap">
@@ -528,7 +531,7 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
                 ) : tooLate ? (
                   <span>Nothing can arrive by {day(tooLate.neededBy)}. {tooLate.earliest ? <>The earliest available delivery is <b>{day(tooLate.earliest)}</b>.</> : "No later delivery date is known yet."}</span>
                 ) : issues.length ? (
-                  <ul>{issues.map((message) => <li key={message}>{message}</li>)}</ul>
+                  <><ul>{issues.map((message) => <li key={message}>{message}</li>)}</ul>{canAdd && <span>You can approve a replacement below, or add this item with the warning.</span>}</>
                 ) : (
                   <span>{plan.summary}</span>
                 )}
@@ -547,7 +550,7 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
                         <div key={`${need.id}:${candidate.productId}`} className="replacement-row">
                           <span><b>{candidate.name}</b><small>{stockText(candidate.stock, candidate.salesUnit)} · {candidate.availableDate ? `delivery ${day(candidate.availableDate)}` : "delivery date not supplied"}</small></span>
                           <span>{eur(candidate.unitPrice)}</span>
-                          {usable && <button type="button" className="btn sm" disabled={!!busy} onClick={() => choose(need.id, candidate.productId)}>{busy === "replace" ? "Checking…" : "Use instead"}</button>}
+                          {usable && <button type="button" className="btn sm" disabled={!!busy} onClick={() => choose(need.id, candidate.productId)}>{busy === "replace" ? "Checking…" : "Approve replacement"}</button>}
                         </div>
                       );
                     })}
@@ -556,7 +559,7 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
               )}
 
               <div className="add-review-actions">
-                {noIssues && <button type="button" className="btn primary" disabled={!!busy} onClick={add}>{busy === "add" ? "Adding…" : "Add to order"}</button>}
+                {canAdd && <button type="button" className="btn primary" disabled={!!busy} onClick={add}>{busy === "add" ? "Adding…" : noIssues ? "Add to order" : "Add to order anyway"}</button>}
                 <button type="button" className="btn ghost" disabled={!!busy} onClick={() => { setRequest(null); setReview(null); }}>Cancel</button>
                 {plan.totalExVat != null && <span className="add-review-total"><small>Total ex VAT</small><b>{eur(plan.totalExVat)}</b></span>}
               </div>

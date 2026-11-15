@@ -161,9 +161,17 @@ export function appRouter(): Router {
     const plan = getPlan(String(req.params.id));
     if (!plan) return res.status(404).json({ error: "No such plan" });
     if (!plan.eventId || !plan.proposal || plan.orderIds.length) return res.status(409).json({ error: "This request is not ready to add to the order" });
-    const hasIssues = Boolean(plan.tooLate || plan.error || plan.inputRules.some((rule) => rule.outcome !== "order") || plan.lines.some((line) => line.rules.some((rule) => rule.outcome !== "order")));
-    if (hasIssues) return res.status(409).json({ error: "Resolve the stock, delivery or product issues before adding this request" });
+    const { continueWithWarnings } = z.object({ continueWithWarnings: z.boolean().default(false) }).parse(req.body ?? {});
+    const issueRules = [...plan.inputRules, ...plan.lines.flatMap((line) => line.rules)].filter((rule) => rule.outcome !== "order");
+    const hardIssues = issueRules.filter((rule) => rule.outcome === "block" || !rule.overridable);
+    if (plan.tooLate || plan.error || hardIssues.length) return res.status(409).json({ error: "Resolve the stock, delivery or product issues before adding this request" });
+    if (issueRules.length && !continueWithWarnings) return res.status(409).json({ error: "Confirm that you want to add this request with its warnings" });
     const p = P(req);
+    const unconfirmed = plan.lines.filter((line) => line.productId && line.rules.some((rule) => rule.ruleId === "STK-01")).map((line) => line.productId!);
+    if (continueWithWarnings && unconfirmed.length) {
+      plan.overrides.stockContinued = [...new Set([...(plan.overrides.stockContinued ?? []), ...unconfirmed])];
+      plan.overrides.stockDecidedBy = p.name;
+    }
     plan.basketedAt = now().toISOString();
     plan.reviewing = false;
     plan.proposal = false;
