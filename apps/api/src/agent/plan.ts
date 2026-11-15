@@ -39,6 +39,7 @@ export type Overrides = {
 };
 export type StoredPlan = Plan & {
   overrides: Overrides; event?: EventSpec | null; questionsAnswered: number;
+  stockPolicy?: string;
   /** A channel checkout combines staged requests under one mandate evaluation. */
   basketCheckout?: { snapshot: string; sourcePlanIds: string[] };
 };
@@ -513,8 +514,13 @@ export async function quoteAndDecide(plan: StoredPlan, personToken?: string): Pr
     return plan;
   }
   recordQuoteTiming();
+  if (plan.fingerprint && (plan.fingerprint !== quote.fingerprint || plan.stockPolicy !== quote.stockPolicy)) {
+    plan.overrides.stockContinued = [];
+    delete plan.overrides.stockDecidedBy;
+  }
   plan.quoteId = quote.id;
   plan.fingerprint = quote.fingerprint;
+  plan.stockPolicy = quote.stockPolicy;
   const hasUnknownPrice = quote.lines.some((line) => line.lineTotal === null);
   plan.totalExVat = hasUnknownPrice ? null : quote.totalExVat;
   plan.totalVat = hasUnknownPrice ? null : quote.totalVat;
@@ -526,6 +532,10 @@ export async function quoteAndDecide(plan: StoredPlan, personToken?: string): Pr
     l.unitPrice = ql.unitPrice;
     l.lineTotal = ql.lineTotal;
     l.availabilityEvidence = ql.availabilityEvidence;
+    l.stock = ql.stock;
+    l.salesUnit = ql.salesUnit;
+    l.availableDate = ql.availableDate;
+    l.closingTime = ql.closingTime;
     for (const r of ql.rules) if (!l.rules.some((x) => x.ruleId === r.ruleId)) l.rules.push(r);
     Object.assign(l, verdictOf(l, plan.urgent));
   }

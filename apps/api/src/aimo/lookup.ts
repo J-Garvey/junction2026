@@ -11,6 +11,7 @@ import { config } from "../config.js";
 import { getProduct } from "../catalog.js";
 import { nowIso } from "../clock.js";
 import { kvGet } from "../db.js";
+import { isCalendarDate } from "../util.js";
 
 export const BATCH = 1000;
 const TERMINAL_SENTINEL = 999999;
@@ -101,7 +102,8 @@ function mergeDeep(a: any, b: any): any {
 }
 
 export function normalise(id: string, a: RawAvail | undefined, p: RawPrice | undefined, source: "live" | "fixture", fixtureName: string | null, fetchedAt: string): LookupLine {
-  const lines = (a?.scheduleLines ?? []) as any[];
+  const lines = Array.isArray(a?.scheduleLines) ? a.scheduleLines : [];
+  const text = (value: unknown): string | null => typeof value === "string" && value.trim() ? value : null;
   const sl = lines[0];
   const logisticModel = (a?.logisticModel ?? null) as "Stock" | "Terminal" | null;
   const stockOf = (schedule: any): StockFact => {
@@ -113,7 +115,7 @@ export function normalise(id: string, a: RawAvail | undefined, p: RawPrice | und
   };
   const stock = stockOf(sl);
   const salesBlock = Boolean(a?.salesBlock) || Boolean(sl?.salesBlock);
-  const priced = p && !p.error && p.catalogPrice;
+  const priced = p && !p.error && typeof p.catalogPrice?.value === "number" && Number.isFinite(p.catalogPrice.value) && p.catalogPrice.value > 0;
   return {
     productId: id,
     source,
@@ -123,18 +125,18 @@ export function normalise(id: string, a: RawAvail | undefined, p: RawPrice | und
     deliverable: Boolean(sl) && !salesBlock && !(stock.kind === "known" && stock.amount === 0 && !sl?.availableDate),
     salesBlock,
     logisticModel,
-    salesUnit: sl?.salesUnit ?? null,
+    salesUnit: text(sl?.salesUnit),
     stock,
-    availableDate: sl?.availableDate ?? null,
-    closingTime: a?.closingTime ?? null,
+    availableDate: text(sl?.availableDate),
+    closingTime: text(a?.closingTime),
     ...(a ? { availabilityEvidence: {
       salesBlock: Boolean(a.salesBlock),
       schedules: lines.map((schedule) => ({
-        availableDate: schedule.availableDate ?? null,
-        closingTime: a.closingTime ?? null,
-        salesUnit: schedule.salesUnit ?? null,
+        availableDate: text(schedule?.availableDate),
+        closingTime: text(a.closingTime),
+        salesUnit: text(schedule?.salesUnit),
         stock: stockOf(schedule),
-        salesBlock: Boolean(schedule.salesBlock),
+        salesBlock: Boolean(schedule?.salesBlock),
       })),
     } } : {}),
     price: priced
@@ -145,8 +147,8 @@ export function normalise(id: string, a: RawAvail | undefined, p: RawPrice | und
           listPrice: p.listPrice?.value ?? null,
           comparisonPrice: p.comparisonPrice?.value ?? null,
           comparisonUnit: p.comparisonUnit ?? null,
-          validFrom: p.catalogPrice.validFrom ?? null,
-          validTo: p.catalogPrice.validTo ?? null,
+          validFrom: text(p.catalogPrice.validFrom),
+          validTo: text(p.catalogPrice.validTo),
           currency: p.currency ?? p.catalogPrice.currency ?? "EUR",
         }
       : null,
@@ -163,7 +165,7 @@ const addDaysTo = (date: string, n: number) => new Date(new Date(`${date}T12:00:
  * delivery weeks away. An earlier requested date is left alone: it really is too soon.
  */
 export function projectToDate(l: LookupLine, requestedDate: string): LookupLine {
-  if (!l.availableDate || !l.deliverable || requestedDate <= l.availableDate) return l;
+  if (!l.availableDate || !isCalendarDate(l.availableDate) || !isCalendarDate(requestedDate) || !l.deliverable || requestedDate <= l.availableDate) return l;
   const days = Math.round((new Date(`${requestedDate}T12:00:00Z`).getTime() - new Date(`${l.availableDate}T12:00:00Z`).getTime()) / dayMs);
   const m = l.closingTime?.match(/^(\d{4}-\d{2}-\d{2})(.*)$/);
   return { ...l, availableDate: requestedDate, closingTime: m ? `${addDaysTo(m[1], days)}${m[2]}` : l.closingTime, projectedFrom: l.availableDate };
