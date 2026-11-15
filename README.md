@@ -74,7 +74,7 @@ What changed when the two uploads were merged is in **[CHANGES.md](CHANGES.md)**
 
 ## Quick start
 
-To run the prototype: `pnpm install && pnpm --filter @aimo/app build && pnpm start`, then open http://127.0.0.1:8787. For local demo persona switching, explicitly set `AIMO_TEST_MODE=1` in your ignored `.env.local`; it defaults off. Details in [docs/build.md](docs/build.md).
+To run the demo: `pnpm install && pnpm --filter @aimo/app build && pnpm start:demo`, then open http://127.0.0.1:8787 and choose a demo persona. Demo people have no individual passwords. For an existing local or hosted demo started with `pnpm start`, set `AIMO_TEST_MODE=1` in its ignored `.env.local` and restart. Ordinary startup defaults to personal authentication. Details in [docs/build.md](docs/build.md).
 
 To start with realistic hotel activity, run `pnpm seed:demo` before starting the server, or choose **Demo settings → Load hotel workspace**. This prepares seven fictional bookings with menus, a signed order, pending approvals, a stock question and an allergen block. The original wedding-only reset remains available. See [demo seed data](docs/demo-seed-data.md).
 

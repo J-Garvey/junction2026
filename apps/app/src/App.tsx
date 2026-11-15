@@ -308,7 +308,7 @@ function PersonPicker({
     <div className="picker">
       <Lockup s={30} />
       <h1>Demo persona</h1>
-      <p className="muted">Local test mode: viewing as a simulated hotel person.</p>
+      <p className="muted">Demo mode: viewing as a simulated hotel person.</p>
       <div className="pickgrid">
         {people.map((p) => (
           <button key={p.id} type="button" className={`pickcard ${current?.id === p.id ? "on" : ""}`} onClick={() => onPick(p.id)}>
