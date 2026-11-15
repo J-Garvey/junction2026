@@ -13,6 +13,7 @@ import { getProduct } from "../catalog.js";
 import { rulesParse, toBase, quantitySanity } from "./parse.js";
 import { editEvent, type StoredEvent } from "./events.js";
 import type { Person } from "../identity.js";
+import { ingredientAllocations, participatingGroups } from "./menuAllocations.js";
 
 export const MenuBody = z.object({
   version: z.number().int(),
@@ -72,10 +73,7 @@ export function scaleMenu(e: Pick<StoredEvent, "name" | "guests" | "dietGroups" 
 
   const combined = new Map<string, MenuLine>();
   for (const dish of e.dishes) {
-    const groups = [
-      { id: "regular", label: "No restrictions", count: regular, constraints: { claims: [], avoidAllergens: [], labels: [] } as Constraints },
-      ...e.dietGroups.filter((g) => !dish.excludesGroups.includes(g.id)).map((g) => ({ id: g.id, label: g.label, count: g.count, constraints: g.constraints })),
-    ];
+    const groups = participatingGroups(e, dish);
     for (const ing of dish.ingredients) {
       if (!ing.text.trim()) continue;
       if (!ing.total && !(ing.perPortion && ing.perPortion.amount > 0)) {
@@ -85,11 +83,9 @@ export function scaleMenu(e: Pick<StoredEvent, "name" | "guests" | "dietGroups" 
       // The ingredient words carry claims, allergies and origin the same way a typed request does.
       const parsed = rulesParse(ing.text).lines;
       const read = parsed.length === 1 ? parsed[0] : null;
-      for (const g of groups) {
-        if (g.count <= 0) continue;
-        // A fixed total belongs to the whole event: one share, carried by the unrestricted guests.
-        if (ing.total && g.id !== "regular") continue;
-        const productId = ing.variants?.[g.id] ?? ing.productId ?? null;
+      const allocation = ingredientAllocations(ing, dish, groups);
+      problems.push(...allocation.problems);
+      for (const { group: g, productId } of allocation.allocations) {
         const base = ing.total ? toBase(ing.total) : toBase(ing.perPortion!);
         const amount = ing.total ? base.value : base.value * g.count;
         if (ing.perPortion && !ing.total) warnings.push(...quantitySanity(`${ing.text} (${dish.name})`, ing.perPortion, g.count));

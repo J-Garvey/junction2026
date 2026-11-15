@@ -301,7 +301,7 @@ async function allergyRecheck(e: StoredEvent, group: DietGroup): Promise<Warning
       const fails = dietRules(prod, group.constraints, group.label).filter((r) => r.outcome === "block");
       if (!fails.length) continue;
       const allergen = String(fails[0].facts.allergen ?? group.label);
-      const what = fails[0].ruleId === "ALG-01" ? `contains ${allergen}` : fails[0].ruleId === "ALG-02" ? `may contain ${allergen}` : "has no allergen data";
+      const what = fails[0].ruleId === "ALG-01" ? `contains ${allergen}` : fails[0].ruleId === "ALG-02" ? `may contain ${allergen}` : fails[0].ruleId === "ALG-04" ? `lists ${allergen} as UNDECLARED` : "has no allergen data";
       const text = `${shortName(prod.name)} ${what}. ${group.count} guest${group.count === 1 ? "" : "s"} must avoid it. Still in the order.`;
       const w: WarningRecord = { id: newId("warn"), eventId, kind: "allergy", text, productId: l.productId, productName: prod.name, allergen, groupId: group.id, count: group.count, orderId: o.id, state: "open", resolvedBy: null, resolution: null, createdAt: nowIso() };
       saveWarning(w);
