@@ -14,15 +14,22 @@ const basket: Basket = {
 const render = (changes: Partial<Basket> = {}, role = "chef") => renderToStaticMarkup(<MemoryRouter><BasketCard basket={{ ...basket, ...changes }} role={role} /></MemoryRouter>);
 
 describe("order cards", () => {
-  it("shows the dated supplier cutoff in Helsinki time and labels fixtures", () => {
+  it("shows only the dated cutoff on the card, with notes behind the info marker", () => {
     const html = render();
-    expect(html).toContain("Order by");
+    expect(html).not.toContain("Order by");
+    expect(html).not.toContain("Fixture");
     expect(html).toContain('dateTime="2026-11-15T15:00:00Z"');
     expect(html).toContain("17:00");
     expect(html).toContain("Helsinki");
-    expect(html).toContain("Fixture");
-    expect(html).not.toContain("order-deadline-info");
+    expect(html).toContain('<summary aria-label="About this ordering deadline">');
+    expect(html).toContain('role="note"');
     expect(html).not.toContain("excluded from the calculation");
+  });
+
+  it("labels the order deadline and fixtures in the detail", () => {
+    const html = renderToStaticMarkup(<OrderBy deadline={basket.orderBy} detail />);
+    expect(html).toContain("Order by");
+    expect(html).toContain("Fixture");
   });
 
   it("explains the supplier cutoff in the detail without treating it as review expiry", () => {
@@ -68,7 +75,7 @@ describe("order cards", () => {
     const html = renderToStaticMarkup(<OrderBy deadline={deadline} detail={detail} />);
     expect(html).toContain('dateTime="2026-11-15T15:00:00Z"');
     expect(html).toContain('<details class="order-deadline-info popwrap">');
-    expect(html).toContain('<summary aria-label="About items with unknown delivery information"><sup aria-hidden="true">i</sup></summary>');
+    expect(html).toMatch(/<summary aria-label="About (items with unknown delivery information|this ordering deadline)"><sup aria-hidden="true">i<\/sup><\/summary>/);
     expect(html).toContain('role="note"');
     expect(html).toContain("This deadline covers only items with known delivery information.");
     expect(html).toContain("2 items were excluded from the calculation");
@@ -101,7 +108,7 @@ describe("order cards", () => {
     const html = render({ orderBy: deadline });
     expect(html).toContain("17:00");
     expect(html).toContain(deadline.reason);
-    expect(html).not.toContain("order-deadline-info");
+    expect(html).toMatch(/role="note">[\s\S]*Stock is unconfirmed/);
     expect(html).not.toContain("excluded from the calculation");
   });
 
