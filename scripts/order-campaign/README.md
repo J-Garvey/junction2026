@@ -67,7 +67,7 @@ Run totals separately record flushed journal/observation serialization + disk
 cost. Support HTTP totals and SQL snapshot costs overlap those envelopes.
 
 Opt-in `/campaign/profile` returns payload-free request timing, process CPU/RSS,
-and process-lifetime event-loop delay; it is absent unless profiling is enabled.
+and event-loop delay since profiling began; it is absent unless profiling is enabled.
 `resJsonSyncMs` measures Express JSON serialization plus synchronous send, not a
 pure serialization microbenchmark. Profiles stay in memory until the runner's
 final capture. Internal gateway and overlapping parent requests cannot be added

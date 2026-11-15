@@ -10,7 +10,7 @@ export function installProfile(app: Express) {
     const since = Number(req.query.since ?? 0);
     if (!Number.isSafeInteger(since) || since < 0) return res.status(400).json({ error: 'invalid profile cursor' });
     res.json({ count: requests.length, requests: requests.slice(since), rssBytes: process.memoryUsage().rss,
-      eventLoop: { scope: 'process lifetime; includes setup and idle', resolutionMs: 10,
+      eventLoop: { scope: 'since profiling enabled; includes setup and idle', resolutionMs: 10,
         meanMs: Number.isFinite(loop.mean) ? loop.mean / 1e6 : null, maxMs: loop.max / 1e6, p99Ms: loop.percentile(99) / 1e6 } });
   });
   app.use((req, res, next) => {

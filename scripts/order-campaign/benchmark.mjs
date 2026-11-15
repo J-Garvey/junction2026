@@ -135,7 +135,7 @@ export async function summarize(dir) {
       'Useful HTTP sums parse+plan for web; simulator includes both. Execution span also includes intervening runner journaling (millisecond wall clock); case envelope additionally includes setup/support/snapshots. Totals overlap and must not be added.',
       'resJsonSyncMs includes Express stringify and synchronous send; it is not a pure serializer CPU measurement. CPU is process-wide; nested/concurrent calls overlap.',
       'Reset clears SQLite but preserves process search/model caches. First pass is cold only at process start; second pass is repeat traffic, not a guaranteed cache hit.',
-      'Profile is opt-in harness overhead. Event-loop stats include setup/idle. No browser or real WhatsApp evidence.',
+      'Profile is opt-in harness overhead. Event-loop stats start when profiling is enabled, after module imports, and include setup/idle. No application-browser or real WhatsApp evidence.',
       'Model calls/status/usage are actual telemetry. Repeated schema calls are observable; automatic retries and fallback stages are not separately instrumented.',
       'All saved supplier data are fixtures; guarded fixture misses and HTTP rejections are distinct from successes.'] };
 }
