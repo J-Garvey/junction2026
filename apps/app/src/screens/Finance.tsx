@@ -6,6 +6,8 @@ import { canAnswer, useApp, useLoad } from "../ctx";
 import { day, eur, parseTime, plural, when } from "../format";
 import { BasketCard } from "../ui/BasketCard";
 import { Icon } from "../ui/icons";
+import { ReviewCalculation, TotalCalculation, reviewLines, type CalculationPart } from "../ui/CalculationEvidence";
+import { Pop } from "../ui/Popover";
 import "./baskets.css";
 import "./finance.css";
 
@@ -43,8 +45,8 @@ export function FinanceHome() {
       {data && <>
         <dl className="finance-metrics" aria-label="Finance overview">
           <div className="finance-metric-accent"><dt>Decisions waiting for you</dt><dd>{decisions.length}<span>{plural(reviews.length, "final order review")}</span></dd></div>
-          <div><dt>Submitted for your approval · ex VAT</dt><dd>{eur(totalOf(reviews.map(reviewTotal)))}<span>Final order review totals, including any already placed items</span></dd></div>
-          <div><dt>Placed order spend · ex VAT</dt><dd>{eur(placed.reduce((sum, order) => sum + order.totalExVat, 0))}<span>{plural(placed.length, "supplier order")} · all recorded orders</span></dd></div>
+          <div><dt>Submitted for your approval · ex VAT</dt><dd><TotalCalculation title="submitted approval totals" total={totalOf(reviews.map(reviewTotal))} parts={reviews.map((question) => ({ label: question.title, total: reviewTotal(question), lines: reviewLines(question) }))} note="Submitted review snapshots, including any already placed items. These amounts are not added to placed spend." /><span>Final order review totals, including any already placed items</span></dd></div>
+          <div><dt>Placed order spend · ex VAT</dt><dd><TotalCalculation title="placed order spend" total={placed.reduce((sum, order) => sum + order.totalExVat, 0)} parts={placed.map((order) => ({ label: `Order ${order.id} · v${order.version}`, total: order.totalExVat, lines: order.lines }))} note="All recorded supplier orders except rejected orders. Amended orders use their saved current version." /><span>{plural(placed.length, "supplier order")} · all recorded orders</span></dd></div>
         </dl>
         <section aria-labelledby="finance-decisions">
           <div className="sechead"><h2 id="finance-decisions">Needs your decision</h2>{decisions.length > 0 && <span className="countb">{decisions.length}</span>}</div>
@@ -57,7 +59,7 @@ export function FinanceHome() {
                   <span className="small muted">{basket && <>Delivery {day(basket.deliveryDate)} · </>}Submitted {when(q.createdAt)}</span>
                   {q.deadline && <span className="small">Review valid until <time dateTime={q.deadline}>{when(q.deadline)}</time> Helsinki</span>}
                 </div>
-                <div className="finance-review-action"><strong>{eur(reviewTotal(q))}<small>ex VAT</small></strong><Link className="btn primary" to={q.eventId ? `/baskets/${encodeURIComponent(q.eventId)}#question-${q.id}` : `/requests/${encodeURIComponent(q.planId)}`}>{q.type === "order_review" ? "Review order" : "Review decision"}<Icon n="chev" s={14} /></Link></div>
+                <div className="finance-review-action"><strong><ReviewCalculation question={q} /><small>ex VAT</small></strong><Link className="btn primary" to={q.eventId ? `/baskets/${encodeURIComponent(q.eventId)}#question-${q.id}` : `/requests/${encodeURIComponent(q.planId)}`}>{q.type === "order_review" ? "Review order" : "Review decision"}<Icon n="chev" s={14} /></Link></div>
               </article>;
             })}
           </div> : <div className="empty"><Icon n="check" s={18} /> You're up to date. New approvals will appear here when the kitchen submits an order.</div>}
@@ -71,16 +73,16 @@ export function FinanceHome() {
   );
 }
 
-export function FinanceOrderSummary({ total, placed, pending, review }: { total: number | null; placed: number; pending: number | null; review: Question | null }) {
+export function FinanceOrderSummary({ total, placed, pending, review, currentParts, placedParts }: { total: number | null; placed: number; pending: number | null; review: Question | null; currentParts?: CalculationPart[]; placedParts?: CalculationPart[] }) {
   const issues = Array.isArray(review?.facts.items) ? review.facts.items.filter((item): item is { text: string } => !!item && typeof item.text === "string") : [];
   // Submission gets a fresh quote; its signed-off amount can differ from the saved draft prices.
   const approvalTotal = review ? reviewTotal(review) : total;
   const awaitingPlacement = review ? approvalTotal === null ? null : approvalTotal - placed : pending;
   return <section className="stack" aria-label="Financial summary">
     <dl className="finance-metrics">
-      <div className="finance-metric-accent"><dt>{review ? "Submitted order total" : "Current order total"} · ex VAT</dt><dd>{eur(approvalTotal)}</dd></div>
-      <div><dt>Already placed · ex VAT</dt><dd>{eur(placed)}</dd></div>
-      <div><dt>Awaiting placement · ex VAT</dt><dd>{eur(awaitingPlacement)}</dd></div>
+      <div className="finance-metric-accent"><dt>{review ? "Submitted order total" : "Current order total"} · ex VAT</dt><dd>{review ? <ReviewCalculation question={review} /> : <TotalCalculation title="current order total" total={approvalTotal} parts={currentParts} />}</dd></div>
+      <div><dt>Already placed · ex VAT</dt><dd><TotalCalculation title="already placed total" total={placed} parts={placedParts} /></dd></div>
+      <div><dt>Awaiting placement · ex VAT</dt><dd><Pop className="calculation" ariaLabel="Explain amount awaiting placement" label={eur(awaitingPlacement)}><div className="pophead">Awaiting placement</div><p className="small">{review ? "Submitted review total" : "Current order total"} {eur(approvalTotal)} − already placed {eur(placed)} = {eur(awaitingPlacement)} ex VAT. Already placed items are included for context and will not be ordered again.{approvalTotal === null && " The full amount is unknown until all prices are confirmed."}</p></Pop></dd></div>
     </dl>
     {review ? <div className="finance-submission">
       <h2>Submitted for approval</h2><p className="small">{review.body}</p>

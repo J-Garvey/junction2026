@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { SingleRequest, type Candidate, type Need, type Plan, type PlanLine, type ProductDetails } from "@aimo/contracts";
 import { api, ApiError, type BasketResp, type Person, type PlanResp } from "../src/api";
@@ -162,6 +163,20 @@ describe("saved request review controls", () => {
     expect(screen.getByText("Order cutoff (Helsinki)")).toBeTruthy();
     await screen.findByText(/Dietary suitability is unknown/);
     expect(api.product).toHaveBeenCalledWith("469363");
+  });
+
+  it.each(["Explain quantity for Selected milk", "Explain line amount for Selected milk"])("opens the existing saved details from the numeric control: %s", async (name) => {
+    const exact = fixture();
+    exact.plan.itemReviews![0].requiresApproval = false;
+    show(exact);
+    const trigger = screen.getByRole("button", { name });
+    trigger.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByText("Whole-pack rounding")).toBeTruthy();
+    expect(document.body.textContent).toContain("20,00 € / KI × 1 KI = 20,00 €");
+    await waitFor(() => expect(api.product).toHaveBeenCalledExactlyOnceWith("469363"));
+    expect(screen.getByRole("button", { name: "Hide details" })).toBeTruthy();
   });
 
   it("loads full product details on demand even without dietary requirements", async () => {

@@ -6,6 +6,7 @@ import { stockText } from "./Popover";
 import { UnknownStockMark } from "./Status";
 import { Icon } from "./icons";
 import { ProductDetailsPanel, allergenLabel } from "./ProductDetails";
+import { SelectionFunnel } from "./SelectionFunnel";
 import { CarbonEstimate } from "./CarbonEstimate";
 
 /** One compact table group per requested item; supporting evidence opens on demand. */
@@ -66,8 +67,8 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
             </div>}
             {product?.source === "fixture" && <small className="muted">Fixture</small>}
           </td>
-          <td className="add-review-row-quantity">{product && product.quantity > 0 ? `${qty(product.quantity)} ${product.salesUnit ?? ""}` : "TBC"}</td>
-          <td className="add-review-row-price"><b>{eur(product && product.quantity > 0 ? product.lineTotal : null)}</b></td>
+          <td className="add-review-row-quantity"><button type="button" className="poptrigger" aria-label={`Explain quantity for ${product?.productName ?? line.query}`} aria-expanded={showDetails} onClick={() => setShowDetails(!showDetails)}>{product && product.quantity > 0 ? `${qty(product.quantity)} ${product.salesUnit ?? ""}` : "TBC"}</button></td>
+          <td className="add-review-row-price"><button type="button" className="poptrigger" aria-label={`Explain line amount for ${product?.productName ?? line.query}`} aria-expanded={showDetails} onClick={() => setShowDetails(!showDetails)}><b>{eur(product && product.quantity > 0 ? product.lineTotal : null)}</b></button></td>
           {index === 0 && <td rowSpan={products.length} className="add-review-row-actions">
             {checked && review && !exactMatch && (review.approvedAt
               ? <span className="add-review-approved small" title={`Approved by ${review.approvedBy}`}><Icon n="check" s={14} /> Approved</span>
@@ -92,6 +93,8 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
                   ))}
                 </div>
               )}
+
+              {showDetails && need && <SelectionFunnel need={need} lines={lines} />}
 
               {(unknownProduct || noMatch || tooLate || !found.length) && (
                 <div className="callout yellow add-review-item-issue" role="status">
