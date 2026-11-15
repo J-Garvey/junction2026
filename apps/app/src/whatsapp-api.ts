@@ -1,7 +1,7 @@
-import type { WhatsAppSession } from "@aimo/contracts";
+import type { WhatsAppSession, WhatsAppGroupConfig, WhatsAppMessageResult } from "@aimo/contracts";
 import { ApiError, authHooks } from "./api";
 
-async function request(path: string, body?: unknown): Promise<WhatsAppSession> {
+async function request<T = WhatsAppSession>(path: string, body?: unknown): Promise<T> {
   let response: Response;
   try {
     response = await fetch(`/api/whatsapp${path}`, {
@@ -15,7 +15,7 @@ async function request(path: string, body?: unknown): Promise<WhatsAppSession> {
     // its cached result; do not claim the action never happened.
     throw new ApiError(0, { error: "Couldn't reach the demo chat. Retry to check the result." });
   }
-  let data: WhatsAppSession & { error?: string; message?: string };
+  let data: T & { error?: string; message?: string };
   try {
     data = await response.json();
   } catch {
@@ -31,8 +31,10 @@ async function request(path: string, body?: unknown): Promise<WhatsAppSession> {
 }
 
 export const whatsappApi = {
+  config: () => request<WhatsAppGroupConfig>("/config"),
+  selectGroup: (groupId: string) => request<WhatsAppGroupConfig>("/config", { groupId }),
   session: () => request("/session"),
   connect: (displayName?: string) => request("/connect", displayName ? { displayName } : {}),
   disconnect: () => request("/disconnect", {}),
-  message: (message: { id: string; text: string }) => request("/messages", message),
+  message: (message: { id: string; text: string; groupId: string | null }) => request<WhatsAppMessageResult>("/messages", message),
 };
