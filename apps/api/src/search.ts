@@ -246,6 +246,13 @@ export function queryTerms(q: string): Term[] {
   return out;
 }
 
+/** Only vocabulary we understand as literal products/forms can skip language-model parsing. */
+export function isLiteralProductQuery(q: string): boolean {
+  if (!/^[\p{L}\s-]+$/u.test(q)) return false;
+  const terms = queryTerms(q);
+  return terms.length > 0 && terms.every((t) => !t.key.startsWith("~") || QUERY_FORMS.has(t.key.slice(1)) || EN_MOD.has(t.key.slice(1)));
+}
+
 function isModWord(w: string, t: Term, fi: boolean): boolean {
   if (t.family.has(w) || t.famFi.some((f) => w === f || w.startsWith(f))) return false;
   if (EN_MOD.has(w) || EN_MOD.has(singular(w))) return true;
@@ -510,7 +517,6 @@ export function rank(q: string, candidates: Product[], all: Iterable<Product>, h
     return candidates.filter((p) => p.brand && lc(p.brand) === brand).map((product) => ({ product, tier: 0, role: "head", term: brand }));
   const out: Match[] = [];
   for (const p of candidates) {
-    if (conflictsWithRequest(p, terms, q, claims)) continue;
     if (!quals.every((t) => mentions(p, t))) continue;
     const role = mentions(p, head) ? (termRole(p, head) ?? "mention") : null;
     const h = homeOverride ? { share: 1 } : home!.get(p.category);
@@ -520,7 +526,8 @@ export function rank(q: string, candidates: Product[], all: Iterable<Product>, h
     else if (role === "head") tier = 2;
     else if (role !== null) tier = 3;
     if (tier !== null && tier < 3 && foodTerm.get(head.key) && isNonFood(p.category)) tier = 3;
-    if (tier !== null) out.push({ product: p, tier, role, term: head.key.replace(/^~/, "") });
+    // Identity checks matter only for a text/category match, not every catalogue row.
+    if (tier !== null && !conflictsWithRequest(p, terms, q, claims)) out.push({ product: p, tier, role, term: head.key.replace(/^~/, "") });
   }
   return out;
 }
