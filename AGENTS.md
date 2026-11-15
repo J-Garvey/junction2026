@@ -54,7 +54,7 @@ python3 scripts/aimo_api.py availability 2026-11-16 464306 463038 469363
 
 ## Decide when to stop for a human
 
-[docs/human-approval-rules.md](docs/human-approval-rules.md) lists the edge cases that end in an order, a question for the hotel, or a block. Allergen and diet failures, missing delivery dates and passed cut-offs are never approved through. Unknown stock is never shown as confirmed. The person building the order is asked whether to continue with it, and can (decision D31 in [docs/prd-context.md](docs/prd-context.md)).
+[docs/human-approval-rules.md](docs/human-approval-rules.md) lists the edge cases that end in an order, a question for the hotel, or a block. Allergen and diet failures, missing delivery dates and passed cut-offs are never approved through. Missing allergen data is different from a failure: under D35 (decided 15 Nov, not yet built) the chef can continue past it and the line stays marked as a concern. Unknown stock is never shown as confirmed. The person building the order is asked whether to continue with it, and can (decision D31 in [docs/prd-context.md](docs/prd-context.md)).
 
 ## Verify the demo
 
