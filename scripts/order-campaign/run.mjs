@@ -16,7 +16,15 @@ if(args['whatsapp-only'])cases=cases.filter(c=>c.channel==='whatsapp');
 cases=cases.slice(start,start+limit);
 if(args['cross-channel'])cases=cases.filter(c=>c.channel==='main').map(c=>({...c,caseId:`${c.caseId}-wa`,channel:'whatsapp',crossChannelOf:c.caseId,scenario:{drafts:['Darragh','Pavit','Conference'],selectActive:'Darragh'}}));
 let token='',executed=0,setupCalls=0,errors=0,plans=0;
-let meta=await (await fetch(base+'/campaign/status')).json();
+async function waitForHost(){
+ const deadline=Date.now()+30000;let last;
+ while(Date.now()<deadline){
+   try{const r=await fetch(base+'/campaign/status',{signal:AbortSignal.timeout(500)});const m=await r.json();if(m.sha&&m.supplierGuard)return m;throw Error('Expected the guarded campaign host');}
+   catch(error){last=error;await new Promise(r=>setTimeout(r,200));}
+ }
+ throw last||Error('Campaign host did not become ready');
+}
+let meta=await waitForHost();
 const http=async(path,body,attempt='support',auth=token)=>{
  const begin=performance.now();let result;
  try{const response=await fetch(base+path,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json',...(auth?{Authorization:`Bearer ${auth}`}:{}) ,'X-Campaign-Attempt':attempt},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(meta.mode==='real-model-enabled'?180000:45000)});const txt=await response.text();let json;try{json=JSON.parse(txt)}catch{json={raw:txt}}result={status:response.status,response:json,elapsedMs:Math.round(performance.now()-begin)};}catch(e){result={status:null,response:null,error:{name:e.name,message:e.message},elapsedMs:Math.round(performance.now()-begin)}}
@@ -55,7 +63,11 @@ function record(row){
  appendFileSync(resolve(dir,'requests.jsonl'),text+'\n');currentRows.push(row);executed++;if(row.status===null||row.status>=500)errors++;if(executed%10===0)status();
 }
 status({selected:cases.length});
-let initial=await reset();
+let initial;
+for(let retry=0;retry<4;retry++){
+ try{initial=await reset();break;}
+ catch(error){if(retry===3)throw error;meta=await waitForHost();await new Promise(r=>setTimeout(r,250));}
+}
 for(const c of cases){
  const attemptId=`${c.caseId}:${runId}:${randomUUID().slice(0,8)}`;
  let scenario=initial,related=[],snapshots={},body,path;
