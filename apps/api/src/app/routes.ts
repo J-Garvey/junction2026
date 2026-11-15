@@ -479,7 +479,7 @@ export function appRouter(): Router {
   r.get("/audit", (req, res) => {
     const viewer = req.query.viewer === "valio" ? "valio" : "hotel";
     const eventId = req.query.eventId ? String(req.query.eventId) : undefined;
-    res.json({ viewer, chain: verifyChain(), entries: auditView(viewer, { eventId }), decisions: eventId ? decisionCount(eventId) : null });
+    res.json({ viewer, chain: verifyChain(), entries: auditView(viewer, { eventId }), decisions: viewer === "hotel" && eventId ? decisionCount(eventId) : null });
   });
 
   const rulesPayload = (req: Request) => {
