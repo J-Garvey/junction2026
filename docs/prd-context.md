@@ -68,7 +68,7 @@ All four moments run the same pipeline; the demo shows them as four scenes on on
 - **The Chef sees a side-by-side** of original and substitute (ingredient statement, macros per 100 g, claims, allergens, pack, price per kg or L, delivery reliability) and answers one yes/no: "Will [dish] still work with this?" [TEAM D6]
 - **A yes is remembered** for that recipe and product pair, so the same swap never asks twice. This is how compatibility tags fill in. [TEAM D6]
 - Ranking is good-better-best **within Valio Aimo's own assortment**, as the brief names it. [BRIEF][TEAM D2]
-- **The ranking order is fixed** (story SF-06): only candidates passing every hard rule; then recipe-approved or brand match; delivery reliability; price per kg or L after rounding; labels, origin and carbon as preferences weigh them; and confirmed stock only as the last tie-breaker (D32). Ties break on product ID so the same input always gives the same pick.
+- **The ranking order is fixed** (SF-06, updated 15 Nov): hard requirements first; preserve priced explicit buyer and recipe choices. Automatic picks prioritise sufficient confirmed stock, partial confirmed stock, unknown stock, then zero stock; price per kg or L comes next, followed by reliability and product ID. Missing prices always go last and cannot be ordered. See D33, which supersedes D32.
 
 ## Supplier scope
 
@@ -87,7 +87,7 @@ All four moments run the same pipeline; the demo shows them as four scenes on on
 
 - **It is a question, not a warning and not a block.** When a product's stock can't be confirmed, the person building the order (normally the Chef) is asked: "Valio Aimo can't confirm stock for [product]. Continue with it?" They can continue or pick another product. It does not go to the Approver. [TEAM D31]
 - **It is never shown as confirmed.** The line keeps a plain "stock not confirmed" label everywhere, including after the final check, and the summary says how many lines are unconfirmed.
-- **It does not lose on stock alone** (D32). The product that wins on the other ranking steps is picked. If its stock is unconfirmed, that is when the question is asked. Confirmed stock is only the last tie-breaker.
+- **Automatic picks prioritise confirmed stock** (D33). Only the unconfirmed remainder asks the person whether to continue (D31).
 - **A hotel can skip the question** with a pre-answer (AP-11), for example on cheap lines.
 - **How this rule got here.** Unknown stock began as a block (the approval rules). It became a risk the Approver accepted (D23), then a louder warning in the team review, and then this, on 14 Nov, once the demo was planned ([demo-plan.md](demo-plan.md)). It matters for the milk case: 20 of the 35 lactose-free products are Terminal, so they always report unknown stock. [API, GROUND_TRUTH 4.3]
 
@@ -156,7 +156,7 @@ Several people share a hotel, and a bar and a restaurant coordinate on the same 
 ## Test cases the PRD must cover
 
 1. **The hotel event:** a 500-guest conference with diet counts, through all four scenes. [TEAM D4, D8]
-2. **The brief's milk request:** "1,000 litres of lactose-free milk by Monday". The agent proposes the product that is best on delivery reliability and price, which is Valio's own Eila at €1.01 per litre [API, 14 Nov]. Its stock is unconfirmed, so the person is asked whether to continue (D31, D32). The alternative offered is a split across the milks whose stock is confirmed; no single one of those covers 1,000 L [API, GROUND_TRUTH 4.3]. [TEAM D10, D32]
+2. **The brief's milk request:** "1,000 litres of lactose-free milk by Monday". Use the 435 L of confirmed stock first, then offer 565 L of Valio Eila with unconfirmed stock. The chef must choose whether to continue with that remainder; the confirmed-only partial fill remains available. [D31, D33]
 3. **A blocked path:** an allergen or diet failure, or a past cut-off, that no approval can push through. [AGENTS.md]
 
 ## Decisions, 14 Nov evening (Darragh)
@@ -183,6 +183,9 @@ These answer the follow-up questions and take precedence over anything above tha
 - **D31. Unconfirmed stock is a question the person building the order can continue past** (Jack, 14 Nov, after planning the demo). It replaces D23's warning and the Approver's risk acceptance. The person, normally the Chef, is asked "Valio Aimo can't confirm stock for [product]. Continue with it?" and can continue or pick another. The line is labelled "stock not confirmed" and is never shown as confirmed. Story AP-13 is withdrawn; CH-05 carries the behaviour.
 - **D32. Confirmed stock no longer ranks first** (Jack, 14 Nov). A product that wins on every other ranking step is picked even if its stock is unconfirmed, and the person is then asked whether to continue (D31). Confirmed stock is only the last tie-breaker. The reason: today's stock says little about a delivery months away, most of all for perishables, and it was making a dearer product win on stock alone. Checked on the data: of the 34 deliverable lactose-free products in the milk category, Valio's Eila is the best on reliability and price, and under the old order it lost to a product costing more than twice as much. This settles the conflict between D7 and the old first step of SF-06.
 - **Team:** Jack, Darragh, Pavit and Ben. **Chunk owners were assigned on 14 Nov** from each person's strengths: Jack 01, 06, 10; Darragh 04, 05, 07; Pavit 02, 08 and the two major questions; Ben 03, 09, 11. The team can swap them. See [prd/README.md](prd/README.md#who-owns-what).
+
+- **D33. Confirmed stock first, price second; missing prices last** (user instruction, 15 Nov). Supersedes D32 for automatic selection. Prefer enough confirmed stock for the request, then partial confirmed stock, then unknown stock, then zero stock. Within a stock group compare price per kg or L before delivery reliability and product ID. Missing prices go last regardless of stock and retain the no-price order block. Explicit buyer and recipe choices remain in force when priced; substitutions still follow existing approval rules.
+
 
 ## Still open
 

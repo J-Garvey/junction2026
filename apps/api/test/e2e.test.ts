@@ -64,7 +64,7 @@ async function milkCase(choice: "continue" | "confirmed") {
   const a = await anna.call("POST", `/questions/${stockQ.id}/answer`, { optionId: choice });
   let after = a.plan;
   let approval: any = null;
-  if (choice === "confirmed") {
+  if (after.status === "waiting") {
     const pq = (await sara.call("GET", "/home")).questions.find((x: any) => x.forRole === "approver");
     approval = await sara.call("POST", `/questions/${pq.id}/answer`, { optionId: "approve" });
     after = approval.plan;
@@ -114,20 +114,22 @@ async function eventCase() {
   return out;
 }
 
-describe("Test case 2: the brief's milk request (D31, D32)", () => {
-  it("picks the best milk on reliability and price and asks the chef to continue with unconfirmed stock", async () => {
+describe("Test case 2: the brief's milk request (stock first, D31)", () => {
+  it("fills confirmed stock first and asks the chef about only the remaining unconfirmed stock", async () => {
     const r = await milkCase("continue");
     expect(r.plan.urgent).toBe(true);
-    expect(r.plan.lines).toHaveLength(1);
-    expect(r.plan.lines[0]).toMatchObject({ productId: "464306", quantity: 1000, status: "unknown_stock" });
+    expect(r.plan.lines).toHaveLength(3);
+    expect(r.plan.lines.filter((l: any) => l.stock.kind === "known").reduce((sum: number, l: any) => sum + l.quantity, 0)).toBe(435);
+    expect(r.plan.lines.find((l: any) => l.stock.kind === "unknown")).toMatchObject({ productId: "464306", quantity: 565, status: "unknown_stock" });
     expect(r.stockQ).toMatchObject({ forRole: "chef", ruleIds: ["STK-01"] });
     expect(r.stockQ.options.map((o: any) => o.id)).toEqual(["continue", "confirmed", "others"]);
     expect(r.approverTry.status).toBe(409);
-    expect(r.a.plan.status).toBe("ordered");
+    expect(r.after.status).toBe("ordered");
+    expect(r.approval.ok).toBe(true);
     expect(r.second.status).toBe(409);
     expect(r.second.reason).toMatch(/Answered by Aino/);
     expect(r.orders).toHaveLength(1);
-    expect(r.orders[0].lines[0].riskAccepted.by).toBe("Aino");
+    expect(r.orders[0].lines.find((l: any) => l.stock.kind === "unknown").riskAccepted.by).toBe("Aino");
   });
   it("offers the confirmed-stock split instead: 435 of 1,000 L, approved as a partial fill", async () => {
     const r = await milkCase("confirmed");
@@ -190,15 +192,15 @@ describe("Test case 1: the wedding through four scenes (docs/demo-plan.md)", () 
     expect(a.viability.lines.find((l: any) => l.productId === "469672").verdict).toBe("green");
     expect(a.viability.lines.find((l: any) => l.productId === "467767").status).toBe("unknown_stock");
     const milk = a.viability.lines.find((l: any) => l.needIds.includes("coffee:milk:regular"));
-    expect(milk.productId).toBe("464306"); // D32: Valio Eila wins on reliability and price
+    expect(milk.productId).toBe("469363"); // Confirmed stock wins before price.
   });
   it("scene 2: the plan's quantities and €2,003.37; Aino continues with 4 lines, then one card for Sanna", () => {
     const q = (id: string) => a.order.lines.find((l: any) => l.productId === id)?.quantity;
-    expect([q("469672"), q("460541"), q("464727"), q("467767"), q("460617"), q("464306"), q("477125")]).toEqual([31, 3, 45, 12, 1, 40, 5]);
-    expect(a.order.totalExVat).toBe(2003.37);
+    expect([q("469672"), q("460541"), q("464727"), q("467767"), q("460617"), q("469363"), q("477125")]).toEqual([31, 3, 45, 12, 1, 40, 5]);
+    expect(a.order.totalExVat).toBe(2062.17);
     expect(a.ainoQs).toHaveLength(1);
     expect(a.ainoQs[0]).toMatchObject({ type: "unknown_stock", forRole: "chef" });
-    expect(a.ainoQs[0].facts.lines).toHaveLength(4);
+    expect(a.ainoQs[0].facts.lines).toHaveLength(3);
     expect(a.sannaBefore).toHaveLength(0); // the chef answers first (D6)
     // Each person's basket counts only what they can answer; the rest shows as waiting for others.
     expect(a.ainoBasket).toMatchObject({ waiting: 1, waitingOthers: a.sannaAll.length });
@@ -222,7 +224,7 @@ describe("Test case 1: the wedding through four scenes (docs/demo-plan.md)", () 
     expect(a.changeQs[0].ruleIds).toContain("CHG-02");
     expect(a.changeOk.ok).toBe(true);
   });
-  it("scene 4: no-shows need nobody; the final check keeps 37 L and fills 10 L; ready with 5 unconfirmed", () => {
+  it("scene 4: no-shows need nobody; the final check keeps 37 L and fills 10 L; ready with 4 unconfirmed", () => {
     expect(a.g188.applied).toBe(true);
     expect(a.final.lines.find((l: any) => l.productId === "464727").result).toBe("short");
     expect(a.subQ.body).toMatch(/37 of 47 in stock · 10 l to fill/);
@@ -232,7 +234,7 @@ describe("Test case 1: the wedding through four scenes (docs/demo-plan.md)", () 
     expect(qty("464727")).toBe(37);
     expect(qty("464194")).toBe(10);
     expect(qty("469672")).toBe(32);
-    expect(a.view.coverage).toMatchObject({ level: "at_risk", text: "Ready · 5 stock not confirmed" });
+    expect(a.view.coverage).toMatchObject({ level: "at_risk", text: "Ready · 4 stock not confirmed" });
   });
   it("Valio Aimo sees the sale and the flags, never the allergy or the guests", () => {
     const shared = a.valio.entries;

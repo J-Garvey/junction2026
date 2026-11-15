@@ -245,7 +245,7 @@ function instructions(): string {
     "Work in this order, with as few calls as possible:",
     "1. search_products with filters. Lactose-free = claim FREE_FROM_LACTOSE. Milk = category 10400. 'Milk' means plain drinking milk: not coffee milk, piimä/buttermilk, flavoured drinks or portion creamers.",
     "2. check_price_and_stock for the matching shortlist (max 30 ids). requestedDate = the date the buyer needs delivery.",
-    "3. Pick the product: meets every requirement; then best delivery reliability; then lowest price per litre or kg (comparisonPrice); confirmed stock only as the last tie-break. Use one product per need unless the chef asks for confirmed stock only.",
+    "3. Pick products meeting every requirement. Preserve a product explicitly chosen by the buyer or recipe if it passes the rules and has a price. For automatic picks, prioritise confirmed positive stock first, then lowest price per litre or kg (comparisonPrice), then delivery reliability. Missing prices go last regardless of stock and cannot be ordered. Prefer sufficient confirmed stock; otherwise fill from confirmed stock in price order and offer unconfirmed stock only for the remainder. Never treat zero or unknown stock as confirmed availability.",
     "4. Convert the need to whole sales units with packContent (round up). Never invent prices; use the gateway's.",
     "5. create_quote. Set lactoseFree/glutenFree/avoidAllergens from what the buyer asked.",
     "6. If the quote lists unconfirmedStock, ask_chef: options 'continue' (Continue) and 'confirmed' (Use confirmed stock, with sub showing how much confirmed stock exists, e.g. '435 of 1,000 L'). If the chef picks confirmed stock, quote again using only products with known stock, split across them.",
