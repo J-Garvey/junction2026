@@ -104,12 +104,19 @@ export async function summarize(dir) {
   const aggregate = groups.size ? [...groups.values()].map(g => ({ stratum: g.stratum, n: g.rows.length,
     timings: Object.fromEntries(['usefulMs', 'executionSpanMs', 'caseEnvelopeMs', 'headersMs', 'firstByteMs', 'primaryCompleteMs', 'parseOrRouteHttpMs', 'planHttpMs', 'searchMs', 'lookupMs', 'rankMs', 'planningTotalMs'].map(k => [k, distribution(g.rows.map(r => r[k]))])),
     modelCalls: g.rows.reduce((n, r) => n + r.modelCalls, 0), modelElapsedMs: g.rows.reduce((n, r) => n + r.modelElapsedMs, 0),
+    parsedBy: Object.fromEntries([...new Set(g.rows.map(r => r.parsedBy ?? 'not-returned'))].map(mode => [mode, g.rows.filter(r => (r.parsedBy ?? 'not-returned') === mode).length])),
+    notesReturned: g.rows.filter(r => r.fallbackNote).length,
+    reportedUsage: g.rows.flatMap(r => r.usage).filter(Boolean), retries: null,
     supplierBlocks: g.rows.reduce((n, r) => n + r.supplierBlocks, 0), rows: g.rows })) : [];
   const totalMs = xs => xs.reduce((n, r) => n + r.elapsedMs, 0);
   const profiles = readdirSync(dir).filter(f => /^profile-.*\.json$/.test(f)).map(f => ({ file: f, ...JSON.parse(readFileSync(resolve(dir, f), 'utf8')) }));
   const profileRequests = [...new Map(profiles.flatMap(p => p.requests.map((r, i) => [`${i}:${r.attempt}:${r.path}`, r]))).values()];
   return { schema: 'p1-benchmark-v1', evidenceDir: dir, analyzerHash: hash(readFileSync(new URL(import.meta.url))),
     runStarts: starts.map(s => ({ runId: s.runId, runnerSha: s.runnerSha, runnerHash: s.runnerHash, manifest: s.manifest })),
+    runCompletion: starts.map(s => ({ runId: s.runId, selected: s.selected?.length,
+      completed: raw.some(r => r.kind === 'run-complete' && r.runId === s.runId),
+      ...raw.find(r => r.kind === 'run-complete' && r.runId === s.runId)?.counters,
+      manifestUnchanged: raw.find(r => r.kind === 'run-complete' && r.runId === s.runId)?.manifestUnchanged ?? null })),
     host: raw.find(r => r.kind === 'host-config')?.metadata, observations: rows.length, aggregate,
     accounting: { httpCalls: responses.length, usefulHttpMs: totalMs(useful), supportHttpMs: totalMs(support),
       supportByPath: Object.fromEntries([...new Set(support.map(r => r.path))].map(path => [path, { n: support.filter(r => r.path === path).length, totalMs: totalMs(support.filter(r => r.path === path)) }])),

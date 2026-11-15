@@ -60,7 +60,9 @@ HTTP evidence records headers, first body byte, body completion and completion
 after JSON parsing. These routes do not stream useful content: **TTFU is not
 separately measurable**, so first byte is never called useful output. Useful
 web work sums parse and plan HTTP durations; simulator work is one message HTTP
-duration. Full case envelopes also include resets, snapshots and telemetry.
+duration. Execution spans include intervening runner journaling, using the
+millisecond wall-clock timestamps. Full case envelopes also include resets,
+snapshots and telemetry; setup/discovery and final exports are separate.
 Run totals separately record flushed journal/observation serialization + disk
 cost. Support HTTP totals and SQL snapshot costs overlap those envelopes.
 
