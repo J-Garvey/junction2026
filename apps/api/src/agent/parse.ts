@@ -10,7 +10,7 @@ import { now } from "../clock.js";
 import { fire } from "../rules/catalogue.js";
 import { isoDate } from "../util.js";
 import { structured, ModelUnavailable } from "./openai.js";
-import { QUERY_FORMS } from "../search.js";
+import { headIndex, queryTerms, QUERY_FORMS } from "../search.js";
 
 /** Known product words: the type asked for and a category hint (CATEGORY-HINT, deterministic tier). */
 export const PRODUCT_WORDS: { re: RegExp; word: string; type: string | null; category: string | null }[] = [
@@ -34,9 +34,12 @@ export const PRODUCT_WORDS: { re: RegExp; word: string; type: string | null; cat
  */
 export function productWord(phrase: string): (typeof PRODUCT_WORDS)[number] | undefined {
   const s = phrase.toLowerCase();
+  const terms = queryTerms(s);
   for (const w of PRODUCT_WORDS) {
     const m = s.match(w.re);
     if (!m) continue;
+    // A compound identity (oat milk, cream cheese) owns the whole phrase.
+    if (terms[headIndex(terms)]?.key !== queryTerms(w.word)[0]?.key) continue;
     const rest = s.slice(m.index! + m[0].length).split(/[^\p{L}]+/u).filter(Boolean);
     if (rest.every((r) => QUERY_FORMS.has(r))) return w;
   }
@@ -123,7 +126,7 @@ export function rulesParse(text: string): Omit<SingleRequest, "siteId" | "outlet
       id: lineId(),
       text: raw.trim(),
       // "salmon fillet" keeps its form word for the search; "lactose-free milk" is just milk.
-      query: pw && (!leftover || leftover.endsWith(pw.word)) ? pw.word : leftover,
+      query: leftover || pw?.word || s,
       productType: pw?.type ?? null,
       category: pw?.category ?? null,
       productId: pid?.[1] ?? null,
@@ -148,7 +151,7 @@ const PARSE_SCHEMA = {
         required: ["text", "productWord", "productType", "productId", "amount", "unit", "claims", "avoidAllergens"],
         properties: {
           text: { type: "string" },
-          productWord: { type: "string", description: "The product noun, in English, e.g. 'milk', 'whipping cream'" },
+          productWord: { type: "string", description: "The complete product description in English, preserving brand, species, form and modifiers, e.g. 'chicken burger', 'oat milk', 'unsalted butter'. Never shorten to a broader product." },
           productType: { type: ["string", "null"], description: "Specific type if the text names one, e.g. 'plain drinking milk' for 'milk'; null if it could be several types" },
           productId: { type: ["string", "null"] },
           amount: { type: ["number", "null"] },

@@ -38,7 +38,7 @@ type Entry = { en: string[]; fi: string[]; isa?: string[]; notPrev?: string[]; n
  * `flavour`: often a flavour, so any product noun before it wins ("ice cream Strawberry").
  */
 const LEXICON: Record<string, Entry> = {
-  milk: { en: ["milk"], fi: ["maito"], notPrev: ["coconut", "oat", "soy", "soya", "almond", "rice", "condensed", "condensated", "chocolate", "fermented", "curdled", "layered", "sour", "evaporated"], notPrefix: ["kookos", "kaura", "soija", "manteli", "riisi", "kondensoitu", "suklaa", "kaakao", "butter", "coconut"] },
+  milk: { en: ["milk", "milk drink", "milkdrink"], fi: ["maito", "maitojuoma"], notPrev: ["coconut", "oat", "soy", "soya", "almond", "rice", "condensed", "condensated", "chocolate", "fermented", "curdled", "layered", "sour", "evaporated"], notPrefix: ["kookos", "kaura", "soija", "manteli", "riisi", "kondensoitu", "suklaa", "kaakao", "butter", "coconut"] },
   cream: { en: ["cream", "creme", "crème"], fi: ["kerma"], notPrev: ["ice", "sour", "coconut", "oat", "soy", "hand", "handwashing", "shaving", "cleaner", "balsamic", "balsamico", "skin"], notNext: ["fraiche", "fraîche", "cleaner"], notPrefix: ["hapan", "kookos", "kaura", "soija", "jää", "ranskan", "balsamico", "käsi"] },
   "whipping cream": { en: ["whipping cream", "whipped cream", "double cream"], fi: ["kuohukerma", "vispikerma", "vispautuva"], isa: ["cream"] },
   "cooking cream": { en: ["cooking cream"], fi: ["ruokakerma"], isa: ["cream"] },
@@ -70,6 +70,9 @@ const LEXICON: Record<string, Entry> = {
   quark: { en: ["quark"], fi: ["rahka"] },
   "oat milk": { en: ["oat milk", "oat drink", "oat beverage"], fi: ["kaurajuoma"] },
   "soy milk": { en: ["soy milk", "soya milk", "soy drink", "soya drink"], fi: ["soijajuoma"] },
+  "almond milk": { en: ["almond milk", "almond drink"], fi: ["mantelijuoma"] },
+  "coconut milk": { en: ["coconut milk"], fi: ["kookosmaito"] },
+  "rice milk": { en: ["rice milk", "rice drink"], fi: ["riisijuoma"] },
   egg: { en: ["egg"], fi: ["kananmuna", "muna"], notPrev: ["easter", "chocolate"], notPrefix: ["pääsiäis", "suklaa"] },
   salmon: { en: ["salmon"], fi: ["lohi", "lohe"], notPrefix: ["kirjo"] },
   fish: { en: ["fish"], fi: ["kala"] },
@@ -190,7 +193,10 @@ function entryTerm(key: string, e: Entry): Term {
   const en = e.en.map((v) => lc(v).split(/\s+/));
   // A phrase also matches written as one word: "cheesecake", "creamcheese".
   for (const v of e.en) if (v.includes(" ")) en.push([lc(v).replace(/\s+/g, "")]);
-  const fi = e.fi.map(lc);
+  // Specific aliases own the hit before a shorter stem can call them a modifier
+  // ("milkdrink" / "maitojuoma" are milks, not an arbitrary drink mentioning milk).
+  en.sort((a, b) => b.join(" ").length - a.join(" ").length);
+  const fi = e.fi.map(lc).sort((a, b) => b.length - a.length);
   const family = new Set<string>();
   const famFi: string[] = [...fi];
   const addFam = (x: Entry) => {
@@ -419,19 +425,62 @@ export const SIBLING_SHARE = 0.05;
 export type Match = { product: Product; tier: 0 | 1 | 2 | 3; role: Role | null; term: string };
 
 /** The names or brand have the term: English as whole words (with plurals), Finnish stems inside compounds. */
-const wordsCache = new Map<string, { text: string; words: Set<string> }>();
+const wordsCache = new Map<string, { en: string[]; fi: string[] }>();
 function mentions(p: Product, t: Term): boolean {
+  if (t.key === "~vegan" && p.claims.includes("VEGAN")) return true;
+  if ((t.key === "~vegetarian" || t.key === "~veggie") && p.claims.some((c) => c === "VEGAN" || c === "VEGETARIAN")) return true;
   let h = wordsCache.get(p.id);
   if (!h) {
-    const text = ` ${lc(`${p.name} ${p.nameFi ?? ""} ${p.brand ?? ""}`).replace(/[^\p{L}\p{N}]+/gu, " ")} `;
-    h = { text, words: new Set(text.split(" ")) };
+    const words = (s: string) => lc(s).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+    h = { en: words(`${p.name} ${p.brand ?? ""}`), fi: words(`${p.nameFi ?? ""} ${p.brand ?? ""}`) };
     wordsCache.set(p.id, h);
   }
-  const { text, words } = h;
-  const en = t.en.some((seq) =>
-    seq.length === 1 ? plurals(seq[0]).some((v) => words.has(v)) || (seq[0].length >= 4 && text.includes(seq[0])) : text.includes(` ${seq.join(" ")}`),
-  );
-  return en || t.fi.some((v) => text.includes(v));
+  const english = (words: string[]) => t.en.some((seq) => words.some((w, i) => {
+    if (seq.length > 1) return seq.every((v, j) => j === seq.length - 1 ? plurals(v).includes(words[i + j]) : words[i + j] === v);
+    const v = seq[0];
+    if (plurals(v).includes(w)) return true;
+    if (v.length < 4) return false;
+    if (w.startsWith(v)) return true;
+    const at = w.lastIndexOf(v);
+    return at > 0 && plurals(v).includes(w.slice(at)) && !t.notPrefix.some((x) => w.slice(0, at).endsWith(x));
+  }));
+  return english(h.en) || english(h.fi) || t.fi.some((v) => h!.fi.some((w) => {
+    const at = w.lastIndexOf(v);
+    return at >= 0 && !t.notPrefix.some((x) => w.slice(0, at).endsWith(x));
+  }));
+}
+
+// These checks reject a conflicting identity; they never establish dietary/allergen safety.
+const MEAT_TERMS = new Set("chicken beef pork ham bacon turkey duck lamb fish salmon tuna cod shrimp sausage".split(" "));
+const DAIRY_TERMS = new Set(["milk", "cream", "butter", "cheese", "yoghurt", "quark", "ice cream"]);
+const PLANT_WORDS = /\b(?:vegan|vegetarian|veggie|plant[ -]?based|meat[ -]?free)\b|\b(?:kasvis|kasvipohjai|vegaani)/i;
+const VEGAN_WORDS = /\b(?:vegan|plant[ -]?based|non[ -]?dairy|dairy[ -]?free)\b|\b(?:kasvipohjai|vegaani)/i;
+const QUERY_FILLER = new Set("some nice please a an the of i we need want buy order me us find for".split(" "));
+const negationCache = new Map<string, RegExp[]>();
+
+function deniesTerm(text: string, t: Term): boolean {
+  let patterns = negationCache.get(t.key);
+  if (!patterns) patterns = t.en.map((seq) => {
+    const noun = seq.map(esc).join("[ -]*");
+    return new RegExp(`\\b(?:no|non|not|without)[ -]*${noun}s?\\b|\\b${noun}[ -]*(?:free|less|alternative|substitute)\\b`, "i");
+  });
+  negationCache.set(t.key, patterns);
+  return patterns.some((re) => re.test(text));
+}
+
+function conflictsWithRequest(p: Product, terms: Term[], q: string, claims: string[]): boolean {
+  const name = `${p.name} ${p.nameFi ?? ""}`;
+  const plantRequested = claims.includes("VEGAN") || claims.includes("VEGETARIAN") || PLANT_WORDS.test(q);
+  return terms.some((t) => {
+    if (deniesTerm(q, t)) return false;
+    const meat = MEAT_TERMS.has(t.key);
+    const dairy = DAIRY_TERMS.has(t.key) || LEXICON[t.key]?.isa?.some((k) => DAIRY_TERMS.has(k));
+    // "Vegan chicken burger" explicitly asks for an analogue. "Chicken burger" does not.
+    if (plantRequested && (meat || dairy || t.key === "egg")) return false;
+    if (deniesTerm(name, t)) return true;
+    if (meat && (p.claims.some((c) => c === "VEGAN" || c === "VEGETARIAN") || PLANT_WORDS.test(name))) return true;
+    return Boolean((dairy || t.key === "egg") && (p.claims.includes("VEGAN") || VEGAN_WORDS.test(name)));
+  });
 }
 
 /**
@@ -439,15 +488,15 @@ function mentions(p: Product, t: Term): boolean {
  * Every word besides the head term must appear in the name. `homeOverride`: the caller named the category, so it
  * is the home.
  */
-export function rank(q: string, candidates: Product[], all: Iterable<Product>, homeOverride?: string): Match[] {
+export function rank(q: string, candidates: Product[], all: Iterable<Product>, homeOverride?: string, claims: string[] = []): Match[] {
   const terms = queryTerms(q);
   if (!terms.length) return candidates.map((product) => ({ product, tier: 0, role: null, term: "" }));
   const hi = headIndex(terms);
   const head = terms[hi];
-  // A word no product has together with the head ("some nice cheese") can't narrow it, so it is dropped.
   const all_ = [...all];
-  const withHead = all_.filter((p) => mentions(p, head));
-  const quals = terms.filter((t, i) => i !== hi && withHead.some((p) => mentions(p, t)));
+  // Only known conversational filler may be dropped. An unknown brand, species or form
+  // must leave the request unmatched rather than silently broadening it.
+  const quals = terms.filter((t, i) => i !== hi && !QUERY_FILLER.has(t.key.replace(/^~/, "")));
   const home = homeOverride ? null : homeCategories(head, all_);
   // Category codes group like products (1060x cheeses, 1870x fish), so a neighbour of a home
   // category holds the same kind: "SALMON FILLET C-CUT" sits with the trout fillets.
@@ -461,12 +510,13 @@ export function rank(q: string, candidates: Product[], all: Iterable<Product>, h
     return candidates.filter((p) => p.brand && lc(p.brand) === brand).map((product) => ({ product, tier: 0, role: "head", term: brand }));
   const out: Match[] = [];
   for (const p of candidates) {
+    if (conflictsWithRequest(p, terms, q, claims)) continue;
     if (!quals.every((t) => mentions(p, t))) continue;
     const role = mentions(p, head) ? (termRole(p, head) ?? "mention") : null;
     const h = homeOverride ? { share: 1 } : home!.get(p.category);
     let tier: Match["tier"] | null = null;
     if ((h || (role === "head" && sibling(p.category))) && role === "head") tier = 0;
-    else if (h && (role === "mention" || h.share >= HOME_STRONG)) tier = 1;
+    else if (h && (role === "mention" || (!homeOverride && h.share >= HOME_STRONG))) tier = 1;
     else if (role === "head") tier = 2;
     else if (role !== null) tier = 3;
     if (tier !== null && tier < 3 && foodTerm.get(head.key) && isNonFood(p.category)) tier = 3;
@@ -483,9 +533,9 @@ export function headIndex(terms: Term[]): number {
 }
 
 /** PRODUCT-SEARCH relevance: the best group of `rank`, spread across categories. */
-export function relevance(q: string, candidates: Product[], all: Product[], homeOverride?: string): Match[] {
+export function relevance(q: string, candidates: Product[], all: Product[], homeOverride?: string, claims: string[] = []): Match[] {
   const terms = queryTerms(q);
-  const ms = rank(q, candidates, all, homeOverride);
+  const ms = rank(q, candidates, all, homeOverride, claims);
   return terms.length ? bestGroup(ms, homeCategories(terms[headIndex(terms)], all)) : ms;
 }
 
