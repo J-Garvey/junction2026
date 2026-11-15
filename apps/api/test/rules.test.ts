@@ -77,7 +77,7 @@ describe("STOCK-CHECK and CUTOFF-CHECK", () => {
   });
 });
 
-describe("late delivery options", () => {
+describe("product ranking and late delivery options", () => {
   afterEach(() => setClock({ scene: "live" }));
   function need(): Need {
     return {
@@ -98,6 +98,49 @@ describe("late delivery options", () => {
     setClock({ time: "2026-11-14T10:00:00Z" });
     await rankNeed(n, options.map((o) => o.product), new Map(options.map((o) => [o.product.id, o.lookup])));
   }
+  function priced(id: string, price: number, stock: LookupLine["stock"] = { kind: "known", amount: 7 }, reliability = 1) {
+    const o = option(id, "2026-11-16");
+    o.lookup.price = { ...o.lookup.price!, value: price * 6, comparisonPrice: price };
+    o.lookup.stock = stock;
+    o.product.reliability = reliability;
+    return o;
+  }
+  it("prefers confirmed full stock, then partial stock, then unknown stock, then zero stock", async () => {
+    const n = need();
+    await rank(n, [priced("unknown", 1, { kind: "unknown", reason: "terminal_sentinel" }), priced("zero", 0.5, { kind: "known", amount: 0 }), priced("partial", 2, { kind: "known", amount: 6 }), priced("full", 5, undefined, 0.5)]);
+    expect(n.candidates.map((c) => c.productId)).toEqual(["full", "partial", "unknown", "zero"]);
+    expect(n.candidates[0].rankStep).toBe("confirmed stock");
+  });
+  it("compares price before reliability within confirmed stock", async () => {
+    const n = need();
+    await rank(n, [priced("expensive", 3), priced("cheap", 2, undefined, 0.5)]);
+    expect(n.candidates.map((c) => c.productId)).toEqual(["cheap", "expensive"]);
+    expect(n.candidates[0].rankStep).toBe("price per kg or L after rounding");
+  });
+  it("puts missing prices last even with confirmed stock and keeps the order block", async () => {
+    const n = need();
+    const missing = priced("unpriced", 2);
+    missing.lookup.price = null;
+    await rank(n, [missing, priced("priced", 3, { kind: "unknown", reason: "terminal_sentinel" })]);
+    expect(n.candidates.map((c) => c.productId)).toEqual(["priced", "unpriced"]);
+    expect(n.candidates[0].rankStep).toBe("known price");
+    expect(n.candidates[1].unitPrice).toBeNull();
+    expect(n.candidates[1].notes).toContainEqual(expect.objectContaining({ ruleId: "PRC-01", outcome: "block" }));
+  });
+  it("preserves an explicit recipe choice and explains that decision", async () => {
+    const n = need();
+    n.pinnedProductId = "chosen";
+    await rank(n, [priced("automatic", 1), priced("chosen", 3, { kind: "unknown", reason: "terminal_sentinel" })]);
+    expect(n.candidates[0]).toMatchObject({ productId: "chosen", rankStep: "recipe-approved product" });
+  });
+  it("breaks price ties by reliability and then product ID regardless of input order", async () => {
+    const n = need();
+    const options = [priced("3", 2, undefined, 0.5), priced("2", 2), priced("1", 2)];
+    await rank(n, options);
+    expect(n.candidates.map((c) => c.productId)).toEqual(["1", "2", "3"]);
+    await rank(n, options.reverse());
+    expect(n.candidates.map((c) => c.productId)).toEqual(["1", "2", "3"]);
+  });
   it("keeps only the earliest two full-pack options and leaves the late order blocked", async () => {
     const n = need();
     await rank(n, [option("1", "2026-11-23"), option("2", "2026-11-19"), option("3", "2026-11-20")]);
