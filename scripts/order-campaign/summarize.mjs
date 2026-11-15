@@ -9,7 +9,7 @@ const rows=read('requests.jsonl'),corpus=read('corpus.jsonl');
 // error for an already-recorded attempt. Count HTTP executions by attempt ID.
 const byAttempt=new Map();
 for(const r of rows){const prev=byAttempt.get(r.attemptId);if(!prev||prev.status===null&&r.status!==null)byAttempt.set(r.attemptId,r);}
-const attempts=[...byAttempt.values()],responses=attempts.filter(r=>r.status!==null),calls=attempts.flatMap(r=>[{...r.http,status:r.status,response:r.response,primary:true},...(r.related||[])]);
+const attempts=[...byAttempt.values()],responses=attempts.filter(r=>r.status!==null),calls=attempts.flatMap(r=>r.channel==='whatsapp'&&r.related?.length?r.related:[{...r.http,status:r.status,response:r.response,primary:true},...(r.related||[])]);
 const plans=calls.filter(c=>c.path==='/api/requests'),model=read('generator-model-telemetry.jsonl'),guards=read('generator-supplier-guard.jsonl');
 const counts=(items,key)=>Object.fromEntries([...Map.groupBy(items,key)].map(([k,v])=>[k,v.length]));
 const latestByCase=new Map();for(const r of attempts)latestByCase.set(r.caseId,r);
