@@ -6,6 +6,7 @@ import { useLoad } from "../ctx";
 import { claimLabel, day, fi, qty, eur, when } from "../format";
 import { stockText } from "./Popover";
 import { Status } from "./Status";
+import { CarbonEstimate } from "./CarbonEstimate";
 import "./product-details.css";
 
 const NOT_SUPPLIED = "Not supplied";
@@ -41,7 +42,8 @@ export function ProductDetailsPanel({ line }: { line: PlanLine }) {
           <Fact label="Status"><Status k={line.status} /></Fact>
           <Fact label="Allocation">{claimLabel(line.allocation)}</Fact>
           <Fact label="Selected by">{line.rankStep ? claimLabel(line.rankStep) : null}</Fact>
-          {line.co2Kg != null && <Fact label="Carbon estimate for this line">≈ {number(line.co2Kg)} kg CO₂e (demo estimate from product-group averages)</Fact>}
+          <Fact label="Carbon estimate for this line"><CarbonEstimate line={line} /></Fact>
+          {line.carbonBasis && !line.removed && <Fact label="Carbon mass evidence">{number(line.carbonBasis.kgPerSalesUnit)} kg per {line.salesUnit ?? "sales unit"} · {line.carbonBasis.massSource}</Fact>}
           <Fact label="Stock risk accepted">{line.riskAccepted ? `${line.riskAccepted.by}, ${when(line.riskAccepted.at)} Helsinki; stock remains unconfirmed.` : "No acceptance recorded"}</Fact>
           {line.shares.length > 1 && <Fact label="Shared pack">{line.shares.map((share) => <div key={share.needId}>{share.label}: {qty(share.amount)} {line.needAmount.unit}</div>)}</Fact>}
         </dl>
