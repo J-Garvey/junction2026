@@ -32,11 +32,12 @@ function storedState() {
     [table, getDb().prepare(`SELECT * FROM ${table} ORDER BY rowid`).all()]));
 }
 async function proposal() {
-  const request = { ...rulesParse("10 kg salmon"), siteId: mandate().sites[0].id, outletId: "banquet", neededBy: "2026-11-16" };
+  const request = { ...rulesParse("10 kg salmon 469672"), siteId: mandate().sites[0].id, outletId: "banquet", neededBy: "2026-11-16" };
   const result = await call("POST", "/requests", { request });
   expect(result.status).toBe(200);
   expect(result.plan.error).toBeNull();
   expect(result.plan).toMatchObject({ proposal: true, outletId: "banquet", eventId: null, orderIds: [] });
+  expect(result.plan.lines[0].productId).toBe("469672");
   return result.plan;
 }
 
@@ -50,8 +51,10 @@ beforeEach(async () => {
   await call("POST", "/reset");
   await signIn("p-aino");
   await call("POST", "/clock", { time: "2026-11-14T10:00:00Z" });
-  const fixture = await lookup(["462150", "469672"], "2026-11-16", { mode: "fixture", overlay: null });
-  // Bound the shortlist to saved salmon terms; other products are explicitly unavailable.
+  const fixture = await lookup(["469672"], "2026-11-16", { mode: "fixture", overlay: null });
+  // Pin the saved Finnish salmon so ranking changes cannot turn this authority
+  // regression into a no-product test under the standing fish-origin mandate.
+  // Other products are explicitly unavailable.
   // Exercise real gateway storage and commit checks in process, without a second
   // loopback connection. Only the shortlist's unavailable products are mocked.
   vi.spyOn(gw, "lookup").mockImplementation(async (ids) => ({ ...fixture, lines: ids.map((id) => fixture.lines.find((line) => line.productId === id) ?? normalise(id, {}, {}, "fixture", "unavailable scope-test fixture", "2026-11-14T10:00:00Z")) }));
