@@ -13,7 +13,7 @@ $env:CAMPAIGN_DIR='C:/path/to/artifacts'
 pnpm.cmd --filter @aimo/api exec tsx src/scripts/order-campaign/host.ts
 # In another terminal:
 node scripts/order-campaign/run.mjs --dir=C:/path/to/artifacts --phase=initial --limit=60
-node scripts/order-campaign/batch.mjs --dir=C:/path/to/artifacts --start=60 --end=3748
+node scripts/order-campaign/batch.mjs --dir=C:/path/to/artifacts --start=60
 ```
 
 The host owns port **8891**, a SQLite database and an unused WhatsApp auth path
@@ -65,3 +65,12 @@ checkout, restarts only this host and preserves the database. `--hold` keeps the
 process alive on Windows tool hosts that clean up detached descendants. Add
 `--real` for a real-model restart. `node scripts/order-campaign/refresh.mjs stop`
 stops the owned host. This harness never alters primary main or other worktrees.
+
+`summarize.mjs <artifacts-dir>` publishes exact executed counts and pending corpus
+IDs without declaring cases passed. Add `--done` only after final latest-main
+replay and representative real-model coverage. It counts conversation deliveries
+once, separates planning calls/responses, and deduplicates a known transient
+Windows status-publication observation by attempt ID. `--cross-channel` replays
+selected main seeds in the synthetic chat with an explicitly selected draft.
+The final nine order-context seeds remove only the default wedding event through
+a clearly named fixture-only host endpoint to model zero/one/several baskets.

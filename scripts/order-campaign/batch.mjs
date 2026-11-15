@@ -5,7 +5,7 @@ import { defaultArtifacts } from './generate.mjs';
 const args=Object.fromEntries(process.argv.slice(2).map(a=>{const[k,...v]=a.replace(/^--/,'').split('=');return[k,v.join('=')||true]}));
 const dir=resolve(args.dir||defaultArtifacts),git=(...a)=>execFileSync('git',a,{encoding:'utf8'}).trim();
 const run=(file,a=[])=>new Promise((resolve,reject)=>{const p=spawn(process.execPath,[file,...a],{stdio:'inherit',windowsHide:true});p.on('exit',code=>code===0?resolve():reject(Error(`${file}: ${code}`)))});
-const first=Number(args.start||0),last=Number(args.end||3748),size=100;
+const first=Number(args.start||0),last=Number(args.end||readFileSync(resolve(dir,'corpus.jsonl'),'utf8').trim().split('\n').length),size=100;
 for(let start=first;start<last;start+=size){
  git('fetch','origin');const main=git('rev-parse','origin/main');
  let meta;
