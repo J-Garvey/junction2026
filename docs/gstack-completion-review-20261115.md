@@ -1,6 +1,6 @@
 # Gstack completion review - 15 November 2026
 
-This completes the follow-up on branch improve/gstack-complete-review-20261115, PR200. It incorporates PR148 at 45ab9d2 and main through 576e94f. The independent baseline captured 158 states at d53447e; the independent security audit used Claude Opus 5.5. All runtime changes and orders used synthetic Junction data.
+This completes the follow-up on branch improve/gstack-complete-review-20261115, PR200. It incorporates PR148 at 45ab9d2 and main through 3882f50, including upload guidance and the unified suggested-product rows. The independent baseline captured 158 states at d53447e; the independent security audit used Claude Opus 5.5. All runtime changes and orders used synthetic Junction data.
 
 ## Result
 
@@ -20,7 +20,7 @@ The intentionally removed top tabs, original supplier schedule/cutoff evidence, 
 | Check | Result |
 | --- | --- |
 | Complete API suite, one thread worker, fixture mode, empty external keys, random ports | 919/919 passed, 60 files |
-| Complete frontend suite, one worker | 286/286 passed, 31 files |
+| Complete frontend suite, one worker, after main206/207 | 292/292 passed, 31 files |
 | Workspace typecheck and production build | passed; existing Vite bundle-size advisory |
 | Recovery, request parsing, labels and 320px receipt browser replay | 11 states passed |
 | Final staged finance/stock/allergy/menu layouts at 320/375/768 | 12 checks passed |
@@ -42,7 +42,7 @@ Replay with AIMO_TEST_MODE=1, AIMO_MODE=fixture, AIMO_DB=:memory:, empty AIMO_AP
 
 ## Evidence and limits
 
-Durable artifacts: C:/Users/benfh/junction-review-results/gstack-complete-20261115. Guarded final reports: functional-combined/REPORT.md, app-final/REPORT.md and workspace-final/REPORT.md, each with immutable receipts, hashes and causal checkpoints. The visual-baseline folder contains the 158-capture matrix and screenshot index. The final design report is under state/projects/J-Garvey-junction2026/designs/design-audit-complete-20261115.
+Durable artifacts: C:/Users/benfh/junction-review-results/gstack-complete-20261115. Guarded final reports: functional-combined/REPORT.md, app-main-intersection/REPORT.md and workspace-main-intersection/REPORT.md, with immutable receipts and hashes. The earlier app-final and workspace-final reports retain the causal checkpoints and passes before main206/207. The final browser replay also checks the new item-review rows at 320px with no automated WCAG violation. The visual-baseline folder contains the 158-capture matrix and screenshot index. The final design report is under state/projects/J-Garvey-junction2026/designs/design-audit-complete-20261115.
 
 The same two-file source scan changes 4 to 3; the retained state-border cues are intentional and no rules were ignored. Final affected-page Design A is provisional (baseline B, AI Slop A in both), because navigation and sampled coverage changed; no whole-site numerical improvement claim is made.
 
