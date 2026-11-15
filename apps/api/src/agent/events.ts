@@ -411,7 +411,9 @@ export async function answerMissingAllergenReplacement(q: Question, p: Person) {
 
 // ---------- late allergy (CH-13, D28) ----------
 
-export const warnings = (eventId?: string) => allJson<WarningRecord>("SELECT json FROM warnings ORDER BY rowid").filter((w) => !eventId || w.eventId === eventId);
+export const warnings = (eventId?: string) => !eventId
+  ? allJson<WarningRecord>("SELECT json FROM warnings ORDER BY rowid")
+  : allJson<WarningRecord>("SELECT json FROM warnings WHERE event_id = ? ORDER BY rowid", eventId);
 function saveWarning(w: WarningRecord) {
   getDb().prepare("INSERT INTO warnings (id, event_id, state, json) VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET state = excluded.state, json = excluded.json").run(w.id, w.eventId, w.state, JSON.stringify(w));
 }
@@ -798,7 +800,7 @@ export function coverageSummary(eventId: string): { level: "covered" | "at_risk"
   const concern = allergenConcerns ? ` · ${allergenConcerns} allergen data not confirmed` : "";
   const ws = warnings(eventId).filter((w) => w.state === "open");
   if (ws.length) return { level: "warning", text: `Allergy warning · ${ws.length} line${ws.length > 1 ? "s" : ""}` };
-  const open = allQuestions().filter((q) => q.eventId === eventId && (q.state === "open" || q.state === "waiting"));
+  const open = allQuestions(eventId).filter((q) => q.state === "open" || q.state === "waiting");
   if (open.length) {
     const d = open.map((q) => q.deadline).filter(Boolean).sort()[0];
     return { level: "not_covered", text: `${open.length} open question${open.length > 1 ? "s" : ""}${d ? ` · by ${fmtHelsinki(d!)}` : ""}${concern}` };
@@ -827,6 +829,6 @@ export function eventView(eventId: string) {
     warnings: warnings(eventId),
     coverage: coverageSummary(eventId),
     decisions: decisionCount(eventId),
-    questions: allQuestions().filter((q) => q.eventId === eventId),
+    questions: allQuestions(eventId),
   };
 }
