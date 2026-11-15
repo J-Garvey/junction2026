@@ -14,6 +14,7 @@ import { Status, planStatusKind, PLAN_STATUS_TEXT } from "../ui/Status";
 import { claimLabel, day, eur, qty, when, helsinkiDate, addDays } from "../format";
 import { LineCalculation, TotalCalculation } from "../ui/CalculationEvidence";
 import { Pop } from "../ui/Popover";
+import { CatalogueMatches } from "../ui/CatalogueMatches";
 
 const UNITS: Unit[] = ["l", "dl", "ml", "kg", "g", "pcs"];
 const CLAIMS = ["FREE_FROM_LACTOSE", "FREE_FROM_GLUTEN", "FREE_FROM_MILK", "FREE_FROM_EGG"];
@@ -184,6 +185,11 @@ function RequestEditor() {
 
           </div>
         ))}
+        {req.lines.filter((line) => !line.quantity || line.quantity.amount <= 0).map((line) => <CatalogueMatches key={line.id} line={line} disabled={busy} onSelect={(product) => {
+          setReq((current) => current && { ...current, lines: current.lines.map((item) => item.id === line.id
+            ? { ...item, query: product.name, text: product.name, productId: product.id, category: product.category, productType: null }
+            : item) });
+        }} />)}
         <div className={`chipline ${tried && dateMissing ? "missing" : ""}`} role="group" aria-label="Needed by">
           <span className="chip-k">Needed by</span>
           {DATE_PRESETS.map((p) => {
