@@ -1,3 +1,4 @@
+import { CandidateRanking } from "./CandidateRanking";
 import { useId, useRef, useState, type ReactNode } from "react";
 import type { ModelJudgement, Need, PlanLine } from "@aimo/contracts";
 import { eur, fi } from "../format";
@@ -92,7 +93,7 @@ export function SelectionFunnel({ need, lines }: { need: Need; lines: PlanLine[]
               {line && <p className="small">{c.rank === 1
                 ? `Selection ranking reason: ${line.rankStep ?? "not recorded"}.`
                 : "Selected from the ranked alternatives. A separate buyer-choice or allocation reason was not recorded."}</p>}
-              <p className="small">Rank {c.rank} · ranking comparison: {c.rankStep}. {eur(c.pricePerBase)} per {c.baseUnit ?? "unit"}, ex VAT.</p>
+              <p className="small">Rank {c.rank} · ranking comparison: <CandidateRanking candidate={c} /></p>
               <p className="small">{stockText(c.stock, c.salesUnit)}</p>
               {c.notes.length > 0 && <ul className="small">{c.notes.map((r, i) => <li key={i}><code>{r.ruleId}</code> — {r.message}</li>)}</ul>}
               {productJudgements(need, c.productId).map((j, i) => <Judgement key={i} judgement={j} />)}

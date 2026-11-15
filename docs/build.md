@@ -174,3 +174,9 @@ The PRD left these open. Each choice follows the chunk's recommended answer unle
 - Mandate and preference setup screens (D18; the mandate is pre-filled).
 - Pack mixing across sizes of the same product (Q03.4), CEL, Peppol, MCP and email updates.
 - Delivery-date alignment across different available dates (AP-14): the mock always answers Monday, so every line shares one date.
+
+### Piece candidate costs (D36)
+
+Hotel candidate responses optionally include `costToCover: { need, quantity, totalExVat }` for piece requests: the requested pieces, whole sales packs and fixed ex-VAT total. Identical specifications at the same outlet compare their combined need, rounded once. `null` means the price or checked piece conversion is unavailable; older saved plans omit the field. No database migration is needed. Kg/L ranking, priced recipe choices, reliability and ID tie breaks retain D34 behavior.
+
+A name-only count is not authoritative. Unknown or unverified piece conversions leave the proposed sales quantity at zero until the builder enters whole sales units; that decision retains the conversion concern. Products sold by kg/L never acquire a pieces-per-kg conversion from a count in their name. Event replacement actions only offer checked piece conversions and show the whole-pack quantity and total. The wedding regression checks Elonen 473522 (5 KI, EUR310.60) ahead of Fazer 466509 (13 KI, EUR316.42) for 194 guests; stock stays unconfirmed where the supplier uses a sentinel.

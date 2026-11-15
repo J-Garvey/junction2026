@@ -186,7 +186,7 @@ export function Candidates({ need, lines }: { need: Need; lines: PlanLine[] }) {
             <th />
             <th>Product</th>
             <th className="num">Price</th>
-            <th className="num">Per {need.amount.unit}</th>
+            <th className="num">{need.amount.unit === "pcs" ? "Cost to cover need" : `Per ${need.amount.unit}`}</th>
             <th className="hide-m">Stock</th>
           </tr>
         </thead>
@@ -207,7 +207,7 @@ export function Candidates({ need, lines }: { need: Need; lines: PlanLine[] }) {
                 {eur(c.unitPrice)}
 
               </td>
-              <td className="num">{eur(c.pricePerBase)}</td>
+              <td className="num">{eur(need.amount.unit === "pcs" ? c.costToCover?.totalExVat ?? null : c.pricePerBase)}</td>
               <td className="hide-m small">{c.stock.kind === "unknown" ? <span className="muted">Not confirmed</span> : stockText(c.stock, c.salesUnit)}</td>
 
             </tr>
