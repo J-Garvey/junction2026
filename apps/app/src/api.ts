@@ -1,5 +1,5 @@
 /** Thin client for the hotel app API (/api). Shapes follow apps/api/src/app/routes.ts. */
-import type { AuditEntry, Order, Plan, Product, Question, SingleRequest, WarningRecord, DietGroup, FiredRule, Mandate } from "@aimo/contracts";
+import type { AuditEntry, BasketStatus, Order, Plan, Product, Question, SingleRequest, WarningRecord, DietGroup, FiredRule, Mandate } from "@aimo/contracts";
 
 export class ApiError extends Error {
   constructor(
@@ -213,7 +213,7 @@ export interface OrdersResp {
 }
 
 /** An order basket: one event, named by the event and its delivery date. */
-export interface Basket {
+export interface Basket extends BasketStatus {
   id: string;
   name: string;
   deliveryDate: string;
@@ -243,7 +243,7 @@ export interface BasketPlan {
   basketedAt: string | null;
   lines: Plan["lines"];
 }
-export interface BasketResp extends EventResp {
+export interface BasketResp extends EventResp, BasketStatus {
   requests: BasketPlan[];
   orders: Order[];
   review: Question | null;

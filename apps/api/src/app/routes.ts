@@ -29,6 +29,7 @@ import { dataMode } from "../aimo/lookup.js";
 import { config } from "../config.js";
 import { modelConfigured, modelName } from "../agent/openai.js";
 import { basketReview, submitBasketForReview, invalidateBasketReview, BasketReviewError } from "../agent/baskets.js";
+import { approvalLevels, basketStatus, pendingQuestions } from "../agent/basketSummary.js";
 
 type Authed = Request & { person: Person; token: string };
 
@@ -339,10 +340,21 @@ export function appRouter(): Router {
     tooLate: pl.tooLate ?? null, tooLateChoice: pl.tooLateChoice ?? null, basketedAt: pl.basketedAt ?? null,
     lines: pl.lines.filter((line) => !line.removed),
   });
+  const basketSummary = (event: StoredEvent, orders: Awaited<ReturnType<typeof gw.orders>>["orders"]) => {
+    const plans = basketPlans(event.id);
+    const eventPlanId = event.orderPlanId ?? event.viabilityPlanId;
+    const eventPlan = eventPlanId ? getPlan(eventPlanId) : null;
+    if (eventPlan) plans.push(eventPlan);
+    const needsAttention = warnings(event.id).some((warning) => warning.state === "open")
+      || !!event.finalCheck?.lines.some((line) => line.result !== "covered");
+    return basketStatus(event.serviceDate, orders, plans, allQuestions().filter((q) => q.eventId === event.id), now(), needsAttention);
+  };
   r.get("/baskets", async (req, res) => {
     const { orders } = await gw.orders();
     const p = P(req);
-    const open = allQuestions().filter((q) => q.state === "open" || q.state === "waiting");
+    // Apply the same stale finance-review cleanup as the detail page, using local snapshots only.
+    for (const event of listEvents()) basketReview(event.id, orders.filter((order) => order.eventId === event.id));
+    const open = pendingQuestions(allQuestions(), now());
     res.json({
       baskets: listEvents().map((e) => {
         const mine = orders.filter((o) => o.eventId === e.id && o.state !== "rejected");
@@ -358,13 +370,11 @@ export function appRouter(): Router {
           coverage: coverageSummary(e.id),
           lines: mine.reduce((n, o) => n + o.lines.filter((l) => !l.removed).length, 0) + staged.reduce((n, pl) => n + pl.lines.filter((l) => !l.removed).length, 0),
           totalExVat,
+          ...basketSummary(e, mine),
           // Only what this person can answer; the rest is someone else's to approve.
           waiting: open.filter((q) => q.eventId === e.id && canAnswer(q, p)).length,
           waitingOthers: open.filter((q) => q.eventId === e.id && !canAnswer(q, p)).length,
-          approvalLevels: (["chef", "approver"] as const).map((role) => ({
-            role,
-            count: open.filter((q) => q.eventId === e.id && q.forRole === role).length,
-          })),
+          approvalLevels: approvalLevels(open.filter((q) => q.eventId === e.id)),
           requests: basketPlans(e.id).length + (e.dishes.length ? 1 : 0),
         };
       }),
@@ -386,7 +396,7 @@ export function appRouter(): Router {
     if (!getEvent(id)) return res.status(404).json({ error: "No such order" });
     const { orders } = await gw.orders(id);
     const review = basketReview(id, orders);
-    res.json({ ...eventView(id), requests: basketPlans(id).map(planRow), orders, review });
+    res.json({ ...eventView(id), requests: basketPlans(id).map(planRow), orders, review, ...basketSummary(getEvent(id)!, orders) });
   });
   r.post("/baskets/:id/submit-review", async (req, res) => res.json({ review: await submitBasketForReview(String(req.params.id), P(req)) }));
 

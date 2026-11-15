@@ -104,13 +104,14 @@ export function normalise(id: string, a: RawAvail | undefined, p: RawPrice | und
   const lines = (a?.scheduleLines ?? []) as any[];
   const sl = lines[0];
   const logisticModel = (a?.logisticModel ?? null) as "Stock" | "Terminal" | null;
-  let stock: StockFact = { kind: "none" };
-  if (sl) {
-    const amt = Number(sl.availableAmount);
-    if (logisticModel === "Terminal" || amt === TERMINAL_SENTINEL) stock = { kind: "unknown", reason: "terminal_sentinel" };
-    else if (amt >= STOCK_SENTINEL_FLOOR) stock = { kind: "unknown", reason: "stock_sentinel" };
-    else stock = { kind: "known", amount: amt };
-  }
+  const stockOf = (schedule: any): StockFact => {
+    if (!schedule || typeof schedule.availableAmount !== "number" || !Number.isFinite(schedule.availableAmount) || schedule.availableAmount < 0) return { kind: "none" };
+    const amt = schedule.availableAmount;
+    if (logisticModel === "Terminal" || amt === TERMINAL_SENTINEL) return { kind: "unknown", reason: "terminal_sentinel" };
+    if (amt >= STOCK_SENTINEL_FLOOR) return { kind: "unknown", reason: "stock_sentinel" };
+    return { kind: "known", amount: amt };
+  };
+  const stock = stockOf(sl);
   const salesBlock = Boolean(a?.salesBlock) || Boolean(sl?.salesBlock);
   const priced = p && !p.error && p.catalogPrice;
   return {
@@ -126,6 +127,16 @@ export function normalise(id: string, a: RawAvail | undefined, p: RawPrice | und
     stock,
     availableDate: sl?.availableDate ?? null,
     closingTime: a?.closingTime ?? null,
+    ...(a ? { availabilityEvidence: {
+      salesBlock: Boolean(a.salesBlock),
+      schedules: lines.map((schedule) => ({
+        availableDate: schedule.availableDate ?? null,
+        closingTime: a.closingTime ?? null,
+        salesUnit: schedule.salesUnit ?? null,
+        stock: stockOf(schedule),
+        salesBlock: Boolean(schedule.salesBlock),
+      })),
+    } } : {}),
     price: priced
       ? {
           value: Number(p.catalogPrice.value),

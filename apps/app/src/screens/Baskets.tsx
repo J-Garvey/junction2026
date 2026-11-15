@@ -9,6 +9,8 @@ import { Status, planStatusKind, PLAN_STATUS_TEXT } from "../ui/Status";
 import { Icon } from "../ui/icons";
 import { OrderItemDialog } from "../ui/OrderItemDialog";
 import { RequestReviewDialog } from "../ui/RequestReviewDialog";
+import { BasketCard } from "../ui/BasketCard";
+import { OrderBy } from "../ui/OrderBy";
 import { stockText } from "../ui/Popover";
 import { tooLateText } from "../ui/TooLate";
 import { addDays, day, eur, helsinkiDate, plural, qty } from "../format";
@@ -25,31 +27,7 @@ export function BasketsHome() {
       {error && <div className="callout red">{error}</div>}
       {loading && !data && <div className="muted small">Loading…</div>}
       <div className="bgrid">
-        {baskets.map((b) => (
-          <Link key={b.id} to={`/baskets/${b.id}`} className="btile">
-            <div className="btile-name">{b.name}</div>
-            <div className="btile-context small muted">
-              <span><Icon n="cal" s={14} /> Delivery {day(b.deliveryDate)}</span>
-              {b.guests > 0 && <span>{plural(b.guests, "guest")}</span>}
-            </div>
-            <div className="btile-stats" aria-label="Order summary">
-              <div><strong>{b.lines}</strong><span>Items in order</span></div>
-              <div><strong>{eur(b.totalExVat)}</strong><span>Total ex VAT</span></div>
-            </div>
-            <div className="btile-approvals" aria-label="Waiting for approval">
-              {b.approvalLevels.map((level) => (
-                <div key={level.role} className={level.role === me.role ? "current" : undefined}>
-                  <span>{level.role === "chef" ? "Chef review" : "Manager approval"}</span>
-                  <strong>{level.count}</strong>
-                </div>
-              ))}
-            </div>
-            <div className="btile-foot small muted">
-              <span>{b.approvalLevels.reduce((sum, level) => sum + level.count, 0)} waiting for approval</span>
-              <Icon n="chev" s={16} />
-            </div>
-          </Link>
-        ))}
+        {baskets.map((b) => <BasketCard key={b.id} basket={b} role={me.role} />)}
         <NewBasketTile />
       </div>
     </div>
@@ -144,15 +122,16 @@ export function BasketPage() {
   const live = orders.filter((o) => o.state !== "rejected");
   const staged = requests.filter((r) => r.basketedAt && !r.orderIds.length);
   const { mine: waitingQs, others } = splitMine(questions.filter((q) => q.state === "open" || q.state === "waiting"), me, people);
-  const pending = requests.filter((r) => !r.basketedAt && r.status !== "ordered" && !r.orderIds.length);
+  const pending = requests.filter((r) => !r.basketedAt && r.status !== "ordered" && r.status !== "rejected" && !r.orderIds.length);
   const orderTotal = staged.some((p) => p.totalExVat == null || p.lines.some((line) => line.lineTotal == null))
     ? null
     : live.reduce((sum, order) => sum + order.totalExVat, 0) + staged.reduce((sum, plan) => sum + plan.totalExVat!, 0);
 
   return (
     <div className="page stack-l">
-      <div className="bhead">
+      <div className={`bhead${data.confirmed ? " confirmed" : ""}`}>
         <h1>{ev.name}</h1>
+        {data.confirmed && <span className="stamp order"><Icon n="check" s={14} /> Confirmed</span>}
         <div className="row small" style={{ gap: 12, marginLeft: "auto", flexWrap: "wrap" }}>
           <button
             type="button"
@@ -165,6 +144,7 @@ export function BasketPage() {
           </button>
         </div>
       </div>
+      <div className="basket-context small muted">Delivery {day(ev.serviceDate)}<OrderBy deadline={data.orderBy} detail /></div>
 
       {submitError && <div className="callout red" role="alert">{submitError}</div>}
       {review && <div className="callout green small" role="status">Submitted to finance. This order is ready for approval.</div>}

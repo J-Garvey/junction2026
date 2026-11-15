@@ -8,7 +8,7 @@ import { eur, parseAimoTime, round2, sha256, stableStringify } from "../util.js"
 import { getEvent, personActor } from "./events.js";
 import { gw, GatewayError } from "./gatewayClient.js";
 import { HOTEL_ID, listPlans, savePlan } from "./plan.js";
-import { matchesCurrentShortlists } from "./match.js";
+import { matchesSelectedProducts } from "./match.js";
 import { allQuestions, makeQuestion, saveQuestion } from "./questions.js";
 
 export class BasketReviewError extends Error {
@@ -60,7 +60,7 @@ export async function submitBasketForReview(eventId: string, person: Person): Pr
   const outlets = [...plans.flatMap((p) => p.lines.filter((l) => !l.removed).map((l) => l.outletId)), ...existing.flatMap((o) => o.lines.filter((l) => !l.removed).map((l) => l.outletId))];
   if (person.hotelId !== HOTEL_ID || (!person.hotelScope && outlets.some((id) => !person.outlets.includes(id))))
     throw new BasketReviewError(403, "This order is outside your hotel or outlet scope");
-  if (plans.some((p) => !matchesCurrentShortlists(p.needs, p.lines)))
+  if (plans.some((p) => !matchesSelectedProducts(p.needs, p.lines)))
     throw new BasketReviewError(409, "The product matches changed. Ask the order builder to review the selected products.");
   const previous = basketReview(eventId, orders);
   if (previous) return previous;
@@ -137,7 +137,7 @@ export async function answerBasketReview(question: Question, person: Person, tok
   if (person.hotelId !== HOTEL_ID) throw new BasketReviewError(403, "This order belongs to another hotel");
   if (question.answer === "reject") return;
   const { orders } = await gw.orders(question.eventId!);
-  if (stagedPlans(question.eventId!).some((p) => !matchesCurrentShortlists(p.needs, p.lines)))
+  if (stagedPlans(question.eventId!).some((p) => !matchesSelectedProducts(p.needs, p.lines)))
     throw new BasketReviewError(409, "The product matches changed. Ask the order builder to review the selected products.");
   if (snapshot(question.eventId!, orders) !== question.facts.snapshot)
     throw new BasketReviewError(409, "The order changed after submission. Ask the order builder to submit it again.");

@@ -4,7 +4,8 @@
  * work out whole packs. Deterministic apart from the stored model judgements.
  */
 import type { Candidate, FiredRule, LookupLine, Need, PlanLine, Product, StatusLabel, Verdict, BaseUnit, ModelJudgement } from "@aimo/contracts";
-import { getProduct, searchMatches } from "../catalog.js";
+import { allProducts, getProduct, searchMatches } from "../catalog.js";
+import { queryTerms, rank } from "../search.js";
 import { fire, FIXED, RULE_INDEX } from "../rules/catalogue.js";
 import { cutoffRule, dietRules, earliestDelivery, packContent, priceValidityRule, reliabilityRules, supplyRules, blocks } from "../rules/checks.js";
 import { typeCheck } from "./judge.js";
@@ -41,12 +42,35 @@ export function shortlist(need: Need): Product[] {
   return list;
 }
 
-/** Saved proposals and staged baskets must still match under the current rules. */
+/** A saved proposal must still qualify for automatic selection before it is staged. */
 export function matchesCurrentShortlists(needs: Need[], lines: PlanLine[]): boolean {
   const eligible = new Map(needs.map((need) => [need.id, new Set(shortlist(need).map((p) => p.id))]));
   return lines.filter((line) => !line.removed).every((line) =>
     line.productId && line.needIds.length > 0 && line.needIds.every((id) => eligible.get(id)?.has(line.productId!)),
   );
+}
+
+/** Validate the exact products already accepted into a basket, independent of shortlist limits. */
+export function matchesSelectedProducts(needs: Need[], lines: PlanLine[]): boolean {
+  const byId = new Map(needs.map((need) => [need.id, need]));
+  const catalog = allProducts();
+  return lines.filter((line) => !line.removed).every((line) => {
+    const product = line.productId ? getProduct(line.productId) : null;
+    if (!product || !line.needIds.length) return false;
+    return line.needIds.every((id) => {
+      const need = byId.get(id);
+      if (!need || blocks(dietRules(product, need.constraints, need.groupLabel)).length) return false;
+      if (need.pinnedProductId === product.id) return true;
+      if (need.category && !product.category.startsWith(need.category)) return false;
+      const terms = queryTerms(need.query);
+      // A brand such as "monster" cannot establish an automatic product type, but
+      // the builder has already accepted a specific matching product in this basket.
+      const brandTerms = new Set(queryTerms(product.brand ?? "").map((term) => term.key));
+      const brandOnly = terms.length > 0 && terms.every((term) => term.key.startsWith("~") && brandTerms.has(term.key));
+      return rank(need.query, [product], catalog, need.category ?? undefined, need.constraints.claims)
+        .some((match) => match.tier < 3 || brandOnly);
+    });
+  });
 }
 
 type Scored = { p: Product; l: LookupLine; content: ReturnType<typeof packContent>; pricePerBase: number | null; stockBand: number; judgement: ModelJudgement | null; notes: FiredRule[]; pinned: boolean };
@@ -195,6 +219,7 @@ function asCandidate(s: Scored, i: number): Candidate {
     packContent: s.content ? { value: s.content.value, unit: s.content.unit, verified: s.content.verified, source: s.content.source } : null,
     salesUnit: s.l.salesUnit,
     closingTime: s.l.closingTime,
+    availabilityEvidence: s.l.availabilityEvidence,
     availableDate: s.l.availableDate,
     source: s.l.source,
     judgement: s.judgement,
