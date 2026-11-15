@@ -26,6 +26,10 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
   const { now } = useApp();
   const headingId = useId();
   const [showReplacements, setShowReplacements] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
+  const exactMatch = review?.requiresApproval === false && review.canApprove;
+  const details = !exactMatch || showDetails;
+  const hasDietRequirements = !!(line.constraints.claims.length || line.constraints.avoidAllergens.length || line.constraints.labels.length || line.constraints.origin);
   const found = lines.filter((product) => product.productId);
   const selected = new Set(found.map((product) => product.productId));
   const rules = [...(need?.rules ?? []), ...lines.flatMap((product) => product.rules)];
@@ -57,26 +61,27 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
             <>
               {found.length > 0 && (
                 <div className="add-review-matches">
-                  <h4>Product{found.length > 1 ? "s" : ""} found</h4>
+                  <h4>{exactMatch ? "Matches your request" : `Product${found.length > 1 ? "s" : ""} found`}</h4>
                   {found.map((product) => (
                     <div key={product.id} className="add-review-product">
                       <span className="add-review-product-name">
                         <b>{product.productName}</b>
                         <small>Product {product.productId}{product.source === "fixture" ? " · Fixture" : ""}</small>
-                        <small>{product.packContent ? `${qty(product.packContent.value)} ${product.packContent.unit} per ${product.salesUnit ?? "sales unit"} (${product.packContent.verified ? "checked" : "unverified"}; ${product.packContent.source})` : "Pack conversion unknown; do not infer pieces from weight."}</small>
+                        {details && <small>{product.packContent ? `${qty(product.packContent.value)} ${product.packContent.unit} per ${product.salesUnit ?? "sales unit"} (${product.packContent.verified ? "checked" : "unverified"}; ${product.packContent.source})` : "Pack conversion unknown; do not infer pieces from weight."}</small>}
                         {product.needIds.length > 1 && <small>Shared pack: quantity and price also cover {product.shares.filter((share) => share.needId !== line.id).map((share) => share.label).join(", ")}.</small>}
-                        <Status k={product.status} />
+                        {details && <Status k={product.status} />}
                       </span>
                       <span className="add-review-product-quantity"><small>Quantity</small><b>{product.quantity > 0 ? `${qty(product.quantity)} ${product.salesUnit ?? ""}` : "TBC"}</b></span>
                       <span className="add-review-product-price"><small>Price ex VAT</small><b>{eur(product.quantity > 0 ? product.lineTotal : null)}</b><small>{eur(product.unitPrice)} / {product.salesUnit ?? "sales unit"}</small></span>
-                      <dl className="add-review-product-facts small">
+                      {details && <><dl className="add-review-product-facts small">
                         <dt>Stock</dt><dd>{stockText(product.stock, product.salesUnit)}</dd>
                         <dt>Available date</dt><dd>{product.availableDate ? day(product.availableDate) : "Not supplied"}</dd>
                         <dt>Order cutoff (Helsinki)</dt><dd>{product.closingTime ? when(product.closingTime) : "Not supplied"}</dd>
                         {product.overshoot && <><dt>Pack rounding</dt><dd>{qty(product.overshoot.amount)} {product.needAmount.unit} extra ({qty(product.overshoot.pct)}%)</dd></>}
                       </dl>
                       <SupplierSchedule terms={product} />
-                      {product.productId && <ProductDietFacts key={product.productId} productId={product.productId} />}
+                      {hasDietRequirements && product.productId && <ProductDietFacts key={product.productId} productId={product.productId} />}
+                      </>}
                     </div>
                   ))}
                 </div>
@@ -90,12 +95,12 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
                 </div>
               )}
               {warnings.length > 0 && <ul className="add-review-item-warnings small">{warnings.map((message) => <li key={message}>{message}</li>)}</ul>}
-              <p className="small muted">{[
+              {details && hasDietRequirements && <p className="small muted">{[
                 ...line.constraints.claims.map(claimLabel),
                 ...line.constraints.avoidAllergens.map((code) => `Avoid ${allergenLabel(code)}`),
                 ...line.constraints.labels.map(claimLabel),
                 ...(line.constraints.origin ? [`Required origin: ${line.constraints.origin}`] : []),
-              ].join(" · ") || "No dietary requirements stated on this request."}</p>
+              ].join(" · ")}</p>}
 
               {review?.quantityRequired && found.length === 1 && (
                 <form key={review.fingerprint} className="add-review-sales-quantity" onSubmit={(event) => {
@@ -108,7 +113,7 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
                 </form>
               )}
 
-              {review && (
+              {review && !exactMatch && (
                 <div className="add-review-item-decision" role="status">
                   {review.approvedAt ? <b className="add-review-approved"><Icon n="check" s={16} /> Approved by {review.approvedBy}</b> : (
                     <>
@@ -119,9 +124,10 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
                 </div>
               )}
 
-              {!tooLate && need && <button type="button" className="btn sm" disabled={disabled} aria-expanded={showReplacements} onClick={() => setShowReplacements(!showReplacements)}>Suggest replacements</button>}
-              {showReplacements && !tooLate && !alternatives.length && <p className="small muted" role="status">No other matching products were returned. Refine the description to search again.</p>}
-              {showReplacements && !tooLate && alternatives.length > 0 && need && (
+              {exactMatch && <button type="button" className="btn sm ghost" aria-expanded={showDetails} onClick={() => setShowDetails(!showDetails)}>{showDetails ? "Hide details" : "View details"}</button>}
+              {details && !tooLate && need && <button type="button" className="btn sm" disabled={disabled} aria-expanded={showReplacements} onClick={() => setShowReplacements(!showReplacements)}>Suggest replacements</button>}
+              {details && showReplacements && !tooLate && !alternatives.length && <p className="small muted" role="status">No other matching products were returned. Refine the description to search again.</p>}
+              {details && showReplacements && !tooLate && alternatives.length > 0 && need && (
                 <div className="add-review-replacements">
                   <h4>Suggested replacements</h4>
                   {alternatives.map((candidate) => {

@@ -180,13 +180,13 @@ export function RequestReviewDialog({ initialReview, deliveryDate, onClose, onCh
   }
 
   const plan = review?.plan ?? null;
-  const approvedCount = plan?.itemReviews?.filter((item) => item.approvedAt && item.canApprove).length ?? 0;
-  const canAdd = editable && !!plan?.proposal && !!request?.lines.length && approvedCount === request.lines.length && !plan.error && !plan.tooLate;
+  const readyCount = plan?.itemReviews?.filter((item) => item.canApprove && (item.requiresApproval === false || item.approvedAt)).length ?? 0;
+  const canAdd = editable && !!plan?.proposal && !!request?.lines.length && readyCount === request.lines.length && !plan.error && !plan.tooLate;
   if (!request) return null;
   return (
     <OrderItemDialog
       eyebrow="Add to order"
-      title={request.lines.length === 1 ? "Review the item" : "Review the order"}
+      title={canAdd ? "Ready to add" : request.lines.length === 1 ? "Review the item" : "Review the order"}
       description={initialReview.plan.reviewing || plan?.createdBy.personId === me.id
         ? "Check what was understood and whether it can arrive with this order."
         : `Requested by ${plan?.createdBy.name}. Check what was understood and whether it can arrive with this order.`}
@@ -240,12 +240,12 @@ export function RequestReviewDialog({ initialReview, deliveryDate, onClose, onCh
 
       {plan && editable && !editTarget && (
         <>
-          <div className={`callout ${canAdd ? "green" : "yellow"} add-review-result`} role="status">
-            <b>{canAdd ? "All items resolved" : `${approvedCount} of ${request.lines.length} items approved`}</b>
-            <span>{canAdd ? "Ready to add to the order. Any unconfirmed stock remains labelled; finance reviews the final order." : "Approve each item, or refine or discard anything that cannot be approved, to continue."}</span>
+          {!canAdd && <div className="callout yellow add-review-result" role="status">
+            <b>{readyCount} of {request.lines.length} items ready</b>
+            <span>Review the items that need attention to continue.</span>
             {plan.error && <span>{plan.error}</span>}
             {plan.inputRules.length > 0 && <ul>{plan.inputRules.filter((rule) => rule.outcome !== "order").map((rule) => <li key={rule.ruleId}>{rule.message}</li>)}</ul>}
-          </div>
+          </div>}
 
           <div className="add-review-actions">
             <button type="button" className="btn primary" disabled={!!busy || !canAdd} onClick={add}>{busy === "add" ? "Adding…" : "Add to order"}</button>

@@ -30,16 +30,29 @@ export function refreshItemReviews(plan: Plan): void {
         stock: line.stock, availableDate: line.availableDate, closingTime: line.closingTime, availabilityEvidence: line.availabilityEvidence,
       })),
     }));
-    const previous = plan.itemReviews!.find((item) => item.needId === request.id && item.fingerprint === fingerprint);
+    const prior = plan.itemReviews!.find((item) => item.needId === request.id);
+    const previous = prior?.fingerprint === fingerprint ? prior : undefined;
+    const exactMatch = !reason && !!need && lines.length === 1
+      && [...plan.inputRules, ...rules].every((rule) => rule.outcome === "order")
+      && lines.every((line) => line.status === "covered" && line.needIds.length === 1
+        && line.stock?.kind === "known" && line.stock.amount >= line.quantity
+        && !!line.availableDate && line.availableDate <= (plan.neededBy ?? plan.deliveryDate ?? "")
+        && !!line.packContent?.verified && line.packContent.unit === need.amount.unit
+        && Math.abs(line.packContent.value * line.quantity - need.amount.value) < 1e-6
+        && (!line.overshoot || line.overshoot.amount === 0));
+    // A changed quote needs a fresh decision even if the product still matches.
+    // Keep that requirement across save/recheck until its current terms are approved.
+    const requiresApproval = !exactMatch || (!!prior?.canApprove && (!previous || previous.requiresApproval !== false));
     return {
       needId: request.id, fingerprint, canApprove: !reason, quantityRequired, reason: reason ?? null,
+      requiresApproval,
       approvedBy: !reason ? previous?.approvedBy ?? null : null,
       approvedAt: !reason ? previous?.approvedAt ?? null : null,
     };
   });
 }
 
-export function allItemsApproved(plan: Plan): boolean {
+export function allItemsResolved(plan: Plan): boolean {
   refreshItemReviews(plan);
-  return !!plan.itemReviews?.length && plan.itemReviews.every((item) => item.canApprove && item.approvedAt);
+  return !!plan.itemReviews?.length && plan.itemReviews.every((item) => item.canApprove && (item.requiresApproval === false || item.approvedAt));
 }
