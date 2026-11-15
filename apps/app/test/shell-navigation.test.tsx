@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { App } from "../src/App";
 import { api, type Person, type StatusResp } from "../src/api";
@@ -24,6 +25,19 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("app shell", () => {
+  it("opens read-only product search through the account menu using the keyboard", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(api, "products").mockResolvedValue({ products: [], sites: [], source: "Local catalogue" });
+    render(<MemoryRouter><App /></MemoryRouter>);
+    (await screen.findByRole("button", { name: "Signed in as Aino" })).focus();
+    await user.keyboard("{Enter}");
+    await user.tab();
+    expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: "Products" }));
+    await user.keyboard("{Enter}");
+    expect(await screen.findByRole("heading", { name: "Products" })).toBeTruthy();
+    expect(screen.queryByRole("navigation", { name: "Primary navigation" })).toBeNull();
+  });
+
   it("renders the chef workspace without the top tab bar", async () => {
     render(<MemoryRouter><App /></MemoryRouter>);
     await screen.findByRole("link", { name: "Aimo Copilot home" });

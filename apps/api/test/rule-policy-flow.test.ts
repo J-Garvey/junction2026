@@ -7,7 +7,8 @@ process.env.AIMO_MODE = "fixture";
 const { seedReset } = await import("../src/seed.js");
 const { setClock } = await import("../src/clock.js");
 const { rulesParse } = await import("../src/agent/parse.js");
-const { newPlan, quoteAndDecide } = await import("../src/agent/plan.js");
+const { newPlan, quoteAndDecide, mandate } = await import("../src/agent/plan.js");
+const { putMandate } = await import("../src/gateway/service.js");
 const { buildQuestions } = await import("../src/agent/questions.js");
 const { gw } = await import("../src/agent/gatewayClient.js");
 const { lookup, normalise } = await import("../src/aimo/lookup.js");
@@ -18,6 +19,8 @@ const quote = { id: "q-policy", fingerprint: "fp-policy", unconfirmedStock: [], 
 
 beforeEach(async () => {
   seedReset();
+  // The saved reliability/rounding fixture is Norwegian salmon, under a legacy mandate.
+  putMandate({ ...mandate(), categoryOriginRequirements: [] });
   setClock({ time: "2026-11-14T10:00:00Z" });
   const fixture = await lookup(["462150"], "2026-11-16", { mode: "fixture", overlay: null });
   vi.spyOn(gw, "lookup").mockImplementation(async (ids) => ({ ...fixture, lines: ids.map((id) => fixture.lines.find((l) => l.productId === id) ?? normalise(id, {}, {}, "fixture", "unavailable", "2026-11-14T10:00:00Z")) }));
