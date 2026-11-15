@@ -9,9 +9,12 @@ import { kvSet } from "../db.js";
 import { HOTEL_ID } from "../agent/plan.js";
 import { setClock, now } from "../clock.js";
 import { seedReset, OUTSIDE_AGENT_TOKEN, VALIO_VIEWER_TOKEN } from "../seed.js";
-import { getMandate, getOrder } from "../gateway/service.js";
+import { getMandate } from "../gateway/service.js";
 import { verifyJwt } from "../gateway/keys.js";
 import { orderToUbl } from "../gateway/peppol.js";
+import { resolveToken, tokenFrom, issueToken } from "../identity.js";
+import { GatewayRefusal } from "../gateway/service.js";
+import { readableOrder } from "../gateway/reads.js";
 import { verifyChain } from "../audit.js";
 import { feedBus, feedEntries, clearFeed, type FeedEntry } from "./feed.js";
 import { agentBus, answer, currentSession, resetSession, say, type Session } from "./agent.js";
@@ -35,7 +38,7 @@ function rules() {
 }
 
 function state() {
-  return { session: currentSession(), feed: feedEntries(), rules: rules(), clock: now().toISOString(), model: config.openai.model, modelReady: Boolean(config.openai.apiKey), chain: verifyChain() };
+  return { session: currentSession(), feed: feedEntries().filter(e => e.hotelId === HOTEL_ID), rules: rules(), clock: now().toISOString(), model: config.openai.model, modelReady: Boolean(config.openai.apiKey), chain: verifyChain() };
 }
 
 export function liveReset() {
@@ -48,6 +51,16 @@ export function liveReset() {
 
 export function liveRouter(): Router {
   const r = Router();
+  // This console combines private hotel chat, policy and signed records. Valio
+  // uses the gateway's explicit shared projections instead of this hotel UI.
+  r.use((req, res, next) => {
+    const id = resolveToken(tokenFrom(req));
+    if (!id) return res.status(401).json({ error: "forbidden", message: "Sign in to the hotel console" });
+    if (id.kind !== "person" || id.hotelId !== HOTEL_ID)
+      throw new GatewayRefusal(403, { error: "forbidden", message: "The live console belongs to Demo Hotel; use gateway shared reads" });
+    req.identity = id;
+    next();
+  });
 
   r.get("/state", (_req, res) => res.json(state()));
 
@@ -55,7 +68,7 @@ export function liveRouter(): Router {
     res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", "X-Accel-Buffering": "no" });
     const send = (event: string, data: unknown) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
     send("state", state());
-    const onEntry = (e: FeedEntry) => send("feed", e);
+    const onEntry = (e: FeedEntry) => { if (e.hotelId === HOTEL_ID) send("feed", e); };
     const onSession = (s: Session) => send("session", s);
     const onReset = () => send("state", state());
     feedBus.on("entry", onEntry);
@@ -90,9 +103,12 @@ export function liveRouter(): Router {
     }
   });
 
-  r.post("/reset", (_req, res) => {
+  r.post("/reset", (req, res) => {
     if (!config.testMode) return res.status(403).json({ error: "Test mode only" });
+    const personId = req.identity!.kind === "person" ? req.identity!.person.id : "";
     liveReset();
+    const token = issueToken({ kind: "person", personId, testSession: true });
+    res.cookie("aimo_session", token, { httpOnly: true, sameSite: "lax", path: "/" });
     res.json(state());
   });
 
@@ -107,7 +123,7 @@ export function liveRouter(): Router {
 
   // The signed record behind a feed row, as Valio Aimo sees it.
   r.get("/orders/:id", (req, res) => {
-    const o = getOrder(String(req.params.id));
+    const o = readableOrder(req.identity!, String(req.params.id));
     const claims = o.jws ? verifyJwt(o.jws, "aimo-order+jwt") : null;
     res.json({
       order: { id: o.id, state: o.state, totalExVat: o.totalExVat, totalVat: o.totalVat, deliveryDate: o.deliveryDate, placedAt: o.placedAt, placedBy: o.placedBy, approvalId: o.approvalId, lines: o.lines.map((l) => ({ productId: l.productId, name: l.productName, quantity: l.quantity, salesUnit: l.salesUnit, unitPrice: l.unitPrice, lineTotal: l.lineTotal, riskAccepted: l.riskAccepted })) },
@@ -115,7 +131,7 @@ export function liveRouter(): Router {
       valioToken: VALIO_VIEWER_TOKEN.slice(0, 6) + "…",
     });
   });
-  r.get("/orders/:id/peppol", (req, res) => res.type("application/xml").send(orderToUbl(getOrder(String(req.params.id)))));
+  r.get("/orders/:id/peppol", (req, res) => res.type("application/xml").send(orderToUbl(readableOrder(req.identity!, String(req.params.id)))));
 
   return r;
 }

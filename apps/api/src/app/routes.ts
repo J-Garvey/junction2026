@@ -30,6 +30,7 @@ import { seedHotelWorkspace } from "../seed-workspace.js";
 import { gw, GatewayError } from "../agent/gatewayClient.js";
 import { dataMode, lookup, UpstreamError } from "../aimo/lookup.js";
 import { inspectDelivery } from "./productInspection.js";
+import { readFilter } from "../gateway/routes.js";
 import { config } from "../config.js";
 import { modelConfigured, modelName } from "../agent/openai.js";
 import { basketReview, submitBasketForReview, invalidateBasketReview, BasketReviewError } from "../agent/baskets.js";
@@ -101,6 +102,15 @@ export function appRouter(): Router {
 
   r.use(person);
   r.use(measureProcessing);
+  // These app workflows are backed by the single Demo Hotel agent. Keep their
+  // plans, baskets and policy out of another hotel's session. The explicit
+  // multi-hotel readers below forward the caller credential or filter ownership.
+  r.use((req, res, next) => {
+    const scopedRead = req.method === "GET" && (/^\/orders(?:\/|$)/.test(req.path) || req.path === "/audit" || req.path === "/me" || /^\/products(?:\/|$)/.test(req.path));
+    if (P(req).hotelId !== HOTEL_ID && !scopedRead)
+      return res.status(403).json({ error: "forbidden", message: "This app workflow belongs to Demo Hotel; use the gateway for your hotel" });
+    next();
+  });
 
   r.get("/me", (req, res) => res.json({ person: P(req) }));
 
@@ -483,13 +493,14 @@ export function appRouter(): Router {
   r.post("/events/:id/final-check", async (req, res) => res.json({ finalCheck: await finalCheck(String(req.params.id)) }));
   r.post("/events/:id/cutoff", (req, res) => res.json({ flags: runCutoff(String(req.params.id)) }));
 
-  r.get("/orders", async (req, res) => res.json(await gw.orders(req.query.eventId ? String(req.query.eventId) : undefined)));
-  r.get("/orders/:id", async (req, res) => res.json(await gw.getOrder(String(req.params.id))));
+  r.get("/orders", async (req, res) => res.json(await gw.orders(readFilter(req.query.eventId), T(req))));
+  r.get("/orders/:id", async (req, res) => res.json(await gw.getOrder(String(req.params.id), T(req))));
 
   r.get("/audit", (req, res) => {
     const viewer = req.query.viewer === "valio" ? "valio" : "hotel";
-    const eventId = req.query.eventId ? String(req.query.eventId) : undefined;
-    res.json({ viewer, chain: verifyChain(), entries: auditView(viewer, { eventId }), decisions: eventId ? decisionCount(eventId) : null });
+    const eventId = readFilter(req.query.eventId);
+    const orderId = readFilter(req.query.orderId);
+    res.json({ viewer, chain: verifyChain(), entries: auditView(viewer, { hotelId: P(req).hotelId, eventId, orderId }), decisions: eventId ? decisionCount(eventId, P(req).hotelId) : null });
   });
 
   const rulesPayload = (req: Request) => {
