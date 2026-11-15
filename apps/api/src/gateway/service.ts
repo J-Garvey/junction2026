@@ -12,6 +12,7 @@ import { lookup, UpstreamError } from "../aimo/lookup.js";
 import { fire, resolveOutcome, FIXED, outcomeOf } from "../rules/catalogue.js";
 import { cutoffRule, productRules, mandateRules, priceValidityRule, stockCheck, supplyRules } from "../rules/checks.js";
 import { supplierDelivery } from "../rules/delivery.js";
+import { storedPolicy } from "../rules/policy.js";
 import { audit, GATEWAY, type Actor } from "../audit.js";
 import { newId, round2, sha256, stableStringify, parseAimoTime, eur, isCalendarDate } from "../util.js";
 import { signJwt, verifyJwt, jcs, checkoutHash } from "./keys.js";
@@ -45,6 +46,7 @@ const quoteClaims = (q: Quote) => ({
   currency: "EUR",
   total_ex_vat: q.totalExVat,
   approvals_needed: q.mandateCheck.approvalsNeeded,
+  allergen_policy: q.allergenPolicy ?? null,
   lines: q.lines.map((l) => ({ product_id: l.productId, outlet: l.outletId, quantity: l.quantity, sales_unit: l.salesUnit, unit_price: l.unitPrice, cutoff: l.closingTime, stock: l.stock.kind, source: l.source, requires: l.requires ?? null, allergen_scope: l.allergenScope ?? null, allergen_evidence: l.allergenEvidence ?? null })),
 });
 const orderClaims = (o: Order) => ({
@@ -83,12 +85,13 @@ export function isUrgent(deliveryDate: string, at: Date): boolean {
 }
 
 /** APPROVAL-BIND: any change to site, lines, quantities, prices, total or dates gives a new fingerprint. */
-export function fingerprintOf(q: Pick<Quote, "siteId" | "deliveryDate" | "lines" | "totalExVat">): string {
+export function fingerprintOf(q: Pick<Quote, "siteId" | "deliveryDate" | "lines" | "totalExVat" | "allergenPolicy">): string {
   return sha256(
     stableStringify({
       siteId: q.siteId,
       deliveryDate: q.deliveryDate,
       total: q.totalExVat,
+      ...(q.allergenPolicy ? { allergenPolicy: q.allergenPolicy } : {}),
       lines: q.lines.map((l) => [l.productId, l.outletId, l.quantity, l.salesUnit, l.unitPrice, l.taxRate, l.availableDate, l.closingTime, l.priceValidTo,
         l.stock.kind === "unknown" ? l.stock : l.stock.kind, l.logisticModel, l.requires ?? null, l.allergenScope ?? null, l.allergenEvidence ?? null]),
     }),
@@ -98,6 +101,7 @@ export function fingerprintOf(q: Pick<Quote, "siteId" | "deliveryDate" | "lines"
 type StoredQuote = Quote & { amendsOrderId?: string; amendmentVersion?: number; humanPolicy?: string; stockPolicy?: string };
 type StoredOrder = Order & { stockPolicy?: string; humanPolicy?: string };
 const stockPolicy = (m: Mandate) => sha256(stableStringify({ version: m.version, preAnswers: m.preAnswers }));
+const allergenPolicy = (m: Mandate) => sha256(stableStringify({ mandate: m, rules: storedPolicy() }));
 const supplierTime = (value: string | null | undefined) => value && isCalendarDate(value.slice(0, 10)) ? parseAimoTime(value) : null;
 type BuildOpts = { hotelId: string; body: QuoteCreateBody; lookups: Map<string, LookupLine>; amendsOrderId?: string; fixedPrices?: Map<string, number> };
 
@@ -178,7 +182,8 @@ function buildQuote({ hotelId, body, lookups, amendsOrderId, fixedPrices }: Buil
   const blocked = allRules.some((r) => r.outcome === "block");
   const cutoffs = lines.map((l) => parseAimoTime(l.closingTime)?.getTime()).filter((t): t is number => typeof t === "number" && t > at.getTime());
   const expires = Math.min(at.getTime() + FIXED.quoteMaxHours * 3_600_000, ...cutoffs);
-  const base = { siteId: body.siteId, deliveryDate: body.deliveryDate, lines, totalExVat };
+  const policy = lines.some((l) => l.requires?.avoidAllergens.length) ? allergenPolicy(mandate) : undefined;
+  const base = { siteId: body.siteId, deliveryDate: body.deliveryDate, lines, totalExVat, allergenPolicy: policy };
   return {
     id: newId("q"),
     hotelId,
@@ -192,6 +197,7 @@ function buildQuote({ hotelId, body, lookups, amendsOrderId, fixedPrices }: Buil
     totalExVat,
     totalVat,
     fingerprint: fingerprintOf(base),
+    ...(policy ? { allergenPolicy: policy } : {}),
     mandateCheck: { pass: mc.rules.length === 0, rules: mc.rules, approvalsNeeded },
     outcome: blocked ? "block" : lines.some((l) => l.rules.some((r) => r.ruleId === "ALG-03")) ? "ask_chef" : approvalsNeeded.length ? "ask_approver" : "order",
     usesFixtures: lines.some((l) => l.source === "fixture"),
@@ -277,6 +283,8 @@ export function acknowledgeAllergenData(id: Identity, body: AllergenAcknowledgem
     throw new GatewayRefusal(403, { error: "forbidden", message: "These terms are outside the chef's hotel or outlet scope" });
   if (q.fingerprint !== body.fingerprint || new Date(q.expiresAt) <= now())
     throw new GatewayRefusal(409, { error: "quote_stale", message: "Review the current terms before continuing with missing allergen data" });
+  if (q.allergenPolicy !== allergenPolicy(getMandate(q.hotelId)))
+    throw new GatewayRefusal(409, { error: "quote_stale", message: "The hotel policy changed. Request current terms before reviewing missing allergen data." });
   const hard = [...(q.outcome === "block" ? q.lines.flatMap((l) => l.rules).filter((r) => r.outcome === "block") : []), ...q.lines.flatMap((l) => {
     const p = getProduct(l.productId);
     return (p ? productRules(p, l.requires, "this line", getMandate(q.hotelId)) : []).filter((r) => r.outcome === "block");
@@ -438,6 +446,7 @@ function recheck(q: Quote, fresh: Quote, at: Date, amending?: Order): Record<str
       changes.push({ productId: l.productId, field: "rule", ruleId: rule.ruleId, now: rule.message });
   }
   if (stableStringify(fresh.mandateCheck) !== stableStringify(q.mandateCheck) ||
+    fresh.allergenPolicy !== q.allergenPolicy ||
     stableStringify(fresh.unconfirmedStock) !== stableStringify(q.unconfirmedStock) ||
     (q as StoredQuote).stockPolicy !== (fresh as StoredQuote).stockPolicy) changes.push({ field: "policy", now: fresh.mandateCheck });
   return changes;
