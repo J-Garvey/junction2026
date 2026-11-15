@@ -11,8 +11,6 @@ import { nowIso } from "./clock.js";
 import { sha256, stableStringify, newId } from "./util.js";
 
 import { hotelFor } from "./ownership.js";
-import { sharedOrder, sharedQuote } from "./gateway/shared.js";
-import type { Order, Quote } from "@aimo/contracts";
 
 export type Actor = AuditEntry["actor"];
 export const AGENT: Actor = { kind: "agent", id: "hotel-agent", name: "Hotel agent", role: "agent", outletId: null, testSession: false };

@@ -51,7 +51,7 @@ async function draftRules() {
 async function openPicker(name = "Jonas") {
   await userEvent.click(screen.getByRole("button", { name: `Signed in as ${name}` }));
   await userEvent.click(screen.getByRole("menuitem", { name: "Switch user" }));
-  expect(screen.getByRole("heading", { name: "Who are you?" })).toBeTruthy();
+  expect(screen.getByRole("heading", { name: "Demo persona" })).toBeTruthy();
 }
 
 beforeEach(() => {
@@ -83,7 +83,7 @@ describe("person picker session boundaries", () => {
     vi.mocked(api.me).mockRejectedValue(new Error("Sign in required"));
     mount();
     expect(await screen.findByText(/Demo persona switching is disabled/)).toBeTruthy();
-    expect(screen.queryByRole("heading", { name: "Who are you?" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Demo persona" })).toBeNull();
   });
 
   it("preserves both unsaved rule edits and nested input text when switching is cancelled", async () => {
@@ -144,7 +144,7 @@ describe("person picker session boundaries", () => {
 
     expect(oldInput.isConnected).toBe(false);
     expect(container.querySelector(".shell")).toBeNull();
-    expect(screen.getByRole("heading", { name: "Who are you?" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Demo persona" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: /Jonas F&B director$/ }));
     await screen.findByRole("spinbutton", { name: "Spend cap per order" });
