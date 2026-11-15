@@ -8,7 +8,7 @@
 import type { Amount, SingleLine, SingleRequest, Unit, FiredRule } from "@aimo/contracts";
 import { now } from "../clock.js";
 import { fire } from "../rules/catalogue.js";
-import { isoDate } from "../util.js";
+import { isoDate, isCalendarDate } from "../util.js";
 import { structured, ModelUnavailable } from "./openai.js";
 import { headIndex, isLiteralProductQuery, queryTerms, QUERY_FORMS } from "../search.js";
 import { z } from "zod";
@@ -63,6 +63,9 @@ const UNIT_AMOUNT = new RegExp(`(?<![\\d.,])(${NUMBER})\\s*(?:(?:additional|more
 const BARE_COUNT = /(?:\bx\s*)?(?<![\d.,/-])([+-]?(?:\d{1,5}(?:[.,]\d+)?|[.,]\d+))(?![\d.,/%-])(?!\s*%)(?!\s*(?:\.|st|nd|rd|th)?\s*(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec))(?:\s*x\b)?/;
 // The request contract cannot enforce fat percentages; preserve them and ask before matching.
 const UNSUPPORTED_SPEC = /\d+(?:[.,]\d+)?\s*%/;
+/** These need a unit/pack decision; never buy the denominator, range end or pack size. */
+const UNSUPPORTED_QUANTITY = /\d+(?:[.,]\d+)?\s*\/\s*\d|\d+(?:[.,]\d+)?\s*[-–—]\s*\d|\d+(?:[.,]\d+)?\s*[x×]\s*\d+(?:[.,]\d+)?\s*(?:kg|g|l|ml|dl)\b|(?:^|\s)[-−]\s*\d|\b\d+(?:[.,]\d+)?\s*(?:packs?|cases?|cartons?|boxes|bottles?|dozens?|pallets?)\b/;
+const unclearQuantity = (text: string) => UNSUPPORTED_QUANTITY.test(text.replace(/\b20\d\d-\d\d-\d\d\b/g, ""));
 
 /** Consume complete groups only, without joining separate lines or decimal commas. */
 const normalizeNumbers = (text: string) => text.replace(/\b\d{1,3}(?:[, \u00a0]\d{3})+(?!\d)/g, (s) => s.replace(/[, \u00a0]/g, ""));
@@ -110,7 +113,7 @@ const DAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", 
 export function resolveDate(text: string, from: Date = now()): { date: string | null; text: string | null } {
   const t = text.toLowerCase();
   const iso = t.match(/\b(20\d\d-\d\d-\d\d)\b/);
-  if (iso) return { date: iso[1], text: iso[1] };
+  if (iso) return { date: isCalendarDate(iso[1]) ? iso[1] : null, text: iso[1] };
   if (/\btomorrow\b/.test(t)) {
     const d = new Date(from.getTime() + 86_400_000);
     return { date: isoDate(d), text: "tomorrow" };
@@ -126,12 +129,15 @@ export function resolveDate(text: string, from: Date = now()): { date: string | 
       return { date: isoDate(new Date(d.toLocaleString("en-US", { timeZone: "Europe/Helsinki" }))), text: DAYS[i][0].toUpperCase() + DAYS[i].slice(1) };
     }
   }
-  const dm = t.match(/\b(\d{1,2})\s*(?:\.|st|nd|rd|th)?\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b/);
+  const dm = t.match(/\b(\d{1,2})\s*(?:\.|st|nd|rd|th)?\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b(?:\s+(20\d\d)\b)?/);
   if (dm) {
     const month = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"].indexOf(dm[2]);
-    const y = from.getUTCFullYear();
+    const y = dm[3] ? Number(dm[3]) : from.getUTCFullYear();
+    const candidate = `${y}-${String(month + 1).padStart(2, "0")}-${dm[1].padStart(2, "0")}`;
+    if (!isCalendarDate(candidate)) return { date: null, text: dm[0] };
     let d = new Date(Date.UTC(y, month, Number(dm[1])));
-    if (d.getTime() < from.getTime() - 86_400_000) d = new Date(Date.UTC(y + 1, month, Number(dm[1])));
+    if (!dm[3] && d.getTime() < from.getTime() - 86_400_000) d = new Date(Date.UTC(y + 1, month, Number(dm[1])));
+    if (d.getUTCMonth() !== month || d.getUTCDate() !== Number(dm[1])) return { date: null, text: dm[0] };
     return { date: isoDate(d), text: dm[0] };
   }
   return { date: null, text: null };
@@ -186,7 +192,7 @@ export function rulesParse(text: string): Omit<SingleRequest, "siteId" | "outlet
       : { amount: count ? Number(count[1].replace(",", ".")) : 1, unit: "pcs" };
     const local = restrictions(s);
     const conflictingOrigin = local.conflictingOrigin || global.conflictingOrigin || Boolean(local.origin && global.origin && local.origin !== global.origin);
-    const quantity = parsedQuantity.amount >= 0 && Number.isFinite(parsedQuantity.amount) && !conflictingOrigin && !UNSUPPORTED_SPEC.test(s) ? parsedQuantity : null;
+    const quantity = parsedQuantity.amount >= 0 && Number.isFinite(parsedQuantity.amount) && !conflictingOrigin && !UNSUPPORTED_SPEC.test(s) && !unclearQuantity(s) ? parsedQuantity : null;
     const claims = [...new Set([...global.claims, ...local.claims])];
     const pid = s.match(/\b(4\d{5})\b/);
     const leftover = local.rest
@@ -314,7 +320,7 @@ export async function parseRequest(text: string): Promise<{ request: Omit<Single
         category: pw?.category ?? null,
         productId: l.productId && /^\d{6}$/.test(l.productId) ? l.productId : null,
         // A count without a unit is pieces; an unclear or invalid amount needs clarification.
-        quantity: typeof l.amount === "number" && l.amount >= 0 && !UNSUPPORTED_SPEC.test(`${l.text} ${l.productWord}`) ? { amount: l.amount, unit: l.unit ?? "pcs" } : null,
+        quantity: typeof l.amount === "number" && l.amount >= 0 && !UNSUPPORTED_SPEC.test(`${l.text} ${l.productWord}`) && !unclearQuantity(l.text) ? { amount: l.amount, unit: l.unit ?? "pcs" } : null,
         constraints: { claims: l.claims, avoidAllergens: l.avoidAllergens, labels: [], ...(l.origin ? { origin: l.origin } : {}) },
       };
     });
@@ -329,7 +335,7 @@ export async function parseRequest(text: string): Promise<{ request: Omit<Single
 export function checkSingle(r: SingleRequest): FiredRule[] {
   const out: FiredRule[] = [];
   const today = isoDate(now());
-  if (!r.neededBy || r.neededBy <= today) out.push(fire("REQ-03", { need: r.lines.map((l) => l.query).join(", ") || "this" }));
+  if (!r.neededBy || !isCalendarDate(r.neededBy) || r.neededBy <= today) out.push(fire("REQ-03", { need: r.lines.map((l) => l.query).join(", ") || "this" }));
   if (!r.lines.length) out.push(fire("REQ-02", { need: "what" }));
   for (const l of r.lines) if (!l.quantity || !(l.quantity.amount > 0)) out.push(fire("REQ-02", { need: l.query, lineId: l.id }));
   return out;

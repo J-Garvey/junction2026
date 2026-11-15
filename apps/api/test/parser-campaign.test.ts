@@ -60,6 +60,12 @@ describe("campaign regressions: hard constraint retention", () => {
     expect((model.mock.calls[0][0].schema as any).properties.lines.items.properties.origin).toBeDefined();
   });
 
+  it("does not mistake an ISO delivery date in a model line for a quantity range", async () => {
+    const text = "10 l Finnish milk by 2026-11-16";
+    model.mockResolvedValue({ neededByText: "2026-11-16", lines: [{ text, productWord: "milk", productType: "plain drinking milk", productId: null, amount: 10, unit: "l", claims: [], avoidAllergens: [], origin: "fi" }] });
+    expect((await parseRequest(text)).request.lines[0].quantity).toEqual({ amount: 10, unit: "l" });
+  });
+
   it("retains origin in the model-unavailable fallback", async () => {
     model.mockRejectedValue(new ModelUnavailable("synthetic unavailable"));
     const { request } = await parseRequest("10 kg Finnish salmon");
