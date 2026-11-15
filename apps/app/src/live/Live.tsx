@@ -42,7 +42,7 @@ type State = { session: Session; feed: FeedEntry[]; rules: Rules; clock: string;
 
 const PRESETS = ["I need 1,000 litres of lactose-free milk by Monday.", "The conference grew. We need 2,000 litres of lactose-free milk for Monday."];
 
-const eur = (n: number) => `€${n.toLocaleString("en-IE", { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`;
+const eur = (n: number | null | undefined) => n == null ? "TBC" : `€${n.toLocaleString("en-IE", { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`;
 const hhmm = (iso: string) => new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Europe/Helsinki" });
 const VERDICT_LABEL: Record<Verdict, string> = { ALLOWED: "ALLOWED", NEEDS_APPROVAL: "NEEDS APPROVAL", ASKS_CHEF: "ASKS CHEF", REFUSED: "REFUSED", APPROVED: "APPROVED", INFO: "" };
 
@@ -267,7 +267,7 @@ export function Live() {
                   <span>
                     <span className={`lv-act a-${f.action}`}>{f.action}</span>
                   </span>
-                  <span className="lv-amt">{f.amount != null ? eur(f.amount) : "—"}</span>
+                  <span className="lv-amt">{eur(f.amount)}</span>
                   <span className="lv-v">
                     <span className={`lv-badge v-${f.verdict}`}>{VERDICT_LABEL[f.verdict]}</span>
                     {f.signed && (f.verdict === "ALLOWED" || f.verdict === "APPROVED") && (
@@ -352,7 +352,7 @@ function Record({ id, onClose }: { id: string; onClose: () => void }) {
                     <td>
                       {l.quantity} {l.salesUnit}
                     </td>
-                    <td>{l.lineTotal != null ? eur(l.lineTotal) : "—"}</td>
+                    <td>{eur(l.lineTotal)}</td>
                     <td>{l.riskAccepted ? `Stock not confirmed · ${l.riskAccepted.by} accepted` : ""}</td>
                   </tr>
                 ))}

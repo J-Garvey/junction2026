@@ -129,6 +129,9 @@ export function BasketPage() {
   const staged = requests.filter((r) => r.basketedAt && !r.orderIds.length);
   const { mine: waitingQs, others } = splitMine(questions.filter((q) => q.state === "open" || q.state === "waiting"), me, people);
   const pending = requests.filter((r) => !r.basketedAt && r.status !== "ordered" && !r.orderIds.length);
+  const orderTotal = staged.some((p) => p.totalExVat == null || p.lines.some((line) => line.lineTotal == null))
+    ? null
+    : live.reduce((sum, order) => sum + order.totalExVat, 0) + staged.reduce((sum, plan) => sum + plan.totalExVat!, 0);
 
   return (
     <div className="page stack-l">
@@ -171,7 +174,7 @@ export function BasketPage() {
       <section>
         <div className="sechead">
           <h2>In the order</h2>
-          {(live.length > 0 || staged.length > 0) && <span className="small muted">{eur(live.reduce((n, o) => n + o.totalExVat, 0) + staged.reduce((n, p) => n + (p.totalExVat ?? 0), 0))} ex VAT</span>}
+          {(live.length > 0 || staged.length > 0) && <span className="small muted">{eur(orderTotal)} ex VAT</span>}
         </div>
         <StagedLines plans={staged} />
         <OrderedLines orders={live} showEmpty={!staged.length} />
@@ -221,7 +224,7 @@ function RequestRow({ r, question }: { r: BasketPlan; question?: Question }) {
           description={plan?.summary ?? r.summary}
           fields={[
             { label: "Status", value: PLAN_STATUS_TEXT[r.status] ?? r.status },
-            { label: "Total ex VAT", value: eur(plan?.totalExVat ?? r.totalExVat) },
+            { label: "Total ex VAT", value: eur(plan ? plan.totalExVat : r.totalExVat) },
             { label: "Delivery", value: plan?.deliveryDate ? day(plan.deliveryDate) : "Not confirmed" },
             ...(plan ? [{ label: "Requested by", value: plan.createdBy.name }] : []),
           ]}
@@ -561,7 +564,7 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
               <div className="add-review-actions">
                 {canAdd && <button type="button" className="btn primary" disabled={!!busy} onClick={add}>{busy === "add" ? "Adding…" : noIssues ? "Add to order" : "Add to order anyway"}</button>}
                 <button type="button" className="btn ghost" disabled={!!busy} onClick={() => { setRequest(null); setReview(null); }}>Cancel</button>
-                {plan.totalExVat != null && <span className="add-review-total"><small>Total ex VAT</small><b>{eur(plan.totalExVat)}</b></span>}
+                <span className="add-review-total"><small>Total ex VAT</small><b>{eur(plan.totalExVat)}</b></span>
               </div>
             </>
           )}
