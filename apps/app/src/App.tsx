@@ -18,15 +18,8 @@ import { Audit } from "./screens/Audit";
 import { Rules } from "./screens/Rules";
 import { WhatsApp, WhatsAppSimulator } from "./screens/WhatsApp";
 import { WhatsAppWebConnection } from "./screens/WhatsAppWebConnection";
+import "./shell-navigation.css";
 
-const NAV: [string, IconName, string][] = [
-  ["/", "home", "Home"],
-  ["/inbox", "q", "Waiting"],
-  ["/events", "cal", "Events"],
-  ["/requests", "chat", "Requests"],
-  ["/orders", "box", "Orders"],
-  ["/whatsapp", "chat", "WhatsApp"],
-];
 
 export function App() {
   const [me, setMe] = useState<Person | null>(null);
@@ -114,10 +107,12 @@ export function App() {
   return (
     <Ctx.Provider value={ctx}>
       <div className="shell">
+        <a className="skip-to-content" href="#main-content">Skip to content</a>
         <div className="main">
           <TopBar status={status} me={ctx.me} onSwitch={() => setNeedPick(true)} />
+          <PrimaryNavigation me={ctx.me} />
           <AllergyBanner warnings={warnings} />
-          <div className="content">
+          <main className="content" id="main-content" tabIndex={-1}>
             <Routes>
               <Route path="/" element={me?.role === "approver" ? <FinanceHome /> : <BasketsHome />} />
               <Route path="/baskets/:id" element={<BasketPage />} />
@@ -134,44 +129,33 @@ export function App() {
               <Route path="/rules" element={<Rules />} />
               <Route path="*" element={<div className="muted">Page not found.</div>} />
             </Routes>
-          </div>
+          </main>
         </div>
       </div>
     </Ctx.Provider>
   );
 }
 
-function Sidebar({ badge, me }: { badge: number; me: Person }) {
-  const loc = useLocation();
-  const basketId = loc.pathname.match(/^\/baskets\/([^/]+)$/)?.[1];
+function PrimaryNavigation({ me }: { me: Person }) {
+  const { pathname } = useLocation();
+  const links: [string, IconName, string][] = me.role === "approver"
+    ? [["/", "check", "Approvals & spend"], ["/events", "cal", "Events"], ["/orders", "box", "Order receipts"]]
+    : [["/", "box", "Orders"], ["/inbox", "q", "Waiting"], ["/events", "cal", "Events"], ["/requests", "chat", "Requests"], ["/orders", "list", "Receipts"]];
 
   return (
-    <aside className="side">
-      {basketId ? (
-        <OrderSwitcher currentId={decodeURIComponent(basketId)} />
-      ) : loc.pathname === "/" ? (
-        <div className="acct acct-static" title={`Viewing as ${me.name}`}>
-          <Mark s={20} />
-          <span>
-            <b>{me.name}</b>
-            <span className="small muted">{me.title}</span>
-          </span>
-        </div>
-      ) : (
-        <div className="side-brand"><Lockup /></div>
-      )}
-      {NAV.map(([to, ic, l]) => (
-        <NavLink key={to} to={to} end={to === "/"} className={({ isActive }) => (isActive ? "on" : "")}>
-          <Icon n={ic} s={17} />
-          {l}
-          {to === "/inbox" && badge > 0 && (
-            <span className="n" aria-label={`${badge} waiting`}>
-              {badge}
-            </span>
-          )}
-        </NavLink>
-      ))}
-    </aside>
+    <nav className="primary-navigation" aria-label="Primary navigation">
+      {links.map(([to, icon, label]) => {
+        const current = to === "/"
+          ? pathname === "/" || pathname.startsWith("/baskets/") || (me.role === "approver" && pathname === "/inbox")
+          : pathname === to || pathname.startsWith(`${to}/`);
+        return (
+          <Link key={to} to={to} className={`app-nav-link${current ? " current" : ""}`} aria-current={current ? "page" : undefined}>
+            <Icon n={icon} s={16} />
+            <span>{label}</span>
+          </Link>
+        );
+      })}
+    </nav>
   );
 }
 
@@ -253,8 +237,9 @@ function TopBar({ status, me, onSwitch }: { status: StatusResp | null; me: Perso
   return (
     <div className="topbar">
       <div className="order-switcher-slot">
-        <Link to="/" className="home-logo-button" aria-label="Go to homepage" title="Go to homepage">
+        <Link to="/" className="app-brand" aria-label="Aimo Copilot home">
           <Mark s={22} />
+          <b>Aimo Copilot</b>
         </Link>
         <OrderSwitcher currentId={basketId ? decodeURIComponent(basketId) : undefined} />
       </div>
