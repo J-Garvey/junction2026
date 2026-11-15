@@ -89,7 +89,6 @@ h4 { font-size: 13px; font-weight: 700; text-transform: uppercase; color: var(--
 .page { max-width: var(--page-width); margin-inline: auto; }
 .stack > * + * { margin-top: 12px; }
 .stack-l > * + * { margin-top: 24px; }
-.mhead, .mtabs { display: none; }
 
 /* top bar */
 .topbar { display: flex; align-items: center; gap: 10px; padding: 8px 28px; border-bottom: 1px solid var(--hairline-soft); background: var(--canvas); min-height: 52px; font-size: 13px; }
@@ -102,7 +101,7 @@ h4 { font-size: 13px; font-weight: 700; text-transform: uppercase; color: var(--
 .profile { display: flex; align-items: center; gap: 8px; border: 0; background: transparent; padding: 4px 6px; border-radius: 6px; text-align: left; cursor: pointer; line-height: 1.2; }
 .profile:hover { background: var(--soft); }
 .profile b { display: block; font-size: 13px; color: var(--ink); }
-.account-slot { margin-left: auto; }
+.account-slot { margin-left: auto; flex-shrink: 0; }
 .account-menu { position: relative; }
 .account-panel { position: absolute; z-index: 40; top: calc(100% + 6px); right: 0; width: 250px; padding: 6px; border: 1px solid var(--hairline); border-radius: 6px; background: var(--card); box-shadow: 0 8px 24px rgba(35, 37, 29, 0.18); }
 .account-current { display: flex; align-items: center; gap: 10px; padding: 10px; border-bottom: 1px solid var(--hairline-soft); margin-bottom: 4px; }
@@ -394,16 +393,15 @@ table.t tr:last-child td { border-bottom: 0; }
 @media (max-width: 760px) {
   body { font-size: 15px; }
   .side { display: none; }
-  .content { padding: 12px 14px 96px; }
-  .topbar { padding: 6px 14px; gap: 6px; min-height: 0; }
+  .content { padding: 12px 14px 32px; }
+  .topbar { padding: 6px 14px; gap: 6px; min-height: 52px; }
+  .order-switcher-slot { flex: 1; min-width: 0; }
+  .topbar .order-switcher { flex: 1; min-width: 0; width: auto; }
+  .topbar .order-switcher-menu { left: -40px; width: min(320px, calc(100vw - 28px)); }
+  .account-menu .profile { width: 36px; height: 36px; justify-content: center; padding: 0; border-radius: 50%; }
+  .account-details, .account-chevron { display: none; }
   .hide-m { display: none !important; }
   .allergy-row { padding: 10px 14px; }
-  .mhead { display: flex; align-items: center; gap: 10px; padding: 10px 14px 0; }
-  .mhead h1 { font-size: 20px; flex: 1; }
-  .mtabs { display: flex; position: fixed; bottom: 0; left: 0; right: 0; height: 66px; background: var(--canvas); border-top: 1px solid var(--hairline-soft); padding: 6px 2px calc(8px + env(safe-area-inset-bottom)); z-index: 20; }
-  .mtabs a { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 10.5px; font-weight: 500; color: var(--mute); position: relative; text-decoration: none; }
-  .mtabs a.on { color: var(--ink); font-weight: 700; }
-  .mtabs a .n { position: absolute; top: -4px; right: 10px; font-size: 10px; font-weight: 700; background: var(--primary); color: var(--ink); border-radius: 4px; padding: 0 4px; }
   .pline { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "st q" "name name" "p p"; gap: 4px 10px; }
   .pline-st { grid-area: st; }
   .pline-name { grid-area: name; }

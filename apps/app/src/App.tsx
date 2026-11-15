@@ -1,4 +1,4 @@
-/** Shell: the order-first main view, phone tabs, the top bar with the profile, the allergy banner,
+/** Shell: the order-first main view, the top bar with the profile, the allergy banner,
  * and the person picker with the demo settings (test clock and reset). */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, Route, Routes, useLocation, useNavigate } from "react-router";
@@ -34,7 +34,6 @@ export function App() {
   const [status, setStatus] = useState<StatusResp | null>(null);
   const [needPick, setNeedPick] = useState(false);
   const [tick, setTick] = useState(0);
-  const [badge, setBadge] = useState(0);
   const [warnings, setWarnings] = useState<WarningRecord[]>([]);
   const [bootErr, setBootErr] = useState<string | null>(null);
 
@@ -70,7 +69,6 @@ export function App() {
       api
         .home()
         .then((h) => {
-          setBadge(h.questions.filter((q) => q.state === "open").length);
           setWarnings(h.warnings);
         })
         .catch(() => {});
@@ -118,7 +116,6 @@ export function App() {
         <div className="main">
           <TopBar status={status} me={ctx.me} onSwitch={() => setNeedPick(true)} />
           <AllergyBanner warnings={warnings} />
-          <MobileHead me={ctx.me} onSwitch={() => setNeedPick(true)} />
           <div className="content">
             <Routes>
               <Route path="/" element={<BasketsHome />} />
@@ -138,7 +135,6 @@ export function App() {
             </Routes>
           </div>
         </div>
-        <Tabs badge={badge} />
       </div>
     </Ctx.Provider>
   );
@@ -262,24 +258,12 @@ function TopBar({ status, me, onSwitch }: { status: StatusResp | null; me: Perso
         <OrderSwitcher currentId={basketId ? decodeURIComponent(basketId) : undefined} />
       </div>
       {status && !status.chain.ok && <span className="stamp block">Audit chain broken</span>}
-      <div className="hide-m account-slot"><AccountMenu me={me} onSwitch={onSwitch} /></div>
+      <div className="account-slot"><AccountMenu me={me} onSwitch={onSwitch} /></div>
     </div>
   );
 }
 
-function MobileHead({ me, onSwitch }: { me: Person; onSwitch: () => void }) {
-  const loc = useLocation();
-  const title = NAV.find(([to]) => (to === "/" ? loc.pathname === "/" : loc.pathname.startsWith(to)))?.[2] ?? (loc.pathname.startsWith("/audit") ? "Audit" : loc.pathname.startsWith("/rules") ? "Rules" : "");
-  return (
-    <div className="mhead">
-      <Mark s={20} />
-      <h1>{title || "Aimo Copilot"}</h1>
-      <AccountMenu me={me} onSwitch={onSwitch} compact />
-    </div>
-  );
-}
-
-function AccountMenu({ me, onSwitch, compact = false }: { me: Person; onSwitch: () => void; compact?: boolean }) {
+function AccountMenu({ me, onSwitch }: { me: Person; onSwitch: () => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -300,18 +284,14 @@ function AccountMenu({ me, onSwitch, compact = false }: { me: Person; onSwitch: 
   }, [open]);
 
   return (
-    <div className={`account-menu ${compact ? "compact" : ""}`} ref={ref}>
-      <button type="button" className={compact ? "avatar" : "profile"} onClick={() => setOpen((value) => !value)} aria-haspopup="menu" aria-expanded={open} title={`Signed in as ${me.name}`}>
-        <span className={compact ? "" : "avatar"}>{initials(me.name)}</span>
-        {!compact && (
-          <>
-            <span>
-              <b>{me.name}</b>
-              <span className="small muted">{me.title}</span>
-            </span>
-            <Icon n="down" s={14} />
-          </>
-        )}
+    <div className="account-menu" ref={ref}>
+      <button type="button" className="profile" onClick={() => setOpen((value) => !value)} aria-label={`Signed in as ${me.name}`} aria-haspopup="menu" aria-expanded={open} title={`Signed in as ${me.name}`}>
+        <span className="avatar">{initials(me.name)}</span>
+        <span className="account-details">
+          <b>{me.name}</b>
+          <span className="small muted">{me.title}</span>
+        </span>
+        <span className="account-chevron"><Icon n="down" s={14} /></span>
       </button>
       {open && (
         <div className="account-panel" role="menu">
@@ -329,20 +309,6 @@ function AccountMenu({ me, onSwitch, compact = false }: { me: Person; onSwitch: 
         </div>
       )}
     </div>
-  );
-}
-
-function Tabs({ badge }: { badge: number }) {
-  return (
-    <nav className="mtabs" aria-label="Main">
-      {NAV.map(([to, ic, l]) => (
-        <NavLink key={to} to={to} end={to === "/"} className={({ isActive }) => (isActive ? "on" : "")}>
-          <Icon n={ic} s={21} />
-          {l}
-          {to === "/inbox" && badge > 0 && <span className="n">{badge}</span>}
-        </NavLink>
-      ))}
-    </nav>
   );
 }
 
