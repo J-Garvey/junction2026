@@ -111,6 +111,93 @@ describe("synthetic WhatsApp person transport", () => {
     expect((await call("/session")).body).toEqual(sent.body);
   });
 
+  it("serializes oversized rejection, deduplicates it and preserves newer proposals on retry", async () => {
+    await connect();
+    const entered = latch(); const release = latch();
+    script = async ({ text, messageId }) => {
+      if (text === "slow preview") { entered.resolve(); await release.promise; }
+      return { conversation: { activeOrderId: "evt-wedding", pending: { kind: "confirm_order", orderId: "evt-wedding", fingerprint: messageId } }, reply: { text: "Review this order", status: "proposal", actions: [] } };
+    };
+    const preview = call("/messages", { id: "slow", text: "slow preview" });
+    await entered.promise;
+    const text = "cancel".padEnd(8001);
+    const rejected = call("/messages", { id: "long", text });
+    const duplicate = call("/messages", { id: "long", text });
+    try {
+      expect((await call("/messages", { id: "long", text: "different" })).status).toBe(409);
+      expect((await call("/config", { groupId: OTHER_GROUP })).status).toBe(409);
+    } finally { release.resolve(); }
+    expect((await preview).status).toBe(200);
+    const responses = await Promise.all([rejected, duplicate]);
+    expect(responses[0]).toMatchObject({ status: 400, body: { error: expect.stringMatching(/too long.*cancelled/) } });
+    expect(responses[1].body).toEqual(responses[0].body);
+    expect((await call("/session")).body.conversation).toEqual({ activeOrderId: "evt-wedding", pending: null });
+    expect(handler).toHaveBeenCalledTimes(1);
+    const stored = kvGet<{ deliveries: { id: string; text?: string; textFingerprint?: string }[] }>("whatsapp:person:p-aino")!;
+    expect(stored.deliveries.find((d) => d.id === "long")).toMatchObject({ textFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/) });
+    expect(stored.deliveries.find((d) => d.id === "long")?.text).toBeUndefined();
+    const fresh = await call("/messages", { id: "fresh", text: "new preview" });
+    expect((await call("/messages", { id: "long", text })).status).toBe(400);
+    expect((await call("/messages", { id: "long", text: "confirm order" })).status).toBe(409);
+    expect((await call("/messages", { id: "fresh", text })).status).toBe(409);
+    expect((await call("/session")).body).toEqual(fresh.body);
+    expect(handler).toHaveBeenCalledTimes(2);
+  });
+
+  it("uses the 8000/8001 UTF-16 boundary without truncating Unicode text", async () => {
+    await connect();
+    const text = "😀".repeat(4000);
+    expect(text.length).toBe(8000);
+    expect((await call("/messages", { id: "unicode-limit", text })).status).toBe(200);
+    expect(handler.mock.calls[0][0].text).toBe(text);
+    expect((await call("/messages", { id: "unicode-over", text: text + "x" })).status).toBe(400);
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it("rechecks the session before a queued oversized rejection can cancel anything", async () => {
+    await connect();
+    const entered = latch(); const release = latch();
+    script = async ({ conversation }) => { entered.resolve(); await release.promise; return { conversation, reply: { text: "Done", status: "summary", actions: [] } }; };
+    const active = call("/messages", { id: "slow", text: "summary" });
+    await entered.promise;
+    const rejected = call("/messages", { id: "long", text: "x".repeat(8001) });
+    try {
+      expect((await call("/messages", { id: "long", text: "conflict" })).status).toBe(409);
+      const stored = kvGet<{ connectionId: string; session: WhatsAppSession }>("whatsapp:person:p-aino")!;
+      stored.connectionId = "new-connection";
+      stored.session.conversation.pending = { kind: "confirm_order", orderId: "evt-wedding", fingerprint: "new-connection-review" };
+      kvSet("whatsapp:person:p-aino", stored);
+    } finally { release.resolve(); }
+    expect((await active).status).toBe(409);
+    expect((await rejected).status).toBe(409);
+    expect((await call("/session")).body.conversation.pending?.fingerprint).toBe("new-connection-review");
+  });
+
+  it("limits cancellation to a valid oversized message in the connected person's selected group", async () => {
+    await connect(); await connect(sanna);
+    script = async () => ({ conversation: { activeOrderId: "evt-wedding", pending: { kind: "confirm_order", orderId: "evt-wedding", fingerprint: "reviewed" } }, reply: { text: "Review", status: "proposal", actions: [] } });
+    const before = (await call("/messages", { id: "preview", text: "preview" })).body;
+    await call("/messages", { id: "preview", text: "preview" }, sanna);
+    const text = "cancel".padEnd(8001);
+    for (const body of [
+      { id: "long", text, extra: true }, { id: " ", text }, { id: "i".repeat(129), text },
+      { text }, { id: "long", text: null }, { id: "long", text, groupId: {} },
+    ]) expect((await call("/messages", body)).status).toBe(400);
+    for (const token of [null, "invalid", "agent_demo_hotel_aurora"]) {
+      expect((await call("/messages", { id: "long", text }, token)).status).toBe(401);
+    }
+    for (const groupId of [null, OTHER_GROUP]) {
+      expect((await call("/messages", { id: "long", text, groupId })).status).toBe(200);
+    }
+    expect((await call("/session")).body).toEqual(before);
+    expect((await call("/messages", { id: "long", text }, sanna)).status).toBe(400);
+    expect((await call("/session", undefined, sanna)).body.conversation.pending).toBeNull();
+    expect((await call("/session")).body).toEqual(before);
+    expect((await call("/messages", { id: "long", text })).status).toBe(400);
+    expect((await call("/session")).body.conversation.pending).toBeNull();
+    expect(handler).toHaveBeenCalledTimes(2);
+  });
+
   it("scopes persisted connection, context, history and idempotency to person.id, across different tokens", async () => {
     await connect();
     const first = await call("/messages", { id: "same-id", text: "Aino's order" });

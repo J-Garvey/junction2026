@@ -1,0 +1,29 @@
+.finance-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.finance-heading p { margin: 6px 0 0; max-width: 580px; }
+.finance-links { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 20px; padding-top: 8px; font-size: 13px; }
+.finance-links a { display: inline-flex; align-items: center; gap: 6px; }
+.finance-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin: 0; }
+.finance-metrics > div { padding: 18px; border: 1px solid var(--hairline); border-radius: 6px; background: var(--card); }
+.finance-metrics > .finance-metric-accent { border-color: var(--primary); background: var(--yellow-soft); }
+.finance-metrics dt { font-size: 13px; color: var(--body); }
+.finance-metrics dd { margin: 8px 0 2px; font-size: clamp(22px, 2.5vw, 30px); line-height: 1.2; font-weight: 700; letter-spacing: -.5px; color: var(--ink); overflow-wrap: anywhere; }
+.finance-metrics span { display: block; font-size: 12px; font-weight: 400; letter-spacing: normal; line-height: 1.5; color: var(--mute); margin-top: 6px; }
+.finance-queue { overflow: hidden; }
+.finance-review { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px 24px; padding: 18px; }
+.finance-review + .finance-review { border-top: 1px solid var(--hairline-soft); }
+.finance-review-context { display: grid; gap: 4px; min-width: 0; flex: 1 1 260px; overflow-wrap: anywhere; }
+.finance-review h3 { font-size: 16px; }
+.finance-review-action { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.finance-review-action > strong { text-align: right; font-size: 18px; color: var(--ink); }
+.finance-review-action small { display: block; color: var(--mute); font-weight: 400; font-size: 12px; }
+.finance-submission { padding: 16px 18px; background: var(--card); border: 1px solid var(--hairline); border-radius: 6px; }
+.finance-submission h2 { font-size: 16px; }
+.finance-submission h3 { font-size: 13px; margin-top: 12px; }
+.finance-submission p { margin: 5px 0 0; }
+.finance-submission ul { margin: 6px 0 0; padding-left: 18px; }
+@media (max-width: 720px) {
+  .finance-metrics { grid-template-columns: 1fr; gap: 10px; }
+  .finance-metrics > div { padding: 14px 16px; }
+  .finance-review-action { flex: 1 1 100%; }
+  .finance-review-action > strong { text-align: left; }
+}

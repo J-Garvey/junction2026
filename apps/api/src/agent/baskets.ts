@@ -1,5 +1,5 @@
 /** Final hotel order handoff: one finance decision bound to the submitted basket. */
-import type { Constraints, Order, Question } from "@aimo/contracts";
+import type { Constraints, Order, Question, QuoteLine } from "@aimo/contracts";
 import { audit } from "../audit.js";
 import { now } from "../clock.js";
 import { tx } from "../db.js";
@@ -98,6 +98,24 @@ export async function submitBasketForReview(eventId: string, person: Person): Pr
   const continued = [...new Set(plans.flatMap((p) => p.overrides.stockContinued ?? []))];
   if (quote?.unconfirmedStock.some((id) => !continued.includes(id)))
     throw new BasketReviewError(409, "The order builder must choose whether to continue with unconfirmed stock before finance review");
+  if (quote?.unconfirmedStock.length) {
+    const terms = (line: QuoteLine) => stableStringify([line.salesUnit, line.unitPrice, line.taxRate, line.stock,
+      line.availableDate, line.closingTime, line.priceValidTo, line.logisticModel]);
+    // A new combined quote must not turn consent stored on a staged SKU into
+    // consent for changed supplier facts, quantities or policy.
+    for (const plan of plans) {
+      const relevant = plan.lines.filter((l) => !l.removed && l.productId && quote.unconfirmedStock.includes(l.productId));
+      if (!relevant.length) continue;
+      const reviewed = plan.quoteId ? await gw.getQuote(plan.quoteId) : null;
+      const valid = reviewed && reviewed.stockPolicy === quote.stockPolicy && reviewed.siteId === quote.siteId && reviewed.deliveryDate === quote.deliveryDate &&
+        relevant.every((line) => {
+          const old = reviewed.lines.find((l) => l.ref === line.id);
+          const fresh = quote.lines.find((l) => l.productId === line.productId && l.outletId === line.outletId);
+          return (plan.overrides.stockContinued ?? []).includes(line.productId!) && old && fresh && old.quantity === line.quantity && terms(old) === terms(fresh);
+        });
+      if (!valid) throw new BasketReviewError(409, "The unconfirmed stock terms changed. The order builder must review the items again before finance approval.");
+    }
+  }
   // Re-read after the lookup. Concurrent clicks share the same request; edits require a fresh submission.
   const latest = (await gw.orders(eventId)).orders;
   return tx(() => {

@@ -9,6 +9,7 @@ import { Icon, Lockup, Mark, type IconName } from "./ui/icons";
 import { AllergyBanner } from "./ui/Banner";
 import { day, initials, when } from "./format";
 import { Home } from "./screens/Home";
+import { FinanceHome } from "./screens/Finance";
 import { BasketPage, BasketsHome } from "./screens/Baskets";
 import { RequestNew, RequestPlan, Requests } from "./screens/Request";
 import { EventPage, Events } from "./screens/Event";
@@ -118,9 +119,9 @@ export function App() {
           <AllergyBanner warnings={warnings} />
           <div className="content">
             <Routes>
-              <Route path="/" element={<BasketsHome />} />
+              <Route path="/" element={me?.role === "approver" ? <FinanceHome /> : <BasketsHome />} />
               <Route path="/baskets/:id" element={<BasketPage />} />
-              <Route path="/inbox" element={<Home />} />
+              <Route path="/inbox" element={me?.role === "approver" ? <FinanceHome /> : <Home />} />
               <Route path="/requests" element={<Requests />} />
               <Route path="/requests/new" element={<RequestNew />} />
               <Route path="/requests/:id" element={<RequestPlan />} />

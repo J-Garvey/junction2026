@@ -188,6 +188,86 @@ describe("regular WhatsApp Web bridge", () => {
     expect(bridge.status(person())).toMatchObject({ busy: false, handledMessages: 1, lastError: null });
   });
 
+  it("queues bounded oversized rejection after active work and never replays it against a fresh proposal", async () => {
+    await ready();
+    const entered = latch(); const release = latch();
+    handler.mockImplementation(async ({ text, messageId, conversation }) => {
+      if (text === "slow preview") { entered.release(); await release.promise; }
+      return { conversation: text.includes("preview") ? { activeOrderId: "evt-wedding", pending: { kind: "confirm_order", orderId: "evt-wedding", fingerprint: messageId } } : conversation, reply: { text: "Review", status: "proposal", actions: [] } };
+    });
+    const preview = bridge.receive(message({ body: "slow preview" }));
+    await entered.promise;
+    const oversized = message({ id: { _serialized: "long" }, body: "cancel".padEnd(8001) });
+    const rejected = bridge.receive(oversized);
+    const duplicate = bridge.receive(oversized);
+    const conflict = bridge.receive({ ...oversized, body: "new order should never run" });
+    try {
+      expect(browser.sendText).not.toHaveBeenCalled();
+      expect(() => bridge.selectGroup(person(), OTHER)).toThrow("Wait for the current");
+    } finally { release.release(); }
+    await Promise.all([preview, rejected, duplicate, conflict]);
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(browser.sendText).toHaveBeenCalledTimes(2);
+    expect(browser.sendText.mock.calls[1]).toEqual([GROUP, expect.stringMatching(/too long.*8,000.*cancelled/)]);
+    expect(browser.sendText.mock.calls[1][1].length).toBeLessThan(250);
+    await bridge.receive(message({ id: { _serialized: "after-long" }, body: "confirm order" }));
+    expect(handler.mock.calls[1][0].conversation).toEqual({ activeOrderId: "evt-wedding", pending: null });
+    await bridge.receive(message({ id: { _serialized: "fresh" }, body: "new preview" }));
+    const sent = browser.sendText.mock.calls.length;
+    await bridge.receive(oversized);
+    expect(browser.sendText).toHaveBeenCalledTimes(sent);
+    await bridge.receive(message({ id: { _serialized: "inspect-fresh" } }));
+    expect(handler.mock.calls[3][0].conversation.pending?.fingerprint).toBe("fresh");
+  });
+
+  it("uses the 8000/8001 UTF-16 boundary for linked-phone input without interpreting a prefix", async () => {
+    await ready();
+    const body = "😀".repeat(4000);
+    await bridge.receive(message({ id: { _serialized: "unicode-limit" }, body, fromMe: true, to: GROUP }));
+    expect(handler.mock.calls[0][0].text).toBe(body);
+    await bridge.receive(message({ id: { _serialized: "unicode-over" }, body: body + "x", fromMe: true, to: GROUP }));
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(browser.sendText.mock.calls.at(-1)).toEqual([GROUP, expect.stringMatching(/too long.*cancelled/)]);
+  });
+
+  it("does not let invalid or other-chat oversized events cancel a sender's preview", async () => {
+    await ready();
+    handler.mockImplementation(async ({ conversation, text, messageId }) => ({ conversation: text === "preview" ? { activeOrderId: "evt-wedding", pending: { kind: "confirm_order", orderId: "evt-wedding", fingerprint: messageId } } : conversation, reply: { text: "Review", status: "proposal", actions: [] } }));
+    await bridge.receive(message({ id: { _serialized: "preview-a" }, body: "preview" }));
+    await bridge.receive(message({ id: { _serialized: "preview-b" }, body: "preview", author: "sender-two@lid" }));
+    const before = getDb().prepare("SELECT key, value FROM kv WHERE key LIKE 'whatsapp-web:%' ORDER BY key").all();
+    const body = "cancel".padEnd(8001);
+    for (const overrides of [
+      { from: "123@c.us" }, { from: OTHER }, { fromMe: true }, { timestamp: NOW / 1000 - 1 },
+      { timestamp: NaN }, { isStatus: true }, { hasMedia: true }, { type: "image" },
+      { author: undefined }, { author: " " }, { id: { _serialized: " " } },
+      { fromMe: true, to: GROUP, body: "Aimo Copilot · demo orders\n" + body },
+    ]) await bridge.receive(message({ id: { _serialized: "invalid" }, body, ...overrides }));
+    expect(getDb().prepare("SELECT key, value FROM kv WHERE key LIKE 'whatsapp-web:%' ORDER BY key").all()).toEqual(before);
+    expect(browser.sendText).toHaveBeenCalledTimes(2);
+    await bridge.receive(message({ id: { _serialized: "long-b" }, body, author: "sender-two@lid" }));
+    await bridge.receive(message({ id: { _serialized: "inspect-a" } }));
+    expect(handler.mock.calls[2][0].conversation.pending?.fingerprint).toBe("preview-a");
+    await bridge.receive(message({ id: { _serialized: "inspect-b" }, author: "sender-two@lid" }));
+    expect(handler.mock.calls[3][0].conversation.pending).toBeNull();
+  });
+
+  it("clears pending even if the oversized rejection cannot be sent and deduplicates after restart", async () => {
+    await ready();
+    handler.mockImplementation(async ({ conversation, text }) => ({ conversation: text === "preview" ? { activeOrderId: "evt-wedding", pending: { kind: "confirm_order", orderId: "evt-wedding", fingerprint: "reviewed" } } : conversation, reply: { text: "Review", status: "proposal", actions: [] } }));
+    await bridge.receive(message({ body: "preview" }));
+    browser.sendText.mockRejectedValueOnce(new Error("uncertain send"));
+    const oversized = message({ id: { _serialized: "long-failed-send" }, body: "cancel".padEnd(8001) });
+    await bridge.receive(oversized);
+    expect(bridge.status(person()).lastError).toContain("could not be completed");
+    await bridge.receive(message({ id: { _serialized: "after-failure" }, body: "confirm order" }));
+    expect(handler.mock.calls[1][0].conversation.pending).toBeNull();
+    await restoredReady();
+    await bridge.receive(oversized);
+    expect(browser.sendText).not.toHaveBeenCalled();
+    expect(handler).toHaveBeenCalledTimes(2);
+  });
+
   it("accepts a request typed on the linked phone but never handles its own reply echo", async () => {
     await ready();
     browser.sendText.mockImplementation(async (to, body) => {
