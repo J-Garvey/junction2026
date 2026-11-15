@@ -1,5 +1,17 @@
 /** Hotel-side shapes (the agent's working state). Valio Aimo never receives these. */
-import type { FiredRule, ModelJudgement, StockFact, SingleRequest, Constraints, Amount, BaseUnit } from "./index.js";
+import type { AvailabilityEvidence, FiredRule, ModelJudgement, StockFact, SingleRequest, Constraints, Amount, BaseUnit } from "./index.js";
+
+export interface OrderDeadline {
+  state: "known" | "expired" | "unknown" | "unavailable";
+  at: string | null;
+  reason: string | null;
+  usesFixtures: boolean;
+}
+
+export interface BasketStatus {
+  orderBy: OrderDeadline;
+  confirmed: boolean;
+}
 
 /** Q10.2: one set of status labels on every screen. */
 export type StatusLabel = "covered" | "check" | "not_available" | "unknown_stock" | "covered_at_risk" | "waiting" | "blocked" | "unresolved" | "allergy_warning";
@@ -20,6 +32,7 @@ export interface Candidate {
   packContent: { value: number; unit: BaseUnit; verified: boolean; source: string } | null;
   salesUnit: string | null;
   closingTime: string | null;
+  availabilityEvidence?: AvailabilityEvidence;
   availableDate: string | null;
   source: "live" | "fixture";
   judgement: ModelJudgement | null;
@@ -74,6 +87,7 @@ export interface PlanLine {
   stock: StockFact | null;
   availableDate: string | null;
   closingTime: string | null;
+  availabilityEvidence?: AvailabilityEvidence;
   reliability: number | null;
   source: "live" | "fixture" | null;
   verdict: Verdict;

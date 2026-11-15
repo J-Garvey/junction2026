@@ -195,6 +195,7 @@ function asCandidate(s: Scored, i: number): Candidate {
     packContent: s.content ? { value: s.content.value, unit: s.content.unit, verified: s.content.verified, source: s.content.source } : null,
     salesUnit: s.l.salesUnit,
     closingTime: s.l.closingTime,
+    availabilityEvidence: s.l.availabilityEvidence,
     availableDate: s.l.availableDate,
     source: s.l.source,
     judgement: s.judgement,

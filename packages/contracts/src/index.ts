@@ -79,6 +79,19 @@ export const StockFact = z.discriminatedUnion("kind", [
 ]);
 export type StockFact = z.infer<typeof StockFact>;
 
+/** Original supplier schedules, retained before the demo adapter projects dates. */
+export const AvailabilityEvidence = z.object({
+  salesBlock: z.boolean(),
+  schedules: z.array(z.object({
+    availableDate: z.string().nullable(),
+    closingTime: z.string().nullable(),
+    salesUnit: z.string().nullable(),
+    stock: StockFact,
+    salesBlock: z.boolean(),
+  })),
+});
+export type AvailabilityEvidence = z.infer<typeof AvailabilityEvidence>;
+
 export const LookupLine = z.object({
   productId: z.string(),
   source: z.enum(["live", "fixture"]),
@@ -92,6 +105,7 @@ export const LookupLine = z.object({
   stock: StockFact,
   availableDate: z.string().nullable(),
   closingTime: z.string().nullable().describe("Order cut-off, ISO 8601 with offset"),
+  availabilityEvidence: AvailabilityEvidence.optional().describe("Unprojected supplier schedules; absent on older saved snapshots"),
   projectedFrom: z
     .string()
     .nullable()
@@ -206,6 +220,7 @@ export const QuoteLine = z.object({
   stock: StockFact,
   availableDate: z.string().nullable(),
   closingTime: z.string().nullable(),
+  availabilityEvidence: AvailabilityEvidence.optional(),
   priceValidTo: z.string().nullable(),
   logisticModel: z.string().nullable(),
   source: z.enum(["live", "fixture"]),
