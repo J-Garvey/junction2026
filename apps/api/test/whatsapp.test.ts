@@ -57,7 +57,7 @@ async function call(path: string, body?: unknown, token: string | null = aino, c
     },
     body: requestBody === undefined ? undefined : JSON.stringify(requestBody),
   });
-  return { status: response.status, body: await response.json() as WhatsAppSession & WhatsAppGroupConfig & { ignored?: string; error?: string }, headers: response.headers };
+  return { status: response.status, body: await response.json() as WhatsAppSession & WhatsAppGroupConfig & { ignored?: string; error?: string; code?: string }, headers: response.headers };
 }
 const connect = (token = aino) => call("/connect", {}, token);
 function latch() {
