@@ -501,6 +501,15 @@ describe("saved request review controls", () => {
     const help = screen.getByRole("region", { name: "Suggestions for chese" });
     expect(within(help).getByText("Possible matches")).toBeTruthy();
     expect(within(help).getByText(/not ordered unless you pick one/)).toBeTruthy();
+    const suggestions = within(help).getByRole("table", { name: "Possible matches for chese" });
+    const row = within(suggestions).getAllByRole("row")[1];
+    expect(within(row).getAllByRole("cell")).toHaveLength(4);
+    expect(row.classList.contains("add-review-row")).toBe(true);
+    expect(row.classList.contains("outside")).toBe(true);
+    expect(within(row).getByText("Outside brief · check match")).toBeTruthy();
+    expect(within(row).getByText(/Price, stock and delivery not checked/)).toBeTruthy();
+    expect(within(row).getByRole("button", { name: "Use Cheese cake" }).textContent).toBe("Choose & check");
+    expect(api.product).not.toHaveBeenCalled();
     fireEvent.click(within(help).getByRole("button", { name: "cheese" }));
     await waitFor(() => expect(message).toHaveBeenCalledWith("10 l cheese"));
   });
@@ -513,11 +522,44 @@ describe("saved request review controls", () => {
     none.plan.needs[0].searchHelp = { unmatched: ["unicorn"], didYouMean: [], possibleTotal: 1,
       possible: [{ productId: "461651", name: "RF Chicken Burger", category: "41712", categoryLabel: "Breaded · frozen", reason: "No product name says \"unicorn\".", query: "chicken burger" }] };
     none.plan.itemReviews![0].canApprove = false;
-    const message = vi.spyOn(api, "message").mockResolvedValue({ route: "new_request", request: none.plan.request!, note: null });
-    vi.spyOn(api, "requote").mockResolvedValue(fixture());
+    // Choosing a broader match cannot erase the original dietary requirements,
+    // even when the parser returns no constraints for the explicitly picked SKU.
+    const parsed = structuredClone(none.plan.request!);
+    parsed.lines[0].constraints = { claims: [], avoidAllergens: [], labels: [] };
+    const message = vi.spyOn(api, "message").mockResolvedValue({ route: "new_request", request: parsed, note: null });
+    const requote = vi.spyOn(api, "requote").mockResolvedValue(fixture());
     show(none);
     fireEvent.click(screen.getByRole("button", { name: "Use RF Chicken Burger" }));
     await waitFor(() => expect(message).toHaveBeenCalledWith("10 l 461651 chicken burger"));
+    await waitFor(() => expect(requote).toHaveBeenCalledWith("plan", expect.objectContaining({
+      lines: [expect.objectContaining({ constraints: none.plan.request!.lines[0].constraints })],
+    })));
+  });
+
+  it.each([
+    { change: { unitPrice: null }, reason: "Price not confirmed" },
+    { change: { availableDate: null }, reason: "Delivery date not supplied" },
+    { change: { availableDate: "2026-11-21" }, reason: "Arrives after your delivery date" },
+    { change: { closingTime: "2026-11-13T17:00:00+0200" }, reason: "Order cutoff has passed" },
+    { change: { stock: { kind: "known", amount: 0 } }, reason: "Not enough confirmed stock" },
+    { change: { notes: [{ ruleId: "ALG-01", outcome: "block", message: "Contains tree nuts", facts: {}, overridable: false }] }, reason: "Contains tree nuts" },
+  ])("keeps a suggested replacement visible but blocks selection: $reason", ({ change, reason }) => {
+    const initial = fixture(true);
+    initial.plan.needs[0].candidates = [{ ...candidate, ...change } as Candidate];
+    const choose = vi.spyOn(api, "choose");
+    show(initial);
+    fireEvent.click(screen.getByRole("button", { name: "View details" }));
+    fireEvent.click(screen.getByRole("button", { name: "Suggest replacements" }));
+    const table = screen.getByRole("table", { name: "Suggested replacements for milk" });
+    const row = within(table).getAllByRole("row")[1];
+    expect(within(row).getAllByRole("cell")).toHaveLength(4);
+    expect(row.classList.contains("add-review-row")).toBe(true);
+    expect(within(row).getByText("Suggested replacement")).toBeTruthy();
+    expect(within(row).getByText(new RegExp(reason))).toBeTruthy();
+    const button = within(row).getByRole("button", { name: "Use replacement" }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    fireEvent.click(button);
+    expect(choose).not.toHaveBeenCalled();
   });
 
   it("requires a fresh approval for an exact replacement before adding it to the order", async () => {

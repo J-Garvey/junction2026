@@ -66,8 +66,8 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
   return (
     <tbody className="add-review-item" aria-labelledby={headingId} aria-busy={disabled && !checked}>
       {products.map((product, index) => (
-        <tr key={product?.id ?? line.id} className="add-review-row">
-          <td className="add-review-row-product">
+        <ReviewProductRow key={product?.id ?? line.id}
+          product={<>
             <b>{product?.productName ?? line.query}{product?.stock?.kind === "unknown" && <UnknownStockMark reason={product.stock.reason} />}</b>
             {product && <AllergenDataMark line={product} />}
             <CarbonEstimate line={product ?? { quantity: 0 }} />
@@ -81,10 +81,11 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
               </button>
             </div>}
             {product?.source === "fixture" && <small className="muted">Fixture</small>}
-          </td>
-          <td className="add-review-row-quantity"><button type="button" className="poptrigger" aria-label={`Explain quantity for ${product?.productName ?? line.query}`} aria-expanded={showDetails} onClick={() => setShowDetails(!showDetails)}>{product && product.quantity > 0 ? `${qty(product.quantity)} ${product.salesUnit ?? ""}` : "TBC"}</button></td>
-          <td className="add-review-row-price"><button type="button" className="poptrigger" aria-label={`Explain line amount for ${product?.productName ?? line.query}`} aria-expanded={showDetails} onClick={() => setShowDetails(!showDetails)}><b>{eur(product && product.quantity > 0 ? product.lineTotal : null)}</b></button></td>
-          {index === 0 && <td rowSpan={products.length} className="add-review-row-actions">
+          </>}
+          quantity={<button type="button" className="poptrigger" aria-label={`Explain quantity for ${product?.productName ?? line.query}`} aria-expanded={showDetails} onClick={() => setShowDetails(!showDetails)}>{product && product.quantity > 0 ? `${qty(product.quantity)} ${product.salesUnit ?? ""}` : "TBC"}</button>}
+          price={<button type="button" className="poptrigger" aria-label={`Explain line amount for ${product?.productName ?? line.query}`} aria-expanded={showDetails} onClick={() => setShowDetails(!showDetails)}><b>{eur(product && product.quantity > 0 ? product.lineTotal : null)}</b></button>}
+          actionRows={products.length}
+          actions={index === 0 ? <>
             {checked && review && !exactMatch && (review.approvedAt
               ? <span className="add-review-approved small" title={`Approved by ${review.approvedBy}`}><Icon n="check" s={14} /> Approved</span>
               : <button type="button" className="btn sm primary" disabled={disabled || !review.canApprove} onClick={onApprove} aria-label={`Approve ${line.query}`}>Approve item</button>)}
@@ -93,8 +94,8 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
               {checked && <button type="button" className="btn sm ghost" aria-expanded={showDetails} onClick={() => setShowDetails(!showDetails)}>{showDetails ? "Hide details" : "View details"}</button>}
               {onDiscard && <button type="button" className="btn sm ghost" disabled={disabled} onClick={onDiscard} aria-label={`Discard ${line.query} from order`} title="Discard item"><Icon n="x" s={14} /></button>}
             </div>
-          </td>}
-        </tr>
+          </> : undefined}
+        />
       ))}
       {expanded && <tr className="add-review-support"><td colSpan={4}>
         {children || <div className="add-review-item-body">
@@ -131,15 +132,17 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
                   {help.possible.length > 0 && (
                     <>
                       <h4>Possible matches</h4>
-                      <p className="small muted">{help.possible[0].reason} These are not ordered unless you pick one; a picked product is checked like any item.</p>
-                      <ul className="search-help-possible">
+                      <p className="small muted">These may be outside your brief and are not ordered unless you pick one. Choose one to override the product match and check it again; dietary and delivery rules still apply.</p>
+                      <SuggestedProducts label={`Possible matches for ${line.query}`}>
                         {possibleList.visible.map((p) => (
-                          <li key={p.productId}>
-                            <span><b>{p.name}</b><small className="muted">Product {p.productId} · {p.categoryLabel}</small></span>
-                            <button type="button" className="btn sm" disabled={disabled || !onSearch} onClick={() => onSearch?.(`${p.productId} ${p.query}`)} aria-label={`Use ${p.name}`}>Use this product</button>
-                          </li>
+                          <ReviewProductRow key={p.productId} tone="outside"
+                            product={<><SuggestionMark outside /><b>{p.name}</b><small className="muted">Product {p.productId} · {p.categoryLabel}</small><small>{p.reason}</small><small className="muted">Price, stock and delivery not checked.</small></>}
+                            quantity="TBC"
+                            price={<b>{eur(null)}</b>}
+                            actions={<button type="button" className="btn sm" disabled={disabled || !onSearch} onClick={() => onSearch?.(`${p.productId} ${p.query}`)} aria-label={`Use ${p.name}`}>Choose &amp; check</button>}
+                          />
                         ))}
-                      </ul>
+                      </SuggestedProducts>
                       {possibleList.toggle}
                       {help.possibleTotal > help.possible.length && <p className="small muted">{help.possibleTotal - help.possible.length} more mention it. Refine the description to narrow them.</p>}
                     </>
@@ -173,22 +176,29 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
                 <div className="add-review-replacements">
                   <h4>Suggested replacements</h4>
                   {replacementRanges.chips}
-                  {replacementList.visible.map((candidate) => {
-                    const quantity = replacementQuantity(candidate, need);
-                    const cutoff = parseTime(candidate.closingTime);
-                    const usable = candidate.unitPrice !== null && !!candidate.availableDate && candidate.availableDate <= deliveryDate
-                      && (candidate.stock.kind === "unknown" || (candidate.stock.kind === "known" && candidate.stock.amount >= (quantity ?? 1)))
-                      && !candidate.notes.some((rule) => rule.outcome === "block") && !!cutoff && cutoff > (parseTime(now) ?? new Date());
-                    return (
-                      <div key={candidate.productId} className="add-review-product add-review-replacement">
-                        <span className="add-review-product-name"><b>{candidate.name}{candidate.stock.kind === "unknown" && <UnknownStockMark reason={candidate.stock.reason} />}</b><small>Product {candidate.productId}{candidate.stock.kind !== "unknown" && ` · ${stockText(candidate.stock, candidate.salesUnit)}`} · {candidate.availableDate ? `delivery ${day(candidate.availableDate)}` : "delivery date not supplied"}{candidate.source === "fixture" ? " · Fixture" : ""}</small><small>Cutoff (Helsinki): {candidate.closingTime ? when(candidate.closingTime) : "Not supplied"}</small><button type="button" className="btn sm" disabled={disabled || !usable} title={!usable ? "Stock, price, pack size or delivery needs checking." : undefined} onClick={() => onChoose(candidate.productId)}>Use replacement</button></span>
-                        <span className="add-review-product-quantity"><small>Quantity</small><b>{quantity === null ? "TBC" : `${qty(quantity)} ${candidate.salesUnit ?? "sales units"}`}</b></span>
-                        <span className="add-review-product-price"><small>Price ex VAT</small><b>{eur(quantity === null || candidate.unitPrice === null ? null : quantity * candidate.unitPrice)}</b><small>{eur(candidate.unitPrice)} / {candidate.salesUnit ?? "sales unit"}</small></span>
-                        <SupplierSchedule terms={candidate} />
-                        <small><CandidateRanking candidate={candidate} /></small>
-                      </div>
-                    );
-                  })}
+                  <SuggestedProducts label={`Suggested replacements for ${line.query}`}>
+                    {replacementList.visible.map((candidate) => {
+                      const quantity = replacementQuantity(candidate, need);
+                      const blockedReason = replacementBlock(candidate, quantity, deliveryDate, now);
+                      return (
+                        <ReviewProductRow key={candidate.productId} tone="suggested"
+                          product={<>
+                            <SuggestionMark />
+                            <b>{candidate.name}{candidate.stock.kind === "unknown" && <UnknownStockMark reason={candidate.stock.reason} />}</b>
+                            <small className="muted">Product {candidate.productId}{candidate.stock.kind !== "unknown" && ` · ${stockText(candidate.stock, candidate.salesUnit)}`} · {candidate.availableDate ? `delivery ${day(candidate.availableDate)}` : "delivery date not supplied"}{candidate.source === "fixture" ? " · Fixture" : ""}</small>
+                            <small className="muted">Cutoff (Helsinki): {candidate.closingTime ? when(candidate.closingTime) : "Not supplied"}</small>
+                            <SupplierSchedule terms={candidate} />
+                            <small className="muted"><CandidateRanking candidate={candidate} /></small>
+                            {quantity === null && <small>Enter whole sales units after choosing, then check the price before approving.</small>}
+                            {blockedReason && <small className="add-review-suggestion-block">{blockedReason}</small>}
+                          </>}
+                          quantity={quantity === null ? "TBC" : `${qty(quantity)} ${candidate.salesUnit ?? "sales units"}`}
+                          price={<><b>{eur(quantity === null || candidate.unitPrice === null ? null : quantity * candidate.unitPrice)}</b><small className="muted">{eur(candidate.unitPrice)} / {candidate.salesUnit ?? "sales unit"}</small></>}
+                          actions={<button type="button" className="btn sm" disabled={disabled || !!blockedReason} onClick={() => onChoose(candidate.productId)}>Use replacement</button>}
+                        />
+                      );
+                    })}
+                  </SuggestedProducts>
                   {replacementList.toggle}
                 </div>
               )}
@@ -212,6 +222,43 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
       </td></tr>}
     </tbody>
   );
+}
+
+/** Selected products and suggestions share the same columns, spacing and mobile layout. */
+function ReviewProductRow({ product, quantity, price, actions, actionRows, tone }: {
+  product: ReactNode; quantity: ReactNode; price: ReactNode; actions?: ReactNode; actionRows?: number; tone?: "suggested" | "outside";
+}) {
+  return <tr className={`add-review-row${tone ? ` add-review-suggestion ${tone}` : ""}`}>
+    <td className="add-review-row-product">{product}</td>
+    <td className="add-review-row-quantity">{quantity}</td>
+    <td className="add-review-row-price">{price}</td>
+    {actions !== undefined && <td rowSpan={actionRows} className="add-review-row-actions">{actions}</td>}
+  </tr>;
+}
+
+function SuggestedProducts({ label, children }: { label: string; children: ReactNode }) {
+  return <table className="add-review-table add-review-suggestions" aria-label={label}>
+    <thead><tr><th scope="col">Product</th><th scope="col">Quantity</th><th scope="col">Price ex VAT</th><th scope="col">Your choice</th></tr></thead>
+    <tbody>{children}</tbody>
+  </table>;
+}
+
+function SuggestionMark({ outside = false }: { outside?: boolean }) {
+  return <span className="add-review-suggestion-mark"><Icon n={outside ? "alert" : "swap"} s={14} />{outside ? "Outside brief · check match" : "Suggested replacement"}</span>;
+}
+
+/** A manual product choice still needs valid supplier terms and must pass hard rules. */
+function replacementBlock(candidate: Candidate, quantity: number | null, deliveryDate: string, now: string): string | null {
+  const hardRule = candidate.notes.find((rule) => rule.outcome === "block");
+  if (hardRule) return hardRule.message;
+  if (candidate.unitPrice === null) return "Price not confirmed. Check again before choosing.";
+  if (!candidate.availableDate) return "Delivery date not supplied. Choose another product.";
+  if (candidate.availableDate > deliveryDate) return "Arrives after your delivery date. Choose another product.";
+  const cutoff = parseTime(candidate.closingTime);
+  if (!cutoff) return "Order cutoff not supplied. Check again before choosing.";
+  if (cutoff <= (parseTime(now) ?? new Date())) return "Order cutoff has passed. Choose another product.";
+  if (candidate.stock.kind === "none" || (candidate.stock.kind === "known" && candidate.stock.amount < (quantity ?? 1))) return "Not enough confirmed stock for this quantity.";
+  return null;
 }
 
 function SupplierSchedule({ terms }: { terms: Pick<PlanLine, "availabilityEvidence" | "availableDate" | "closingTime"> }) {
