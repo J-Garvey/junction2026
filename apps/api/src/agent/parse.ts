@@ -263,6 +263,23 @@ const MODEL_RESULT = z.object({
   })),
 });
 
+/** Validate before caching and again at the parser boundary (also used by injected models). */
+function readModelRequest(value: unknown, text: string) {
+  const parsed = MODEL_RESULT.safeParse(value);
+  if (!parsed.success) throw new ModelUnavailable("The parser returned an invalid request");
+  const r = parsed.data;
+  const requested = restrictions(text.toLowerCase());
+  const interpretedAllergens = expandAllergens(r.lines.flatMap((line) => line.avoidAllergens));
+  if (requested.avoidAllergens.some((code) => !interpretedAllergens.includes(code)))
+    throw new ModelUnavailable("The model missed an explicit allergy requirement");
+  for (const line of r.lines) {
+    const stated = restrictions((r.lines.length === 1 ? text : line.text).toLowerCase());
+    if (stated.avoidAllergens.some((code) => !expandAllergens(line.avoidAllergens).includes(code)))
+      throw new ModelUnavailable("The model changed an item's explicit allergy requirement");
+  }
+  return r;
+}
+
 /**
  * Fully consumed literal product lists need no model: quantity, supported diet claims,
  * product vocabulary, and an optional date suffix. Anything richer stays on the model
@@ -305,19 +322,12 @@ export async function parseRequest(text: string): Promise<{ request: Omit<Single
         "You turn a hotel kitchen's purchasing message to a food wholesaler into structured lines. Fill in only what the text says. Never invent a quantity, unit, date or product. Retain EVERY requested item, including long lists and repetitions. Translate Finnish to English in productWord but keep the original text. Preserve brand, species and form. Use diet claims, allergen exclusions and required origin only when stated. Apply item-specific constraints only to that item; apply explicit global constraints to every item. Nut-free excludes both tree nuts (AN) and peanuts (AP). Never infer origin from a brand. Keep country requirements in origin, not in productWord. Do not turn an alternative into an additional ordered item. Unsupported or unclear quantities must have null amount and unit. Allergen codes are exact identifiers; AM is milk, SA is almond. Code dictionary: " + JSON.stringify(ALLERGEN_NAMES),
       user: text,
       schema: PARSE_SCHEMA,
+      validate: (value) => readModelRequest(value, text),
     });
-    const parsed = MODEL_RESULT.safeParse(rawResult);
-    if (!parsed.success) throw new ModelUnavailable("The parser returned an invalid request");
-    const r = parsed.data;
-    const requested = restrictions(text.toLowerCase());
-    const interpretedAllergens = expandAllergens(r.lines.flatMap((line) => line.avoidAllergens));
-    if (requested.avoidAllergens.some((code) => !interpretedAllergens.includes(code)))
-      throw new ModelUnavailable("The model missed an explicit allergy requirement");
+    const r = readModelRequest(rawResult, text);
     const date = resolveDate(r.neededByText ?? text);
     const lines: SingleLine[] = r.lines.map((l) => {
       const stated = restrictions((r.lines.length === 1 ? text : l.text).toLowerCase());
-      if (stated.avoidAllergens.some((code) => !expandAllergens(l.avoidAllergens).includes(code)))
-        throw new ModelUnavailable("The model changed an item's explicit allergy requirement");
       const pw = productWord(String(l.productWord));
       return {
         id: lineId(),
