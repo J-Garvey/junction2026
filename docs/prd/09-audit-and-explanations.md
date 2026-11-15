@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Owner** | Ben |
-| **Second check** | Jack answers Q09.5 (what counts as one human decision). Pavit answers Q09.2, a major question |
+| **Second check** | Jack answers Q09.5 (what counts as one human decision). The group answers Q09.2, a major question |
 | **Track** | C: gateway, interface, tests |
 | **Needs from** | 05 (rule IDs and message templates), 06 (questions and answers), 08 (orders) |
 | **Feeds** | 10 (the audit screen and the "tap to see the source" popover) |
@@ -50,7 +50,7 @@ Each function is one problem that can be built and tested alone. "Deterministic 
 - Recommended: ID; time on the simulated clock and real time; actor (agent, a named person with role and outlet, or the gateway); action, from a closed list; what it was about (event, order, quote, line); rule IDs; model judgements; before and after values; whether fixture data was involved; who can see it.
 - **Answer:** **Agreed** (Ben, 14 Nov): as recommended. ID; time on the simulated clock and real time; actor (agent, a named person with role and outlet, or the gateway); action, from the closed list (Q09.7); subject (event, order, quote, line); rule IDs; model judgements; before and after values; fixture flag; visibility tag. Plus the previous entry's hash (Q09.3).
 
-**Q09.2 What does Valio Aimo see, and what stays with the hotel?** The brief's headline is "without exposing confidential data". **Major question.** Responsibility: Pavit, who builds the core brief functions (`PRODUCT-SEARCH`, `LOOKUP`, quoting and ordering).
+**Q09.2 What does Valio Aimo see, and what stays with the hotel?** The brief's headline is "without exposing confidential data". **Major question.** Responsibility: the group, which took over the core brief functions from Pavit (`PRODUCT-SEARCH`, `LOOKUP`, quoting and ordering).
 - Recommended: Valio Aimo sees quotes, orders, amendments, approvals (that one exists and which mandate rule it answered), refusals and cut-off flags. It does not see recipes, dishes, guest and diet details, the hotel's preferences, or the wording of chef questions. Each entry is tagged with who can read it.
 - **Answer:** **Keep one append-only log in SQLite.** Serve views through Express and define their response fields with Zod. Resolve caller scope as in Q08.2. [Tech stack](../../TechStack.md) · [Gateway and orders](08-gateway-and-orders.md)
   - **Hotel view.** A seeded hotel session sees the full entries for events and orders in its scope, including who asked or answered, recipes, diet details, preferences, and the rule facts behind decisions. The hotel's Approver view shows the mandate values.
