@@ -27,7 +27,7 @@ export function refreshItemReviews(plan: Plan): void {
       request, rules, lines: lines.map((line) => ({
         productId: line.productId, outletId: line.outletId, needIds: line.needIds, quantity: line.quantity,
         unitPrice: line.unitPrice, lineTotal: line.lineTotal, salesUnit: line.salesUnit, packContent: line.packContent,
-        stock: line.stock, availableDate: line.availableDate, closingTime: line.closingTime,
+        stock: line.stock, availableDate: line.availableDate, closingTime: line.closingTime, availabilityEvidence: line.availabilityEvidence,
       })),
     }));
     const previous = plan.itemReviews!.find((item) => item.needId === request.id && item.fingerprint === fingerprint);

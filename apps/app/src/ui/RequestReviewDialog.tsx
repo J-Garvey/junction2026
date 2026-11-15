@@ -1,0 +1,264 @@
+/** Shared item review used for new items and saved pending requests. */
+import { useEffect, useState } from "react";
+import type { SingleRequest, Unit } from "@aimo/contracts";
+import { api, ApiError, type PlanResp } from "../api";
+import { useApp } from "../ctx";
+import { claimLabel, day, eur } from "../format";
+import { OrderItemDialog } from "./OrderItemDialog";
+import { ProductReviewItem } from "./ProductReviewItem";
+import { QuestionCard } from "./QuestionCard";
+import { Icon } from "./icons";
+
+const UNITS: Unit[] = ["l", "dl", "ml", "kg", "g", "pcs"];
+
+export function RequestReviewDialog({ initialReview, deliveryDate, onClose, onChanged, onAdded }: {
+  initialReview: PlanResp;
+  deliveryDate: string;
+  onClose: () => void;
+  onChanged: () => void;
+  onAdded: () => void;
+}) {
+  const { me, refresh } = useApp();
+  const [review, setReview] = useState(initialReview);
+  const request = review.plan.request;
+  const [editTarget, setEditTarget] = useState<{ lineId: string; field: "quantity" | "description"; amount: string; unit: Unit; description: string } | null>(null);
+  const [busy, setBusy] = useState<"check" | "replace" | "remove" | "approve" | "quantity" | "add" | null>(null);
+  const [dialogError, setDialogError] = useState<string | null>(null);
+  // Refresh external changes when no local decision/edit is in progress. Mutations
+  // themselves return the authoritative plan, including conflicts with changed terms.
+  useEffect(() => {
+    if (!busy && !editTarget) setReview(initialReview);
+  }, [initialReview]);
+  const inScope = me.hotelScope || me.outlets.includes(review.plan.outletId);
+  const editable = inScope && !review.plan.basketedAt && !review.plan.orderIds.length
+    && !review.questions.some((q) => q.state === "open" || q.state === "waiting");
+
+  async function startReview() {
+    if (busy || !editable) return;
+    setBusy("check");
+    setDialogError(null);
+    try {
+      setReview(await api.reviewItems(review.plan.id));
+      onChanged();
+    } catch (e) {
+      setDialogError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function reloadDecision() {
+    setDialogError(null);
+    try {
+      setReview(await api.plan(review.plan.id));
+      onChanged();
+    } catch (e) {
+      setDialogError((e as Error).message);
+    }
+  }
+
+  function edit(line: SingleRequest["lines"][number], field: "quantity" | "description") {
+    setDialogError(null);
+    setEditTarget({ lineId: line.id, field, amount: String(line.quantity?.amount ?? ""), unit: line.quantity?.unit ?? "pcs", description: line.query });
+  }
+  const editReady = !!editTarget?.description.trim() && Number.isFinite(Number(editTarget.amount)) && Number(editTarget.amount) > 0;
+
+  async function recheck(next: SingleRequest) {
+    const result = await api.requote(review.plan.id, next);
+    setReview(result);
+    setEditTarget(null);
+    onChanged();
+  }
+
+  async function checkChanges() {
+    if (!request || !editTarget || !editReady || busy) return;
+    setBusy("check");
+    setDialogError(null);
+    try {
+      const original = request.lines.find((line) => line.id === editTarget.lineId)!;
+      let updated = { ...original, quantity: { amount: Number(editTarget.amount), unit: editTarget.unit } };
+      if (editTarget.description.trim() !== original.query) {
+        const parsed = await api.message(`${editTarget.amount} ${editTarget.unit} ${editTarget.description.trim()}`);
+        if (parsed.route === "event_change" || parsed.route === "neither" || parsed.request.lines.length !== 1) {
+          throw new Error("Describe one product for this row, then check it again.");
+        }
+        const line = parsed.request.lines[0];
+        updated = { ...line, id: original.id, quantity: updated.quantity, constraints: {
+          ...original.constraints,
+          ...line.constraints,
+          claims: [...new Set([...original.constraints.claims, ...line.constraints.claims])],
+          avoidAllergens: [...new Set([...original.constraints.avoidAllergens, ...line.constraints.avoidAllergens])],
+          labels: [...new Set([...original.constraints.labels, ...line.constraints.labels])],
+          origin: original.constraints.origin ?? line.constraints.origin,
+        } };
+      }
+      await recheck({ ...request, lines: request.lines.map((line) => line.id === original.id ? updated : line) });
+    } catch (e) {
+      setDialogError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function discard(lineId: string) {
+    if (!request || busy) return;
+    const lines = request.lines.filter((line) => line.id !== lineId);
+    if (!lines.length && !plan?.reviewing) {
+      setDialogError("Keep at least one item, or close these details without adding it.");
+      return;
+    }
+    if (!lines.length) {
+      setEditTarget(null);
+      onClose();
+      return;
+    }
+    setBusy("remove");
+    setDialogError(null);
+    try {
+      await recheck({ ...request, lines });
+    } catch (e) {
+      setDialogError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function choose(needId: string, productId: string) {
+    if (!review || busy || !editable) return;
+    setBusy("replace");
+    setDialogError(null);
+    try {
+      setReview(await api.choose(review.plan.id, needId, productId));
+      onChanged();
+    } catch (e) {
+      setDialogError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function add() {
+    if (!canAdd || busy) return;
+    setBusy("add");
+    setDialogError(null);
+    try {
+      await api.basketPlan(review.plan.id);
+
+      onAdded();
+      refresh();
+    } catch (e) {
+      if (e instanceof ApiError && e.body?.plan) setReview({ plan: e.body.plan, questions: [] });
+      setDialogError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function resolveItem(needId: string, salesQuantity?: { productId: string; quantity: number }) {
+    const item = review?.plan.itemReviews?.find((item) => item.needId === needId);
+    if (!review || !item || busy || !editable) return;
+    setBusy(salesQuantity ? "quantity" : "approve");
+    setDialogError(null);
+    try {
+      setReview(salesQuantity
+        ? await api.itemSalesQuantity(review.plan.id, needId, item.fingerprint, salesQuantity.productId, salesQuantity.quantity)
+        : await api.approveItem(review.plan.id, needId, item.fingerprint));
+      onChanged();
+    } catch (e) {
+      if (e instanceof ApiError && e.body?.plan) setReview({ plan: e.body.plan, questions: [] });
+      setDialogError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const plan = review?.plan ?? null;
+  const approvedCount = plan?.itemReviews?.filter((item) => item.approvedAt && item.canApprove).length ?? 0;
+  const canAdd = editable && !!plan?.proposal && !!request?.lines.length && approvedCount === request.lines.length && !plan.error && !plan.tooLate;
+  const reviewReasons = [...new Set([
+    ...(plan?.itemReviews?.flatMap((item) => item.reason ? [item.reason] : []) ?? []),
+    ...(plan?.inputRules.filter((rule) => rule.outcome !== "order").map((rule) => rule.message) ?? []),
+    ...(plan?.error ? [plan.error] : []),
+  ])];
+
+  if (!request) return null;
+  return (
+    <OrderItemDialog
+      eyebrow={initialReview.plan.reviewing ? "Add to order" : "Request details"}
+      title={plan?.title ?? "Review the item"}
+      description="Check what was understood and whether it can arrive with this order."
+      fields={[
+        { label: "Next step", value: !inScope ? "Waiting for the order builder" : plan?.basketedAt ? "Submit order for review" : canAdd ? "Add to order" : editable ? "Review items, then add to order" : "Resolve the decision below" },
+        { label: "Total ex VAT", value: eur(plan?.totalExVat) },
+        { label: "Requested by", value: plan?.createdBy.name ?? "Not supplied" },
+        { label: "Needed by", value: day(plan?.neededBy) },
+        { label: "Review reason", value: reviewReasons.join(" ") || "Confirm selected products, quantities and delivery before adding to the order." },
+      ]}
+      onClose={() => { if (!busy) onClose(); }}
+    >
+      <div className="add-review-date"><Icon n="cal" s={18} /><span><small>Order delivery</small><b>{plan?.deliveryDate ? day(plan.deliveryDate) : "Not confirmed"}</b></span></div>
+
+      {!editable && <div className="callout blue" role="status">{inScope ? "This request is awaiting the decision below or has already been added." : "This request is outside your outlet scope. The order builder must review it."}</div>}
+      {editable && !plan?.itemReviews && <div className="callout yellow stack" role="status"><span>Recheck the saved request before approving its products and quantities.</span><button type="button" className="btn sm" disabled={!!busy} onClick={startReview}>{busy === "check" ? "Checking..." : "Review items"}</button></div>}
+      {review.questions.filter((q) => q.state === "open" || q.state === "waiting").map((q) => <QuestionCard key={q.id} q={q} onAnswered={reloadDecision} />)}
+      <div className="item-dialog-section add-review-section">
+        <h3>Products</h3>
+        <div className="add-review-items">
+          {request.lines.map((line) => (
+            <ProductReviewItem
+              key={line.id}
+              line={line}
+              need={plan?.needs.find((need) => need.id === line.id)}
+              lines={plan?.lines.filter((product) => product.needIds.includes(line.id) && !product.removed) ?? []}
+              deliveryDate={deliveryDate}
+              checked={!!plan}
+              disabled={!!busy || !!editTarget || !editable}
+              review={plan?.itemReviews?.find((item) => item.needId === line.id)}
+              onApprove={() => resolveItem(line.id)}
+              onSalesQuantity={(productId, quantity) => resolveItem(line.id, { productId, quantity })}
+              onEdit={(field) => edit(line, field)}
+              onDiscard={request.lines.length > 1 || plan?.reviewing ? () => discard(line.id) : undefined}
+              onChoose={(productId) => choose(line.id, productId)}
+            >
+              {editTarget?.lineId === line.id && (
+                <form className="add-review-editor" onSubmit={(event) => { event.preventDefault(); checkChanges(); }}>
+                  <div className="add-review-edit-fields">
+                    <label className="field"><span className="small muted">Quantity</span><input autoFocus={editTarget.field === "quantity"} aria-label={`Quantity for ${line.query}`} type="number" min="0" step="any" disabled={!!busy} value={editTarget.amount} onChange={(event) => setEditTarget({ ...editTarget, amount: event.target.value })} /></label>
+                    <label className="field"><span className="small muted">Unit</span><select aria-label={`Unit for ${line.query}`} disabled={!!busy} value={editTarget.unit} onChange={(event) => setEditTarget({ ...editTarget, unit: event.target.value as Unit })}>{UNITS.map((unit) => <option key={unit}>{unit}</option>)}</select></label>
+                    <label className="field"><span className="small muted">Description</span><input autoFocus={editTarget.field === "description"} aria-label={`Description for ${line.query}`} disabled={!!busy} value={editTarget.description} onChange={(event) => setEditTarget({ ...editTarget, description: event.target.value })} /></label>
+                  </div>
+                  {line.constraints.claims.length > 0 && <div className="small muted">Requirements: {line.constraints.claims.map(claimLabel).join(", ")}</div>}
+                  <div className="row">
+                    <button type="submit" className="btn sm primary" disabled={!!busy || !editReady}>{busy === "check" ? "Checking…" : "Check item"}</button>
+                    <button type="button" className="btn sm ghost" disabled={!!busy} onClick={() => { setEditTarget(null); setDialogError(null); }}>Cancel edit</button>
+                  </div>
+                </form>
+              )}
+            </ProductReviewItem>
+          ))}
+        </div>
+      </div>
+
+      {busy === "check" && !plan && <div className="add-review-loading">Checking products, stock and delivery…</div>}
+      {dialogError && <div className="callout red" role="alert">{dialogError} <button type="button" className="btn sm" disabled={!!busy} onClick={reloadDecision}>Refresh details</button></div>}
+      {busy && <div className="small muted" role="status">{busy === "replace" ? "Checking replacement, stock and price..." : "Saving and checking current terms..."}</div>}
+
+      {plan && editable && !editTarget && (
+        <>
+          <div className={`callout ${canAdd ? "green" : "yellow"} add-review-result`} role="status">
+            <b>{canAdd ? "All items resolved" : `${approvedCount} of ${request.lines.length} items approved`}</b>
+            <span>{canAdd ? "Ready to add to the order. Any unconfirmed stock remains labelled; finance reviews the final order." : "Approve each item, or refine or discard anything that cannot be approved, to continue."}</span>
+            {plan.error && <span>{plan.error}</span>}
+            {plan.inputRules.length > 0 && <ul>{plan.inputRules.filter((rule) => rule.outcome !== "order").map((rule) => <li key={rule.ruleId}>{rule.message}</li>)}</ul>}
+          </div>
+
+          <div className="add-review-actions">
+            <button type="button" className="btn primary" disabled={!!busy || !canAdd} onClick={add}>{busy === "add" ? "Adding…" : "Add to order"}</button>
+            <button type="button" className="btn ghost" disabled={!!busy} onClick={onClose}>Close</button>
+            <span className="add-review-total"><small>Total ex VAT</small><b>{eur(plan.totalExVat)}</b></span>
+          </div>
+        </>
+      )}
+    </OrderItemDialog>
+  );
+}

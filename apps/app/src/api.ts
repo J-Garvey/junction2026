@@ -1,5 +1,5 @@
 /** Thin client for the hotel app API (/api). Shapes follow apps/api/src/app/routes.ts. */
-import type { AuditEntry, BasketStatus, Order, Plan, Question, SingleRequest, WarningRecord, DietGroup, FiredRule, Mandate } from "@aimo/contracts";
+import type { AuditEntry, BasketStatus, Order, Plan, Product, Question, SingleRequest, WarningRecord, DietGroup, FiredRule, Mandate } from "@aimo/contracts";
 
 export class ApiError extends Error {
   constructor(
@@ -13,7 +13,7 @@ export class ApiError extends Error {
 /** Set by the shell: called on 401 so the person picker shows. */
 export const authHooks: { onUnauthorized: () => void } = { onUnauthorized: () => {} };
 
-async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
+async function call<T>(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
   let res: Response;
   try {
     res = await fetch(path, {
@@ -21,8 +21,10 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
       credentials: "same-origin",
       headers: body === undefined ? {} : { "content-type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
+      signal,
     });
-  } catch {
+  } catch (error) {
+    if (signal?.aborted) throw error;
     throw new ApiError(0, { message: "Can't reach the server right now. Nothing has been ordered." });
   }
   const text = await res.text();
@@ -258,12 +260,15 @@ export const api = {
   me: () => get<{ person: Person }>("/api/me"),
   home: () => get<HomeResp>("/api/home"),
   message: (text: string) => post<MessageResp>("/api/messages", { text }),
+  prepareMessage: (text: string, signal: AbortSignal) => call<{ ok: boolean }>("POST", "/api/messages/prepare", { text }, signal),
   request: (request: SingleRequest, eventId?: string, reviewing = false, itemReview = false) => post<PlanResp>("/api/requests", { request, eventId, reviewing, itemReview }),
   baskets: () => get<{ baskets: Basket[] }>("/api/baskets"),
   basket: (id: string) => get<BasketResp>(`/api/baskets/${encodeURIComponent(id)}`),
   submitBasketForReview: (id: string) => post<{ review: Question }>(`/api/baskets/${encodeURIComponent(id)}/submit-review`),
   newBasket: (name: string, deliveryDate: string) => post<{ basket: { id: string; name: string; deliveryDate: string } }>("/api/baskets", { name, deliveryDate }),
   plan: (id: string) => get<PlanResp>(`/api/plans/${encodeURIComponent(id)}`),
+  product: (id: string) => get<Product>(`/api/products/${encodeURIComponent(id)}`),
+  reviewItems: (id: string) => post<PlanResp>(`/api/plans/${encodeURIComponent(id)}/review-items`),
   requote: (id: string, request: SingleRequest) => post<PlanResp>(`/api/plans/${encodeURIComponent(id)}/requote`, { request }),
   basketPlan: (id: string, continueWithWarnings = false) => post<PlanResp>(`/api/plans/${encodeURIComponent(id)}/basket`, { continueWithWarnings }),
   approveItem: (id: string, needId: string, fingerprint: string) => post<PlanResp>(`/api/plans/${encodeURIComponent(id)}/items/${encodeURIComponent(needId)}/approve`, { fingerprint }),

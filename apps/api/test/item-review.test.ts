@@ -36,10 +36,10 @@ beforeEach(async () => {
   fixture.price["468445"] = { ...fixture.price["469672"], productId: "468445", catalogPrice: { ...fixture.price["469672"].catalogPrice, value: 28.48 }, comparisonPrice: { ...fixture.price["469672"].comparisonPrice, value: 28.48 } };
 });
 
-async function draft(text: string, productIds: (string | null)[], date = "2026-11-20") {
+async function draft(text: string, productIds: (string | null)[], date = "2026-11-20", saved = false) {
   const basket = (await call("POST", "/baskets", { name: "Item review", deliveryDate: date })).basket;
   const { request } = await call("POST", "/messages", { text });
-  const response = await call("POST", "/requests", { eventId: basket.id, reviewing: true, itemReview: true,
+  const response = await call("POST", "/requests", { eventId: basket.id, reviewing: !saved, itemReview: !saved,
     request: { ...request, neededBy: date, lines: request.lines.map((line: any, index: number) => ({ ...line, productId: productIds[index] })) } });
   expect(response.status).toBe(200);
   return { basket, plan: response.plan };
@@ -50,6 +50,93 @@ async function approve(plan: any, index: number) {
 }
 
 describe("per-item order review", () => {
+  it("resumes a visible saved proposal, stages it after review, and places it once through finance", async () => {
+    const { basket, plan } = await draft("5 l lactose-free milk", ["464306"], "2026-11-20", true);
+    expect((await call("GET", `/plans/${plan.id}`)).plan.itemReviews).toBeUndefined();
+    expect((await call("GET", `/orders?eventId=${basket.id}`)).orders).toHaveLength(0);
+    const checked = await call("POST", `/plans/${plan.id}/review-items`);
+    expect(checked.status).toBe(200);
+    expect(checked.plan).toMatchObject({ reviewing: false, proposal: true, orderIds: [] });
+    expect((await call("GET", `/baskets/${basket.id}`)).requests.map((p: any) => p.id)).toContain(plan.id);
+    expect((await call("POST", `/plans/${plan.id}/basket`)).status).toBe(409);
+    const approved = await approve(checked.plan, 0);
+    expect(approved.status).toBe(200);
+    expect((await call("POST", `/plans/${plan.id}/basket`)).status).toBe(200);
+    expect((await call("POST", `/plans/${plan.id}/basket`)).status).toBe(409);
+    expect((await call("POST", `/plans/${plan.id}/review-items`)).status).toBe(409);
+    const review = await call("POST", `/baskets/${basket.id}/submit-review`);
+    expect(review.status).toBe(200);
+    expect((await call("POST", `/questions/${review.review.id}/answer`, { optionId: "approve" })).status).toBe(409);
+    await signIn("p-sanna");
+    expect((await call("POST", `/questions/${review.review.id}/answer`, { optionId: "approve" })).ok).toBe(true);
+    await call("POST", `/questions/${review.review.id}/answer`, { optionId: "approve" });
+    const orders = (await call("GET", `/orders?eventId=${basket.id}`)).orders;
+    expect(orders).toHaveLength(1);
+    expect(orders[0].lines[0]).toMatchObject({ stock: { kind: "unknown" }, riskAccepted: { by: "Aino" } });
+  });
+
+  it("resets a saved request's item approval after choosing a replacement", async () => {
+    const { plan } = await draft("5 l lactose-free milk", ["469363"], "2026-11-20", true);
+    const checked = await call("POST", `/plans/${plan.id}/review-items`);
+    const approved = await approve(checked.plan, 0);
+    const changed = await call("POST", `/plans/${plan.id}/choose`, { needId: plan.needs[0].id, productId: "464306" });
+    expect(changed.status).toBe(200);
+    expect(changed.plan.lines[0].productId).toBe("464306");
+    expect(changed.plan.itemReviews[0].approvedAt).toBeNull();
+    expect((await approve(approved.plan, 0)).status).toBe(409);
+    expect((await call("POST", `/plans/${plan.id}/basket`)).status).toBe(409);
+  });
+
+  it("binds item approval to the original supplier schedule shown in details", async () => {
+    const { plan } = await draft("5 l lactose-free milk", ["469363"], "2026-11-20", true);
+    const checked = await call("POST", `/plans/${plan.id}/review-items`);
+    const approved = await approve(checked.plan, 0);
+    const fixture = loadFixture("base")!;
+    const original = structuredClone(fixture.availability["469363"]);
+    try {
+      // Move the original schedule and cutoff together. The adapter still projects
+      // the same quote dates, but the source terms the builder reviewed changed.
+      fixture.availability["469363"].scheduleLines[0].availableDate = "2026-11-17";
+      fixture.availability["469363"].closingTime = "2026-11-16T17:00:00+0200";
+      const result = await call("POST", `/plans/${plan.id}/basket`);
+      expect(result.status).toBe(409);
+      expect(result.plan.lines[0].availableDate).toBe(approved.plan.lines[0].availableDate);
+      expect(result.plan.itemReviews[0].approvedAt).toBeNull();
+      expect(result.plan.lines[0].availabilityEvidence).not.toEqual(approved.plan.lines[0].availabilityEvidence);
+    } finally {
+      fixture.availability["469363"] = original;
+    }
+  });
+
+  it("restricts saved request mutations to the outlet while permitting a manager building the order", async () => {
+    const { plan } = await draft("5 l lactose-free milk", ["469363"], "2026-11-20", true);
+    await signIn("p-mikko");
+    for (const [path, body] of [
+      ["review-items", {}], ["basket", {}], ["requote", { request: plan.request }],
+      ["choose", { needId: plan.needs[0].id, productId: "464306" }],
+    ] as const) expect((await call("POST", `/plans/${plan.id}/${path}`, body)).status).toBe(403);
+    await signIn("p-jonas");
+    const checked = await call("POST", `/plans/${plan.id}/review-items`);
+    expect(checked.status).toBe(200);
+    expect((await approve(checked.plan, 0)).plan.itemReviews[0].approvedBy).toBe("Jonas");
+  });
+
+  it("rechecks the duck request without inferring pieces from kilograms", async () => {
+    // Explicit synthetic lookup fixture for the reported SKU; catalogue data stays unchanged.
+    const fixture = loadFixture("base")!;
+    fixture.availability["467139"] = { productId: "467139", salesBlock: false, logisticModel: "Stock", closingTime: "2026-11-15T17:00:00+0200", scheduleLines: [{ salesBlock: false, availableAmount: 100, availableDate: "2026-11-16", salesUnit: "KG" }] };
+    fixture.price["467139"] = { ...fixture.price["469672"], productId: "467139", catalogPrice: { ...fixture.price["469672"].catalogPrice, value: 21.14 }, comparisonPrice: { ...fixture.price["469672"].comparisonPrice, value: 21.14 } };
+    const { plan } = await draft("10 pcs duck", ["467139"], "2026-11-17", true);
+    const checked = await call("POST", `/plans/${plan.id}/review-items`);
+    expect(checked.plan.lines[0]).toMatchObject({ productId: "467139", quantity: 0, salesUnit: "KG" });
+    expect(checked.plan.itemReviews[0]).toMatchObject({ canApprove: false, quantityRequired: true });
+    expect((await approve(checked.plan, 0)).status).toBe(409);
+    const item = checked.plan.itemReviews[0];
+    const specified = await call("POST", `/plans/${plan.id}/items/${item.needId}/quantity`, { fingerprint: item.fingerprint, productId: "467139", quantity: 4 });
+    expect(specified.plan.lines[0]).toMatchObject({ quantity: 4, salesUnit: "KG", lineTotal: 84.56 });
+    expect((await approve(specified.plan, 0)).status).toBe(200);
+  });
+
   it("requires every item approval and keeps unknown stock unknown through finance and one order", async () => {
     const { basket, plan } = await draft("10 kg salmon, 5 l lactose-free milk", ["469672", "464306"]);
     expect(plan.itemReviews).toHaveLength(2);

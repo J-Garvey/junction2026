@@ -12,12 +12,11 @@ import { audit, auditView, verifyChain, decisionCount, SYSTEM } from "../audit.j
 import { kvGet, kvSet } from "../db.js";
 import { RULES, FIXED } from "../rules/catalogue.js";
 import { getProduct, catalogSize } from "../catalog.js";
-import { parseRequest, parseSimpleRequest } from "../agent/parse.js";
+import { interpretMessage } from "../agent/message.js";
 import { logSearch } from "../searchlog.js";
-import { messageRoute } from "../agent/judge.js";
-import { matchesCurrentShortlists } from "../agent/match.js";
+import { matchesCurrentShortlists, shortlist } from "../agent/match.js";
 import { allItemsApproved, quantityScope, refreshItemReviews } from "../agent/itemReview.js";
-import { newPlan, quoteAndDecide, getPlan, listPlans, mandate, savePlan, emptyOverrides, HOTEL_ID } from "../agent/plan.js";
+import { newPlan, quoteAndDecide, getPlan, listPlans, mandate, savePlan, emptyOverrides, HOTEL_ID, needsFromSingle } from "../agent/plan.js";
 import { questionsFor, allQuestions, getQuestion, canAnswer } from "../agent/questions.js";
 import { answer } from "../agent/answers.js";
 import { addDietGroup, changeEvent, changeGuests, coverageSummary, EditConflict, eventView, finalCheck, getEvent, listEvents, orderEvent, removeNeed, runCutoff, runViability, saveEvent, warnings, personActor, type StoredEvent } from "../agent/events.js";
@@ -43,6 +42,7 @@ function person(req: Request, res: Response, next: NextFunction) {
 
 const P = (req: Request) => (req as Authed).person;
 const T = (req: Request) => (req as Authed).token;
+const inPlanScope = (req: Request, plan: { outletId: string }) => P(req).hotelId === HOTEL_ID && (P(req).hotelScope || P(req).outlets.includes(plan.outletId));
 
 function sessionCookie(res: Response, token: string) {
   res.setHeader("Set-Cookie", `aimo_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax`);
@@ -103,17 +103,30 @@ export function appRouter(): Router {
     res.json({ questions: mine, events, plans, warnings: warnings().filter((w) => w.state === "open") });
   });
 
+  const messageBody = z.object({ text: z.string().trim().min(1).max(2000) });
+
+  // Warm only interpretation and local catalogue caches while the person types.
+  // Never create a plan, audit a submission, or fetch supplier/quote terms here.
+  r.post("/messages/prepare", async (req, res) => {
+    const { text } = messageBody.parse(req.body);
+    const { parsed } = await interpretMessage(text);
+    if (parsed && !res.destroyed) {
+      const request = { ...parsed.request, siteId: mandate().sites[0].id, outletId: P(req).outlets[0] ?? "banquet" };
+      for (const need of needsFromSingle(request)) shortlist(need, { log: false });
+    }
+    res.json({ ok: true });
+  });
+
   // Chat box: route the message (MESSAGE-ROUTE), then parse a new request into chips (REQUEST-PARSE).
   r.post("/messages", async (req, res) => {
-    const { text } = z.object({ text: z.string().min(1).max(2000) }).parse(req.body);
-    const simple = parseSimpleRequest(text);
-    const route = simple ? { route: "new_request" as const, judgement: null } : await messageRoute(text);
+    const { text } = messageBody.parse(req.body);
+    const { route, parsed } = await interpretMessage(text);
     if (route.route === "event_change") {
       const m = text.match(/(\d{1,5})\s*guests?/i);
       return res.json({ route: "event_change", guests: m ? Number(m[1]) : null, events: listEvents().map((e) => ({ id: e.id, name: e.name, guests: e.guests, version: e.version })), judgement: route.judgement });
     }
     if (route.route === "neither") return res.json({ route: "neither", message: "I can take a new request or a change to an event." });
-    const parsed = simple ? { request: simple, note: null } : await parseRequest(text);
+    if (!parsed) throw new Error("Missing request interpretation");
     logSearch({ source: "request_parse", query: text, interpreted: { route: route.route, parsedBy: parsed.request.parsedBy, note: parsed.note, neededBy: parsed.request.neededBy, neededByText: parsed.request.neededByText, lines: parsed.request.lines } });
     audit({ actor: personActor(P(req)), action: "request_parsed", summary: `Parsed "${text.slice(0, 80)}" into ${parsed.request.lines.length} line(s) (${parsed.request.parsedBy})`, details: { request: parsed.request }, visibility: "hotel", judgements: route.judgement ? [route.judgement] : [] });
     res.json({ route: route.route === "unsure" ? "new_request_unsure" : "new_request", request: { ...parsed.request, siteId: mandate().sites[0].id, outletId: P(req).outlets[0] ?? "banquet" }, note: parsed.note });
@@ -146,10 +159,24 @@ export function appRouter(): Router {
     res.json({ plan, questions: allQuestions().filter((q) => q.planId === plan.id) });
   });
 
+  // Resume a saved proposal in the same per-item review as the add-to-order dialog.
+  // Keep it visible in its basket; opening details alone never changes the request.
+  r.post("/plans/:id/review-items", async (req, res) => {
+    const plan = getPlan(String(req.params.id));
+    if (!plan) return res.status(404).json({ error: "No such plan" });
+    if (!inPlanScope(req, plan)) return res.status(403).json({ error: "This item is outside your hotel or outlet scope" });
+    if (plan.kind !== "single" || !plan.eventId || plan.basketedAt || plan.orderIds.length || plan.overrides.accepted)
+      return res.status(409).json({ error: "This request can no longer be reviewed" });
+    plan.itemReviews ??= [];
+    await quoteAndDecide(plan, T(req));
+    res.json({ plan, questions: allQuestions().filter((q) => q.planId === plan.id) });
+  });
+
   // Re-check an edited, not-yet-accepted request without leaving abandoned plans in the basket.
   r.post("/plans/:id/requote", async (req, res) => {
     const plan = getPlan(String(req.params.id));
     if (!plan) return res.status(404).json({ error: "No such plan" });
+    if (!inPlanScope(req, plan)) return res.status(403).json({ error: "This item is outside your hotel or outlet scope" });
     if (plan.kind !== "single" || plan.orderIds.length || plan.overrides.accepted || plan.basketedAt) return res.status(409).json({ error: "This request can no longer be changed" });
     const request = SingleRequest.parse(req.body.request);
     const p = P(req);
@@ -176,6 +203,7 @@ export function appRouter(): Router {
   r.post("/plans/:id/basket", async (req, res) => {
     const plan = getPlan(String(req.params.id));
     if (!plan) return res.status(404).json({ error: "No such plan" });
+    if (!inPlanScope(req, plan)) return res.status(403).json({ error: "This item is outside your hotel or outlet scope" });
     if (!plan.eventId || !plan.proposal || plan.orderIds.length) return res.status(409).json({ error: "This request is not ready to add to the order" });
     // A previously saved proposal may predate the current matching rules/catalogue.
     // Reject changed matches so the chef reviews the result before anything is staged.
@@ -216,7 +244,7 @@ export function appRouter(): Router {
     const p = P(req);
     if (p.hotelId !== HOTEL_ID || (!p.hotelScope && !p.outlets.includes(plan.outletId)))
       return res.status(403).json({ error: "This item is outside your hotel or outlet scope" });
-    if (!plan.itemReviews || !plan.reviewing || plan.basketedAt || plan.orderIds.length)
+    if (!plan.itemReviews || plan.overrides.accepted || plan.basketedAt || plan.orderIds.length)
       return res.status(409).json({ error: "This request is no longer being reviewed" });
     refreshItemReviews(plan);
     const item = plan.itemReviews.find((item) => item.needId === String(req.params.needId));
@@ -240,7 +268,7 @@ export function appRouter(): Router {
     const p = P(req);
     if (p.hotelId !== HOTEL_ID || (!p.hotelScope && !p.outlets.includes(plan.outletId)))
       return res.status(403).json({ error: "This item is outside your hotel or outlet scope" });
-    if (!plan.itemReviews || !plan.reviewing || plan.basketedAt || plan.orderIds.length)
+    if (!plan.itemReviews || plan.overrides.accepted || plan.basketedAt || plan.orderIds.length)
       return res.status(409).json({ error: "This request is no longer being reviewed" });
     const { fingerprint, productId, quantity } = z.object({ fingerprint: z.string(), productId: z.string(), quantity: z.number().int().positive().max(1_000_000) }).parse(req.body);
     refreshItemReviews(plan);
@@ -274,7 +302,8 @@ export function appRouter(): Router {
   r.post("/plans/:id/choose", async (req, res) => {
     const plan = getPlan(String(req.params.id));
     if (!plan) return res.status(404).json({ error: "No such plan" });
-    const reviewing = plan.kind === "single" && plan.reviewing && !plan.basketedAt && !plan.orderIds.length && !plan.overrides.accepted;
+    if (!inPlanScope(req, plan)) return res.status(403).json({ error: "This item is outside your hotel or outlet scope" });
+    const reviewing = plan.kind === "single" && (plan.reviewing || plan.itemReviews) && !plan.basketedAt && !plan.orderIds.length && !plan.overrides.accepted;
     if (!plan.proposal && !reviewing) return res.status(409).json({ error: "Nothing waiting to be added" });
     const { needId, productId } = z.object({ needId: z.string(), productId: z.string() }).parse(req.body);
     const need = plan.needs.find((n) => n.id === needId);
