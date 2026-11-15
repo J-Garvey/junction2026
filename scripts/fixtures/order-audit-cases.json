@@ -1837,5 +1837,24 @@
         }
       ]
     }
+  },
+  {
+    "caseId": "AUD-almond-allergy",
+    "family": "explicit-allergy-code",
+    "channel": "main",
+    "input": "10 l milk for an almond allergy",
+    "plan": true,
+    "expected": {
+      "lines": [
+        {
+          "product": "milk",
+          "amount": 10,
+          "unit": "l",
+          "avoidAllergens": [
+            "SA"
+          ]
+        }
+      ]
+    }
   }
 ]
