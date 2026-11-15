@@ -1,5 +1,5 @@
 /** Fixed development benchmark manifest + attribution over existing campaign evidence. */
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, createReadStream } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, createReadStream, statSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -94,6 +94,7 @@ export async function summarize(dir) {
       usefulMs: calls.reduce((n, c) => n + c.elapsedMs, 0), caseEnvelopeMs: row.elapsedMs,
       executionSpanMs: calls.length && requestedAt.has(calls[0].callId) ? Date.parse(calls.at(-1).at) - requestedAt.get(calls[0].callId) : null,
       headersMs: primary?.headersMs, firstByteMs: primary?.firstByteMs, primaryCompleteMs: primary?.bodyCompleteMs,
+      primaryResponseBytes: primary?.responseBytes ?? null, planResponseBytes: planCall?.responseBytes ?? null,
       parseOrRouteHttpMs: row.channel === 'main' ? primary?.elapsedMs : null,
       planHttpMs: planCall?.elapsedMs ?? null, planTimings: timings ?? null,
       searchMs: timings?.searchMs, lookupMs: timings?.lookupMs, rankMs: timings?.rankMs, planningTotalMs: timings?.totalMs,
@@ -121,6 +122,9 @@ export async function summarize(dir) {
     accounting: { httpCalls: responses.length, usefulHttpMs: totalMs(useful), supportHttpMs: totalMs(support),
       supportByPath: Object.fromEntries([...new Set(support.map(r => r.path))].map(path => [path, { n: support.filter(r => r.path === path).length, totalMs: totalMs(support.filter(r => r.path === path)) }])),
       snapshotsHttpMs: totalMs(support.filter(r => r.path === '/campaign/state')),
+      snapshotResponseBytes: support.filter(r => r.path === '/campaign/state').reduce((n, r) => n + (r.responseBytes ?? 0), 0),
+      executionResponseBytes: useful.reduce((n, r) => n + (r.responseBytes ?? 0), 0),
+      evidenceFileBytes: Object.fromEntries(['raw-observations.jsonl', 'requests.jsonl'].map(file => [file, statSync(resolve(dir, file)).size])),
       evidenceCosts: raw.filter(r => r.kind === 'run-complete').map(r => ({ runId: r.runId, elapsedMs: r.elapsedMs, ...r.evidenceCosts })),
       hostResJsonSyncMs: profileRequests.reduce((n, r) => n + r.resJsonSyncMs, 0),
       hostResJsonByPath: Object.fromEntries([...new Set(profileRequests.map(r => r.path))].map(path => [path, distribution(profileRequests.filter(r => r.path === path).map(r => r.resJsonSyncMs))])),
