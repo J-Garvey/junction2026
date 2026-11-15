@@ -60,6 +60,8 @@ Order cards and order details show **Order by** from the original supplier sched
 
 Cards show chef and manager approval rows only for pending decisions, and omit the waiting footer when none remain. **Confirmed** and a green border require actual committed orders covering every active request, confirmed stock and delivery evidence, no pending decisions, and no outstanding warnings or final-check issues. Continuing with unconfirmed stock records an order but does not confirm fulfillment. A previously confirmed order stays confirmed after its ordering cutoff passes.
 
+Managers and finance approvers land on **Approvals & spend**, with their own unexpired decisions first, submitted final-order totals, placed supplier spend, and links to receipts, rules and the audit log. Submitted totals can include already placed items and are labelled accordingly; they are not added to placed spend. Order details put the financial summary and submitted exceptions ahead of the approval controls and item list. Building orders remains in the chef's view. Its **Order** button sends the basket through the existing finance approval flow; it does not bypass approval or the supplier checks.
+
 ## How it fits together
 
 ```text
