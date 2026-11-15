@@ -11,7 +11,7 @@ const { getDb } = await import("../src/db.js");
 const { setClock } = await import("../src/clock.js");
 const { issueToken } = await import("../src/identity.js");
 const { seedReset, PEOPLE } = await import("../src/seed.js");
-const { normalise, loadFixture, projectToDate } = await import("../src/aimo/lookup.js");
+const { normalise, loadFixture } = await import("../src/aimo/lookup.js");
 const { inspectDelivery } = await import("../src/app/productInspection.js");
 const fixture = loadFixture("base")!;
 const at = new Date("2026-11-10T10:00:00Z");
@@ -36,11 +36,11 @@ describe("supplier inspection using recorded evidence", () => {
     expect(inspect(line).rules.some((rule) => rule.ruleId.startsWith("DLV-"))).toBe(false);
   });
 
-  it("uses the original cutoff at the boundary, including when demo projection moves it forward", () => {
+  it("uses the original cutoff at the boundary, including legacy snapshots with projected fields", () => {
     const line = original();
     expect(inspect(line, new Date("2026-11-15T14:59:59Z")).state).toBe("scheduled");
     expect(inspect(line, new Date("2026-11-15T15:00:00Z"))).toMatchObject({ state: "cutoff_passed", rules: [expect.objectContaining({ ruleId: "CUT-01" })] });
-    const projected = projectToDate(line, "2026-11-23");
+    const projected = { ...line, availableDate: "2026-11-23", closingTime: "2026-11-22T17:00:00+0200" };
     expect(projected.closingTime).toContain("2026-11-22");
     expect(inspect(projected, new Date("2026-11-16T10:00:00Z"), "2026-11-23").state).toBe("cutoff_passed");
     expect(inspect(original("467767"), new Date("2026-11-14T10:00:00Z")).state).toBe("cutoff_passed");
