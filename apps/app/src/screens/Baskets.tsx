@@ -329,6 +329,7 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
   const [review, setReview] = useState<PlanResp | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ cls: string; body: React.ReactNode } | null>(null);
+  const submittedText = useRef("");
   useMessagePreparation(busy || review ? "" : text);
   const picker = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<Attachment[]>([]);
@@ -365,18 +366,20 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
   }
 
   function added() {
+    const completedText = submittedText.current;
     setReview(null);
-    setText("");
+    setText((current) => current.trim() === completedText ? "" : current);
     setNote({ cls: "green", body: <><b>Added to the order.</b> Submit the final order for finance review.</> });
     onAdded();
   }
 
   async function search() {
     if (!text.trim() || busy) return;
+    submittedText.current = text.trim();
     setBusy(true);
     setNote(null);
     try {
-      const parsed: MessageResp = await api.message(text.trim());
+      const parsed: MessageResp = await api.message(submittedText.current);
       if (parsed.route === "event_change") {
         setNote({ cls: "blue", body: <>Guest changes are made on the <Link to={`/events/${eventId}`}>event page</Link>.</> });
       } else if (parsed.route === "neither") {
@@ -430,7 +433,7 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
             rows={1}
             value={text}
             maxLength={2000}
-            placeholder="Add to this order, e.g. 40 l lactose-free milk"
+            placeholder="e.g. 40 L lactose-free milk"
             onChange={(event) => setText(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) {
