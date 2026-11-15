@@ -8,6 +8,7 @@ import { CoverageLine, Fixture, Status } from "../ui/Status";
 import { OthersWaiting, QuestionCard } from "../ui/QuestionCard";
 import { CutoffBoard, DiffView, DishView, LinesList, MoneyView, Section, sortGapsFirst, lineStatus, isGap } from "../ui/PlanView";
 import { Outcome } from "./Request";
+import { ProcessingTime } from "../ui/ProcessingTime";
 import { day, plural, when } from "../format";
 import { Icon } from "../ui/icons";
 
@@ -141,6 +142,8 @@ export function EventPage() {
           <CoverageLine level={coverage.level} text={coverage.text} />
         </div>
       </div>
+
+      <ProcessingTime processing={ev.processing} />
 
       <div className="scenebar">
         <SceneCard n="1" title="Viability" time={sc?.["1"]?.time} on={status?.clock.scene === "1"}>

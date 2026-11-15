@@ -120,6 +120,17 @@ export interface ItemReview {
   approvedAt: string | null;
 }
 
+/** Server processing from submission to a saved result; human decision time is excluded. */
+export interface StageProcessing {
+  stage: string;
+  totalMs: number;
+  /** Present only when the submitted message's saved parsing measurement is available. */
+  parsingMs?: number;
+  /** Result-producing calls, after the optional message parsing call. */
+  segments: number;
+  milestone: "review_ready" | "chef_input" | "approval_ready" | "blocked" | "ordered" | "rejected" | "failed" | "viability_checked" | "change_applied" | "change_checked" | "final_checked";
+}
+
 export interface Plan {
   id: string;
   kind: "single" | "event";
@@ -166,6 +177,7 @@ export interface Plan {
   itemReviews?: ItemReview[];
   /** Measured while running: how long each agent step took. */
   timings?: { products: number; searchMs?: number; lookupMs: number; rankMs: number; quoteMs?: number; totalMs: number } | null;
+  processing?: StageProcessing;
 }
 
 export interface WarningRecord {

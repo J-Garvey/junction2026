@@ -1,5 +1,5 @@
 /** Thin client for the hotel app API (/api). Shapes follow apps/api/src/app/routes.ts. */
-import type { AuditEntry, BasketStatus, Order, Plan, ProductDetails, Question, SingleRequest, WarningRecord, DietGroup, FiredRule, Mandate, Unit } from "@aimo/contracts";
+import type { AuditEntry, BasketStatus, Order, Plan, ProductDetails, Question, SingleRequest, StageProcessing, WarningRecord, DietGroup, FiredRule, Mandate, Unit } from "@aimo/contracts";
 
 export class ApiError extends Error {
   constructor(
@@ -108,7 +108,7 @@ export interface HomeResp {
 
 export type MessageResp =
   | { route: "new_request" | "new_request_unsure"; request: SingleRequest; note: string | null }
-  | { route: "event_change"; guests: number | null; events: { id: string; name: string; guests: number; version: number }[] }
+  | { route: "event_change"; parseAuditId?: string; guests: number | null; events: { id: string; name: string; guests: number; version: number }[] }
   | { route: "neither"; message: string };
 
 export interface PlanResp {
@@ -183,6 +183,7 @@ export interface MenuBody {
   dishes: EventDish[];
 }
 export interface StoredEvent {
+  processing?: StageProcessing;
   id: string;
   name: string;
   siteId: string;
@@ -215,6 +216,7 @@ export interface EventResp {
   questions: Question[];
 }
 export interface ChangeResp {
+  event?: StoredEvent;
   applied?: boolean;
   reason?: string;
   diff?: DiffLine[];
@@ -357,7 +359,7 @@ export const api = {
   finalCheck: (id: string) => post<{ finalCheck: FinalCheck }>(`/api/events/${id}/final-check`),
   cutoff: (id: string) => post<{ flags: unknown }>(`/api/events/${id}/cutoff`),
   removeNeed: (id: string, needId: string, version: number) => post<{ event: StoredEvent }>(`/api/events/${id}/remove-need`, { needId, version }),
-  guests: (id: string, guests: number, version: number) => post<ChangeResp>(`/api/events/${id}/guests`, { guests, version }),
+  guests: (id: string, guests: number, version: number, parseAuditId?: string) => post<ChangeResp>(`/api/events/${id}/guests`, { guests, version, ...(parseAuditId ? { parseAuditId } : {}) }),
   dietGroup: (id: string, group: DietGroup, version: number) => post<ChangeResp>(`/api/events/${id}/diet-groups`, { group, version }),
   change: (id: string, body: { guests?: number; group?: DietGroup }, version: number) => post<ChangeResp & { held?: boolean }>(`/api/events/${id}/change`, { ...body, version }),
   drill: () => post<{ quote: { id: string; total: number; cap: number }; status: number; refusal: { error: string; message: string } }>(`/api/drill`, {}),

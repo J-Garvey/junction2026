@@ -200,6 +200,7 @@ describe("Test case 1: the wedding through four scenes (docs/demo-plan.md)", () 
     b = await eventCase();
   });
   it("scene 1: verdicts months ahead; stock is information only", () => {
+    expect(a.viability.processing).toMatchObject({ stage: "Viability check", milestone: "viability_checked", segments: 1 });
     expect(a.viability.lines).toHaveLength(7);
     expect(a.viability.lines.find((l: any) => l.productId === "469672").verdict).toBe("green");
     expect(a.viability.lines.find((l: any) => l.productId === "467767").status).toBe("unknown_stock");
@@ -214,6 +215,8 @@ describe("Test case 1: the wedding through four scenes (docs/demo-plan.md)", () 
     expect(a.ainoQs[0]).toMatchObject({ type: "unknown_stock", forRole: "chef" });
     expect(a.ainoQs[0].facts.lines).toHaveLength(4);
     expect(a.sannaBefore).toHaveLength(0); // the chef answers first (D6)
+    expect(a.order.processing.milestone).toBe("chef_input");
+    expect(a.cont.plan.processing.milestone).toBe("approval_ready");
     // Each person's basket counts only what they can answer; the rest shows as waiting for others.
     expect(a.ainoBasket).toMatchObject({ waiting: 1, waitingOthers: a.sannaAll.length });
     expect(a.sannaBasket).toMatchObject({ waiting: a.sannaAll.length, waitingOthers: 1 });
@@ -229,6 +232,7 @@ describe("Test case 1: the wedding through four scenes (docs/demo-plan.md)", () 
   });
   it("scene 3: the allergy is checked first; almond counts as a tree nut; one card for Sanna", () => {
     expect(a.change.held).toBe(true);
+    expect(a.change.event.processing).toMatchObject({ stage: "Event change", milestone: "blocked", segments: 1 });
     const cake = a.allergyQs.find((q: any) => q.facts.productId === "467767");
     expect(cake.body).toMatch(/Contains almond/);
     expect(cake.options[0].id).toBe("replace_0");
@@ -243,6 +247,9 @@ describe("Test case 1: the wedding through four scenes (docs/demo-plan.md)", () 
   });
   it("scene 4: no-shows need nobody; the final check keeps 37 L and fills 10 L; ready with 5 unconfirmed", () => {
     expect(a.g188.applied).toBe(true);
+    expect(a.g188.event.processing).toMatchObject({ stage: "Event change", milestone: "change_applied", segments: 1 });
+    expect(a.view.event.processing).toMatchObject({ stage: "Final check", milestone: "final_checked", segments: 2 });
+    expect(a.view.event.processing.totalMs).toBeGreaterThanOrEqual(0);
     expect(a.final.lines.find((l: any) => l.productId === "464727").result).toBe("short");
     expect(a.subQ.body).toMatch(/37 of 47 in stock · 10 l to fill/);
     expect(a.subQ.facts.candidates.map((c: any) => c.productId)).toContain("464194");

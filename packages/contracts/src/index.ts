@@ -486,6 +486,8 @@ export type SingleLine = z.infer<typeof SingleLine>;
 
 export const SingleRequest = z.object({
   kind: z.literal("single"),
+  /** Reference to server-saved parsing evidence; never a client-supplied duration. */
+  parseAuditId: z.string().optional(),
   originalText: z.string(),
   siteId: z.string().nullable(),
   outletId: z.string(),

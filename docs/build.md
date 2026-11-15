@@ -87,6 +87,10 @@ The home request input and add-to-order input prepare searches after a 600 ms ty
 
 Run `pnpm --filter @aimo/api latency:check` for an isolated HTTP and catalogue benchmark with a scripted model and no supplier calls. Add `--live-model` to measure the configured OpenAI model, `--search-only` for catalogue work alone, or `--out <path>` to save measurements and result hashes. The report distinguishes the first request from repeated requests and records model call counts, code revision and whether tracked files were modified. These small local samples are diagnostic, not a production latency guarantee.
 
+### Stage processing totals
+
+Request results, item review and event results show one saved `processing` total with the milestone actually reached: chef input, a blocked result, review, approval, an applied change or a completed check. The server measures each submitted call with `performance.now()`, from authenticated dispatch until the computed result has been saved, before response serialization. A request includes the preceding submitted message's parsing time when its `parseAuditId` resolves to that person's saved audit evidence; direct requests and older snapshots omit missing parsing measurements. Quote creation is included. A resumed decision adds only its processing call, excluding time spent reviewing chips or waiting for chef/finance decisions. An explicit request edit or event-stage action starts its own total. Reading a saved result or moving the fixture clock cannot restart it. Browser transport/rendering and speculative preparation are outside this server-processing measurement. Existing `Plan.timings` and gateway-call measurements keep their separate scopes.
+
 ## Open standards
 
 | Standard | Where |

@@ -7,6 +7,7 @@ import { claimLabel, day, eur } from "../format";
 import { OrderItemDialog } from "./OrderItemDialog";
 import { ProductReviewItem } from "./ProductReviewItem";
 import { QuestionCard } from "./QuestionCard";
+import { ProcessingTime } from "./ProcessingTime";
 import { Icon } from "./icons";
 
 const UNITS: Unit[] = ["l", "dl", "ml", "kg", "g", "pcs"];
@@ -70,8 +71,9 @@ export function RequestReviewDialog({ initialReview, deliveryDate, onClose, onCh
   }
   const editReady = !!editTarget?.description.trim() && Number.isFinite(Number(editTarget.amount)) && Number(editTarget.amount) > 0;
 
-  async function recheck(next: SingleRequest) {
-    const result = await api.requote(review.plan.id, next);
+  async function recheck(next: SingleRequest, parseAuditId?: string) {
+    const { parseAuditId: _priorParsing, ...request } = next;
+    const result = await api.requote(review.plan.id, { ...request, ...(parseAuditId ? { parseAuditId } : {}) });
     setReview(result);
     setEditTarget(null);
     onChanged();
@@ -83,6 +85,7 @@ export function RequestReviewDialog({ initialReview, deliveryDate, onClose, onCh
     setDialogError(null);
     try {
       const original = request.lines.find((line) => line.id === editTarget.lineId)!;
+      let parseAuditId: string | undefined;
       let updated = { ...original, quantity: { amount: Number(editTarget.amount), unit: editTarget.unit } };
       if (editTarget.description.trim() !== original.query) {
         const parsed = await api.message(`${editTarget.amount} ${editTarget.unit} ${editTarget.description.trim()}`);
@@ -90,6 +93,7 @@ export function RequestReviewDialog({ initialReview, deliveryDate, onClose, onCh
           throw new Error("Describe one product for this row, then check it again.");
         }
         const line = parsed.request.lines[0];
+        parseAuditId = parsed.request.parseAuditId;
         updated = { ...line, id: original.id, quantity: updated.quantity, constraints: {
           ...original.constraints,
           ...line.constraints,
@@ -99,7 +103,7 @@ export function RequestReviewDialog({ initialReview, deliveryDate, onClose, onCh
           origin: original.constraints.origin ?? line.constraints.origin,
         } };
       }
-      await recheck({ ...request, lines: request.lines.map((line) => line.id === original.id ? updated : line) });
+      await recheck({ ...request, lines: request.lines.map((line) => line.id === original.id ? updated : line) }, parseAuditId);
     } catch (e) {
       setDialogError((e as Error).message);
     } finally {
@@ -193,6 +197,7 @@ export function RequestReviewDialog({ initialReview, deliveryDate, onClose, onCh
       onClose={() => { if (!busy) onClose(); }}
     >
       <div className="add-review-date"><Icon n="cal" s={18} /><span><small>Delivery date</small><b>{day(plan?.deliveryDate ?? deliveryDate)}</b></span></div>
+      <ProcessingTime processing={plan?.processing} />
 
       {!editable && <div className="callout blue" role="status">{inScope ? "This request is awaiting the decision below or has already been added." : "This request is outside your outlet scope. The order builder must review it."}</div>}
       {review.questions.filter((q) => q.state === "open" || q.state === "waiting").map((q) => <QuestionCard key={q.id} q={q} onAnswered={reloadDecision} />)}
