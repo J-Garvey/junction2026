@@ -12,6 +12,7 @@ import { rememberSubstitute } from "./memory.js";
 import { answerAllergy, answerChange, answerFinalSubstitute, personActor } from "./events.js";
 import { nowIso } from "../clock.js";
 import type { Person } from "../identity.js";
+import { answerBasketReview } from "./baskets.js";
 
 export async function answer(qId: string, p: Person, optionId: string, token: string) {
   const r = recordAnswer(qId, p, optionId);
@@ -40,6 +41,7 @@ export async function answer(qId: string, p: Person, optionId: string, token: st
 }
 
 async function applyAnswer(q: Question, p: Person, token: string) {
+  if (q.type === "order_review") return answerBasketReview(q, p, token);
   const f = q.facts as any;
   if (f.kind === "change") return answerChange(q, p, token);
   if (f.kind === "allergy") return answerAllergy(q, p);

@@ -48,6 +48,8 @@ The server reads the environment, then the untracked `.env.local`, then the trac
 
 Code: `apps/api/src/live/` (agent loop, gateway feed, `/api/live` routes with one server-sent event stream) and `apps/app/src/live/`. `test/live.test.ts` runs the whole flow with a scripted model. The hotel app stays at `/`.
 
+On an order page, **Submit order for review** sends the current basket to the finance approval queue (`POST /api/baskets/{id}/submit-review`). Repeated submissions return the same pending review. Finance can approve or return it to the order builder; approval signs the combined quote and places staged items through the gateway, which rechecks the terms at commit. Items already ordered are shown for context and are never placed again. Adding items replaces the pending review, so the updated order must be submitted again. Empty orders and unresolved product or delivery issues cannot be submitted. An approval inside the mandate carries an empty list of policy exceptions.
+
 ## How it fits together
 
 ```text
