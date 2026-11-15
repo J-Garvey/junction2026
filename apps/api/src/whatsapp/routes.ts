@@ -210,6 +210,9 @@ export function whatsappRouter(handler: WhatsAppHandler): Router {
         });
       } catch {
         if (!stillCurrent()) return result(409, { error: "The demo session changed. Reload the chat." });
+        // The last instruction did not produce a reviewed replacement. Do not
+        // leave an older proposal actionable after this failure.
+        stored.session.conversation.pending = null;
         delivery.status = "failed";
         kvSet(key(identity.person), stored);
         // Handler errors may contain upstream credentials; never send them to the browser.

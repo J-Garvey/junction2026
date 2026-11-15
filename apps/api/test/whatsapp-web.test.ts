@@ -161,6 +161,21 @@ describe("regular WhatsApp Web bridge", () => {
     expect(JSON.stringify(bridge.status(person()))).not.toContain("secret-private-error");
   });
 
+  it.each(["handler", "send"])("requires a fresh preview after a newer %s failure", async (failure) => {
+    await ready();
+    const proposal = (fingerprint: string) => ({ conversation: { activeOrderId: "evt-wedding", pending: { kind: "add_items" as const, orderId: "evt-wedding", fingerprint } }, reply: { text: fingerprint, status: "proposal" as const, actions: [] } });
+    handler.mockResolvedValueOnce(proposal("older-preview"));
+    await bridge.receive(message({ id: { _serialized: "older" }, body: "add 1 kg salmon" }));
+    if (failure === "handler") handler.mockRejectedValueOnce(new Error("Synthetic lookup outage"));
+    else {
+      handler.mockResolvedValueOnce(proposal("unseen-newer-preview"));
+      browser.sendText.mockRejectedValueOnce(new Error("Synthetic reply outage"));
+    }
+    await bridge.receive(message({ id: { _serialized: "failed" }, body: "add 3 kg salmon" }));
+    await bridge.receive(message({ id: { _serialized: "confirm" }, body: "confirm change" }));
+    expect(handler.mock.calls.at(-1)![0].conversation.pending).toBeNull();
+  });
+
   it("stops when the demo identity is reset and never processes messages with expired credentials", async () => {
     await ready();
     seedReset();

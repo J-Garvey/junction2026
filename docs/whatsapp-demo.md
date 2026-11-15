@@ -82,6 +82,8 @@ Include the source group's ID on every synthetic incoming message. A missing or 
 
 Reuse the same message ID and text when retrying a send. A reused ID with different text is rejected. Completed retries return the current session without repeating the operation, so an older preview cannot replace the latest pending confirmation on screen. Sessions and history are isolated by person and stored in the existing SQLite `kv` table; resetting the demo clears them. No phone identity is inferred from message text or the cosmetic display name.
 
+A failed request or uncertain outbound reply cancels pending confirmation. Review the intended change again before confirming it; an older or unseen proposal cannot authorize it.
+
 The coordinator resolves context, calls the existing parser and planner, and sends all final lines in one gateway quote. Duplicate products are aggregated before checking stock and spend, so separate chat messages cannot bypass the per-order cap. Confirmations bind to the basket snapshot. Changes to any staged request or event invalidate pending confirmation or approval; final ordering also rechecks the gateway's current price, delivery and cutoff facts. The existing gateway idempotency key prevents duplicate mock orders.
 
 Shared types live in `packages/contracts/src/whatsapp.ts`. Transport, interpreter, formatter and coordinator live in `apps/api/src/whatsapp/`. Transport uses an injected handler so a future real channel adapter can reuse the coordinator without moving ordering authority into message formatting or interpretation.

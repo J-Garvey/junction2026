@@ -266,6 +266,16 @@ describe("synthetic WhatsApp person transport", () => {
     expect(handler).toHaveBeenCalledTimes(2);
   });
 
+  it("cancels an earlier pending confirmation when a newer message fails", async () => {
+    await connect();
+    script = async () => ({ conversation: { activeOrderId: "evt-wedding", pending: { kind: "add_items", orderId: "evt-wedding", fingerprint: "older-preview" } }, reply: { text: "Old proposal", status: "proposal", actions: [] } });
+    await call("/messages", { id: "older", text: "add 1 kg salmon" });
+    script = async () => { throw new Error("Synthetic lookup outage"); };
+    expect((await call("/messages", { id: "failed", text: "add 3 kg salmon" })).status).toBe(502);
+    expect((await call("/session")).body.conversation).toEqual({ activeOrderId: "evt-wedding", pending: null });
+    expect((await call("/messages", { id: "failed", text: "different" })).status).toBe(409);
+  });
+
   it("persists results for a new router and refuses uncertain deliveries left by an interrupted server", async () => {
     await connect();
     const completed = await call("/messages", { id: "persisted", text: "hello" });
