@@ -96,6 +96,7 @@ export function seedReset() {
   issueFixedToken(VALIO_VIEWER_TOKEN, { kind: "valio", name: "Katri, Valio Aimo account manager" });
   kvSet("agentToken", HOTEL_AGENT_TOKEN);
   kvSet("dataMode", { mode: "fixture", overlay: null });
+  kvSet("seedProfile", { id: "story", version: 1, label: "Wedding story (fictional fixture)" });
   setClock({ scene: "1" });
   const e: StoredEvent = { ...SEED_EVENT, version: 1, removedNeeds: [], viabilityPlanId: null, orderPlanId: null, orderedGuests: null, lastDiff: null, finalCheck: null, changes: [] };
   saveEvent(e);

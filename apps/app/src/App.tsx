@@ -386,6 +386,17 @@ function DemoSettings({ status, onChange, onOpenWhatsApp, person }: { status: St
       </div>}
       <div className="demofoot">
         {err && <span className="small" style={{ color: "var(--red)" }}>{err}</span>}
+        <span className="small muted">{status.seedProfile?.label}</span>
+        <button
+          type="button"
+          className="btn sm"
+          disabled={!!busy}
+          onClick={() => {
+            if (confirm("Load the hotel workspace? This replaces orders, questions and the audit log with fictional demo activity.")) run("hotel", () => api.reset("hotel"));
+          }}
+        >
+          {busy === "hotel" ? "Loading hotel…" : "Load hotel workspace"}
+        </button>
         <button
           type="button"
           className="btn sm ghost"
