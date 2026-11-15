@@ -12,7 +12,7 @@ import { audit, auditView, verifyChain, decisionCount, SYSTEM } from "../audit.j
 import { kvGet, kvSet } from "../db.js";
 import { FIXED, rulesView } from "../rules/catalogue.js";
 import { PARAMS, policyParams, storedPolicy } from "../rules/policy.js";
-import { editRules, resetRules, RuleEditError } from "../rules/editor.js";
+import { defaultRuleParams, editRules, resetRules, RuleEditError } from "../rules/editor.js";
 import { getProduct, getProductDetails, catalogSize } from "../catalog.js";
 import { interpretMessage } from "../agent/message.js";
 import { logSearch } from "../searchlog.js";
@@ -490,6 +490,7 @@ export function appRouter(): Router {
       mandate: mandate(),
       fixed: FIXED,
       params: PARAMS,
+      defaultParams: defaultRuleParams(),
       policy: { params: policyParams(), version: p.version, updatedBy: p.updatedBy, updatedAt: p.updatedAt },
       canEdit: P(req).role === "approver",
       remembered: listRemembered(),
