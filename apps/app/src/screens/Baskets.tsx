@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import type { Order, Plan, Question, SingleRequest, Unit } from "@aimo/contracts";
-import { api, type BasketPlan, type MessageResp, type PlanResp } from "../api";
+import { api, ApiError, type BasketPlan, type MessageResp, type PlanResp } from "../api";
 import { splitMine, useApp, useLoad, waitingForText } from "../ctx";
 import { OthersWaiting, QuestionCard } from "../ui/QuestionCard";
 import { Status, planStatusKind, PLAN_STATUS_TEXT } from "../ui/Status";
@@ -351,7 +351,7 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
   const [request, setRequest] = useState<SingleRequest | null>(null);
   const [review, setReview] = useState<PlanResp | null>(null);
   const [editTarget, setEditTarget] = useState<{ lineId: string; field: "quantity" | "description"; amount: string; unit: Unit; description: string } | null>(null);
-  const [busy, setBusy] = useState<"search" | "check" | "replace" | "remove" | "add" | null>(null);
+  const [busy, setBusy] = useState<"search" | "check" | "replace" | "remove" | "approve" | "quantity" | "add" | null>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
   const [note, setNote] = useState<{ cls: string; body: React.ReactNode } | null>(null);
 
@@ -376,7 +376,7 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
       setEditTarget(null);
       setDialogError(null);
       setBusy("check");
-      setReview(await api.request(next, eventId, true));
+      setReview(await api.request(next, eventId, true, true));
     } catch (e) {
       setDialogError((e as Error).message);
       if (!request) setNote({ cls: "red", body: (e as Error).message });
@@ -392,7 +392,7 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
   const editReady = !!editTarget?.description.trim() && Number.isFinite(Number(editTarget.amount)) && Number(editTarget.amount) > 0;
 
   async function recheck(next: SingleRequest) {
-    const result = review ? await api.requote(review.plan.id, next) : await api.request(next, eventId, true);
+    const result = review ? await api.requote(review.plan.id, next) : await api.request(next, eventId, true, true);
     setRequest(next);
     setReview(result);
     setEditTarget(null);
@@ -465,7 +465,7 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
     setBusy("add");
     setDialogError(null);
     try {
-      await api.basketPlan(review.plan.id, !noIssues);
+      await api.basketPlan(review.plan.id);
       setRequest(null);
       setReview(null);
       setText("");
@@ -473,6 +473,24 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
       onAdded();
       refresh();
     } catch (e) {
+      if (e instanceof ApiError && e.body?.plan) setReview({ plan: e.body.plan, questions: [] });
+      setDialogError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function resolveItem(needId: string, salesQuantity?: { productId: string; quantity: number }) {
+    const item = review?.plan.itemReviews?.find((item) => item.needId === needId);
+    if (!review || !item || busy) return;
+    setBusy(salesQuantity ? "quantity" : "approve");
+    setDialogError(null);
+    try {
+      setReview(salesQuantity
+        ? await api.itemSalesQuantity(review.plan.id, needId, item.fingerprint, salesQuantity.productId, salesQuantity.quantity)
+        : await api.approveItem(review.plan.id, needId, item.fingerprint));
+    } catch (e) {
+      if (e instanceof ApiError && e.body?.plan) setReview({ plan: e.body.plan, questions: [] });
       setDialogError((e as Error).message);
     } finally {
       setBusy(null);
@@ -480,15 +498,8 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
   }
 
   const plan = review?.plan ?? null;
-  const issues = plan ? [...new Set([
-    ...(plan.error ? [plan.error] : []),
-    ...plan.inputRules.filter((rule) => rule.outcome !== "order").map((rule) => rule.message),
-    ...plan.lines.flatMap((line) => line.rules.filter((rule) => rule.outcome !== "order" && rule.ruleId !== "REQ-04" && rule.ruleId !== "DIET-04" && rule.ruleId !== "DLV-06").map((rule) => rule.message)),
-  ])] : [];
-  const blockingRules = plan ? [...plan.inputRules, ...plan.lines.flatMap((line) => line.rules)]
-    .filter((rule) => rule.outcome === "block" || !rule.overridable) : [];
-  const noIssues = !!plan?.proposal && issues.length === 0 && plan.lines.length > 0;
-  const canAdd = !!plan?.proposal && plan.lines.length > 0 && !plan.error && !plan.tooLate && blockingRules.length === 0;
+  const approvedCount = plan?.itemReviews?.filter((item) => item.approvedAt && item.canApprove).length ?? 0;
+  const canAdd = !!plan?.proposal && !!request?.lines.length && approvedCount === request.lines.length && !plan.error && !plan.tooLate;
 
   return (
     <section className="composer-wrap">
@@ -535,6 +546,9 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
                   deliveryDate={deliveryDate}
                   checked={!!plan}
                   disabled={!!busy || !!editTarget}
+                  review={plan?.itemReviews?.find((item) => item.needId === line.id)}
+                  onApprove={() => resolveItem(line.id)}
+                  onSalesQuantity={(productId, quantity) => resolveItem(line.id, { productId, quantity })}
                   onEdit={(field) => edit(line, field)}
                   onDiscard={() => discard(line.id)}
                   onChoose={(productId) => choose(line.id, productId)}
@@ -563,21 +577,15 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
 
           {plan && !editTarget && (
             <>
-              <div className={`callout ${noIssues ? "green" : "yellow"} add-review-result`} role={!noIssues ? "alert" : undefined}>
-                <b>{noIssues ? "Ready to add" : "Review the items above"}</b>
-                {noIssues ? (
-                  <span>Stock and delivery timing are confirmed for {day(deliveryDate)}.</span>
-                ) : canAdd ? (
-                  <span>You can choose replacements or add these products with their warnings.</span>
-                ) : (
-                  <span>Refine or discard unresolved items before adding these products to the order.</span>
-                )}
+              <div className={`callout ${canAdd ? "green" : "yellow"} add-review-result`} role="status">
+                <b>{canAdd ? "All items resolved" : `${approvedCount} of ${request.lines.length} items approved`}</b>
+                <span>{canAdd ? "Ready to add to the order. Any unconfirmed stock remains labelled; finance reviews the final order." : "Approve each item, or refine or discard anything that cannot be approved, to continue."}</span>
                 {plan.error && <span>{plan.error}</span>}
                 {plan.inputRules.length > 0 && <ul>{plan.inputRules.filter((rule) => rule.outcome !== "order").map((rule) => <li key={rule.ruleId}>{rule.message}</li>)}</ul>}
               </div>
 
               <div className="add-review-actions">
-                {canAdd && <button type="button" className="btn primary" disabled={!!busy} onClick={add}>{busy === "add" ? "Adding…" : noIssues ? "Add to order" : "Add to order anyway"}</button>}
+                <button type="button" className="btn primary" disabled={!!busy || !canAdd} onClick={add}>{busy === "add" ? "Adding…" : "Add to order"}</button>
                 <button type="button" className="btn ghost" disabled={!!busy} onClick={() => { setRequest(null); setReview(null); }}>Cancel</button>
                 <span className="add-review-total"><small>Total ex VAT</small><b>{eur(plan.totalExVat)}</b></span>
               </div>
