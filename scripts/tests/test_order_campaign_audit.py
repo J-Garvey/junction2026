@@ -30,6 +30,9 @@ class EvidenceBoundaries(unittest.TestCase):
     def test_unknown_origin_cannot_match_finnish(self):
         self.assertTrue(audit.check_constraints({"origin": None}, {"origin": "fi"}))
 
+    def test_unknown_certification_is_not_verified(self):
+        self.assertTrue(audit.check_constraints({"labels": []}, {"labels": ["MARINE_STEWARDSHIP_COUNCIL_LABEL"]}))
+
     def test_missing_allergen_declaration_is_not_safe(self):
         self.assertIn("no declaration", " ".join(audit.check_constraints({"has_allergen_data": False}, {"avoidAllergens": ["AN"]})))
 
@@ -101,6 +104,18 @@ class EvidenceBoundaries(unittest.TestCase):
     def test_unsupported_multi_order_can_safely_clarify(self):
         row = {"expected": {"scope": "all", "mustNotSilentlySelectOne": True}, "response": {"messages": [{"reply": {"status": "clarification"}}], "conversation": {"pending": None}}, "snapshots": {"draftDetailsBefore": [], "draftDetailsAfter": []}}
         self.assertEqual(audit.channel_checks(row, {})[0], [])
+
+    def test_global_constraints_merge_with_per_item_expectations(self):
+        actual = line()
+        actual["constraints"]["claims"] = ["VEGAN"]
+        row = {"expected": {"oracle": "independent", "globalClaims": ["VEGAN"], "lines": [{"product": "milk", "amount": 10, "unit": "l"}]}, "response": {"request": {"lines": [actual]}}}
+        self.assertEqual(audit.audit(row, {})[0], "pass")
+
+    def test_explicit_sku_can_establish_identity_without_name_in_query(self):
+        actual = line()
+        actual.update(query="469363", productId="469363")
+        row = {"expected": {"lines": [{"product": "milk", "productId": "469363"}]}, "response": {"request": {"lines": [actual]}}}
+        self.assertEqual(audit.audit(row, {})[0], "pass")
 
 
 if __name__ == "__main__":

@@ -100,6 +100,9 @@ def check_constraints(product, constraints):
             continue  # audited as allergen evidence below
         if claim not in claims:
             errors.append(f"required claim {claim} absent")
+    for label in constraints.get("labels", []):
+        if label not in product.get("labels", []):
+            errors.append(f"required certification label {label} absent")
     avoid = list(constraints.get("avoidAllergens", []))
     if "FREE_FROM_MILK" in constraints.get("claims", []):
         avoid.append("AM")
@@ -221,10 +224,11 @@ def audit(row, catalog, fixture=None):
     if isinstance(http_status, int) and http_status >= 400:
         return "inconclusive", [], ["request explicitly rejected"], [f"HTTP {http_status}: {response.get('message', response.get('error'))}; no semantic parse or downstream capability certified"]
     interpretation = response.get("interpretation")
-    if isinstance(interpretation, dict) and expected.get("intent"):
+    if isinstance(interpretation, dict) and (expected.get("intent") or expected.get("allowedIntents")):
         checks.append("independently specified interpreter intent")
-        if interpretation.get("intent") != expected["intent"]:
-            failures.append({"rule": "intent", "expected": expected["intent"], "observed": interpretation.get("intent")})
+        allowed = expected.get("allowedIntents", [expected.get("intent")])
+        if interpretation.get("intent") not in allowed:
+            failures.append({"rule": "intent", "expected": allowed, "observed": interpretation.get("intent")})
         limitations.append("interpreter evidence only; mutation behavior requires coordinator snapshots")
     if row.get("channel") == "whatsapp":
         channel_failures, channel_done, channel_limits = channel_checks(row, catalog)
@@ -262,10 +266,11 @@ def audit(row, catalog, fixture=None):
         if len(actual) != len(exp_lines):
             failures.append({"rule": "line_count", "expected": len(exp_lines), "observed": len(actual)})
         for i, (exp, got) in enumerate(zip(exp_lines, actual)):
+            exp = expected_by_id.get(got.get("id"), exp)
             for key in ("query", "productId"):
                 if key in exp and not same(got.get(key), exp[key]):
                     failures.append({"rule": key, "line": i, "expected": exp[key], "observed": got.get(key)})
-            if exp.get("product") and not set(product_tokens(exp["product"])).issubset(product_tokens(got.get("query"))):
+            if exp.get("product") and not (exp.get("productId") and exp.get("productId") == got.get("productId")) and not set(product_tokens(exp["product"])).issubset(product_tokens(got.get("query"))):
                 failures.append({"rule": "product_words_lost", "line": i, "expected": exp["product"], "observed": got.get("query")})
             for key in ("amount", "unit"):
                 if not got.get("quantity") and exp.get("amount", 1) <= 0:

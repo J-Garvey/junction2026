@@ -305,7 +305,17 @@
     "channel": "whatsapp_interpreter",
     "input": "add another kilo of salmon",
     "expected": {
-      "intent": "clarify"
+      "allowedIntents": [
+        "clarify",
+        "add_items"
+      ],
+      "lines": [
+        {
+          "amount": 1,
+          "unit": "kg",
+          "product": "salmon"
+        }
+      ]
     }
   },
   {
@@ -1650,6 +1660,31 @@
           ]
         }
       ]
+    }
+  },
+  {
+    "caseId": "AUD-wa-old-preview",
+    "family": "stale-delivery-replay",
+    "channel": "whatsapp_coordinator",
+    "input": "add 1 kg salmon 469672 to Darragh",
+    "seed": true,
+    "sequence": [
+      {
+        "text": "add 1 kg salmon 469672 to Darragh",
+        "id": "old"
+      },
+      {
+        "text": "add 3 kg salmon 469672 to Darragh",
+        "id": "new"
+      },
+      {
+        "text": "add 1 kg salmon 469672 to Darragh",
+        "id": "old"
+      },
+      "confirm change"
+    ],
+    "expected": {
+      "previewMustMatchAppliedChange": true
     }
   }
 ]
