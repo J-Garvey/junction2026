@@ -13,6 +13,7 @@ import { MenuEditor } from "../ui/MenuEditor";
 import { BasketCard } from "../ui/BasketCard";
 import { OrderBy } from "../ui/OrderBy";
 import { OrderReviewHistory } from "../ui/OrderReviewHistory";
+import { CarbonEstimate } from "../ui/CarbonEstimate";
 import { FinanceOrderSummary } from "./Finance";
 import { stockText } from "../ui/Popover";
 import { tooLateText } from "../ui/TooLate";
@@ -266,8 +267,11 @@ function StagedLines({ plans, submitted }: { plans: BasketPlan[]; submitted: boo
       {lines.map((line) => (
         <div key={`${line.planId}-${line.id}`} className="li">
           <span className="bqty">{qty(line.quantity)} {line.salesUnit ?? ""}</span>
-          <span className="trunc" style={{ flex: 1, color: "var(--ink)" }}>{line.productName}</span>
-          <AllergenDataMark line={line} />
+          <span style={{ flex: 1, minWidth: 0, color: "var(--ink)" }}>
+            <span className="trunc">{line.productName}</span>
+            <AllergenDataMark line={line} />
+            <CarbonEstimate line={line} />
+          </span>
           <span className="stamp ask">{submitted ? "Awaiting finance approval" : "Awaiting final order"}</span>
           <span className="small">{eur(line.lineTotal)}</span>
         </div>
@@ -288,8 +292,9 @@ function OrderedLines({ orders, showEmpty = true, emptyText = "Nothing ordered y
             <span className="bqty">
               {qty(l.quantity)} {l.salesUnit ?? ""}
             </span>
-            <span className="trunc" style={{ flex: 1, color: "var(--ink)" }}>
-              {l.productName}
+            <span style={{ flex: 1, minWidth: 0, color: "var(--ink)" }}>
+              <span className="trunc">{l.productName}</span>
+              <CarbonEstimate line={l} />
             </span>
             {l.stock.kind === "unknown" && <Status k={l.riskAccepted ? "covered_at_risk" : "unknown_stock"} />}
             <AllergenDataMark line={l} />
@@ -310,6 +315,7 @@ function OrderedLines({ orders, showEmpty = true, emptyText = "Nothing ordered y
             { label: "Quantity", value: `${qty(selected.quantity)} ${selected.salesUnit ?? ""}` },
             { label: "Unit price", value: eur(selected.unitPrice) },
             { label: "Line total", value: eur(selected.lineTotal) },
+            { label: "Carbon estimate", value: <CarbonEstimate line={selected} /> },
             { label: "Product ID", value: selected.productId },
             { label: "Stock", value: stockText(selected.stock) },
             { label: "Order", value: selected.orderId },

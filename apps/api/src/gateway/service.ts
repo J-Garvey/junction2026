@@ -7,6 +7,7 @@ import type { AllergenAcknowledgement, AllergenAcknowledgementBody, Approval, Ap
 import { getDb, getJson, allJson, tx } from "../db.js";
 import { now, nowIso } from "../clock.js";
 import { getProduct } from "../catalog.js";
+import { carbonBasisFor } from "../carbon.js";
 import { lookup, UpstreamError } from "../aimo/lookup.js";
 import { fire, resolveOutcome, FIXED, outcomeOf } from "../rules/catalogue.js";
 import { cutoffRule, dietRules, mandateRules, priceValidityRule, stockCheck, supplyRules } from "../rules/checks.js";
@@ -148,6 +149,7 @@ function buildQuote({ hotelId, body, lookups, amendsOrderId, fixedPrices }: Buil
       availableDate: l.availableDate,
       closingTime: l.closingTime,
       availabilityEvidence: l.availabilityEvidence,
+      carbonBasis: carbonBasisFor(p, l),
       priceValidTo: l.price?.validTo ?? null,
       logisticModel: l.logisticModel,
       source: l.source,
