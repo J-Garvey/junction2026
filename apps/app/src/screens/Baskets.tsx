@@ -109,6 +109,7 @@ export function BasketPage() {
   const [reviewFeedback, setReviewFeedback] = useState<{ eventId: string; message: string; error: boolean } | null>(null);
   const [requestNote, setRequestNote] = useState<string | null>(null);
   const [addMode, setAddMode] = useState<"product" | "menu">("product");
+  const [editingRequest, setEditingRequest] = useState<{ id: string; title: string } | null>(null);
 
   async function submitForReview() {
     setSubmitting(true);
@@ -213,7 +214,7 @@ export function BasketPage() {
           {!isApprover && pending.length > 0 && (
             <div className="card" style={{ marginTop: 12 }}>
               {pending.map((r) => (
-                <RequestRow key={r.id} r={r} onChanged={reload} onAdded={() => { setRequestNote("Added to the order. Submit the final order for finance review."); reload(); }} question={questions.find((q) => q.planId === r.id && (q.state === "open" || q.state === "waiting"))} />
+                <RequestRow key={r.id} eventId={ev.id} r={r} onChanged={reload} onAdded={() => { setRequestNote("Added to the order. Submit the final order for finance review."); reload(); }} question={questions.find((q) => q.planId === r.id && (q.state === "open" || q.state === "waiting"))} />
               ))}
             </div>
           )}
@@ -225,15 +226,16 @@ export function BasketPage() {
           <h2>In the order</h2>
           {(live.length > 0 || staged.length > 0) && <span className="small muted">{eur(orderTotal)} ex VAT</span>}
         </div>
-        <StagedLines plans={staged} submitted={!!review} />
+        <StagedLines eventId={ev.id} plans={staged} submitted={!!review} onChanged={() => { setRequestNote(null); refresh(); reload(); }} onEdit={(plan) => setEditingRequest({ id: plan.id, title: plan.title })} />
         <OrderedLines orders={live} showEmpty={!staged.length} emptyText={isApprover ? "No items in this order yet. The kitchen is preparing it." : undefined} />
       </section>
       <OrderReviewHistory questions={questions} />
+      {editingRequest && <SavedRequestDetails key={editingRequest.id} id={editingRequest.id} title={editingRequest.title} onClose={() => setEditingRequest(null)} onChanged={reload} onAdded={() => { setEditingRequest(null); setRequestNote("Added to the order. Submit the final order for finance review."); refresh(); reload(); }} />}
     </div>
   );
 }
 
-function RequestRow({ r, question, onChanged, onAdded }: { r: BasketPlan; question?: Question; onChanged: () => void; onAdded: () => void }) {
+function RequestRow({ eventId, r, question, onChanged, onAdded }: { eventId: string; r: BasketPlan; question?: Question; onChanged: () => void; onAdded: () => void }) {
   const { me, people } = useApp();
   const waitingLabel = question ? waitingForText(question, me, people) : undefined;
   const [open, setOpen] = useState(false);
@@ -245,6 +247,7 @@ function RequestRow({ r, question, onChanged, onAdded }: { r: BasketPlan; questi
       </div>
       {r.tooLate ? <span className="stamp ask">Too late</span> : <Status k={planStatusKind(r.status)} title={waitingLabel ?? PLAN_STATUS_TEXT[r.status]} label={r.status === "waiting" ? waitingLabel : undefined} />}
     </button>
+    <RequestCorrectionActions eventId={eventId} plan={r} onChanged={onChanged} />
     {open && <SavedRequestDetails id={r.id} title={r.title} onClose={() => setOpen(false)} onChanged={onChanged} onAdded={() => { setOpen(false); onAdded(); }} />}
   </>;
 }
@@ -258,21 +261,66 @@ function SavedRequestDetails({ id, title, onClose, onChanged, onAdded }: { id: s
   return <RequestReviewDialog initialReview={data} deliveryDate={data.plan.neededBy ?? ""} onClose={onClose} onChanged={onChanged} onAdded={onAdded} />;
 }
 
-function StagedLines({ plans, submitted }: { plans: BasketPlan[]; submitted: boolean }) {
-  const lines = plans.flatMap((plan) => plan.lines.map((line) => ({ ...line, planId: plan.id })));
-  if (!lines.length) return null;
+function StagedLines({ eventId, plans, submitted, onChanged, onEdit }: { eventId: string; plans: BasketPlan[]; submitted: boolean; onChanged: () => void; onEdit: (plan: BasketPlan) => void }) {
+  if (!plans.length) return null;
   return (
     <div className="card staged-lines">
-      {lines.map((line) => (
-        <div key={`${line.planId}-${line.id}`} className="li">
+      {plans.map((plan) => <div key={plan.id} role="group" aria-label={plan.title}>
+        {plan.lines.map((line) => <div key={line.id} className="li">
           <span className="bqty">{qty(line.quantity)} {line.salesUnit ?? ""}</span>
           <span className="trunc" style={{ flex: 1, color: "var(--ink)" }}>{line.productName}</span>
+          {line.stock?.kind === "unknown" && <Status k="unknown_stock" title="Valio Aimo has not confirmed stock. Continuing does not confirm fulfillment." />}
           <span className="stamp ask">{submitted ? "Awaiting finance approval" : "Awaiting final order"}</span>
           <span className="small">{eur(line.lineTotal)}</span>
-        </div>
-      ))}
+        </div>)}
+        <RequestCorrectionActions eventId={eventId} plan={plan} onChanged={onChanged} onEdit={() => onEdit(plan)} />
+      </div>)}
     </div>
   );
+}
+
+function RequestCorrectionActions({ eventId, plan, onChanged, onEdit }: { eventId: string; plan: BasketPlan; onChanged: () => void; onEdit?: () => void }) {
+  const { me, refresh } = useApp();
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const outlets = [plan.outletId, ...plan.lines.map((line) => line.outletId)];
+  if (me.role !== "chef" || !plan.changeToken || plan.orderIds.length || (!me.hotelScope && outlets.some((outlet) => outlet && !me.outlets.includes(outlet)))) return null;
+
+  async function correct(action: "edit" | "remove") {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.correctBasketRequest(eventId, plan.id, plan.changeToken!, action);
+      setConfirmRemove(false);
+      refresh();
+      onChanged();
+      if (action === "edit") onEdit?.();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return <>
+    <div className="li row" style={{ flexWrap: "wrap" }}>
+      {onEdit && <button type="button" className="btn sm" aria-label={`Edit request: ${plan.title}`} disabled={busy} onClick={() => correct("edit")}>Edit request</button>}
+      <button type="button" className="btn sm ghost" aria-label={`Remove request: ${plan.title}`} disabled={busy} onClick={() => { setError(null); setConfirmRemove(true); }}>Remove request</button>
+      {onEdit && <span className="small muted">Changes need fresh item checks and finance review.</span>}
+      {error && !confirmRemove && <div className="callout red small" role="alert">{error} <button type="button" className="btn sm" onClick={onChanged}>Refresh order</button></div>}
+    </div>
+    {confirmRemove && <OrderItemDialog eyebrow="Uncommitted request" title="Remove this request?" onClose={() => { if (!busy) setConfirmRemove(false); }}>
+      <p>{plan.title}</p>
+      <p>Remove all {plan.lines.length} {plan.lines.length === 1 ? "item" : "items"} in this request. Submit the remaining order for fresh finance review. Placed supplier orders stay unchanged.</p>
+      {error && <div className="callout red" role="alert">{error}</div>}
+      <div className="row">
+        <button type="button" className="btn primary" disabled={busy} onClick={() => correct("remove")}>{busy ? "Removing…" : "Remove request"}</button>
+        <button type="button" className="btn ghost" disabled={busy} onClick={() => setConfirmRemove(false)}>Cancel</button>
+      </div>
+    </OrderItemDialog>}
+  </>;
 }
 
 function OrderedLines({ orders, showEmpty = true, emptyText = "Nothing ordered yet. Add something above." }: { orders: Order[]; showEmpty?: boolean; emptyText?: string }) {

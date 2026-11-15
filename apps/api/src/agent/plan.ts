@@ -40,6 +40,7 @@ export type Overrides = {
 };
 export type StoredPlan = Plan & {
   overrides: Overrides; event?: EventSpec | null; questionsAnswered: number;
+  removedFromBasketAt?: string;
   stockPolicy?: string;
   /** A channel checkout combines staged requests under one mandate evaluation. */
   basketCheckout?: { snapshot: string; sourcePlanIds: string[] };
