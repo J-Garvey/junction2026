@@ -12,6 +12,7 @@ const { setClock } = await import("../src/clock.js");
 const { shortlist } = await import("../src/agent/match.js");
 const { needsFromSingle } = await import("../src/agent/plan.js");
 const search = await import("../src/search.js");
+const parser = await import("../src/agent/parse.js");
 
 let server: Server;
 let base = "";
@@ -43,7 +44,7 @@ function stubModel(result: (body: any) => Response | Promise<Response>) {
   const nativeFetch = globalThis.fetch;
   return vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
     if (String(input).startsWith(config.openai.baseUrl)) return Promise.resolve(result(JSON.parse(String(init?.body))));
-    if (!String(input).startsWith(base)) throw new Error("Preparation must not call a supplier or gateway");
+    if (!String(input).startsWith(`${base}/api/`)) throw new Error("Preparation must not call a supplier or gateway");
     return nativeFetch(input, init);
   });
 }
@@ -92,10 +93,12 @@ describe("speculative message preparation", () => {
     const text = "Please source 10 l milk without almonds from Finland by tomorrow";
     let release!: (value: Response) => void;
     let calls = 0;
+    const parsing = vi.spyOn(parser, "parseRequest");
     stubModel(() => { calls++; return new Promise((done) => { release = done; }); });
     const preparing = call("/messages/prepare", { text });
     await vi.waitFor(() => expect(calls).toBe(1));
     const submitting = call("/messages", { text });
+    await vi.waitFor(() => expect(parsing).toHaveBeenCalledTimes(2));
     release(response(parsed(text, ["SA"])));
     const [prepared, submitted] = await Promise.all([preparing, submitting]);
     expect(prepared.status).toBe(200);
