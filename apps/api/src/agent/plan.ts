@@ -8,7 +8,7 @@ import type { Constraints, EventSpec, FiredRule, Mandate, Need, Plan, PlanLine, 
 import { getDb, getJson, allJson, kvGet } from "../db.js";
 import { now, nowIso } from "../clock.js";
 import { getProduct } from "../catalog.js";
-import { fire, resolveOutcome } from "../rules/catalogue.js";
+import { fire, resolveOutcome, outcomeOf } from "../rules/catalogue.js";
 import { reliabilityRules, CLAIM_LABEL, allergenName } from "../rules/checks.js";
 import { audit, AGENT } from "../audit.js";
 import { newId, round2, eur, fmtHelsinki, isoDate } from "../util.js";
@@ -295,7 +295,7 @@ function makeLine(c: Candidate, needs: Need[], needValue: number, quantity: numb
     if (n.substituteFor && n.substituteFor !== c.productId) {
       const orig = getProduct(n.substituteFor);
       const remembered = recallSubstitute(n.dishId ?? "request", n.substituteFor, c.productId);
-      if (remembered) rules.push(fire("SUB-02", { substitute: c.name, original: orig?.name ?? n.substituteFor, dish: n.dishName ?? "this request", by: remembered.by, at: fmtHelsinki(remembered.at, false) }));
+      if (remembered && outcomeOf("SUB-02") === "order") rules.push(fire("SUB-02", { substitute: c.name, original: orig?.name ?? n.substituteFor, dish: n.dishName ?? "this request", by: remembered.by, at: fmtHelsinki(remembered.at, false) }));
       else rules.push(fire("SUB-01", { dish: n.dishName ?? "this request", substitute: c.name, original: orig?.name ?? n.substituteFor, needId: n.id, productId: c.productId }));
     }
     if (n.neededBy && c.availableDate && c.availableDate > n.neededBy) rules.push(fire("DLV-03", { product: c.name, available: c.availableDate, neededBy: n.neededBy }));

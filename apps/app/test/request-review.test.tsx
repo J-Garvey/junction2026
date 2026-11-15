@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
-import { SingleRequest, type Candidate, type Need, type Plan, type PlanLine, type Product } from "@aimo/contracts";
+import { SingleRequest, type Candidate, type Need, type Plan, type PlanLine, type ProductDetails } from "@aimo/contracts";
 import { api, ApiError, type BasketResp, type Person, type PlanResp } from "../src/api";
 import { Ctx, type AppCtx } from "../src/ctx";
 import { RequestReviewDialog } from "../src/ui/RequestReviewDialog";
@@ -53,11 +53,56 @@ async function searchOrder(result: PlanResp) {
   fireEvent.click(screen.getByRole("button", { name: "Search" }));
 }
 beforeEach(() => {
-  vi.spyOn(api, "product").mockResolvedValue({ claims: ["FREE_FROM_LACTOSE"], contains: [], mayContain: [], hasAllergenData: false } as unknown as Product);
+  vi.spyOn(api, "product").mockResolvedValue({ claims: ["FREE_FROM_LACTOSE"], contains: [], mayContain: [], hasAllergenData: false } as unknown as ProductDetails);
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("saved request review controls", () => {
+  it("keeps products in compact rows and approves only the selected item", async () => {
+    const multiple = fixture();
+    const request = multiple.plan.request!;
+    request.lines.push({ ...structuredClone(request.lines[0]), id: "cream", query: "cream" });
+    multiple.plan.lines.push({ ...structuredClone(multiple.plan.lines[0]), id: "cream-line", needIds: ["cream"], productName: "Selected cream" });
+    multiple.plan.needs.push({ ...structuredClone(multiple.plan.needs[0]), id: "cream" });
+    multiple.plan.itemReviews!.push({ ...multiple.plan.itemReviews![0], needId: "cream", fingerprint: "cream-fp" });
+    const approved = structuredClone(multiple);
+    approved.plan.itemReviews![0].approvedAt = "2026-11-14T10:00:00Z";
+    approved.plan.itemReviews![0].approvedBy = "Aino";
+    vi.spyOn(api, "approveItem").mockResolvedValue(approved);
+    show(multiple);
+    const rows = within(screen.getByRole("table", { name: "Products to review" })).getAllByRole("row");
+    expect(rows).toHaveLength(3);
+    expect(within(rows[1]).getByText("Selected milk")).toBeTruthy();
+    expect(within(rows[1]).getByText("1 KI")).toBeTruthy();
+    expect(within(rows[2]).getByText("Selected cream")).toBeTruthy();
+    expect(screen.queryByText("Order cutoff (Helsinki)")).toBeNull();
+    expect(api.product).not.toHaveBeenCalled();
+    fireEvent.click(within(rows[1]).getByRole("button", { name: "Approve milk" }));
+    await screen.findByTitle("Approved by Aino");
+    expect(api.approveItem).toHaveBeenCalledExactlyOnceWith("plan", "need", "item-fp");
+    expect(screen.getByRole("button", { name: "Approve cream" })).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Add to order" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it.each([
+    ["DIET-01", "This product contains an avoided allergen."],
+    ["DLV-06", "The supplier ordering cutoff has passed."],
+  ])("keeps the %s block visible with details closed", (ruleId, message) => {
+    const blocked = fixture();
+    blocked.plan.lines[0].rules.push({ ruleId, outcome: "block", message, facts: {}, overridable: false });
+    blocked.plan.itemReviews![0].canApprove = false;
+    blocked.plan.itemReviews![0].reason = message;
+    vi.spyOn(api, "approveItem");
+    show(blocked);
+    expect(screen.getAllByText(message).length).toBeGreaterThan(0);
+    expect(screen.queryByText("Product details")).toBeNull();
+    const approve = screen.getByRole("button", { name: "Approve milk" }) as HTMLButtonElement;
+    expect(approve.disabled).toBe(true);
+    fireEvent.click(approve);
+    expect(api.approveItem).not.toHaveBeenCalled();
+    expect((screen.getByRole("button", { name: "Add to order" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it("adds a new exact match directly without opening review", async () => {
     const exact = fixture();
     exact.plan.itemReviews![0].requiresApproval = false;
@@ -119,15 +164,42 @@ describe("saved request review controls", () => {
     expect(api.product).toHaveBeenCalledWith("469363");
   });
 
-  it("does not load dietary details for an exception without dietary requirements", () => {
+  it("loads full product details on demand even without dietary requirements", async () => {
     const exception = fixture();
     exception.plan.request!.lines[0].constraints.claims = [];
     exception.plan.lines[0].stock = { kind: "unknown", reason: "terminal_sentinel" };
     show(exception);
     expect(screen.getByRole("button", { name: "Approve milk" })).toBeTruthy();
-    expect(screen.getByText("Order cutoff (Helsinki)")).toBeTruthy();
+    expect(screen.queryByText("Order cutoff (Helsinki)")).toBeNull();
+    expect(screen.getByText("Approving continues with stock not confirmed.")).toBeTruthy();
     expect(api.product).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "View details" }));
+    expect(screen.getByText("Order cutoff (Helsinki)")).toBeTruthy();
+    await waitFor(() => expect(api.product).toHaveBeenCalledWith("469363"));
     expect(screen.queryByText(/No dietary requirements/)).toBeNull();
+  });
+
+  it("keeps all saved supplier schedules visible when catalogue loading fails and supports retry", async () => {
+    vi.mocked(api.product).mockRejectedValueOnce(new Error("Offline"));
+    const saved = fixture();
+    saved.plan.lines[0].availabilityEvidence = { salesBlock: false, schedules: [
+      { availableDate: "2026-11-19", closingTime: "2026-11-18T17:00:00+0200", salesUnit: "KI", stock: { kind: "known", amount: 2 }, salesBlock: false },
+      { availableDate: "2026-11-20", closingTime: "2026-11-19T17:00:00+0200", salesUnit: "KI", stock: { kind: "unknown", reason: "terminal_sentinel" }, salesBlock: true },
+    ] };
+    show(saved);
+    fireEvent.click(screen.getByRole("button", { name: "View details" }));
+    await screen.findByText(/Product information could not be loaded/);
+    expect(screen.getByRole("heading", { name: "Schedule 1" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Schedule 2" })).toBeTruthy();
+    expect(screen.getByText("Order cutoff (Helsinki)")).toBeTruthy();
+    expect(screen.getByText("Yes", { selector: "dd" })).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Add to order" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await screen.findByText(/Dietary suitability is unknown/);
+    expect(api.product).toHaveBeenCalledTimes(2);
+    fireEvent.click(screen.getByRole("button", { name: "Hide details" }));
+    expect(screen.queryByText("Order cutoff (Helsinki)")).toBeNull();
+    expect(screen.getByRole("button", { name: "Approve milk" })).toBeTruthy();
   });
 
   it("resumes item review, requires approval, stages once and refreshes the order", async () => {
@@ -139,6 +211,7 @@ describe("saved request review controls", () => {
     vi.spyOn(api, "basketPlan").mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
     const { onAdded, onChanged, refresh } = show(saved);
     expect((screen.getByRole("button", { name: "Add to order" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "View details" }));
     expect(screen.getByText(/Product 469363/).textContent).toContain("Fixture");
     await screen.findByText(/Dietary suitability is unknown/);
     await screen.findByRole("button", { name: "Approve milk" });
@@ -161,9 +234,14 @@ describe("saved request review controls", () => {
     changed.plan.itemReviews![0].fingerprint = "replacement-fp";
     vi.spyOn(api, "choose").mockResolvedValue(changed);
     const { onChanged } = show(fixture(true));
+    fireEvent.click(screen.getByRole("button", { name: "View details" }));
     fireEvent.click(screen.getByRole("button", { name: "Suggest replacements" }));
+    // D34: a replacement with unconfirmed stock is listed, identified by the small marker.
+    expect(screen.getAllByRole("img", { name: "Stock not confirmed" }).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: "Use replacement" }));
     await screen.findByRole("button", { name: "Approve milk" });
+    expect(screen.getAllByRole("img", { name: "Stock not confirmed" }).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/can't confirm stock/)).toBeNull();
     expect(api.choose).toHaveBeenCalledWith("plan", "need", "464306");
     expect((screen.getByRole("button", { name: "Add to order" }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getAllByText(/Unknown: ships from the supplier/).length).toBeGreaterThan(0);
@@ -200,6 +278,7 @@ describe("saved request review controls", () => {
     vi.spyOn(api, "approveItem");
     show(fixture(), { ...chef, id: "mikko", name: "Mikko", outlets: ["bar"] });
     expect(screen.getByText(/outside your outlet scope/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "View details" }));
     for (const name of ["Approve milk", "Suggest replacements", "Edit quantity for milk"]) {
       const button = screen.getByRole("button", { name }) as HTMLButtonElement;
       expect(button.disabled).toBe(true);
@@ -213,6 +292,7 @@ describe("saved request review controls", () => {
   it("keeps the selection after a failed replacement and allows a retry", async () => {
     vi.spyOn(api, "choose").mockRejectedValue(new ApiError(0, { message: "Can't reach the server right now. Nothing has been ordered." }));
     show(fixture());
+    fireEvent.click(screen.getByRole("button", { name: "View details" }));
     fireEvent.click(screen.getByRole("button", { name: "Suggest replacements" }));
     fireEvent.click(screen.getByRole("button", { name: "Use replacement" }));
     await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("Can't reach the server"));

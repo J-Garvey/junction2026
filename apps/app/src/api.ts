@@ -1,5 +1,5 @@
 /** Thin client for the hotel app API (/api). Shapes follow apps/api/src/app/routes.ts. */
-import type { AuditEntry, BasketStatus, Order, Plan, Product, Question, SingleRequest, WarningRecord, DietGroup, FiredRule, Mandate } from "@aimo/contracts";
+import type { AuditEntry, BasketStatus, Order, Plan, ProductDetails, Question, SingleRequest, WarningRecord, DietGroup, FiredRule, Mandate, Unit } from "@aimo/contracts";
 
 export class ApiError extends Error {
   constructor(
@@ -46,6 +46,7 @@ async function call<T>(method: string, path: string, body?: unknown, signal?: Ab
 
 export const get = <T>(p: string) => call<T>("GET", p);
 export const post = <T>(p: string, b?: unknown) => call<T>("POST", p, b ?? {});
+export const put = <T>(p: string, b?: unknown) => call<T>("PUT", p, b ?? {});
 
 // ---------- response shapes ----------
 
@@ -138,12 +139,48 @@ export interface FinalCheck {
   summary: string;
   lines: { productId: string; productName: string; result: string; detail: string }[];
 }
+export interface EventIngredient {
+  id: string;
+  text: string;
+  query?: string;
+  category?: string;
+  productId?: string;
+  variants?: Record<string, string>;
+  perPortion?: { amount: number; unit: Unit };
+  total?: { amount: number; unit: Unit };
+  claims?: string[];
+  origin?: string;
+  productType?: string;
+  frozen?: boolean;
+}
 export interface EventDish {
   id: string;
   name: string;
   outletId: string;
   excludesGroups: string[];
-  ingredients: { id: string; text: string; productId?: string; perPortion: { amount: number; unit: string } }[];
+  ingredients: EventIngredient[];
+}
+/** The menu scaled by the head count: one line per product or spec, with each dish's share (CH-12). */
+export interface MenuScale {
+  guests: number;
+  regularGuests: number;
+  lines: {
+    lineId: string;
+    text: string;
+    productId: string | null;
+    total: { amount: number; unit: "kg" | "l" | "pcs" };
+    constraints: { claims: string[]; avoidAllergens: string[]; labels: string[]; origin?: string };
+    shares: { dishName: string; groupId: string; groupLabel: string; guests: number | null; perPortion: { amount: number; unit: string } | null; amount: number }[];
+  }[];
+  problems: FiredRule[];
+  warnings: FiredRule[];
+}
+export interface MenuBody {
+  version: number;
+  guests: number;
+  dietsConfirmed: boolean;
+  dietGroups: DietGroup[];
+  dishes: EventDish[];
 }
 export interface StoredEvent {
   id: string;
@@ -192,19 +229,52 @@ export interface AuditResp {
   decisions: DecisionCount | null;
 }
 
+export type Outcome = FiredRule["outcome"];
+export interface RuleControl {
+  /** Outcomes the hotel may pick; one entry means locked. */
+  choices: Outcome[];
+  lock?: string;
+  params?: string[];
+  names?: Partial<Record<Outcome, string>>;
+  active?: boolean;
+}
 export interface RuleDef {
   label: string;
   id: string;
   area: string;
-  outcome: FiredRule["outcome"];
+  outcome: Outcome;
+  defaultOutcome: Outcome;
   hard: boolean;
   who: string;
   trigger: string;
   template: string;
+  control: RuleControl;
+}
+export type ParamKind = "pct" | "fraction" | "eur" | "days" | "number" | "grams" | "bool" | "weekdays" | "dates" | "products";
+export interface ParamDef {
+  key: string;
+  scope: "mandate" | "policy";
+  label: string;
+  help?: string;
+  kind: ParamKind;
+  unit?: string;
+  min?: number;
+  max?: number;
+  step?: number;
+  nullLabel?: string;
+}
+export type ParamValue = number | boolean | null | number[] | string[];
+export interface RuleEdit {
+  outcomes?: Record<string, Outcome>;
+  params?: Record<string, ParamValue>;
 }
 export interface RulesResp {
   rules: RuleDef[];
   mandate: Mandate;
+  params: Record<string, ParamDef>;
+  policy: { params: Record<string, ParamValue>; version: number; updatedBy: string | null; updatedAt: string | null };
+  canEdit: boolean;
+  changes?: string[];
   fixed: Record<string, number | string>;
   remembered: { dish: string; original: string; sub: string; by: string; at: string; spec?: string }[];
   tokens: { outsideAgent: string; valioViewer: string };
@@ -267,7 +337,7 @@ export const api = {
   submitBasketForReview: (id: string) => post<{ review: Question }>(`/api/baskets/${encodeURIComponent(id)}/submit-review`),
   newBasket: (name: string, deliveryDate: string) => post<{ basket: { id: string; name: string; deliveryDate: string } }>("/api/baskets", { name, deliveryDate }),
   plan: (id: string) => get<PlanResp>(`/api/plans/${encodeURIComponent(id)}`),
-  product: (id: string) => get<Product>(`/api/products/${encodeURIComponent(id)}`),
+  product: (id: string) => get<ProductDetails>(`/api/products/${encodeURIComponent(id)}`),
   reviewItems: (id: string) => post<PlanResp>(`/api/plans/${encodeURIComponent(id)}/review-items`),
   requote: (id: string, request: SingleRequest) => post<PlanResp>(`/api/plans/${encodeURIComponent(id)}/requote`, { request }),
   basketPlan: (id: string, continueWithWarnings = false) => post<PlanResp>(`/api/plans/${encodeURIComponent(id)}/basket`, { continueWithWarnings }),
@@ -278,6 +348,9 @@ export const api = {
   choose: (id: string, needId: string, productId: string) => post<PlanResp>(`/api/plans/${encodeURIComponent(id)}/choose`, { needId, productId }),
   answer: (id: string, optionId: string, note?: string) => post<AnswerResp>(`/api/questions/${encodeURIComponent(id)}/answer`, { optionId, ...(note !== undefined ? { note } : {}) }),
   event: (id: string) => get<EventResp>(`/api/events/${encodeURIComponent(id)}`),
+  menu: (id: string) => get<{ event: StoredEvent; scale: MenuScale }>(`/api/events/${encodeURIComponent(id)}/menu`),
+  saveMenu: (id: string, body: MenuBody) => call<{ event: StoredEvent; scale: MenuScale }>("PUT", `/api/events/${encodeURIComponent(id)}/menu`, body),
+  menuOrder: (id: string, version: number) => post<PlanResp & { scale: MenuScale }>(`/api/events/${encodeURIComponent(id)}/menu/order`, { version }),
   events: () => get<{ events: (StoredEvent & { coverage: Coverage })[] }>("/api/events"),
   viability: (id: string) => post<{ plan: Plan }>(`/api/events/${id}/viability`),
   orderEvent: (id: string) => post<{ plan: Plan }>(`/api/events/${id}/order`),
@@ -291,6 +364,8 @@ export const api = {
   orders: (eventId?: string) => get<OrdersResp>(`/api/orders${eventId ? `?eventId=${encodeURIComponent(eventId)}` : ""}`),
   audit: (viewer: "hotel" | "valio", eventId?: string) => get<AuditResp>(`/api/audit?viewer=${viewer}${eventId ? `&eventId=${encodeURIComponent(eventId)}` : ""}`),
   rules: () => get<RulesResp>("/api/rules"),
+  saveRules: (edit: RuleEdit) => put<RulesResp>("/api/rules", edit),
+  resetRules: () => post<RulesResp>("/api/rules/reset"),
   clock: (scene: SceneKey | "live") => post<unknown>("/api/clock", { scene }),
   reset: () => post<{ ok: boolean }>("/api/reset"),
 };

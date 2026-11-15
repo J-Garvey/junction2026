@@ -9,6 +9,7 @@ import { Status, planStatusKind, PLAN_STATUS_TEXT } from "../ui/Status";
 import { Icon } from "../ui/icons";
 import { OrderItemDialog } from "../ui/OrderItemDialog";
 import { RequestReviewDialog } from "../ui/RequestReviewDialog";
+import { MenuEditor } from "../ui/MenuEditor";
 import { BasketCard } from "../ui/BasketCard";
 import { OrderBy } from "../ui/OrderBy";
 import { OrderReviewHistory } from "../ui/OrderReviewHistory";
@@ -106,6 +107,7 @@ export function BasketPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [reviewFeedback, setReviewFeedback] = useState<{ eventId: string; message: string; error: boolean } | null>(null);
   const [requestNote, setRequestNote] = useState<string | null>(null);
+  const [addMode, setAddMode] = useState<"product" | "menu">("product");
 
   async function submitForReview() {
     setSubmitting(true);
@@ -159,7 +161,24 @@ export function BasketPage() {
       {returned && <div className="callout yellow small" role="status"><strong>Changes requested</strong><p className="decision-note">{returned.answerNote ?? "Returned to the order builder for changes."}</p><span className="muted">{returned.answeredBy?.name} · {when(returned.answeredAt)}</span></div>}
       {requestNote && <div className="callout green small" role="status">{requestNote}</div>}
 
-      <AddToBasket eventId={ev.id} deliveryDate={ev.serviceDate} onAdded={reload} />
+      <section className="stack">
+        <div className="add-mode">
+          <h2>Add to the order</h2>
+          <div className="seg" role="tablist" aria-label="How to add">
+            <button type="button" role="tab" aria-selected={addMode === "product"} className={addMode === "product" ? "on" : ""} onClick={() => setAddMode("product")}>
+              Products
+            </button>
+            <button type="button" role="tab" aria-selected={addMode === "menu"} className={addMode === "menu" ? "on" : ""} onClick={() => setAddMode("menu")}>
+              From a menu
+            </button>
+          </div>
+        </div>
+        {addMode === "product" ? (
+          <AddToBasket eventId={ev.id} deliveryDate={ev.serviceDate} onAdded={reload} />
+        ) : (
+          <MenuEditor event={ev} menuInOrder={staged.some((r) => r.title.startsWith("Menu ·")) || live.length > 0} onSaved={reload} onAdded={() => { refresh(); reload(); }} />
+        )}
+      </section>
 
       {(waitingQs.length > 0 || pending.length > 0) && (
         <section>

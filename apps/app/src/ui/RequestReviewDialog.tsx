@@ -198,7 +198,9 @@ export function RequestReviewDialog({ initialReview, deliveryDate, onClose, onCh
       {review.questions.filter((q) => q.state === "open" || q.state === "waiting").map((q) => <QuestionCard key={q.id} q={q} onAnswered={reloadDecision} />)}
       <div className="item-dialog-section add-review-section">
         <h3>Products</h3>
-        <div className="add-review-items">
+        <div className="add-review-table-wrap">
+          <table className="add-review-table" aria-label="Products to review">
+            <thead><tr><th scope="col">Product</th><th scope="col">Quantity</th><th scope="col">Total ex VAT</th><th scope="col">Review</th></tr></thead>
           {request.lines.map((line) => (
             <ProductReviewItem
               key={line.id}
@@ -231,6 +233,7 @@ export function RequestReviewDialog({ initialReview, deliveryDate, onClose, onCh
               )}
             </ProductReviewItem>
           ))}
+          </table>
         </div>
       </div>
 

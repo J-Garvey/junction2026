@@ -41,6 +41,13 @@ const earliestCutoff = (lines: PlanLine[]) => {
   return t.length ? new Date(Math.min(...t)).toISOString() : null;
 };
 
+/** RULE-POLICY: a rule asks a role only when the hotel left it set to ask that role. */
+const asks = (l: PlanLine, id: string, outcome: "ask_chef" | "ask_approver" = "ask_chef") => l.rules.some((r) => r.ruleId === id && r.outcome === outcome);
+const APPROVER_ORDER = ["QTY-01", "REL-02", "DLV-03", "PRC-02"];
+const rank = (id: string) => (APPROVER_ORDER.includes(id) ? APPROVER_ORDER.indexOf(id) : APPROVER_ORDER.length);
+/** Rules with their own chef card, or handled outside the line (STK-01 by stock kind, STK-02 as the split). */
+const OWN_CARD = new Set(["TYP-01", "SUB-01", "QTY-02", "QTY-03", "QTY-05", "STK-01", "STK-02"]);
+
 const lineFacts = (l: PlanLine) => ({ lineId: l.id, productId: l.productId, product: l.productName, quantity: l.quantity, unit: l.salesUnit, needIds: l.needIds, lineTotal: l.lineTotal, shares: l.shares });
 
 /** QUESTION-BUILD for a quote. Pre-answered questions are never created (PREANSWER-MATCH runs first). */
@@ -54,7 +61,7 @@ export function buildQuestions(plan: Plan & { overrides: any }, quote: Quote): Q
   const base = { planId: plan.id, eventId: plan.eventId, quoteId: quote.id, fingerprint: quote.fingerprint, deadline };
 
   // Chef: product type unsure (one card for all such lines).
-  const typ = live.filter((l) => l.rules.some((r) => r.ruleId === "TYP-01"));
+  const typ = live.filter((l) => asks(l, "TYP-01"));
   if (typ.length)
     out.push(makeQuestion({
       ...base, type: "ambiguous_type", forRole: "chef", outletId: typ[0].outletId,
@@ -66,7 +73,7 @@ export function buildQuestions(plan: Plan & { overrides: any }, quote: Quote): Q
     }));
 
   // Chef: a different product for a recipe ingredient, with a side-by-side (D6).
-  for (const l of live.filter((x) => x.rules.some((r) => r.ruleId === "SUB-01"))) {
+  for (const l of live.filter((x) => asks(x, "SUB-01"))) {
     const r = l.rules.find((x) => x.ruleId === "SUB-01")!;
     const need = plan.needs.find((n) => l.needIds.includes(n.id))!;
     const original = need.substituteFor!;
@@ -103,15 +110,27 @@ export function buildQuestions(plan: Plan & { overrides: any }, quote: Quote): Q
   }
 
   // Chef: quantity sanity or unverifiable pack size.
-  const qty = live.filter((l) => l.rules.some((r) => ["QTY-02", "QTY-03", "QTY-05"].includes(r.ruleId)) && !l.needIds.every((id) => plan.overrides.confirmed.includes(`${id}:${l.productId}`)));
+  const qty = live.filter((l) => ["QTY-02", "QTY-03", "QTY-05"].some((id) => asks(l, id)) && !l.needIds.every((id) => plan.overrides.confirmed.includes(`${id}:${l.productId}`)));
   if (qty.length)
     out.push(makeQuestion({
       ...base, type: "quantity_sanity", forRole: "chef", outletId: qty[0].outletId,
       title: "Check quantity",
-      body: qty.map((l) => `${shortName(l.productName)}: ${l.rules.find((r) => ["QTY-02", "QTY-03", "QTY-05"].includes(r.ruleId))!.label}`).join(" · "),
+      body: qty.map((l) => `${shortName(l.productName)}: ${l.rules.find((r) => ["QTY-02", "QTY-03", "QTY-05"].includes(r.ruleId) && r.outcome === "ask_chef")!.label}`).join(" · "),
       facts: { kind: "quantity", lines: qty.map(lineFacts) },
-      ruleIds: [...new Set(qty.flatMap((l) => l.rules.filter((r) => r.ruleId.startsWith("QTY")).map((r) => r.ruleId)))],
+      ruleIds: [...new Set(qty.flatMap((l) => l.rules.filter((r) => r.ruleId.startsWith("QTY") && r.outcome === "ask_chef").map((r) => r.ruleId)))],
       options: [{ id: "keep", label: "Order as calculated", primary: true }, { id: "remove", label: "Remove the line", primary: false }],
+    }));
+
+  // Chef: any other rule the hotel set to "ask the chef" (RULE-POLICY). Same answers as the quantity card.
+  const other = live.filter((l) => !qty.includes(l) && l.rules.some((r) => r.outcome === "ask_chef" && !OWN_CARD.has(r.ruleId)) && !l.needIds.every((id) => plan.overrides.confirmed.includes(`${id}:${l.productId}`)));
+  if (other.length)
+    out.push(makeQuestion({
+      ...base, type: "quantity_sanity", forRole: "chef", outletId: other[0].outletId,
+      title: other.length === 1 ? `Order ${shortName(other[0].productName)}?` : `Order these ${other.length} lines?`,
+      body: other.map((l) => `${shortName(l.productName)}: ${l.rules.filter((r) => r.outcome === "ask_chef" && !OWN_CARD.has(r.ruleId)).map((r) => r.message).join(" ")}`).join(" · "),
+      facts: { kind: "quantity", lines: other.map(lineFacts) },
+      ruleIds: [...new Set(other.flatMap((l) => l.rules.filter((r) => r.outcome === "ask_chef" && !OWN_CARD.has(r.ruleId)).map((r) => r.ruleId)))],
+      options: [{ id: "keep", label: "Order it", primary: true }, { id: "remove", label: "Remove the line", primary: false }],
     }));
 
   // Approver: one card for every money and policy item on this quote.
@@ -120,15 +139,18 @@ export function buildQuestions(plan: Plan & { overrides: any }, quote: Quote): Q
   const unknown: PlanLine[] = [];
   const softDecided = plan.overrides.approvedSoft.includes(quote.fingerprint);
   if (!softDecided) {
-    const partial = live.filter((l) => l.rules.some((r) => r.ruleId === "STK-02"));
+    const partial = live.filter((l) => asks(l, "STK-02", "ask_approver"));
     const pre = getJson<any>("mandates", plan.siteId ? "hotel-aurora" : "", "hotel_id")?.preAnswers;
     if (partial.length && !plan.overrides.keepShort && plan.shortfall) {
       const shortPct = ((plan.shortfall.need - plan.shortfall.covered) / plan.shortfall.need) * 100;
       if (!(pre?.partialFillMaxShortPct != null && shortPct <= pre.partialFillMaxShortPct))
         items.push({ ruleId: "STK-02", text: `Split: ${round2(plan.shortfall.covered)} of ${plan.shortfall.need} ${plan.shortfall.unit} in stock${partial.some((l) => l.allocation === "unknown_fill") ? ", rest at unknown stock" : ""}`, grant: "partial_fill", lines: partial.map((l) => l.id) });
     }
-    for (const id of ["QTY-01", "REL-02", "DLV-03", "PRC-02"]) {
-      const ls = live.filter((l) => l.rules.some((r) => r.ruleId === id));
+    // Every other line rule the hotel set to "ask an approver" (RULE-POLICY); by default QTY-01, REL-02, DLV-03 and PRC-02.
+    const approverIds = [...new Set(live.flatMap((l) => l.rules.filter((r) => r.outcome === "ask_approver" && r.ruleId !== "STK-02").map((r) => r.ruleId)))]
+      .sort((a, b) => rank(a) - rank(b));
+    for (const id of approverIds) {
+      const ls = live.filter((l) => asks(l, id, "ask_approver"));
       if (ls.length) items.push({ ruleId: id, text: `${ls[0].rules.find((r) => r.ruleId === id)!.label}: ${ls.map((l) => shortName(l.productName)).join(", ")}`, grant: null, lines: ls.map((l) => l.id) });
     }
   }

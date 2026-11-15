@@ -70,6 +70,29 @@ export const Product = z.object({
 });
 export type Product = z.infer<typeof Product>;
 
+/** Extra local catalogue fields used by the hotel's expanded product view. */
+export const ProductDetails = Product.extend({
+  catalogueDetails: z.object({
+    gtin: z.string().nullable(),
+    baseUnit: z.string().nullable(),
+    units: z.record(z.string(), z.number()),
+    salesUnitInBaseUnits: z.number().nullable(),
+    allowedLotSize: z.number().nullable(),
+    vatCategory: z.string().nullable(),
+    variableWeight: z.boolean().nullable(),
+    freeFrom: z.array(z.string()),
+    allergenUndeclared: z.array(z.string()),
+    netWeightKg: z.number().nullable(),
+    netVolumeL: z.number().nullable(),
+    netContentSource: z.string().nullable(),
+    deposits: z.array(z.object({ material: z.string(), unit: z.string(), quantity: z.number() })),
+    hotelTags: z.array(z.string()),
+    ingredientsEn: z.string().nullable(),
+    ingredientsFi: z.string().nullable(),
+  }),
+});
+export type ProductDetails = z.infer<typeof ProductDetails>;
+
 // ---------- lookup (LOOKUP) ----------
 
 export const StockFact = z.discriminatedUnion("kind", [

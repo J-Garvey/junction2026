@@ -8,7 +8,7 @@ import { getDb, getJson, allJson, tx } from "../db.js";
 import { now, nowIso } from "../clock.js";
 import { getProduct } from "../catalog.js";
 import { lookup, UpstreamError } from "../aimo/lookup.js";
-import { fire, resolveOutcome, FIXED } from "../rules/catalogue.js";
+import { fire, resolveOutcome, FIXED, outcomeOf } from "../rules/catalogue.js";
 import { cutoffRule, dietRules, mandateRules, priceValidityRule, stockCheck, supplyRules } from "../rules/checks.js";
 import { audit, GATEWAY, type Actor } from "../audit.js";
 import { newId, round2, sha256, stableStringify, parseAimoTime, eur, isCalendarDate } from "../util.js";
@@ -162,9 +162,11 @@ function buildQuote({ hotelId, body, lookups, amendsOrderId, fixedPrices }: Buil
   // D31: unconfirmed stock is the hotel's call, made by the person building the order, not an Approver's.
   // The order must name each such product, unless a pre-answer covers the line.
   const cap = mandate.preAnswers.unknownStockMaxLineEur;
-  const unconfirmedStock = [...new Set(lines.filter((l) => l.stock.kind === "unknown" && (cap === null || (l.lineTotal ?? Infinity) > cap)).map((l) => l.productId))];
+  // RULE-POLICY: a hotel that set STK-01 to "Continue" has pre-answered every line.
+  const continueAll = outcomeOf("STK-01") === "order";
+  const unconfirmedStock = continueAll ? [] : [...new Set(lines.filter((l) => l.stock.kind === "unknown" && (cap === null || (l.lineTotal ?? Infinity) > cap)).map((l) => l.productId))];
   const approvalsNeeded = [...mc.approvalsNeeded];
-  if (lines.some((l) => l.rules.some((r) => r.ruleId === "PRC-02"))) approvalsNeeded.push("price_change");
+  if (lines.some((l) => l.rules.some((r) => r.ruleId === "PRC-02" && r.outcome === "ask_approver"))) approvalsNeeded.push("price_change");
   const allRules = [...lines.flatMap((l) => l.rules), ...mc.rules];
   const blocked = allRules.some((r) => r.outcome === "block");
   const cutoffs = lines.map((l) => parseAimoTime(l.closingTime)?.getTime()).filter((t): t is number => typeof t === "number" && t > at.getTime());
