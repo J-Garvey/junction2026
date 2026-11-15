@@ -247,7 +247,7 @@ export const ApprovalBody = z.object({
   fingerprint: z.string(),
   grants: z
     .array(z.enum(["spend_cap", "partial_fill", "overshoot", "price_change", "reliability", "blocked_product"]))
-    .min(1),
+    .describe("Policy exceptions approved. Empty when finance reviews an order already inside the mandate."),
 });
 export type ApprovalBody = z.infer<typeof ApprovalBody>;
 
@@ -469,6 +469,7 @@ export const QuestionType = z.enum([
   "change_outside_tolerance",
   "allergy_conflict",
   "delivery_alignment",
+  "order_review",
 ]);
 export type QuestionType = z.infer<typeof QuestionType>;
 

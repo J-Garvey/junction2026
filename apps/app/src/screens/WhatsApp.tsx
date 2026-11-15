@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
-import type { WhatsAppMessage, WhatsAppSession } from "@aimo/contracts";
+import type { WhatsAppMessage, WhatsAppSession, WhatsAppGroupConfig } from "@aimo/contracts";
 import { useApp } from "../ctx";
 import { Icon } from "../ui/icons";
 import { whatsappApi } from "../whatsapp-api";
 import "./whatsapp.css";
 
-type PendingMessage = { id: string; text: string; error: string | null };
+type PendingMessage = { id: string; text: string; groupId: string | null; error: string | null };
 const errorText = (error: unknown) => error instanceof Error ? error.message : "The chat could not complete this request.";
 
 export function WhatsApp() {
@@ -24,6 +24,9 @@ function WhatsAppChat() {
   const [draft, setDraft] = useState("");
   const [operation, setOperation] = useState<"connect" | "disconnect" | null>(null);
   const [pending, setPending] = useState<PendingMessage | null>(null);
+  const [groups, setGroups] = useState<WhatsAppGroupConfig | null>(null);
+  const [chatId, setChatId] = useState("");
+  const [notice, setNotice] = useState<string | null>(null);
   const mounted = useRef(false);
   const working = useRef(false);
   const log = useRef<HTMLDivElement>(null);
@@ -36,6 +39,9 @@ function WhatsAppChat() {
       .then((value) => { if (live) setSession(value); })
       .catch((e: unknown) => { if (live) setError(errorText(e)); })
       .finally(() => { if (live) setLoading(false); });
+    whatsappApi.config()
+      .then((value) => { if (live) { setGroups(value); setChatId(value.selectedGroupId); } })
+      .catch((e: unknown) => { if (live) setError(errorText(e)); });
     return () => { live = false; mounted.current = false; };
   }, []);
 
@@ -49,9 +55,11 @@ function WhatsAppChat() {
     setLoading(true);
     setError(null);
     try {
-      const value = await whatsappApi.session();
+      const [value, groupConfig] = await Promise.all([whatsappApi.session(), whatsappApi.config()]);
       if (!mounted.current) return;
       setSession(value);
+      setGroups(groupConfig);
+      if (!chatId) setChatId(groupConfig.selectedGroupId);
       if (!value.connected || value.messages.some((m) => m.direction === "inbound" && m.id === pending?.id)) setPending(null);
     } catch (e) {
       if (mounted.current) setError(errorText(e));
@@ -85,9 +93,15 @@ function WhatsAppChat() {
     working.current = true;
     setPending({ ...message, error: null });
     setError(null);
+    setNotice(null);
     try {
-      const value = await whatsappApi.message({ id: message.id, text: message.text });
+      const value = await whatsappApi.message({ id: message.id, text: message.text, groupId: message.groupId });
       if (!mounted.current) return;
+      if ("ignored" in value) {
+        setPending(null);
+        setNotice(value.ignored === "direct_message" ? "Direct message ignored. The agent only responds in the group selected in Demo settings." : "Message ignored. This is not the group selected in Demo settings.");
+        return;
+      }
       setSession(value);
       setPending(null);
       refresh();
@@ -107,14 +121,16 @@ function WhatsAppChat() {
 
   function send(text: string) {
     if (!text.trim() || pending || working.current || !session?.connected) return;
-    const message = { id: crypto.randomUUID(), text, error: null };
+    const message = { id: crypto.randomUUID(), text, groupId: chatId === "direct" ? null : chatId, error: null };
     setDraft("");
     void deliver(message);
   }
 
   const sending = !!pending && !pending.error;
-  const unavailable = loading || !!operation || !!pending;
-  const lastReply = session?.messages.findLast((message) => message.direction === "outbound");
+  const unavailable = loading || !chatId || !!operation || !!pending;
+  const selectedChat = chatId === session?.groupId;
+  const messages = selectedChat ? session?.messages ?? [] : [];
+  const lastReply = messages.findLast((message) => message.direction === "outbound");
 
   return (
     <section className="wa-page" aria-labelledby="wa-title">
@@ -151,10 +167,20 @@ function WhatsAppChat() {
             {session.conversation.activeOrderId && <Link className="wa-disconnect" to={`/baskets/${encodeURIComponent(session.conversation.activeOrderId)}`}>Open basket</Link>}
             <button type="button" className="wa-disconnect" disabled={sending || !!operation || loading} onClick={() => void connection("disconnect")}>{operation === "disconnect" ? "Disconnecting…" : "Disconnect"}</button>
           </header>
+          <div className="wa-group-picker">
+            <label htmlFor="wa-source-chat">Demo chat</label>
+            <select id="wa-source-chat" value={chatId} disabled={unavailable} onChange={(event) => { setChatId(event.target.value); setDraft(""); setNotice(null); }}>
+              {!groups && <option value="">Loading chats…</option>}
+              {groups?.groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
+              <option value="direct">Direct message (ignored)</option>
+            </select>
+            <span>{selectedChat ? "Agent enabled for this group" : "Agent ignores this chat"}</span>
+          </div>
+          {notice && <div className="wa-chat-note" role="status">{notice}</div>}
           <div className="wa-log" ref={log} role="log" aria-label="Demo chat messages" aria-live="polite" aria-relevant="additions">
             <div className="wa-chat-note">A synthetic conversation with your hotel assistant</div>
-            {!session.messages.length && !pending && <div className="wa-empty"><h3>What does the kitchen need?</h3><p>Ask to see your orders, select an order, or describe a change.</p><button type="button" disabled={unavailable} onClick={() => send("Show my orders")}>Show my orders <Icon n="send" s={16} /></button></div>}
-            {session.messages.map((message) => (
+            {!messages.length && !pending && <div className="wa-empty"><h3>{selectedChat ? "What does the kitchen need?" : "This chat is ignored"}</h3><p>{selectedChat ? "Ask to see your orders, select an order, or describe a change." : "Send a test message to verify it receives no agent response. Choose the allowed group in Demo settings."}</p>{selectedChat && <button type="button" disabled={unavailable} onClick={() => send("Show my orders")}>Show my orders <Icon n="send" s={16} /></button>}</div>}
+            {messages.map((message) => (
               <MessageBubble key={`${message.direction}:${message.id}`} message={message} who={me.name}>
                 {message === lastReply && !!message.reply?.actions.length && <div className="wa-actions">{message.reply.actions.map((action, index) => <button type="button" key={index} disabled={unavailable} onClick={() => send(action.text)}>{action.label}</button>)}</div>}
               </MessageBubble>

@@ -1,5 +1,11 @@
 # Simulated WhatsApp ordering
 
+From **Demo settings**, select **Open WhatsApp demo**, choose a demo person if prompted, then select **Connect demo chat**.
+
+In Demo settings, **Respond only in this group** selects the single group the agent listens to. The default is **Demo Hotel · Orders**; the fixed demo choices also include **Conference kitchen** and **Hotel staff**. All other groups and direct messages are ignored on the server, before interpretation, cached replies or order changes. The chat's **Demo chat** selector lets you send test messages from each group or a direct chat. An ignored message produces only a local transport notice, with no agent reply or history returned.
+
+Changing the selected group clears every person's previous chat context, history and pending confirmation the next time their session is read. Existing orders remain. Delivery IDs from earlier group selections cannot be replayed in the newly selected group. Finish any messages currently being sent before changing the group. Group selection is a test-mode setting, like the existing demo clock.
+
 Open **WhatsApp** in the hotel app, or visit `/whatsapp`, after choosing a demo person. Connect the demo account and send a message. This is a synthetic web chat: it does not contact WhatsApp, connect a phone, collect Meta credentials, or send messages to anyone. The existing preview gate and person session still apply. The display name is cosmetic; the server chooses the person, hotel, outlets and credentials from the existing session.
 
 This addition was explicitly requested after the earlier product decision to cut WhatsApp. Real WhatsApp transport, phone verification and Meta account setup remain outside this prototype.
@@ -29,7 +35,11 @@ The authenticated synthetic transport is mounted at `/api/whatsapp`:
 | GET | `/session` | — | Person's connection, conversation and history |
 | POST | `/connect` | `{ "displayName": "Demo kitchen" }` (optional name) | Connected demo session |
 | POST | `/disconnect` | `{}` | Disconnected session |
-| POST | `/messages` | `{ "id": "client-generated-unique-id", "text": "summary" }` | Updated session including the agent reply |
+| POST | `/messages` | `{ "id": "client-generated-unique-id", "text": "summary", "groupId": "demo-hotel-orders" }` | Updated session, or `{ "ignored": "other_group" }` / `{ "ignored": "direct_message" }` |
+| GET | `/config` | — | Fixed groups and `selectedGroupId`; available on the person picker |
+| POST | `/config` | `{ "groupId": "demo-conference-kitchen" }` | Updated group selection; test mode only |
+
+Include the source group's ID on every synthetic incoming message. A missing or null group ID is a direct message and is ignored. The selected ID must exactly match; a matching display name does not authorize a message. Chat endpoints require a person session; the demo configuration endpoints use the existing preview gate and can be opened before selecting a person. These IDs and the source-chat selector are fixtures for the synthetic transport, not a live WhatsApp connection.
 
 Reuse the same message ID and text when retrying a send. A reused ID with different text is rejected. Sessions and history are isolated by person and stored in the existing SQLite `kv` table; resetting the demo clears them. No phone identity is inferred from message text or the cosmetic display name.
 

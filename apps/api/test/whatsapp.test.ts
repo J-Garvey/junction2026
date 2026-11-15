@@ -2,7 +2,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import express from "express";
 import type { Server } from "node:http";
-import type { WhatsAppSession } from "@aimo/contracts";
+import type { WhatsAppSession, WhatsAppGroupConfig } from "@aimo/contracts";
 import type { WhatsAppHandler } from "../src/whatsapp/routes.js";
 
 process.env.AIMO_DB = ":memory:";
@@ -13,6 +13,9 @@ const { getDb, kvGet, kvSet } = await import("../src/db.js");
 const { issueToken } = await import("../src/identity.js");
 const { seedReset } = await import("../src/seed.js");
 const { nowIso } = await import("../src/clock.js");
+const { config } = await import("../src/config.js");
+const GROUP = "demo-hotel-orders";
+const OTHER_GROUP = "demo-conference-kitchen";
 
 let base: string;
 let server: Server;
@@ -45,15 +48,16 @@ beforeEach(() => {
 });
 
 async function call(path: string, body?: unknown, token: string | null = aino, cookie = false) {
+  const requestBody = path === "/messages" && body && typeof body === "object" ? { groupId: GROUP, ...body } : body;
   const response = await fetch(`${base}/api/whatsapp${path}`, {
     method: body === undefined ? "GET" : "POST",
     headers: {
       "content-type": "application/json",
       ...(token ? cookie ? { cookie: `aimo_session=${encodeURIComponent(token)}` } : { authorization: `Bearer ${token}` } : {}),
     },
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: requestBody === undefined ? undefined : JSON.stringify(requestBody),
   });
-  return { status: response.status, body: await response.json() as WhatsAppSession & { error?: string }, headers: response.headers };
+  return { status: response.status, body: await response.json() as WhatsAppSession & WhatsAppGroupConfig & { ignored?: string; error?: string }, headers: response.headers };
 }
 const connect = (token = aino) => call("/connect", {}, token);
 function latch() {
@@ -75,7 +79,7 @@ describe("synthetic WhatsApp person transport", () => {
     const before = getDb().prepare("SELECT COUNT(*) AS n FROM tokens").get();
     const session = await call("/session", undefined, aino, true);
     expect(session.status).toBe(200);
-    expect(session.body).toEqual({ connected: false, simulated: true, displayName: "Aino", messages: [], conversation: { activeOrderId: null, pending: null } });
+    expect(session.body).toEqual({ connected: false, simulated: true, displayName: "Aino", groupId: GROUP, messages: [], conversation: { activeOrderId: null, pending: null } });
     expect(session.headers.get("cache-control")).toBe("no-store");
     for (const result of [await connect(), await call("/messages", { id: "hello", text: "hello" }), await call("/disconnect", {})]) {
       expect(result.status).toBe(200);
@@ -268,7 +272,7 @@ describe("synthetic WhatsApp person transport", () => {
     const otherServer = makeApp().listen(0, "127.0.0.1");
     await new Promise<void>((r) => otherServer.once("listening", r));
     try {
-      const response = await fetch(`http://127.0.0.1:${(otherServer.address() as { port: number }).port}/api/whatsapp/messages`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${aino}` }, body: JSON.stringify({ id: "persisted", text: "hello" }) });
+      const response = await fetch(`http://127.0.0.1:${(otherServer.address() as { port: number }).port}/api/whatsapp/messages`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${aino}` }, body: JSON.stringify({ id: "persisted", text: "hello", groupId: GROUP }) });
       expect(await response.json()).toEqual(completed.body);
       expect(handler).toHaveBeenCalledTimes(1);
     } finally { await new Promise<void>((r) => otherServer.close(() => r())); }
@@ -297,5 +301,75 @@ describe("synthetic WhatsApp person transport", () => {
     expect((await call("/session")).status).toBe(401);
     aino = issueToken({ kind: "person", personId: "p-aino" });
     expect((await call("/session")).body).toMatchObject({ connected: false, messages: [], conversation: { activeOrderId: null, pending: null } });
+  });
+
+  it("ignores every other group and direct messages before handling, caching or changing context", async () => {
+    await connect();
+    const allowed = await call("/messages", { id: "selected", text: "hello" });
+    for (const groupId of [OTHER_GROUP, "unrecognised-group", "Demo Hotel · Orders", null, undefined]) {
+      // Even a cached message must not produce an agent reply in another chat.
+      const ignored = await call("/messages", { id: "selected", text: "hello", groupId });
+      expect(ignored.status).toBe(200);
+      expect(ignored.body.ignored).toBe(groupId == null ? "direct_message" : "other_group");
+      expect(ignored.body).not.toHaveProperty("messages");
+      expect(ignored.body).not.toHaveProperty("conversation");
+      expect(ignored.body).not.toHaveProperty("reply");
+    }
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect((await call("/session")).body).toEqual(allowed.body);
+  });
+
+  it("exposes fixed demo group choices before person selection and validates configuration", async () => {
+    const initial = await call("/config", undefined, null);
+    expect(initial.body.selectedGroupId).toBe(GROUP);
+    expect(initial.body.groups).toHaveLength(3);
+    for (const groupId of ["", "unknown", "Demo Hotel · Orders"]) expect((await call("/config", { groupId }, null)).status).toBe(400);
+    expect((await call("/config", { groupId: OTHER_GROUP }, null)).body.selectedGroupId).toBe(OTHER_GROUP);
+    expect((await call("/config", undefined, null)).body.selectedGroupId).toBe(OTHER_GROUP);
+    seedReset();
+    expect((await call("/config", undefined, null)).body.selectedGroupId).toBe(GROUP);
+  });
+
+  it("clears old group history and pending confirmations and rejects old deliveries in a new group", async () => {
+    await connect();
+    script = async () => ({ conversation: { activeOrderId: "evt-wedding", pending: { kind: "confirm_order", orderId: "evt-wedding", fingerprint: "old-group" } }, reply: { text: "Confirm?", status: "proposal", actions: [] } });
+    const old = await call("/messages", { id: "old", text: "order" });
+    expect((await call("/config", { groupId: GROUP })).status).toBe(200);
+    expect((await call("/session")).body).toEqual(old.body);
+    await call("/config", { groupId: OTHER_GROUP });
+    expect((await call("/session")).body).toMatchObject({ connected: true, groupId: OTHER_GROUP, messages: [], conversation: { activeOrderId: null, pending: null } });
+    expect((await call("/messages", { id: "old", text: "order" })).body.ignored).toBe("other_group");
+    expect((await call("/messages", { id: "old", text: "order", groupId: OTHER_GROUP })).status).toBe(409);
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect((await call("/messages", { id: "new", text: "hello", groupId: OTHER_GROUP })).status).toBe(200);
+    // Switching away and back before reading must still invalidate old context.
+    await call("/config", { groupId: GROUP });
+    await call("/config", { groupId: OTHER_GROUP });
+    expect((await call("/session")).body).toMatchObject({ messages: [], conversation: { activeOrderId: null, pending: null } });
+    expect((await call("/messages", { id: "new", text: "hello", groupId: OTHER_GROUP })).status).toBe(409);
+  });
+
+  it("does not change group authorization while any person's message is running", async () => {
+    await connect();
+    const entered = latch();
+    const release = latch();
+    script = async ({ conversation }) => { entered.resolve(); await release.promise; return { conversation, reply: { text: "Done", status: "summary", actions: [] } }; };
+    const sending = call("/messages", { id: "active", text: "hello" });
+    await entered.promise;
+    try {
+      expect((await call("/config", { groupId: OTHER_GROUP }, null)).status).toBe(409);
+      expect((await call("/config")).body.selectedGroupId).toBe(GROUP);
+    } finally { release.resolve(); }
+    expect((await sending).status).toBe(200);
+    expect((await call("/config", { groupId: OTHER_GROUP }, null)).status).toBe(200);
+  });
+
+  it("disables group changes outside test mode", async () => {
+    const before = config.testMode;
+    config.testMode = false;
+    try {
+      expect((await call("/config", { groupId: OTHER_GROUP })).status).toBe(403);
+      expect((await call("/config")).body.selectedGroupId).toBe(GROUP);
+    } finally { config.testMode = before; }
   });
 });

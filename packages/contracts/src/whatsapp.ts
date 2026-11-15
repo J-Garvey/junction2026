@@ -75,6 +75,15 @@ export interface WhatsAppSession {
   connected: boolean;
   simulated: true;
   displayName: string;
+  groupId: string;
   messages: WhatsAppMessage[];
   conversation: WhatsAppConversation;
 }
+
+export interface WhatsAppGroupConfig {
+  selectedGroupId: string;
+  groups: { id: string; name: string }[];
+}
+
+/** Ignored messages return transport feedback only, never a reply or chat history. */
+export type WhatsAppMessageResult = WhatsAppSession | { ignored: "other_group" | "direct_message" };

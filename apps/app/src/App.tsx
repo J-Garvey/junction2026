@@ -1,8 +1,9 @@
 /** Shell: the order-first main view, phone tabs, the top bar with the profile, the allergy banner,
  * and the person picker with the demo settings (test clock and reset). */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, NavLink, Route, Routes, useLocation } from "react-router";
-import type { WarningRecord } from "@aimo/contracts";
+import { Link, NavLink, Route, Routes, useLocation, useNavigate } from "react-router";
+import type { WarningRecord, WhatsAppGroupConfig } from "@aimo/contracts";
+import { whatsappApi } from "./whatsapp-api";
 import { api, authHooks, type Outlet, type Person, type StatusResp, type SceneKey } from "./api";
 import { Ctx, type AppCtx, useLoad } from "./ctx";
 import { Icon, Lockup, Mark, type IconName } from "./ui/icons";
@@ -362,6 +363,15 @@ function PersonPicker({
   onCancel?: () => void;
 }) {
   const [settings, setSettings] = useState(false);
+  const [whatsAppPending, setWhatsAppPending] = useState(false);
+  const navigate = useNavigate();
+
+  function openWhatsApp() {
+    navigate("/whatsapp");
+    if (current && onCancel) onCancel();
+    else setWhatsAppPending(true);
+  }
+
   return (
     <div className="picker">
       <Lockup s={30} />
@@ -388,15 +398,22 @@ function PersonPicker({
           <Icon n="clock" s={14} /> Demo settings
         </button>
       </div>
-      {settings && <DemoSettings status={status} onChange={onChange} />}
+      {settings && <DemoSettings status={status} onChange={onChange} onOpenWhatsApp={openWhatsApp} />}
+      {whatsAppPending && <p className="callout" role="status">Choose a demo person above to open WhatsApp, then select “Connect demo chat”.</p>}
     </div>
   );
 }
 
-/** Test-only controls, kept off the product screens: move the clock to a scene or real time, and reset the demo. */
-function DemoSettings({ status, onChange }: { status: StatusResp | null; onChange: () => void }) {
+/** Demo controls: move the clock, open the simulated WhatsApp connection, and reset. */
+function DemoSettings({ status, onChange, onOpenWhatsApp }: { status: StatusResp | null; onChange: () => void; onOpenWhatsApp: () => void }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [whatsAppGroups, setWhatsAppGroups] = useState<WhatsAppGroupConfig | null>(null);
+  useEffect(() => {
+    let active = true;
+    whatsappApi.config().then((value) => { if (active) setWhatsAppGroups(value); }).catch((e: Error) => { if (active) setErr(e.message); });
+    return () => { active = false; };
+  }, []);
   if (!status) return <div className="demoset muted">Loading demo settings…</div>;
   const dm = typeof status.dataMode === "string" ? status.dataMode : status.dataMode.mode;
   const overlay = typeof status.dataMode === "string" ? null : status.dataMode.overlay;
@@ -436,6 +453,26 @@ function DemoSettings({ status, onChange }: { status: StatusResp | null; onChang
           <b>Real time</b>
           <span className="small muted">Live clock and live mock data</span>
         </button>
+      </div>
+      <div className="democonnection">
+        <div>
+          <b>WhatsApp</b>
+          <p className="small muted">Simulated login and ordering chat.</p>
+        </div>
+        <button type="button" className="btn sm" disabled={!!busy} onClick={onOpenWhatsApp}>
+          <Icon n="chat" s={16} /> Open WhatsApp demo
+        </button>
+        <label className="demogroup">
+          <b className="small">Respond only in this group</b>
+          <select aria-label="WhatsApp group" value={whatsAppGroups?.selectedGroupId ?? ""} disabled={!!busy || !whatsAppGroups || status.testMode === false} onChange={(event) => {
+            const groupId = event.target.value;
+            void run("whatsapp-group", async () => { setWhatsAppGroups(await whatsappApi.selectGroup(groupId)); });
+          }}>
+            {!whatsAppGroups && <option value="">Loading groups…</option>}
+            {whatsAppGroups?.groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
+          </select>
+          <span className="small muted">Other groups and direct messages are ignored. Changing groups clears chat context.</span>
+        </label>
       </div>
       <div className="demofoot">
         {err && <span className="small" style={{ color: "var(--red)" }}>{err}</span>}

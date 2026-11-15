@@ -27,6 +27,7 @@ import { gw } from "../agent/gatewayClient.js";
 import { dataMode } from "../aimo/lookup.js";
 import { config } from "../config.js";
 import { modelConfigured, modelName } from "../agent/openai.js";
+import { basketReview, submitBasketForReview, invalidateBasketReview, BasketReviewError } from "../agent/baskets.js";
 
 type Authed = Request & { person: Person; token: string };
 
@@ -185,6 +186,7 @@ export function appRouter(): Router {
     plan.summary = "In the order · awaiting final order";
     audit({ actor: personActor(p), action: "request_received", summary: `${p.name} added ${plan.title} to the order`, eventId: plan.eventId, details: { kind: "confirmation", planId: plan.id, lines: plan.lines.map((l) => l.productId) }, visibility: "hotel" });
     savePlan(plan);
+    invalidateBasketReview(plan.eventId);
     res.json({ plan, questions: allQuestions().filter((q) => q.planId === plan.id) });
   });
 
@@ -297,8 +299,10 @@ export function appRouter(): Router {
     const id = String(req.params.id);
     if (!getEvent(id)) return res.status(404).json({ error: "No such order" });
     const { orders } = await gw.orders(id);
-    res.json({ ...eventView(id), requests: basketPlans(id).map(planRow), orders });
+    const review = basketReview(id, orders);
+    res.json({ ...eventView(id), requests: basketPlans(id).map(planRow), orders, review });
   });
+  r.post("/baskets/:id/submit-review", async (req, res) => res.json({ review: await submitBasketForReview(String(req.params.id), P(req)) }));
 
   r.get("/events", (_req, res) => res.json({ events: listEvents().map((e) => ({ ...e, coverage: coverageSummary(e.id) })) }));
   r.get("/events/:id", (req, res) => res.json(eventView(String(req.params.id))));
@@ -367,6 +371,7 @@ export function appRouter(): Router {
 }
 
 export function appErrors(err: unknown, _req: Request, res: Response, next: NextFunction) {
+  if (err instanceof BasketReviewError) return res.status(err.status).json({ error: "basket_review", message: err.message });
   if (err instanceof EditConflict) return res.status(409).json({ error: "edit_conflict", message: err.message, current: err.current });
   if (err instanceof z.ZodError) return res.status(422).json({ error: "invalid", message: err.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") });
   next(err);

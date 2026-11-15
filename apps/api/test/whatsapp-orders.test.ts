@@ -35,7 +35,7 @@ beforeEach(async () => {
 });
 async function basket(name = "Conference") { return (await call("/baskets", { name, deliveryDate: "2026-11-16" })).basket.id as string; }
 async function send(text: string, id = `test-${seq++}`): Promise<WhatsAppReply> {
-  const output = await call("/whatsapp/messages", { id, text });
+  const output = await call("/whatsapp/messages", { id, text, groupId: "demo-hotel-orders" });
   return output.messages.at(-1).reply;
 }
 async function stage(id: string, text = "10 kg salmon") {
@@ -169,5 +169,24 @@ describe("synthetic WhatsApp order flow", () => {
     expect(response.status, response.text).toBe("blocked");
     expect((await call("/orders")).orders).toHaveLength(0);
     expect((await call(`/baskets/${id}`)).requests).toHaveLength(0);
+  });
+
+  it("does not apply changes or submit an order from a different group or a direct message", async () => {
+    const id = await basket();
+    await send(id);
+    expect((await send("add 10 kg salmon 469672")).status).toBe("proposal");
+    const pending = (await call("/whatsapp/session")).conversation.pending;
+    for (const groupId of ["demo-conference-kitchen", null]) {
+      const ignored = await call("/whatsapp/messages", { id: `ignored-change-${groupId}`, text: "confirm change", groupId });
+      expect(ignored.ignored).toBeTruthy();
+      expect(ignored).not.toHaveProperty("messages");
+      expect((await call("/whatsapp/session")).conversation.pending).toEqual(pending);
+      expect((await call(`/baskets/${id}`)).requests).toHaveLength(0);
+    }
+    expect((await send("confirm change")).status).toBe("updated");
+    expect((await send("confirm order")).status).toBe("proposal");
+    expect((await call("/whatsapp/messages", { id: "ignored-final", text: "confirm order", groupId: "demo-hotel-staff" })).ignored).toBe("other_group");
+    expect((await call("/orders")).orders).toHaveLength(0);
+    expect((await send("confirm order")).status).toBe("ordered");
   });
 });

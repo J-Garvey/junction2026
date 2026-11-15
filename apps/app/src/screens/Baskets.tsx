@@ -118,13 +118,29 @@ function NewBasketTile() {
 }
 
 export function BasketPage() {
-  const { me, people } = useApp();
+  const { me, people, refresh } = useApp();
   const { id } = useParams();
   const { data, error, reload } = useLoad(() => api.basket(id!), [id]);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  async function submitForReview() {
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      await api.submitBasketForReview(id!);
+      refresh();
+      reload();
+    } catch (e) {
+      setSubmitError((e as Error).message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   if (error && !data) return <div className="callout red">{error}</div>;
   if (!data) return <div className="muted">Loading…</div>;
-  const { event: ev, questions, requests, orders } = data;
+  const { event: ev, questions, requests, orders, review } = data;
   const live = orders.filter((o) => o.state !== "rejected");
   const staged = requests.filter((r) => r.basketedAt && !r.orderIds.length);
   const { mine: waitingQs, others } = splitMine(questions.filter((q) => q.state === "open" || q.state === "waiting"), me, people);
@@ -139,9 +155,20 @@ export function BasketPage() {
         <h1>{ev.name}</h1>
         <div className="row small" style={{ gap: 12, marginLeft: "auto", flexWrap: "wrap" }}>
           {ev.dishes.length > 0 && <Link to={`/events/${ev.id}`}>Menu and guests</Link>}
-          <Link to={`/audit?eventId=${ev.id}`}>Audit log</Link>
+          <button
+            type="button"
+            className="btn primary"
+            disabled={submitting || !!review || (!staged.length && !live.some((o) => !o.approvalId))}
+            onClick={submitForReview}
+          >
+            <Icon n={review ? "check" : "send"} s={16} />
+            {submitting ? "Submitting…" : review ? "Submitted for review" : "Submit order for review"}
+          </button>
         </div>
       </div>
+
+      {submitError && <div className="callout red" role="alert">{submitError}</div>}
+      {review && <div className="callout green small" role="status">Submitted to finance. This order is ready for approval.</div>}
 
       <AddToBasket eventId={ev.id} deliveryDate={ev.serviceDate} onAdded={reload} />
 
@@ -176,7 +203,7 @@ export function BasketPage() {
           <h2>In the order</h2>
           {(live.length > 0 || staged.length > 0) && <span className="small muted">{eur(orderTotal)} ex VAT</span>}
         </div>
-        <StagedLines plans={staged} />
+        <StagedLines plans={staged} submitted={!!review} />
         <OrderedLines orders={live} showEmpty={!staged.length} />
       </section>
     </div>
@@ -255,7 +282,7 @@ function RequestRow({ r, question }: { r: BasketPlan; question?: Question }) {
   );
 }
 
-function StagedLines({ plans }: { plans: BasketPlan[] }) {
+function StagedLines({ plans, submitted }: { plans: BasketPlan[]; submitted: boolean }) {
   const lines = plans.flatMap((plan) => plan.lines.map((line) => ({ ...line, planId: plan.id })));
   if (!lines.length) return null;
   return (
@@ -264,7 +291,7 @@ function StagedLines({ plans }: { plans: BasketPlan[] }) {
         <div key={`${line.planId}-${line.id}`} className="li">
           <span className="bqty">{qty(line.quantity)} {line.salesUnit ?? ""}</span>
           <span className="trunc" style={{ flex: 1, color: "var(--ink)" }}>{line.productName}</span>
-          <span className="stamp ask">Awaiting final order</span>
+          <span className="stamp ask">{submitted ? "Awaiting finance approval" : "Awaiting final order"}</span>
           <span className="small">{eur(line.lineTotal)}</span>
         </div>
       ))}
