@@ -5,6 +5,7 @@ import { getPerson, issueToken, resolveToken, type Person } from "../identity.js
 import { sha256 } from "../util.js";
 import type { WhatsAppHandler } from "./routes.js";
 import { createWhatsAppBrowser, encodePairingQr, type WhatsAppBrowserClient, type WebInboundMessage } from "./web-client.js";
+import { MAX_WHATSAPP_TEXT_LENGTH, WHATSAPP_TEXT_TOO_LONG } from "./input.js";
 
 export class WhatsAppWebError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -166,13 +167,16 @@ export class WhatsAppWebBridge {
     const selection = this.selection();
     const groupId = message.fromMe ? message.to : message.from;
     const sender = message.fromMe ? "linked-account" : message.author;
-    const outboundKey = `whatsapp-web:outbound:${sha256(`${this.account}:${groupId}:${message.body ?? ""}`)}`;
     // No reply, interpretation, read receipt or model call for any other chat,
     // history sync, bot reply, status, attachment or missing group sender.
-    if (this.state.phase !== "ready" || !selection || groupId !== selection.groupId || !groupId.endsWith("@g.us") || message.isStatus || message.hasMedia || message.type !== "chat" || !sender || !message.id?._serialized || !message.body?.trim() || message.body.length > 8000 || !Number.isFinite(message.timestamp) || message.timestamp < Math.max(this.readyAt, selection.since)) return;
+    if (this.state.phase !== "ready" || !selection || groupId !== selection.groupId || typeof groupId !== "string" || !groupId.endsWith("@g.us")) return;
+    if (message.isStatus || message.hasMedia || message.type !== "chat" || typeof sender !== "string" || !sender.trim()) return;
+    if (typeof message.id?._serialized !== "string" || !message.id._serialized.trim() || typeof message.body !== "string" || !message.body.trim() || !Number.isFinite(message.timestamp) || message.timestamp < Math.max(this.readyAt, selection.since)) return;
+    const text = message.body;
+    const messageId = message.id._serialized;
     // Support a person typing from the linked phone, without reacting to our
     // own sendMessage echo (which may arrive before sendText resolves).
-    if (message.fromMe && (message.body.startsWith("Aimo Copilot · demo orders\n") || kvGet(outboundKey))) return;
+    if (message.fromMe && (text.startsWith("Aimo Copilot · demo orders\n") || kvGet(`whatsapp-web:outbound:${sha256(`${this.account}:${groupId}:${text}`)}`))) return;
     const epoch = this.epoch;
     this.pendingCount++;
     this.state.busy = true;
@@ -180,7 +184,7 @@ export class WhatsAppWebBridge {
       const owner = this.owner;
       const identity = owner ? resolveToken(owner.token) : null;
       if (epoch !== this.epoch || !owner || identity?.kind !== "person" || identity.person.id !== owner.person.id || this.selection()?.revision !== selection.revision || !this.client) return;
-      const messageKey = `whatsapp-web:delivery:${sha256(`${this.account}:${message.id._serialized}`)}`;
+      const messageKey = `whatsapp-web:delivery:${sha256(`${this.account}:${messageId}`)}`;
       // Any interrupted/uncertain delivery fails closed. Replayed messages never
       // repeat a purchase or resend a reply with an uncertain outcome.
       if (kvGet(messageKey)) return;
@@ -191,7 +195,11 @@ export class WhatsAppWebBridge {
       // proposal always needs a fresh preview in this browser connection.
       const conversation: WhatsAppConversation = { activeOrderId: saved?.conversation.activeOrderId ?? null, pending: saved?.runId === this.runId ? saved.conversation.pending : null };
       try {
-        const handled = await this.handler({ person: identity.person, token: owner.token, conversation, text: message.body, messageId: message.id._serialized, channel: "web" });
+        // Rejection follows the same authorized, sender-scoped queue and durable
+        // delivery guard as normal work. Never interpret or echo a partial command.
+        const handled: Awaited<ReturnType<WhatsAppHandler>> = text.length > MAX_WHATSAPP_TEXT_LENGTH
+          ? { conversation: { ...conversation, pending: null }, reply: { text: WHATSAPP_TEXT_TOO_LONG, status: "clarification", actions: [] } }
+          : await this.handler({ person: identity.person, token: owner.token, conversation, text, messageId, channel: "web" });
         if (epoch !== this.epoch || this.selection()?.revision !== selection.revision || !resolveToken(owner.token) || !this.client) return;
         kvSet(conversationKey, { runId: this.runId, conversation: handled.conversation } satisfies SavedConversation);
         kvSet(messageKey, { state: "sending" });

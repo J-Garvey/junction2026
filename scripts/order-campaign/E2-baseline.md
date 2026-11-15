@@ -5,6 +5,11 @@ Independent expectations are in [E2-expectations.md](E2-expectations.md), saved
 externally before execution; E2-14 was specified before its follow-up execution.
 Contribution: one test file and these two notes; no production changes.
 
+I4 follow-up: E2-05 and E2-12 now assert safe rejection/cancellation; E2-15
+checks final checkout after rejection on both transports. The baseline results
+below remain historical. See [I4-whatsapp-input.md](I4-whatsapp-input.md) for
+the fix, replay commands and verification limits.
+
 ## Replay
 
 From the repo root, with locked dependencies installed:
