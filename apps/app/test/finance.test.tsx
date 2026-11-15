@@ -136,12 +136,14 @@ describe("manager and finance workspace", () => {
   });
 
   it.each([chef, bar])("keeps Submit order for review in the $title view", async (person) => {
-    vi.mocked(api.basket).mockResolvedValueOnce({ ...detail, questions: [], review: null }).mockResolvedValue(detail);
-    const submit = vi.spyOn(api, "submitBasketForReview").mockResolvedValue({ review: question });
+    vi.mocked(api.basket).mockResolvedValue({ ...detail, questions: [], review: null, orderBy: { ...detail.orderBy, state: "unknown", at: null } });
+    const submit = vi.spyOn(api, "submitBasketForReview").mockResolvedValue({ review: question, basket: detail });
     mountDetail(person);
     await userEvent.click(await screen.findByRole("button", { name: "Submit order for review" }));
     expect(submit).toHaveBeenCalledExactlyOnceWith("wedding");
     await waitFor(() => expect((screen.getByRole("button", { name: "Submitted for review" }) as HTMLButtonElement).disabled).toBe(true));
+    expect(document.querySelector(".basket-context time")?.getAttribute("datetime")).toBe(detail.orderBy.at);
+    expect(api.basket).toHaveBeenCalledOnce();
     expect(screen.getByRole("heading", { name: "Add to the order" })).toBeTruthy();
     expect(screen.queryByRole("region", { name: "Financial summary" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Order" })).toBeNull();
