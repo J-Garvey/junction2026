@@ -160,7 +160,7 @@ describe("saved request review controls", () => {
     await screen.findByText("Added to the order.");
     expect(screen.queryByText("Unknown")).toBeNull();
     expect(document.querySelector(".basket-context time")?.getAttribute("datetime")).toBe(basket.orderBy.at);
-    expect(screen.getByText("Awaiting final order")).toBeTruthy();
+    expect(screen.getByText("Ready to order")).toBeTruthy();
     expect(screen.getByText("Selected milk")).toBeTruthy();
     expect(api.basket).toHaveBeenCalledOnce();
   });
