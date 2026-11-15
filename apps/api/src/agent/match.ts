@@ -7,7 +7,8 @@ import type { Candidate, FiredRule, LookupLine, Need, PlanLine, Product, StatusL
 import { allProducts, getProduct, searchMatches } from "../catalog.js";
 import { queryTerms, rank } from "../search.js";
 import { fire, FIXED, RULE_INDEX } from "../rules/catalogue.js";
-import { cutoffRule, dietRules, earliestDelivery, packContent, priceValidityRule, reliabilityRules, supplyRules, blocks } from "../rules/checks.js";
+import { cutoffRule, productRules, earliestDelivery, packContent, priceValidityRule, reliabilityRules, supplyRules, blocks } from "../rules/checks.js";
+import { mandate } from "./mandate.js";
 import { typeCheck } from "./judge.js";
 import { carbonBasisFor } from "../carbon.js";
 import { round2, eur, fmtHelsinki } from "../util.js";
@@ -30,7 +31,7 @@ export function shortlist(need: Need, opts: { log?: boolean } = {}): Product[] {
     // must retain the named identity; an ID alone does not establish a substitute spec.
     const query = need.query.replace(/\b\d{6}\b/g, "").trim();
     if (pinned && query) {
-      const matches = searchMatches({ q: query, category: pinned.category, claims: claims.filter((c) => c !== "FREE_FROM_MILK"), limit: FIXED.searchLimit });
+      const matches = searchMatches({ q: query, category: pinned.category, claims: claims.filter((c) => c !== "FREE_FROM_MILK"), limit: FIXED.searchLimit }, mandate());
       for (const m of matches) if (m.tier < 3 && m.product.id !== pinned.id) out.push(m.product);
     }
     return out.slice(0, FIXED.searchLimit);
@@ -38,13 +39,14 @@ export function shortlist(need: Need, opts: { log?: boolean } = {}): Product[] {
   const base = { category: need.category ?? undefined, claims: claims.filter((c) => c !== "FREE_FROM_MILK"), limit: FIXED.searchLimit };
   // Mention-only search results are useful for browsing, but cannot establish what to
   // buy. A failed text match must not turn into an unrelated category-wide pick.
-  const list = searchMatches({ ...base, q: need.query }).filter((m) => m.tier < 3).map((m) => m.product);
+  const list = searchMatches({ ...base, q: need.query }, mandate()).filter((m) => m.tier < 3).map((m) => m.product);
   if (opts.log !== false) logSearch({ source: "shortlist", query: { need: need.label, text: need.text, q: need.query, ...base }, interpreted: { count: list.length, fellBackToCategory: false, top: brief(list) } });
   return list;
 }
 
 /** A saved proposal must still qualify for automatic selection before it is staged. */
 export function matchesCurrentShortlists(needs: Need[], lines: PlanLine[]): boolean {
+  if (!matchesSelectedProducts(needs, lines)) return false;
   const eligible = new Map(needs.map((need) => [need.id, new Set(shortlist(need).map((p) => p.id))]));
   return lines.filter((line) => !line.removed).every((line) =>
     line.productId && line.needIds.length > 0 && line.needIds.every((id) => eligible.get(id)?.has(line.productId!)),
@@ -54,13 +56,14 @@ export function matchesCurrentShortlists(needs: Need[], lines: PlanLine[]): bool
 /** Validate the exact products already accepted into a basket, independent of shortlist limits. */
 export function matchesSelectedProducts(needs: Need[], lines: PlanLine[]): boolean {
   const byId = new Map(needs.map((need) => [need.id, need]));
+  const m = mandate();
   const catalog = allProducts();
   return lines.filter((line) => !line.removed).every((line) => {
     const product = line.productId ? getProduct(line.productId) : null;
     if (!product || !line.needIds.length) return false;
     return line.needIds.every((id) => {
       const need = byId.get(id);
-      if (!need || blocks(dietRules(product, need.constraints, need.groupLabel)).length) return false;
+      if (!need || blocks(productRules(product, need.constraints, need.groupLabel, m)).length) return false;
       if (need.pinnedProductId === product.id) return true;
       if (need.category && !product.category.startsWith(need.category)) return false;
       const terms = queryTerms(need.query);
@@ -106,6 +109,7 @@ function decidingStep(a: Scored, b: Scored | undefined): string {
  */
 export async function rankNeed(need: Need, list: Product[], pool: Pool, opts: { lockedOk?: boolean; deliveryDays?: number[]; holidays?: string[] } = {}): Promise<void> {
   const at = now();
+  const m = mandate();
   need.excluded = [];
   const trace = need.selectionTrace = { shortlist: list.map((p) => ({ productId: p.id, name: p.name })), stages: [] } as NonNullable<Need["selectionTrace"]>;
   const remaining = new Set(list.map((p) => p.id));
@@ -128,7 +132,7 @@ export async function rankNeed(need: Need, list: Product[], pool: Pool, opts: { 
     const l = pool.get(p.id);
     if (!l) continue;
     const pinned = p.id === need.pinnedProductId;
-    const diet = dietRules(p, need.constraints, need.groupLabel);
+    const diet = productRules(p, need.constraints, need.groupLabel, m);
     const supply = supplyRules(p, l);
     // Keep unpriced products visible at the end; PRC-01 still blocks ordering them.
     const hard = [...blocks(diet), ...supply.filter((r) => r.ruleId !== "PRC-01")];
