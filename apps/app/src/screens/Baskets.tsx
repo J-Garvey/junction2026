@@ -103,7 +103,7 @@ export function BasketPage() {
   const { data, error, reload } = useLoad(() => api.basket(id!), [id]);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [reviewFeedback, setReviewFeedback] = useState<{ message: string; error: boolean } | null>(null);
+  const [reviewFeedback, setReviewFeedback] = useState<{ eventId: string; message: string; error: boolean } | null>(null);
   const [requestNote, setRequestNote] = useState<string | null>(null);
 
   async function submitForReview() {
@@ -154,7 +154,7 @@ export function BasketPage() {
       <div className="basket-context small muted">Delivery {day(ev.serviceDate)}<OrderBy deadline={data.orderBy} detail /></div>
 
       {submitError && <div className="callout red" role="alert">{submitError}</div>}
-      {reviewFeedback && <div className={`callout ${reviewFeedback.error ? "red" : "green"} small`} role={reviewFeedback.error ? "alert" : "status"}>{reviewFeedback.message}</div>}
+      {reviewFeedback?.eventId === ev.id && <div className={`callout ${reviewFeedback.error ? "red" : "green"} small`} role={reviewFeedback.error ? "alert" : "status"}>{reviewFeedback.message}</div>}
       {returned && <div className="callout yellow small" role="status"><strong>Changes requested</strong><p className="decision-note">{returned.answerNote ?? "Returned to the order builder for changes."}</p><span className="muted">{returned.answeredBy?.name} · {when(returned.answeredAt)}</span></div>}
       {requestNote && <div className="callout green small" role="status">{requestNote}</div>}
       {me.role === "chef" && review && <div className="callout green small" role="status">Submitted to finance. This order is ready for approval.</div>}
@@ -170,7 +170,7 @@ export function BasketPage() {
             <div className="qlist">
               {waitingQs.map((q) => (
                 <QuestionCard key={q.id} q={q} compact orderContext onAnswered={(answered, error) => {
-                  setReviewFeedback(error ? { message: error, error: true } : { message: answered.answer === "reject" ? "Refusal note sent to the order builder." : "Decision recorded.", error: false });
+                  if (answered.type === "order_review") setReviewFeedback({ eventId: ev.id, ...(error ? { message: error, error: true } : { message: answered.answer === "reject" ? "Refusal note sent to the order builder." : "Decision recorded.", error: false }) });
                   refresh();
                   reload();
                 }} />

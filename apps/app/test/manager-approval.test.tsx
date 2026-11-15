@@ -215,4 +215,20 @@ describe("manager order review", () => {
     expect(screen.getByText("Order review history")).toBeTruthy();
     expect(screen.queryByText("Review expires")).toBeNull();
   });
+
+  it("does not claim a refusal note for the distinct request-rejection workflow", async () => {
+    const requestQuestion: Question = { ...question, type: "spend_cap", planId: "request", options: [{ id: "reject", label: "Reject request", primary: false }] };
+    const decision: Question = { ...requestQuestion, state: "answered", answer: "reject", answeredBy: { personId: manager.id, name: manager.name } };
+    const basket = {
+      event: { id: "conference", name: "HackJunction", serviceDate: "2026-11-16" }, questions: [requestQuestion], requests: [], orders: [], review: null,
+      orderBy: { state: "unknown", at: null, reason: null, usesFixtures: false, excludedItems: 0, unconfirmedStockItems: 0 }, confirmed: false,
+    } as unknown as BasketResp;
+    vi.spyOn(api, "basket").mockResolvedValueOnce(basket).mockResolvedValue({ ...basket, questions: [decision] });
+    vi.spyOn(api, "answer").mockResolvedValue({ ok: true, question: decision });
+    render(<MemoryRouter initialEntries={["/baskets/conference"]}><Ctx.Provider value={context()}><Routes><Route path="/baskets/:id" element={<BasketPage />} /></Routes></Ctx.Provider></MemoryRouter>);
+    await userEvent.click(await screen.findByRole("button", { name: "Reject request" }));
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "Decisions before processing" })).toBeNull());
+    expect(screen.queryByText("Refusal note sent to the order builder.")).toBeNull();
+    expect(api.answer).toHaveBeenCalledWith(requestQuestion.id, "reject");
+  });
 });
