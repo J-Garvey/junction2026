@@ -7,7 +7,7 @@ import { resolve } from "node:path";
 import type { Product, ProductSearchQuery } from "@aimo/contracts";
 import { config } from "./config.js";
 import { registerBrand } from "./util.js";
-import { relevance, type Match } from "./search.js";
+import { relevance, useCatalogue, type Match } from "./search.js";
 
 type Raw = Record<string, any>;
 
@@ -68,6 +68,7 @@ export function loadCatalog() {
     registerBrand(prod.name, prod.brand);
   }
   orderedProducts = [...products.values()].sort((a, b) => a.id.localeCompare(b.id));
+  useCatalogue(orderedProducts);
 }
 
 export function getProduct(id: string): Product | null {
