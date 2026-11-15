@@ -103,18 +103,22 @@ async function eventCase(withTreeNutAllergy = true) {
   for (const q of out.allergyQs) await aino.call("POST", `/questions/${q.id}/answer`, { optionId: q.options[0].id });
   out.missingAllergen = (await aino.call("GET", "/home")).questions.find((q: any) => q.type === "missing_allergen_data");
   if (out.missingAllergen) out.missingAllergenAnswer = await aino.call("POST", `/questions/${out.missingAllergen.id}/answer`, { optionId: "continue" });
-  out.changeQs = (await sanna.call("GET", "/home")).questions.filter((q: any) => q.type === "change_outside_tolerance");
-  out.changeOk = await sanna.call("POST", `/questions/${out.changeQs[0].id}/answer`, { optionId: "approve" });
-  // A finance decision cannot extend the builder's earlier unknown-stock
-  // decision to changed quantities. Review the fresh amendment before retrying.
+  out.financeBeforeChangedStock = (await sanna.call("GET", "/home")).questions.filter((q: any) => q.state === "open");
+  // The chef completes every product decision before finance gets one card
+  // for the exact amendment, including fresh unknown-stock quantities.
   out.changeStock = (await aino.call("GET", "/home")).questions.filter((q: any) => q.facts.kind === "change_stock");
   out.beforeStockDecision = (await aino.call("GET", "/orders?eventId=evt-wedding")).orders;
   for (const q of out.changeStock) {
     out.financeStockTry = await sanna.call("POST", `/questions/${q.id}/answer`, { optionId: "continue" });
     out.changeStockAnswer = await aino.call("POST", `/questions/${q.id}/answer`, { optionId: "continue" });
   }
-  const reviewedChanges = (await sanna.call("GET", "/home")).questions.filter((q: any) => q.facts.kind === "change" && q.facts.stockQuoteId);
-  for (const q of reviewedChanges) out.reviewedChangeOk = await sanna.call("POST", `/questions/${q.id}/answer`, { optionId: "approve" });
+  out.changeQs = (await sanna.call("GET", "/home")).questions.filter((q: any) => q.type === "change_outside_tolerance");
+  expect(out.changeQs).toHaveLength(1);
+  out.changeOk = await sanna.call("POST", `/questions/${out.changeQs[0].id}/answer`, { optionId: "approve" });
+  expect(out.changeOk.error).toBeUndefined();
+  out.afterFirstChange = await aino.call("GET", "/events/evt-wedding");
+  const changedOrder = (await aino.call("GET", "/orders?eventId=evt-wedding")).orders[0];
+  out.changeRecord = await aino.call("GET", `/live/orders/${changedOrder.id}`);
   await aino.call("POST", "/clock", { scene: "4" });
   out.g188 = await aino.call("POST", "/events/evt-wedding/change", { guests: 188, version: await v() });
   async function finishChangedConcerns() {
@@ -129,6 +133,7 @@ async function eventCase(withTreeNutAllergy = true) {
     throw new Error("Changed product concerns did not settle");
   }
   await finishChangedConcerns();
+  out.afterNoShows = (await aino.call("GET", "/orders?eventId=evt-wedding")).orders[0];
   out.final = (await aino.call("POST", "/events/evt-wedding/final-check")).finalCheck;
   out.subQ = (await aino.call("GET", "/home")).questions.find((q: any) => q.type === "substitute");
   const pick = out.subQ.facts.candidates.findIndex((c: any) => c.productId === "464194");
@@ -138,6 +143,10 @@ async function eventCase(withTreeNutAllergy = true) {
   await aino.call("POST", "/events/evt-wedding/final-check");
   out.view = await sanna.call("GET", "/events/evt-wedding");
   out.orders = (await aino.call("GET", "/orders?eventId=evt-wedding")).orders;
+  out.record = await aino.call("GET", `/live/orders/${out.orders[0].id}`);
+  const xml = await fetch(`${BASE}/api/live/orders/${out.orders[0].id}/peppol`, { headers: { Cookie: aino.cookie } });
+  expect(xml.status).toBe(200);
+  out.peppol = await xml.text();
   out.valio = await sanna.call("GET", "/audit?viewer=valio");
   return out;
 }
@@ -263,8 +272,12 @@ describe("Test case 1: the wedding through four scenes (docs/demo-plan.md)", () 
     expect(cake.options[0].label).toContain("5 KI");
     expect(cake.options[0].label).toContain("ex VAT to cover 194 pcs");
     expect(a.changeQs).toHaveLength(1);
+    expect(a.financeBeforeChangedStock).toHaveLength(0);
     expect(a.changeQs[0].ruleIds).toContain("CHG-02");
     expect(a.changeOk.ok).toBe(true);
+    expect(a.changeQs[0]).toMatchObject({ quoteId: expect.any(String), fingerprint: expect.any(String) });
+    expect(a.afterFirstChange.questions.filter((q: any) => q.forRole === "approver" && q.facts.kind === "change")).toHaveLength(1);
+    expect(a.afterFirstChange.orderPlan.totalExVat).toBe(1965.17);
     const toast = a.allergyQs.find((q: any) => q.facts.productId === "477125");
     expect(toast.ruleIds).toContain("ALG-04");
     expect(toast.options[0].id).toBe("replace_0");
@@ -287,12 +300,21 @@ describe("Test case 1: the wedding through four scenes (docs/demo-plan.md)", () 
     expect(a.subQ.body).toMatch(/37 of 47 in stock · 10 l to fill/);
     expect(a.subQ.facts.candidates.map((c: any) => c.productId)).toContain("464194");
     const o = a.orders[0];
+    expect(a.afterNoShows.totalExVat).toBe(1920.59);
+    expect(o.totalExVat).toBe(1885.99);
     const qty = (id: string) => o.lines.find((l: any) => l.productId === id && !l.removed)?.quantity;
     expect(qty("464727")).toBe(37);
     expect(qty("464194")).toBe(10);
+    expect(o.lines.find((l: any) => l.productId === "464194" && !l.removed).requires).toMatchObject({ claims: ["FREE_FROM_LACTOSE"], avoidAllergens: ["AN"] });
+    const displayed = a.view.orderPlan.lines.filter((l: any) => !l.removed);
+    expect(displayed.find((l: any) => l.productId === "464727")).toMatchObject({ quantity: 37, lineTotal: 272.69 });
+    expect(displayed.find((l: any) => l.productId === "464194")).toMatchObject({ quantity: 10, lineTotal: 39.1, needAmount: { value: 10, unit: "l" }, stock: { kind: "unknown" }, riskAccepted: { by: "Aino" } });
+    expect(displayed.reduce((total: number, l: any) => total + l.lineTotal, 0)).toBeCloseTo(o.totalExVat, 2);
+    expect(a.view.orderPlan.totalExVat).toBe(o.totalExVat);
     expect(qty("469672")).toBe(32);
     expect(o.lines.filter((l: any) => !l.removed && l.stock.kind === "unknown").map((l: any) => l.productId).sort()).toEqual(["460541", "464194", "464306", "473522"]);
     expect(a.view.coverage).toMatchObject({ level: "at_risk", text: "Ready · 4 stock not confirmed · 1 allergen data not confirmed" });
+    expect(a.view.questions.filter((q: any) => q.forRole === "approver").map((q: any) => q.id)).toEqual(a.afterFirstChange.questions.filter((q: any) => q.forRole === "approver").map((q: any) => q.id));
   });
   it("requires a fresh chef stock decision when an unconfirmed toast quantity actually increases", async () => {
     const changed = await eventCase(false);
@@ -301,8 +323,25 @@ describe("Test case 1: the wedding through four scenes (docs/demo-plan.md)", () 
     expect(changed.beforeStockDecision[0].lines.find((l: any) => l.productId === "477125" && !l.removed).quantity).toBe(5);
     expect(changed.financeStockTry.status).toBe(409);
     expect(changed.changeStockAnswer.error).toBeUndefined();
-    expect(changed.reviewedChangeOk.error).toBeUndefined();
+    expect(changed.financeBeforeChangedStock).toHaveLength(0);
+    expect(changed.changeOk.error).toBeUndefined();
     expect(changed.orders[0].lines.find((l: any) => l.productId === "477125" && !l.removed).quantity).toBe(6);
+  });
+  it("the live receipt shows the active wedding lines and signs the latest amendment terms", () => {
+    expect(a.changeRecord.signature.valid).toBe(true);
+    expect(a.changeRecord.order.lines.map((l: any) => l.productId)).not.toContain("467767");
+    expect(a.changeRecord.order.lines.map((l: any) => l.productId)).not.toContain("477125");
+    expect(a.changeRecord.order.approvalId).toBeTruthy();
+    expect(a.changeRecord.order.approvalId).not.toBe(a.beforeStockDecision[0].approvalId);
+    expect(a.changeRecord.signature.claims.approval_id).toBe(a.changeRecord.order.approvalId);
+    expect(a.record.signature.valid).toBe(true);
+    expect(a.record.signature.claims).toMatchObject({ quote_jti: a.orders[0].quoteId, total_ex_vat: a.orders[0].totalExVat });
+    expect(a.record.order.lines.map((l: any) => l.productId).sort()).toEqual(a.orders[0].lines.filter((l: any) => !l.removed).map((l: any) => l.productId).sort());
+    expect(a.record.order.lines.reduce((total: number, l: any) => total + l.lineTotal, 0)).toBeCloseTo(a.record.order.totalExVat, 2);
+    expect(a.peppol).toContain("473522");
+    expect(a.peppol).toContain("464194");
+    expect(a.peppol).not.toContain("467767");
+    expect(a.peppol).not.toContain("477125");
   });
   it("Valio Aimo sees the sale and the flags, never the allergy or the guests", () => {
     const shared = a.valio.entries;
@@ -323,6 +362,27 @@ describe("Test case 1: the wedding through four scenes (docs/demo-plan.md)", () 
 });
 
 describe("Signatures anyone can verify (RFC 7515 / 7517, ES256, AP2 v0.2 shapes)", () => {
+  it("retains a finance approval inside the spend mandate and refuses to reuse it for different amendment terms", async () => {
+    await fresh();
+    const q = await gateway("POST", "/quotes", { siteId: "site-aurora", deliveryDate: "2026-11-16", lines: [{ productId: "469363", quantity: 10, outletId: "banquet" }] });
+    const placed = await gateway("POST", "/orders", { quoteId: q.body.id }, { "Idempotency-Key": "amendment-receipt" });
+    expect(placed.status).toBe(201);
+    const changes = [{ productId: "469363", quantity: 11, outletId: "banquet" }];
+    const review = await gateway("POST", `/orders/${placed.body.id}/amendments`, { changes, quoteOnly: true });
+    expect(review.body.order.version).toBe(1);
+    expect(review.body.stockReviewRequired).toEqual([]);
+    const login = await (await fetch(`${BASE}/api/session`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ personId: "p-sanna" }) })).json();
+    const approval = await gateway("POST", "/approvals", { quoteId: review.body.quote.id, fingerprint: review.body.quote.fingerprint, grants: [] }, { Authorization: `Bearer ${login.token}` });
+    expect(approval.status).toBe(201);
+    const amended = await gateway("POST", `/orders/${placed.body.id}/amendments`, { changes, approvalId: approval.body.id });
+    expect(amended.status).toBe(200);
+    expect(amended.body.order).toMatchObject({ quoteId: amended.body.quote.id, approvalId: approval.body.id, version: 2 });
+    const claims = JSON.parse(Buffer.from(amended.body.order.jws.split(".")[1], "base64url").toString());
+    expect(claims).toMatchObject({ quote_jti: amended.body.quote.id, reference: amended.body.quote.checkoutHash, approval_id: approval.body.id });
+    const reused = await gateway("POST", `/orders/${placed.body.id}/amendments`, { changes: [{ ...changes[0], quantity: 12 }], approvalId: approval.body.id });
+    expect(reused).toMatchObject({ status: 409, body: { error: "mandate_violation" } });
+    expect((await gateway("GET", `/orders/${placed.body.id}`)).body.version).toBe(2);
+  });
   it("quotes and orders verify against the published JWKS; a changed payload does not", async () => {
     const { createPublicKey, verify } = await import("node:crypto");
     const { anna } = await fresh();

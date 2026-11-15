@@ -126,7 +126,7 @@ export function liveRouter(): Router {
     const o = readableOrder(req.identity!, String(req.params.id));
     const claims = o.jws ? verifyJwt(o.jws, "aimo-order+jwt") : null;
     res.json({
-      order: { id: o.id, state: o.state, totalExVat: o.totalExVat, totalVat: o.totalVat, deliveryDate: o.deliveryDate, placedAt: o.placedAt, placedBy: o.placedBy, approvalId: o.approvalId, lines: o.lines.map((l) => ({ productId: l.productId, name: l.productName, quantity: l.quantity, salesUnit: l.salesUnit, unitPrice: l.unitPrice, lineTotal: l.lineTotal, riskAccepted: l.riskAccepted })) },
+      order: { id: o.id, state: o.state, totalExVat: o.totalExVat, totalVat: o.totalVat, deliveryDate: o.deliveryDate, placedAt: o.placedAt, placedBy: o.placedBy, approvalId: o.approvalId, lines: o.lines.filter((l) => !l.removed).map((l) => ({ productId: l.productId, name: l.productName, quantity: l.quantity, salesUnit: l.salesUnit, unitPrice: l.unitPrice, lineTotal: l.lineTotal, riskAccepted: l.riskAccepted })) },
       signature: { present: Boolean(o.jws), valid: Boolean(claims), alg: "ES256", jwks: "/.well-known/jwks.json", jws: o.jws ?? null, claims },
       valioToken: VALIO_VIEWER_TOKEN.slice(0, 6) + "…",
     });

@@ -42,5 +42,5 @@ export const gw = {
     call<Order>("POST", "/orders", { quoteId, approvalId, continueWithUnconfirmedStock, builderConsentId: builderConsentId ?? undefined, allergenAcknowledgements }, { headers: { "Idempotency-Key": idemKey } }),
   getOrder: (id: string, token?: string) => call<Order>("GET", `/orders/${id}`, undefined, { token }),
   orders: (eventId?: string, token?: string) => call<{ orders: Order[] }>("GET", `/orders${eventId ? `?eventId=${encodeURIComponent(eventId)}` : ""}`, undefined, { token }),
-  amend: (orderId: string, body: AmendmentBody) => call<{ order: Order; quote: Quote }>("POST", `/orders/${orderId}/amendments`, body),
+  amend: (orderId: string, body: AmendmentBody) => call<{ order: Order; quote: Quote; stockReviewRequired: string[] }>("POST", `/orders/${orderId}/amendments`, body),
 };
