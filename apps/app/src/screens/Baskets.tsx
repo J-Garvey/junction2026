@@ -149,7 +149,7 @@ export function BasketPage() {
 
       {submitError && <div className="callout red" role="alert">{submitError}</div>}
       {requestNote && <div className="callout green small" role="status">{requestNote}</div>}
-      {review && <div className="callout green small" role="status">Submitted to finance. This order is ready for approval.</div>}
+      {me.role === "chef" && review && <div className="callout green small" role="status">Submitted to finance. This order is ready for approval.</div>}
 
       <AddToBasket eventId={ev.id} deliveryDate={ev.serviceDate} onAdded={reload} />
 
