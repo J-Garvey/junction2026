@@ -84,7 +84,7 @@ for(const c of cases){
      const t=await support('/campaign/telemetry');record({...c,input:main.body.text,seedInput:c.input,attemptId,timestamp:new Date().toISOString(),phase,runId,scenario,sha:meta.sha,parserMode:meta.mode,modelMode:meta.mode,model:meta.model,supplierInterception:true,http:{method:main.method,path:main.path,body:main.body},status:main.status,response:main.response,elapsedMs:related.reduce((n,r)=>n+r.elapsedMs,0),related,snapshots,telemetry:t.events.slice(cursor)});
    }else{
      const r=await http('/api/messages',{text:c.input},attemptId);
-     if(c.plan&&r.response?.request){
+     if(c.plan&&!args['parse-only']&&r.response?.request){
        // Keep original parsing intact. In a documented planning scenario, the
        // user's selected order supplies its date when free text omitted it.
        const request=r.response.request,planBody={request:{...request,neededBy:request.neededBy||'2026-11-16'},reviewing:true};
