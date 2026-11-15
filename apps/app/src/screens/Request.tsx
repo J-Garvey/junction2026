@@ -27,7 +27,7 @@ const DEFAULT_DAYS = 7;
 
 export function Requests() {
   const { me, people } = useApp();
-  const { data, error } = useLoad(() => api.home(), []);
+  const { data, error, loading } = useLoad(() => api.home(), []);
   return (
     <div className="page stack-l">
       <Composer />
@@ -37,6 +37,7 @@ export function Requests() {
         </div>
         {error && <div className="callout red">{error}</div>}
         <div className="card">
+          {loading && <div className="li muted small" role="status">Loading requests…</div>}
           {(data?.plans ?? []).map((p) => (
             <Link key={p.id} to={`/requests/${p.id}`} className="li evrow">
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -55,7 +56,7 @@ export function Requests() {
               />
             </Link>
           ))}
-          {data && !data.plans.length && <div className="li muted small">No requests yet.</div>}
+          {data && !loading && !error && !data.plans.length && <div className="li muted small">No requests yet.</div>}
         </div>
       </section>
     </div>
@@ -63,6 +64,12 @@ export function Requests() {
 }
 
 export function RequestNew() {
+  const loc = useLocation();
+  // New navigation starts a fresh editor; workspace refreshes preserve chip edits.
+  return <RequestEditor key={loc.key} />;
+}
+
+function RequestEditor() {
   const loc = useLocation();
   const nav = useNavigate();
   const { now } = useApp();

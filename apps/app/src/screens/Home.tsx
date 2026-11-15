@@ -15,33 +15,38 @@ const SUGG = ["1,000 L lactose-free milk by Monday"];
 
 export function Home() {
   const { me } = useApp();
-  const { data, error, loading } = useLoad(() => api.home(), []);
+  const { data, error, loading, reload } = useLoad(() => api.home(), []);
   const open = (data?.questions ?? []).filter((q) => q.state === "open" || q.state === "waiting");
   const covered = (data?.events ?? []).filter((e) => e.coverage.level === "covered").length;
 
   return (
     <div className="page stack-l">
       <Composer />
-      {error && <div className="callout red">{error}</div>}
+      {error && <div className="callout red stack-s" role="alert">
+        <div>{error}</div>
+        <button type="button" className="btn sm" disabled={loading} onClick={reload}>{loading ? "Retrying…" : "Try again"}</button>
+      </div>}
 
       <section>
         <div className="sechead">
           <h2>Waiting for you</h2>
           {open.length > 0 && <span className="countb">{open.length}</span>}
         </div>
-        {loading && !data ? (
-          <div className="muted small">Loading…</div>
+        {loading ? (
+          <div className="muted small" role="status">Loading decisions…</div>
+        ) : error ? (
+          <div className="muted small">Decisions are unavailable. Try again to check what needs you.</div>
         ) : open.length ? (
           <div className="qlist">
             {open.map((q) => (
               <QuestionCard key={q.id} q={q} compact />
             ))}
           </div>
-        ) : (
+        ) : data ? (
           <div className="empty">
             <Icon n="check" s={18} /> Nothing needs you.
           </div>
-        )}
+        ) : null}
       </section>
 
       <section>
@@ -58,7 +63,7 @@ export function Home() {
               <Icon n="chev" s={16} />
             </Link>
           ))}
-          {data && !data.events.length && <div className="li muted">No events.</div>}
+          {data && !loading && !error && !data.events.length && <div className="li muted">No events.</div>}
         </div>
       </section>
 

@@ -100,7 +100,8 @@ export function App() {
     return (
       <div className="picker">
         <Lockup />
-        <div className="callout red">{bootErr}</div>
+        <div className="callout red" role="alert">{bootErr}</div>
+        <button type="button" className="btn" onClick={() => window.location.reload()}>Reload app</button>
       </div>
     );
   if (!ctx || needPick) return <PersonPicker people={people} current={me} status={status} onChange={refresh} onPick={pick} onCancel={me ? () => setNeedPick(false) : undefined} />;
