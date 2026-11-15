@@ -40,19 +40,21 @@
 .bhead.confirmed { border-bottom: 2px solid var(--green); padding-bottom: 12px; }
 .basket-context { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px 24px; }
 .bqty { font-family: var(--mono); font-size: 13px; color: var(--ink); white-space: nowrap; min-width: 72px; }
-.staged-lines { margin-bottom: 10px; }
+.staged-lines { display: grid; grid-template-columns: max-content minmax(0, 1fr) auto auto; column-gap: 12px; margin-bottom: 10px; }
+.staged-request { display: grid; grid-template-columns: subgrid; grid-column: 1 / -1; }
 .staged-request + .staged-request { border-top: 1px solid var(--hairline-soft); }
-.staged-lines .staged-line { display: grid; grid-template-columns: max-content minmax(0, 1fr) auto auto; align-items: start; padding: 12px 16px; }
+.staged-lines .staged-line { display: grid; grid-template-columns: subgrid; grid-column: 1 / -1; align-items: start; padding: 12px 16px; }
 .staged-line-name { min-width: 0; color: var(--ink); overflow-wrap: anywhere; }
 .staged-line-status { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; justify-self: start; min-width: 0; max-width: 100%; }
 .staged-line-status > .stamp { max-width: 100%; white-space: normal; line-height: 1.35; overflow-wrap: anywhere; }
 .staged-line-price { text-align: right; white-space: nowrap; }
-.staged-lines .request-correction-actions { padding: 12px 16px; gap: 8px; }
+.staged-lines .request-correction-actions { grid-column: 1 / -1; padding: 12px 16px; gap: 8px; }
 .staged-lines .request-correction-actions > .small, .staged-lines .request-correction-actions > .callout { flex-basis: 100%; min-width: 0; overflow-wrap: anywhere; }
 .staged-lines .request-correction-actions .btn { max-width: 100%; white-space: normal; }
 
 @media (max-width: 700px) {
-  .staged-lines .staged-line { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; }
+  .staged-lines { grid-template-columns: minmax(0, 1fr) auto; }
+  .staged-lines .staged-line { row-gap: 8px; }
   .staged-line-name { grid-column: 1 / -1; grid-row: 1; }
   .staged-lines .bqty { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
   .staged-line-price { grid-column: 2; grid-row: 2; }

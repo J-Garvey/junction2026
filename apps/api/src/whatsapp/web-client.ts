@@ -44,7 +44,7 @@ export async function createWhatsAppBrowser(): Promise<WhatsAppBrowserClient> {
     webVersionCache: { type: "local", path: join(config.whatsappWeb.authDir, "cache") },
     authTimeoutMs: 90_000,
     qrMaxRetries: 10,
-    deviceName: "Aimo Copilot",
+    deviceName: "Potato",
   });
   return {
     on: (event, listener) => { client.on(event, listener); },

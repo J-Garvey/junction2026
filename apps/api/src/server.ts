@@ -1,4 +1,4 @@
-/** One Node service: the Aimo Agent Gateway (/gateway/v1), the hotel app API (/api) and the built web app. */
+/** One Node service: the Potato Agent Gateway (/gateway/v1), the hotel app API (/api) and the built web app. */
 import express from "express";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
@@ -82,7 +82,7 @@ export function createApp() {
 if (process.argv[1] && resolve(process.argv[1]).endsWith("server.ts")) {
   const app = createApp();
   const server = app.listen(config.port, "127.0.0.1", () => {
-    console.log(`Aimo Copilot on http://127.0.0.1:${config.port}  (gateway /gateway/v1, spec /openapi.json)`);
+    console.log(`Potato on http://127.0.0.1:${config.port}  (gateway /gateway/v1, spec /openapi.json)`);
     void (app.locals.whatsappWeb as WhatsAppWebBridge).restore().catch(() => {
       console.error("Saved WhatsApp connection could not be restored. Open Demo settings to reconnect.");
     });

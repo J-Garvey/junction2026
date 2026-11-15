@@ -26,6 +26,7 @@
 .lv-top { display: flex; align-items: center; justify-content: space-between; padding: 14px 28px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
 .lv-brand { display: flex; align-items: center; gap: 22px; font-size: 26px; font-weight: 800; letter-spacing: -0.5px; }
 .lv-brand b { font-weight: 900; }
+.lv-wordmark { display: flex; align-items: center; gap: 8px; }
 .lv-sep { width: 1px; height: 30px; background: var(--line); }
 .lv-tools { display: flex; align-items: center; gap: 14px; }
 .lv-live { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 16px; margin-right: 8px; }
