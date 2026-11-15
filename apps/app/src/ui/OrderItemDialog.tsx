@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Icon } from "./icons";
 
 export interface DetailField {
@@ -43,7 +44,8 @@ export function OrderItemDialog({
     };
   }, []);
 
-  return (
+  // Keep the fixed overlay outside page spacing and containing-block styles.
+  return createPortal(
     <div className="item-dialog-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <section className="item-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId}>
         <header className="item-dialog-head">
@@ -70,6 +72,7 @@ export function OrderItemDialog({
           {children}
         </div>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }

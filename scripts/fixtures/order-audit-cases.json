@@ -1,0 +1,1890 @@
+[
+  {
+    "caseId": "AUD-simple",
+    "family": "simple",
+    "channel": "main",
+    "input": "10 burgers",
+    "expected": {
+      "lines": [
+        {
+          "query": "burgers",
+          "amount": 10,
+          "unit": "pcs"
+        }
+      ]
+    }
+  },
+  {
+    "caseId": "AUD-global-vegan",
+    "family": "global-diet",
+    "channel": "main",
+    "input": "Everything must be vegan: 10 kg burgers and 5 l milk",
+    "expected": {
+      "lines": [
+        {
+          "amount": 10,
+          "unit": "kg",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 5,
+          "unit": "l",
+          "claims": [
+            "VEGAN"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "caseId": "AUD-local-diet",
+    "family": "local-diet",
+    "channel": "main",
+    "input": "10 kg vegan burgers and 5 l lactose-free milk",
+    "expected": {
+      "lines": [
+        {
+          "amount": 10,
+          "unit": "kg",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 5,
+          "unit": "l",
+          "claims": [
+            "FREE_FROM_LACTOSE"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "caseId": "AUD-origin",
+    "family": "origin",
+    "channel": "main",
+    "input": "10 kg Finnish salmon",
+    "expected": {
+      "lines": [
+        {
+          "amount": 10,
+          "unit": "kg",
+          "origin": "fi"
+        }
+      ]
+    },
+    "plan": true
+  },
+  {
+    "caseId": "AUD-allergy",
+    "family": "allergen",
+    "channel": "main",
+    "input": "10 l milk without nuts",
+    "expected": {
+      "lines": [
+        {
+          "amount": 10,
+          "unit": "l",
+          "avoidAllergens": [
+            "AN",
+            "AP"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "caseId": "AUD-negative",
+    "family": "negative-quantity",
+    "channel": "main",
+    "input": "-5 kg salmon",
+    "expected": {
+      "lines": [
+        {
+          "amount": -5,
+          "unit": "kg"
+        }
+      ]
+    }
+  },
+  {
+    "caseId": "AUD-zero",
+    "family": "zero-quantity",
+    "channel": "main",
+    "input": "0 kg salmon",
+    "expected": {
+      "lines": [
+        {
+          "amount": 0,
+          "unit": "kg"
+        }
+      ]
+    }
+  },
+  {
+    "caseId": "AUD-decimal",
+    "family": "decimal",
+    "channel": "main",
+    "input": "1,5 l milk",
+    "expected": {
+      "lines": [
+        {
+          "query": "milk",
+          "amount": 1.5,
+          "unit": "l"
+        }
+      ]
+    }
+  },
+  {
+    "caseId": "AUD-thousand",
+    "family": "thousands",
+    "channel": "main",
+    "input": "1,000 l lactose-free milk",
+    "expected": {
+      "lines": [
+        {
+          "query": "milk",
+          "amount": 1000,
+          "unit": "l",
+          "claims": [
+            "FREE_FROM_LACTOSE"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "caseId": "AUD-date",
+    "family": "date",
+    "channel": "main",
+    "input": "5 kg salmon by 2026-11-20",
+    "expected": {
+      "neededBy": "2026-11-20",
+      "lines": [
+        {
+          "query": "salmon",
+          "amount": 5,
+          "unit": "kg"
+        }
+      ]
+    }
+  },
+  {
+    "caseId": "AUD-finnish",
+    "family": "finnish",
+    "channel": "main",
+    "input": "10 litraa laktoositonta maitoa",
+    "expected": {
+      "lines": [
+        {
+          "query": "milk",
+          "amount": 10,
+          "unit": "l",
+          "claims": [
+            "FREE_FROM_LACTOSE"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "caseId": "AUD-explicit-id",
+    "family": "substitution",
+    "channel": "main",
+    "input": "10 kg salmon 469672",
+    "plan": true,
+    "expected": {
+      "lines": [
+        {
+          "amount": 10,
+          "unit": "kg",
+          "productId": "469672"
+        }
+      ]
+    }
+  },
+  {
+    "caseId": "AUD-chicken-burger",
+    "family": "identity",
+    "channel": "main",
+    "input": "10 kg chicken burger",
+    "plan": true,
+    "expected": {
+      "lines": [
+        {
+          "query": "chicken burger",
+          "amount": 10,
+          "unit": "kg"
+        }
+      ]
+    }
+  },
+  {
+    "caseId": "AUD-cream-cheese",
+    "family": "identity",
+    "channel": "main",
+    "input": "5 kg cream cheese",
+    "plan": true,
+    "expected": {
+      "lines": [
+        {
+          "query": "cream cheese",
+          "amount": 5,
+          "unit": "kg"
+        }
+      ]
+    }
+  },
+  {
+    "caseId": "AUD-oat-milk",
+    "family": "identity",
+    "channel": "main",
+    "input": "5 l oat milk",
+    "plan": true,
+    "expected": {
+      "lines": [
+        {
+          "query": "oat milk",
+          "amount": 5,
+          "unit": "l"
+        }
+      ]
+    }
+  },
+  {
+    "caseId": "AUD-nonsense",
+    "family": "nonsense",
+    "channel": "main",
+    "input": "10 houses",
+    "plan": true,
+    "expected": {
+      "lines": [
+        {
+          "query": "houses",
+          "amount": 10,
+          "unit": "pcs"
+        }
+      ]
+    },
+    "inspectCatalog": true
+  },
+  {
+    "caseId": "AUD-alternative",
+    "family": "alternative",
+    "channel": "main",
+    "input": "10 kg salmon or trout",
+    "expected": {
+      "requiresClarification": true
+    }
+  },
+  {
+    "caseId": "AUD-wa-multi",
+    "family": "multi-order",
+    "channel": "whatsapp_interpreter",
+    "input": "add 10 kg salmon to Darragh and Pavit",
+    "expected": {
+      "intent": "clarify"
+    }
+  },
+  {
+    "caseId": "AUD-wa-all",
+    "family": "all-orders",
+    "channel": "whatsapp_interpreter",
+    "input": "add 10 kg salmon to all orders",
+    "expected": {
+      "intent": "clarify"
+    }
+  },
+  {
+    "caseId": "AUD-wa-extra",
+    "family": "additive",
+    "channel": "whatsapp_interpreter",
+    "input": "add another kilo of salmon",
+    "expected": {
+      "allowedIntents": [
+        "clarify",
+        "add_items"
+      ],
+      "lines": [
+        {
+          "amount": 1,
+          "unit": "kg",
+          "product": "salmon"
+        }
+      ]
+    }
+  },
+  {
+    "caseId": "AUD-wa-origin",
+    "family": "origin",
+    "channel": "whatsapp_interpreter",
+    "input": "add 10 kg Finnish salmon to Darragh",
+    "expected": {
+      "lines": [
+        {
+          "amount": 10,
+          "unit": "kg",
+          "origin": "fi"
+        }
+      ]
+    }
+  },
+  {
+    "caseId": "AUD-wa-nonsense",
+    "family": "nonsense",
+    "channel": "whatsapp_interpreter",
+    "input": "add 10 houses to Darragh",
+    "expected": {
+      "lines": [
+        {
+          "product": "houses",
+          "amount": 10,
+          "unit": "pcs"
+        }
+      ]
+    }
+  },
+  {
+    "caseId": "AUD-60-plain",
+    "family": "60-item-plain",
+    "channel": "main",
+    "input": "1 burgers; 2 milk; 3 salmon fillet; 4 cream cheese; 5 potatoes; 6 bread; 7 butter; 8 eggs; 9 coffee; 10 strawberries; 11 burgers; 12 milk; 13 salmon fillet; 14 cream cheese; 15 potatoes; 16 bread; 17 butter; 18 eggs; 19 coffee; 20 strawberries; 21 burgers; 22 milk; 23 salmon fillet; 24 cream cheese; 25 potatoes; 26 bread; 27 butter; 28 eggs; 29 coffee; 30 strawberries; 31 burgers; 32 milk; 33 salmon fillet; 34 cream cheese; 35 potatoes; 36 bread; 37 butter; 38 eggs; 39 coffee; 40 strawberries; 41 burgers; 42 milk; 43 salmon fillet; 44 cream cheese; 45 potatoes; 46 bread; 47 butter; 48 eggs; 49 coffee; 50 strawberries; 51 burgers; 52 milk; 53 salmon fillet; 54 cream cheese; 55 potatoes; 56 bread; 57 butter; 58 eggs; 59 coffee; 60 strawberries",
+    "expected": {
+      "lines": [
+        {
+          "amount": 1,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 2,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 3,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 4,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 5,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 6,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 7,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 8,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 9,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 10,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 11,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 12,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 13,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 14,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 15,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 16,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 17,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 18,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 19,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 20,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 21,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 22,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 23,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 24,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 25,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 26,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 27,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 28,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 29,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 30,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 31,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 32,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 33,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 34,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 35,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 36,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 37,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 38,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 39,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 40,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 41,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 42,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 43,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 44,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 45,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 46,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 47,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 48,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 49,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 50,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 51,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 52,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 53,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 54,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 55,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 56,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 57,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 58,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 59,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 60,
+          "unit": "pcs",
+          "claims": []
+        }
+      ]
+    }
+  },
+  {
+    "caseId": "AUD-60-global-vegan",
+    "family": "60-item-global-vegan",
+    "channel": "main",
+    "input": "Everything must be vegan: 1 burgers; 2 milk; 3 salmon fillet; 4 cream cheese; 5 potatoes; 6 bread; 7 butter; 8 eggs; 9 coffee; 10 strawberries; 11 burgers; 12 milk; 13 salmon fillet; 14 cream cheese; 15 potatoes; 16 bread; 17 butter; 18 eggs; 19 coffee; 20 strawberries; 21 burgers; 22 milk; 23 salmon fillet; 24 cream cheese; 25 potatoes; 26 bread; 27 butter; 28 eggs; 29 coffee; 30 strawberries; 31 burgers; 32 milk; 33 salmon fillet; 34 cream cheese; 35 potatoes; 36 bread; 37 butter; 38 eggs; 39 coffee; 40 strawberries; 41 burgers; 42 milk; 43 salmon fillet; 44 cream cheese; 45 potatoes; 46 bread; 47 butter; 48 eggs; 49 coffee; 50 strawberries; 51 burgers; 52 milk; 53 salmon fillet; 54 cream cheese; 55 potatoes; 56 bread; 57 butter; 58 eggs; 59 coffee; 60 strawberries",
+    "expected": {
+      "lines": [
+        {
+          "amount": 1,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 2,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 3,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 4,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 5,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 6,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 7,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 8,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 9,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 10,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 11,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 12,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 13,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 14,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 15,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 16,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 17,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 18,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 19,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 20,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 21,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 22,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 23,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 24,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 25,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 26,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 27,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 28,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 29,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 30,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 31,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 32,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 33,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 34,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 35,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 36,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 37,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 38,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 39,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 40,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 41,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 42,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 43,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 44,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 45,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 46,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 47,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 48,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 49,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 50,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 51,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 52,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 53,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 54,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 55,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 56,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 57,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 58,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 59,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 60,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "caseId": "AUD-60-local-vegan",
+    "family": "60-item-local-vegan",
+    "channel": "main",
+    "input": "1 vegan burgers; 2 milk; 3 vegan salmon fillet; 4 cream cheese; 5 vegan potatoes; 6 bread; 7 vegan butter; 8 eggs; 9 vegan coffee; 10 strawberries; 11 vegan burgers; 12 milk; 13 vegan salmon fillet; 14 cream cheese; 15 vegan potatoes; 16 bread; 17 vegan butter; 18 eggs; 19 vegan coffee; 20 strawberries; 21 vegan burgers; 22 milk; 23 vegan salmon fillet; 24 cream cheese; 25 vegan potatoes; 26 bread; 27 vegan butter; 28 eggs; 29 vegan coffee; 30 strawberries; 31 vegan burgers; 32 milk; 33 vegan salmon fillet; 34 cream cheese; 35 vegan potatoes; 36 bread; 37 vegan butter; 38 eggs; 39 vegan coffee; 40 strawberries; 41 vegan burgers; 42 milk; 43 vegan salmon fillet; 44 cream cheese; 45 vegan potatoes; 46 bread; 47 vegan butter; 48 eggs; 49 vegan coffee; 50 strawberries; 51 vegan burgers; 52 milk; 53 vegan salmon fillet; 54 cream cheese; 55 vegan potatoes; 56 bread; 57 vegan butter; 58 eggs; 59 vegan coffee; 60 strawberries",
+    "expected": {
+      "lines": [
+        {
+          "amount": 1,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 2,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 3,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 4,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 5,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 6,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 7,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 8,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 9,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 10,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 11,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 12,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 13,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 14,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 15,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 16,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 17,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 18,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 19,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 20,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 21,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 22,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 23,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 24,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 25,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 26,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 27,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 28,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 29,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 30,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 31,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 32,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 33,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 34,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 35,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 36,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 37,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 38,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 39,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 40,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 41,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 42,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 43,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 44,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 45,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 46,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 47,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 48,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 49,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 50,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 51,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 52,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 53,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 54,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 55,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 56,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 57,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 58,
+          "unit": "pcs",
+          "claims": []
+        },
+        {
+          "amount": 59,
+          "unit": "pcs",
+          "claims": [
+            "VEGAN"
+          ]
+        },
+        {
+          "amount": 60,
+          "unit": "pcs",
+          "claims": []
+        }
+      ]
+    }
+  },
+  {
+    "caseId": "AUD-duplicate-salmon",
+    "family": "duplicate-product",
+    "channel": "main",
+    "input": "10 kg salmon and 5 kg salmon",
+    "plan": true,
+    "expected": {
+      "lines": [
+        {
+          "product": "salmon",
+          "amount": 10,
+          "unit": "kg"
+        },
+        {
+          "product": "salmon",
+          "amount": 5,
+          "unit": "kg"
+        }
+      ]
+    }
+  },
+  {
+    "caseId": "AUD-pinned-milk",
+    "family": "secondary-identity",
+    "channel": "main",
+    "input": "10 l lactose-free milk 469363",
+    "plan": true,
+    "expected": {
+      "lines": [
+        {
+          "product": "milk",
+          "amount": 10,
+          "unit": "l",
+          "productId": "469363",
+          "claims": [
+            "FREE_FROM_LACTOSE"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "caseId": "AUD-percent",
+    "family": "percentage",
+    "channel": "main",
+    "input": "2% milk",
+    "plan": true,
+    "expected": {
+      "lines": [
+        {
+          "product": "milk",
+          "quantityUnspecified": true
+        }
+      ]
+    }
+  },
+  {
+    "caseId": "AUD-wa-sequence-replay",
+    "family": "confirmation-replay",
+    "channel": "whatsapp_coordinator",
+    "input": "add 1 kg salmon 469672 to Darragh",
+    "seed": true,
+    "sequence": [
+      "add 1 kg salmon 469672 to Darragh",
+      {
+        "text": "confirm change",
+        "id": "change"
+      },
+      {
+        "text": "confirm change",
+        "id": "change"
+      },
+      {
+        "text": "add 4 kg salmon 469672 to Pavit",
+        "id": "change"
+      },
+      "confirm order",
+      {
+        "text": "confirm order",
+        "id": "checkout"
+      },
+      {
+        "text": "confirm order",
+        "id": "checkout"
+      }
+    ],
+    "expected": {
+      "noUnauthorizedMutation": true
+    }
+  },
+  {
+    "caseId": "AUD-wa-stale",
+    "family": "stale-confirmation",
+    "channel": "whatsapp_coordinator",
+    "input": "add 1 kg salmon 469672 to Darragh",
+    "seed": true,
+    "sequence": [
+      "add 1 kg salmon 469672 to Darragh",
+      "show Pavit",
+      "confirm change"
+    ],
+    "expected": {
+      "noUnauthorizedMutation": true
+    }
+  },
+  {
+    "caseId": "AUD-wa-two-scope",
+    "family": "multi-order",
+    "channel": "whatsapp_coordinator",
+    "input": "add 1 kg salmon 469672 to Darragh and Pavit",
+    "seed": true,
+    "sequence": [
+      "add 1 kg salmon 469672 to Darragh and Pavit",
+      "confirm change"
+    ],
+    "expected": {
+      "noUnauthorizedMutation": true
+    }
+  },
+  {
+    "caseId": "AUD-wa-all-scope",
+    "family": "all-orders",
+    "channel": "whatsapp_coordinator",
+    "input": "add 1 kg salmon 469672 to all orders",
+    "seed": true,
+    "sequence": [
+      "add 1 kg salmon 469672 to all orders",
+      "confirm change"
+    ],
+    "expected": {
+      "noUnauthorizedMutation": true
+    }
+  },
+  {
+    "caseId": "AUD-wa-house-block",
+    "family": "nonsense",
+    "channel": "whatsapp_coordinator",
+    "input": "add 10 houses to Darragh",
+    "seed": false,
+    "sequence": [
+      "add 10 houses to Darragh",
+      "confirm change"
+    ],
+    "expected": {
+      "noUnauthorizedMutation": true
+    }
+  },
+  {
+    "caseId": "AUD-wa-stock-unknown",
+    "family": "unknown-stock",
+    "channel": "whatsapp_coordinator",
+    "input": "add 10 l lactose-free milk 464306 to Darragh",
+    "seed": false,
+    "sequence": [
+      "add 10 l lactose-free milk 464306 to Darragh",
+      "confirm change"
+    ],
+    "expected": {
+      "noUnauthorizedMutation": true
+    }
+  },
+  {
+    "caseId": "AUD-wa-replacement",
+    "family": "substitution",
+    "channel": "whatsapp_coordinator",
+    "input": "add 1 kg salmon 469672 instead of milk to Darragh",
+    "seed": true,
+    "sequence": [
+      "add 1 kg salmon 469672 instead of milk to Darragh",
+      "confirm change"
+    ],
+    "expected": {
+      "noUnauthorizedMutation": true
+    }
+  },
+  {
+    "caseId": "AUD-duplicate-stock",
+    "family": "duplicate-stock",
+    "channel": "main",
+    "input": "300 l lactose-free milk 469363 and 300 l lactose-free milk 469363",
+    "plan": true,
+    "expected": {
+      "lines": [
+        {
+          "product": "milk",
+          "productId": "469363",
+          "amount": 300,
+          "unit": "l",
+          "claims": [
+            "FREE_FROM_LACTOSE"
+          ]
+        },
+        {
+          "product": "milk",
+          "productId": "469363",
+          "amount": 300,
+          "unit": "l",
+          "claims": [
+            "FREE_FROM_LACTOSE"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "caseId": "AUD-wa-old-preview",
+    "family": "stale-delivery-replay",
+    "channel": "whatsapp_coordinator",
+    "input": "add 1 kg salmon 469672 to Darragh",
+    "seed": true,
+    "sequence": [
+      {
+        "text": "add 1 kg salmon 469672 to Darragh",
+        "id": "old"
+      },
+      {
+        "text": "add 3 kg salmon 469672 to Darragh",
+        "id": "new"
+      },
+      {
+        "text": "add 1 kg salmon 469672 to Darragh",
+        "id": "old"
+      },
+      "confirm change"
+    ],
+    "expected": {
+      "previewMustMatchAppliedChange": true
+    }
+  },
+  {
+    "caseId": "AUD-delivery-hour",
+    "family": "delivery-hour",
+    "channel": "main",
+    "input": "10 l milk before Monday at 10am",
+    "plan": true,
+    "expected": {
+      "mustNotPromiseHour": true
+    }
+  },
+  {
+    "caseId": "AUD-future-invalid-date",
+    "family": "invalid-date",
+    "channel": "main",
+    "input": "10 kg salmon by 2027-02-30",
+    "plan": true,
+    "expected": {
+      "disposition": "clarify_or_block_invalid_calendar_date"
+    }
+  },
+  {
+    "caseId": "AUD-invalid-site",
+    "family": "site-scope",
+    "channel": "main",
+    "input": "10 l milk for delivery site-mars",
+    "plan": true,
+    "expected": {
+      "mustNotOrder": true,
+      "site": "site-mars"
+    }
+  },
+  {
+    "caseId": "AUD-expired-cutoff",
+    "family": "expired-cutoff",
+    "channel": "main",
+    "input": "10 kg salmon 469672 by 2026-11-16",
+    "plan": true,
+    "clock": "2026-11-15T18:00:00Z",
+    "expected": {
+      "mustNotOrder": true
+    }
+  },
+  {
+    "caseId": "AUD-global-suffix",
+    "family": "global-constraint-suffix",
+    "channel": "main",
+    "input": "10 l milk and 5 kg salmon, everything gluten-free and nut-free",
+    "plan": true,
+    "expected": {
+      "lineCount": 2,
+      "lines": [
+        {
+          "product": "milk",
+          "amount": 10,
+          "unit": "l"
+        },
+        {
+          "product": "salmon",
+          "amount": 5,
+          "unit": "kg"
+        }
+      ],
+      "globalClaims": [
+        "FREE_FROM_GLUTEN"
+      ],
+      "globalAvoidAllergens": [
+        "AN",
+        "AP"
+      ]
+    }
+  },
+  {
+    "caseId": "AUD-composite-allergy",
+    "family": "composite-allergen",
+    "channel": "main",
+    "input": "2 kg Finnish vegan cheese without milk or nuts",
+    "plan": true,
+    "expected": {
+      "lines": [
+        {
+          "product": "cheese",
+          "amount": 2,
+          "unit": "kg",
+          "claims": [
+            "VEGAN"
+          ],
+          "avoidAllergens": [
+            "AM",
+            "AN",
+            "AP"
+          ],
+          "origin": "fi"
+        }
+      ]
+    }
+  },
+  {
+    "caseId": "AUD-global-origin",
+    "family": "global-origin",
+    "channel": "main",
+    "input": "2 kg potatoes 460541; 10 kg potatoes 460541; 40 kg potatoes 460541, all products must be Finnish by 2026-11-16",
+    "plan": true,
+    "expected": {
+      "lineCount": 3,
+      "lines": [
+        {
+          "product": "potatoes",
+          "productId": "460541",
+          "amount": 2,
+          "unit": "kg"
+        },
+        {
+          "product": "potatoes",
+          "productId": "460541",
+          "amount": 10,
+          "unit": "kg"
+        },
+        {
+          "product": "potatoes",
+          "productId": "460541",
+          "amount": 40,
+          "unit": "kg"
+        }
+      ],
+      "globalOrigin": "fi",
+      "neededBy": "2026-11-16"
+    }
+  },
+  {
+    "caseId": "AUD-fractional-rounding",
+    "family": "whole-pack-rounding",
+    "channel": "main",
+    "input": "0.4 kg salmon 469672 and 0.4 kg salmon 469672",
+    "plan": true,
+    "expected": {
+      "lines": [
+        {
+          "product": "salmon",
+          "productId": "469672",
+          "amount": 0.4,
+          "unit": "kg"
+        },
+        {
+          "product": "salmon",
+          "productId": "469672",
+          "amount": 0.4,
+          "unit": "kg"
+        }
+      ]
+    }
+  },
+  {
+    "caseId": "AUD-almond-allergy",
+    "family": "explicit-allergy-code",
+    "channel": "main",
+    "input": "10 l milk for an almond allergy",
+    "plan": true,
+    "expected": {
+      "lines": [
+        {
+          "product": "milk",
+          "amount": 10,
+          "unit": "l",
+          "avoidAllergens": [
+            "SA"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "caseId": "AUD-mixed-unit",
+    "family": "mass-volume",
+    "channel": "main",
+    "input": "5 l lactose-free milk 469363 and 5 kg lactose-free milk 469363 by 2027-03-01",
+    "plan": true,
+    "expected": {
+      "lines": [
+        {
+          "product": "milk",
+          "productId": "469363",
+          "amount": 5,
+          "unit": "l",
+          "claims": [
+            "FREE_FROM_LACTOSE"
+          ]
+        },
+        {
+          "product": "milk",
+          "productId": "469363",
+          "amount": 5,
+          "unit": "kg",
+          "claims": [
+            "FREE_FROM_LACTOSE"
+          ]
+        }
+      ],
+      "neededBy": "2027-03-01"
+    }
+  }
+]
