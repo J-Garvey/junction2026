@@ -17,6 +17,9 @@ const { getPerson } = await import("../src/identity.js");
 let quoted: QuoteCreateBody | undefined;
 beforeEach(async () => {
   seedReset();
+  // These quantity/identity fixtures intentionally use Norwegian salmon 462150.
+  // Exercise their original legacy mandate; category origin has separate gateway regressions.
+  putMandate({ ...mandate(), categoryOriginRequirements: [] });
   setClock({ time: "2026-11-14T10:00:00Z" });
   quoted = undefined;
   const fixture = await lookup(["462150", "469363"], "2026-11-16", { mode: "fixture", overlay: null });

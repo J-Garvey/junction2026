@@ -108,7 +108,7 @@ h4 { font-size: 13px; font-weight: 700; text-transform: uppercase; color: var(--
 .profile b { display: block; font-size: 13px; color: var(--ink); }
 .account-slot { margin-left: auto; flex-shrink: 0; }
 .account-menu { position: relative; }
-.account-panel { position: absolute; z-index: 40; top: calc(100% + 6px); right: 0; width: 250px; padding: 6px; border: 1px solid var(--hairline); border-radius: 6px; background: var(--card); box-shadow: 0 8px 24px rgba(35, 37, 29, 0.18); }
+.account-panel { position: absolute; z-index: 40; top: calc(100% + 6px); right: 0; width: 250px; max-height: calc(100dvh - 76px); overflow-y: auto; padding: 6px; border: 1px solid var(--hairline); border-radius: 6px; background: var(--card); box-shadow: 0 8px 24px rgba(35, 37, 29, 0.18); }
 .account-current { display: flex; align-items: center; gap: 10px; padding: 10px; border-bottom: 1px solid var(--hairline-soft); margin-bottom: 4px; }
 .account-current > span:last-child { display: flex; min-width: 0; flex-direction: column; line-height: 1.3; }
 .account-current b { color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -197,6 +197,7 @@ table.t tr:last-child td { border-bottom: 0; }
 .composer { background: var(--card); border: 1px solid var(--hairline); border-radius: 6px; position: sticky; top: 8px; z-index: 5; box-shadow: 0 1px 0 var(--hairline-soft); }
 .composer .txt { padding: 8px 8px 8px 12px; display: flex; align-items: flex-end; gap: 12px; }
 .composer textarea { flex: 1; border: 0; resize: none; font-size: 16px; padding: 8px 0; outline: none; background: transparent; min-height: 38px; }
+.composer textarea:focus-visible { outline: none; }
 .send { width: 40px; height: 40px; border-radius: 6px; background: var(--soft); display: grid; place-items: center; flex-shrink: 0; color: var(--ink); border: 0; }
 .send.go { background: var(--primary); }
 .sugg { display: flex; gap: 8px; flex-wrap: wrap; }

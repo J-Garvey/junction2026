@@ -131,6 +131,17 @@ export function Rules() {
               <span className="plabel">Delivery sites</span>
               <span className="small">{data.mandate.sites.map((s) => s.name).join(", ")}</span>
             </div>
+            <div className="pfield" role="region" aria-label="Category origin requirements">
+              <span className="plabel">Required origin by category</span>
+              {data.mandate.categoryOriginRequirements?.length ? <>
+                <ul className="small">
+                  {data.mandate.categoryOriginRequirements.map((r, i) => (
+                    <li key={i}>{new Intl.DisplayNames(["en"], { type: "region" }).of(r.origin.toUpperCase())} ({r.origin}) only · exact catalogue categories: {r.categories.join(", ")}</li>
+                  ))}
+                </ul>
+                <span className="small muted">Catalogue origin must be known. This standing requirement blocks mismatches even if the recipe origin rule asks the chef; request constraints also apply.</span>
+              </> : <span className="small muted">No category origin requirements in this mandate.</span>}
+            </div>
           </div>
         </div>
       </section>

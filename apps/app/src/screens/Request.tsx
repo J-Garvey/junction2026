@@ -8,6 +8,7 @@ import { Composer } from "./Home";
 import { Candidates, LinesList, MoneyView, CutoffBoard, Section, shortfallText } from "../ui/PlanView";
 import { stockText } from "../ui/Popover";
 import { QuestionCard } from "../ui/QuestionCard";
+import { CarbonEstimate } from "../ui/CarbonEstimate";
 import { Status, planStatusKind, PLAN_STATUS_TEXT, Fixture } from "../ui/Status";
 import { claimLabel, day, eur, qty, when, helsinkiDate, addDays } from "../format";
 
@@ -345,6 +346,7 @@ function Proposal({ plan, onDone }: { plan: Plan; onDone: (r: PlanResp) => void 
               <div className="small muted">
                 {qty(l.quantity)} {l.salesUnit ?? ""} · {stockText(l.stock, l.salesUnit)} · arrives {day(l.availableDate)}
               </div>
+              <CarbonEstimate line={l} />
             </div>
             <b className="num">{eur(l.lineTotal)}</b>
           </div>

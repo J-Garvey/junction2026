@@ -5,6 +5,7 @@
  * answer is applied by recording an override and running the pipeline again.
  */
 import type { Constraints, EventSpec, FiredRule, Mandate, Need, Plan, PlanLine, Question, Quote, SingleRequest, BaseUnit, Candidate } from "@aimo/contracts";
+import { carbonEstimateKg } from "@aimo/contracts";
 import { getDb, getJson, allJson, kvGet } from "../db.js";
 import { now, nowIso } from "../clock.js";
 import { getProduct } from "../catalog.js";
@@ -21,8 +22,9 @@ import { basketSnapshot } from "../whatsapp/snapshot.js";
 import { forEachConcurrent } from "./concurrency.js";
 import { quantityScope, refreshItemReviews } from "./itemReview.js";
 import { ingredientAllocations, participatingGroups } from "./menuAllocations.js";
+import { HOTEL_ID, mandate } from "./mandate.js";
 
-export const HOTEL_ID = "hotel-aurora";
+export { HOTEL_ID, mandate } from "./mandate.js";
 
 export type Overrides = {
   confirmed: string[]; // "needId:productId" the chef confirmed (type or substitute)
@@ -47,10 +49,6 @@ export type StoredPlan = Plan & {
 };
 
 export const emptyOverrides = (): Overrides => ({ confirmed: [], excluded: [], removedNeeds: [], keepShort: false, approvedSoft: [], stockContinued: [], useConfirmed: false });
-
-export function mandate(): Mandate {
-  return getJson<Mandate>("mandates", HOTEL_ID, "hotel_id")!;
-}
 
 export function savePlan(p: StoredPlan) {
   refreshItemReviews(p);
@@ -301,8 +299,6 @@ function makeLine(c: Candidate, needs: Need[], needValue: number, quantity: numb
   if (c.stock.kind === "unknown") rules.push(fire("STK-01", { product: c.name, productId: c.productId, reason: c.stock.reason === "terminal_sentinel" ? "Terminal product, ships from the supplier" : "stock placeholder value" }));
   else if (allocation === "primary" && needs.every((n) => !isUrgentDate(n.neededBy))) rules.push(fire("STK-05", { product: c.name, stock: c.stock.kind === "known" ? `${c.stock.amount} ${c.salesUnit ?? ""}` : "none" }));
   const dedup = [...new Map(rules.map((r) => [`${r.ruleId}|${JSON.stringify(r.facts)}`, r])).values()];
-  const prod = getProduct(c.productId);
-  const massKg = c.packContent && c.packContent.unit !== "pcs" ? c.packContent.value * quantity : null;
   const lineTotal = c.unitPrice === null ? null : round2(c.unitPrice * quantity);
   return {
     id: `${c.productId}|${needs[0].outletId}|${allocation}|${needs.map((n) => n.id).join(",")}`,
@@ -331,7 +327,8 @@ function makeLine(c: Candidate, needs: Need[], needValue: number, quantity: numb
     allocation,
     riskAccepted: null,
     removed: false,
-    co2Kg: prod?.co2KgPerKg != null && massKg !== null ? round2(prod.co2KgPerKg * massKg) : null,
+    carbonBasis: c.carbonBasis ?? null,
+    co2Kg: carbonEstimateKg(quantity, c.carbonBasis),
   };
 }
 

@@ -157,7 +157,7 @@ function redactForValio(e: AuditEntry): AuditEntry {
     seq: e.seq, id: e.id, simTime: e.simTime, realTime: e.realTime,
     actor: sharedActor(e.actor), action: e.action, summary: projection.summary,
     eventId: e.eventId, quoteId: e.quoteId, orderId: e.orderId, questionId: null,
-    ruleIds: e.ruleIds.filter((r) => /^(?:ALG|DIET|STK|DLV|CUT|PRC|QTY|MAN|CHG|SUB|FIN|SIL)-\d{2}$/.test(r)),
+    ruleIds: e.ruleIds.filter((r) => /^(?:ALG|DIET|STK|DLV|CUT|PRC|QTY|MAN|CHG|SUB|FIN|SIL|ORG)-\d{2}$/.test(r)),
     judgements: [], details: parsed.success ? parsed.data as Record<string, unknown> : {},
     // Hashes refer to the full stored entries; verifyChain checks those originals.
     usesFixture: e.usesFixture, visibility: "shared", prevHash: e.prevHash, hash: e.hash,

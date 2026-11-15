@@ -1,12 +1,11 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { App } from "../src/App";
 import { api, authHooks, type Person, type StatusResp } from "../src/api";
 
-// The four seeded identities, including Mikko's single-outlet kitchen scope.
 const people: Person[] = [
   { id: "p-aino", name: "Aino", title: "Head chef", role: "chef", outlets: ["banquet", "bar"], hotelScope: false },
   { id: "p-mikko", name: "Mikko", title: "Bar manager", role: "chef", outlets: ["bar"], hotelScope: false },
@@ -17,14 +16,10 @@ const status: StatusResp = {
   clock: { now: "2026-11-14T10:00:00Z", mode: "fixed", time: null, scene: null, scenes: {} as StatusResp["clock"]["scenes"] },
   dataMode: "fixture", model: { provider: "openai", model: "fixture", configured: false }, chain: { ok: true, brokenAt: null, entries: 0 },
 };
-const destinations = (person: Person): [string, string][] => person.role === "approver"
-  ? [["Events", "/events"], ["Order receipts", "/orders"]]
-  : [["Waiting", "/inbox"], ["Events", "/events"], ["Requests", "/requests"], ["Receipts", "/orders"]];
 const mount = (person = people[1], path = "/") => {
   vi.mocked(api.me).mockResolvedValue({ person });
   return render(<MemoryRouter initialEntries={[path]}><App /></MemoryRouter>);
 };
-
 beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn(() => { throw new Error("Unexpected network request in navigation test"); }));
   vi.spyOn(api, "me");
@@ -37,62 +32,52 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); authHooks.onUnauthorized = () => {}; });
 
-describe("main navigation", () => {
-  it.each(people)("makes role-appropriate core destinations directly discoverable for $name", async (person) => {
+describe("core page navigation without top tabs", () => {
+  it.each(people)("lets $name reach Waiting, Requests and Events from the account menu", async (person) => {
     const user = userEvent.setup();
     mount(person);
-    const nav = within(await screen.findByRole("navigation", { name: "Primary navigation" }));
-    const homeName = person.role === "approver" ? "Approvals & spend" : "Orders";
-    expect(nav.getAllByRole("link")).toHaveLength(1 + destinations(person).length);
-    expect(nav.getByRole("link", { name: homeName }).getAttribute("href")).toBe("/");
-    expect(nav.getByRole("link", { name: homeName }).getAttribute("aria-current")).toBe("page");
+    const profile = await screen.findByRole("button", { name: `Signed in as ${person.name}` });
+    expect(screen.queryByRole("navigation", { name: "Primary navigation" })).toBeNull();
+    for (const [name, path, heading] of [
+      ["Waiting", "/inbox", person.role === "approver" ? "Approvals & spend" : "Waiting for you"],
+      ["Requests", "/requests", "Requests"],
+      ["Events", "/events", "Events"],
+    ]) {
+      await user.click(profile);
+      const link = screen.getByRole("menuitem", { name });
+      expect(link.getAttribute("href")).toBe(path);
+      await user.click(link);
+      expect(screen.queryByRole("menu")).toBeNull();
+      await screen.findByRole("heading", { name: heading });
+    }
+    await user.click(screen.getByRole("link", { name: "Aimo Copilot home" }));
     if (person.role === "approver") {
       await screen.findByRole("heading", { name: "Approvals & spend" });
       expect(screen.queryByRole("button", { name: "New order" })).toBeNull();
-    } else {
-      await screen.findByRole("button", { name: "New order" });
-    }
-
-    for (const [name, href] of destinations(person)) {
-      const link = nav.getByRole("link", { name });
-      expect(link.getAttribute("href")).toBe(href);
-      await user.click(link);
-      expect(link.getAttribute("aria-current")).toBe("page");
-      expect(nav.getAllByRole("link").filter((item) => item.hasAttribute("aria-current"))).toEqual([link]);
-      await screen.findByRole("heading", { name: name === "Waiting" ? "Waiting for you" : href === "/orders" ? "Orders" : name });
-    }
-    await user.click(nav.getByRole("link", { name: homeName }));
-    expect(nav.getByRole("link", { name: homeName }).getAttribute("aria-current")).toBe("page");
-    expect(nav.queryByRole("link", { name: /WhatsApp|Demo|Rules|Audit/ })).toBeNull();
+    } else await screen.findByRole("button", { name: "New order" });
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it("keeps Requests marked current when opening a new request directly", async () => {
+  it("marks Requests current on a nested route and returns focus when the menu closes", async () => {
+    const user = userEvent.setup();
     mount(people[1], "/requests/new");
-    const nav = within(await screen.findByRole("navigation", { name: "Primary navigation" }));
-    expect(nav.getByRole("link", { name: "Requests" }).getAttribute("aria-current")).toBe("page");
-    expect(nav.getByRole("link", { name: "Orders" }).hasAttribute("aria-current")).toBe(false);
+    const profile = await screen.findByRole("button", { name: "Signed in as Mikko" });
+    await user.click(profile);
+    expect(screen.getByRole("menuitem", { name: "Requests" }).getAttribute("aria-current")).toBe("page");
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(document.activeElement).toBe(profile);
   });
 
-  it("identifies the order section and keeps a named way home on an order detail", async () => {
-    vi.spyOn(api, "basket").mockRejectedValue(new Error("Saved order is no longer available"));
-    mount(people[1], "/baskets/wedding");
-    const nav = within(await screen.findByRole("navigation", { name: "Primary navigation" }));
-    expect(nav.getByRole("link", { name: "Orders" }).getAttribute("aria-current")).toBe("page");
-    expect(nav.getByRole("link", { name: "Orders" }).getAttribute("href")).toBe("/");
-    expect(screen.getByRole("link", { name: "Aimo Copilot home" }).getAttribute("href")).toBe("/");
-  });
-
-  it("lets keyboard users reach the visible destinations without opening a menu", async () => {
+  it("lets keyboard users open the Waiting page through the menu", async () => {
     const user = userEvent.setup();
     mount();
-    const nav = within(await screen.findByRole("navigation", { name: "Primary navigation" }));
-    nav.getByRole("link", { name: "Orders" }).focus();
-    for (const [name] of destinations(people[1])) {
-      await user.tab();
-      expect(document.activeElement).toBe(nav.getByRole("link", { name }));
-    }
+    const profile = await screen.findByRole("button", { name: "Signed in as Mikko" });
+    profile.focus();
+    await user.keyboard("{Enter}{ArrowDown}{ArrowDown}");
+    expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: "Waiting" }));
     await user.keyboard("{Enter}");
-    expect(nav.getByRole("link", { name: "Receipts" }).getAttribute("aria-current")).toBe("page");
+    await screen.findByRole("heading", { name: "Waiting for you" });
+    expect(screen.queryByRole("menu")).toBeNull();
   });
 });
