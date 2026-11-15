@@ -10,9 +10,12 @@ import { getDb } from "../db.js";
 import { FIXED } from "../rules/catalogue.js";
 import { sha256, stableStringify } from "../util.js";
 import { structured, ModelUnavailable, modelName } from "./openai.js";
+import { z } from "zod";
 
 const TH = { fact: FIXED.decisionFact, reject: FIXED.decisionReject };
 const verdictOf = (p: number | null): ModelJudgement["verdict"] => (p === null ? "unsure" : p >= TH.fact ? "yes" : p <= TH.reject ? "no" : "unsure");
+const ROUTE_RESULT = z.object({ new_request: z.number().min(0).max(1), event_change: z.number().min(0).max(1), neither: z.number().min(0).max(1) })
+  .refine((r) => Math.abs(r.new_request + r.event_change + r.neither - 1) < .02);
 
 function cacheGet(key: string): ModelJudgement | null {
   const r = getDb().prepare("SELECT json FROM judgements WHERE key = ?").get(key) as { json: string } | undefined;
@@ -140,6 +143,11 @@ export async function messageRoute(text: string): Promise<{ route: "new_request"
       system: "Route a message typed into a hotel kitchen's purchasing app. Give a probability for each route; they must sum to 1.",
       user: text,
       schema: { type: "object", additionalProperties: false, required: ["new_request", "event_change", "neither"], properties: { new_request: { type: "number" }, event_change: { type: "number" }, neither: { type: "number" } } },
+      validate: (value) => {
+        const result = ROUTE_RESULT.safeParse(value);
+        if (!result.success) throw new ModelUnavailable("The model returned an invalid message route");
+        return result.data;
+      },
     });
     const best = (Object.entries(r) as [keyof typeof r, number][]).sort((a, b) => b[1] - a[1])[0];
     const j: ModelJudgement = { fn: "MESSAGE-ROUTE", question: q, subject: text.slice(0, 80), probability: best[1], threshold: TH, verdict: verdictOf(best[1]), source: "model", model: modelName() };
