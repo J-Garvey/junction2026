@@ -93,7 +93,8 @@ export function Rules() {
     }
   }
 
-  const isChanged = (r: RuleDef) => outcome(r) !== r.defaultOutcome || (r.control.params ?? []).some((k) => k in pending.params);
+  // "Changed" compares the effective values with defaults; pending only tracks unsaved edits.
+  const isChanged = (r: RuleDef) => outcome(r) !== r.defaultOutcome || (r.control.params ?? []).some((k) => !same(value(k), data.defaultParams[k]));
   const editable = (r: RuleDef) => r.control.choices.length > 1 || (r.control.params ?? []).length > 0;
   const shown = data.rules.filter((r) => (filter === "all" ? true : filter === "editable" ? editable(r) : isChanged(r)));
   const byArea = new Map<string, RuleDef[]>();
