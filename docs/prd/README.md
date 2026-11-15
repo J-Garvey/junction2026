@@ -25,13 +25,13 @@ Three rules while answering:
 | # | Chunk | Track | Stories (P0) | Functions | Questions (open or incomplete) | Edge cases | Owner |
 |---|---|---|---|---|---|---|---|
 | 01 | [Request intake and constraints](01-intake-and-constraints.md) | A | 5 (4) | 6 | 7 (7) | 6 | Jack |
-| 02 | [Product matching and ranking](02-matching-and-ranking.md) | A | 6 (3) | 6 | 9 (7) | 7 | Pavit |
+| 02 | [Product matching and ranking](02-matching-and-ranking.md) | A | 6 (3) | 6 | 9 (7) | 7 | The group |
 | 03 | [Quantities, packs and rounding](03-quantities-and-rounding.md) | A | 2 (1) | 5 | 6 (6) | 6 | Ben |
 | 04 | [Viability, stock and timing](04-viability-stock-and-timing.md) | A | 5 (3) | 6 | 7 (7) | 6 | Darragh |
 | 05 | [Rules, mandate and preferences](05-rules-mandate-and-preferences.md) | B | 9 (3) | 6 | 10 (8) | 6 | Darragh |
 | 06 | [Questions, approvals and teams](06-questions-approvals-and-teams.md) | B | 13 (10) | 6 | 9 (8) | 6 | Jack |
 | 07 | [Changes, substitutes and the final check](07-changes-substitutes-and-final-check.md) | B | 10 (3) | 11 | 10 (8) | 8 | Darragh |
-| 08 | [Agent Gateway and orders](08-gateway-and-orders.md) | C | 10 (6) | 8 | 10 (10) | 7 | Pavit |
+| 08 | [Agent Gateway and orders](08-gateway-and-orders.md) | C | 10 (6) | 8 | 10 (10) | 7 | The group |
 | 09 | [Audit and explanations](09-audit-and-explanations.md) | C | 7 (3) | 7 | 7 (6) | 6 | Ben |
 | 10 | [Interface](10-interface.md) | C | 8 (4) | 0 | 9 (9) | 6 | Jack |
 | 11 | [Fixtures, clock and test cases](11-fixtures-clock-and-tests.md) | C | 2 (2) | 4 | 6 (6) | 5 | Ben |
@@ -49,16 +49,16 @@ The tracks group chunks by topic. Owners cut across them.
 |---|---|---|
 | **Jack** | 01 Request intake and constraints · 06 Questions, approvals and teams · 10 Interface | What each person sees, who gets asked what, and what the chef has to give: interface work, and knowing who cares about what |
 | **Darragh** | 04 Viability, stock and timing · 05 Rules, mandate and preferences · 07 Changes, substitutes and the final check | The rules and processes: when the agent orders, asks or blocks, and what happens when things change. These lean most on the constraints and the challenge brief |
-| **Pavit** | 02 Product matching and ranking · 08 Agent Gateway and orders | The backend and the Valio Aimo API: `LOOKUP`, `PRODUCT-SEARCH`, quotes and orders. Also the two major questions below |
+| **The group** (was Pavit's) | 02 Product matching and ranking · 08 Agent Gateway and orders | The backend and the Valio Aimo API: `LOOKUP`, `PRODUCT-SEARCH`, quotes and orders. Also the two major questions below |
 | **Ben** | 03 Quantities, packs and rounding · 09 Audit and explanations · 11 Fixtures, clock and test cases | Self-contained chunks where most of the policy is already decided |
 
-Pavit has the fewest questions on purpose: the gateway and the API work are the heaviest part of the build.
+**Pavit left the team on 15 Nov.** Everything that was his is now shared by the group: Jack, Darragh and Ben. A shared item that has to be built still needs one named person before work starts.
 
 Three chunks need a second person on specific questions:
 
-- **Chunk 01 (Jack):** Pavit answers Q01.6, which model does the parsing and what happens when it fails.
-- **Chunk 02 (Pavit):** Darragh signs off Q02.3, the diet-to-data table, and the ranking order in Q02.4 to Q02.6. Those are rules about allergens and the brief, not backend choices.
-- **Chunk 09 (Ben):** Jack answers Q09.5, what counts as one human decision, since that is the metric we report. Pavit answers Q09.2.
+- **Chunk 01 (Jack):** the group answers Q01.6, which model does the parsing and what happens when it fails.
+- **Chunk 02 (the group):** Darragh signs off Q02.3, the diet-to-data table, and the ranking order in Q02.4 to Q02.6. Those are rules about allergens and the brief, not backend choices.
+- **Chunk 09 (Ben):** Jack answers Q09.5, what counts as one human decision, since that is the metric we report. The group answers Q09.2.
 
 ## Every function
 
@@ -72,12 +72,12 @@ Each chunk breaks down into named functions, and each function is one problem th
 | `CONSTRAINT-CHECK` | [01](01-intake-and-constraints.md) | Deterministic code | Jack |
 | `QUANTITY-SANITY` | [01](01-intake-and-constraints.md) | Deterministic code | Jack |
 | `MESSAGE-ROUTE` | [01](01-intake-and-constraints.md) | Decisions API, choice | Jack |
-| `PRODUCT-SEARCH` | [02](02-matching-and-ranking.md) | Deterministic code | Pavit |
-| `CATEGORY-HINT` | [02](02-matching-and-ranking.md) | Decisions API, choice | Pavit |
-| `DIET-FILTER` | [02](02-matching-and-ranking.md) | Deterministic code | Pavit |
-| `LOOKUP` | [02](02-matching-and-ranking.md) | Deterministic code | Pavit |
-| `TYPE-CHECK` | [02](02-matching-and-ranking.md) | Decisions API, yes/no | Pavit |
-| `RANK` | [02](02-matching-and-ranking.md) | Deterministic code | Pavit |
+| `PRODUCT-SEARCH` | [02](02-matching-and-ranking.md) | Deterministic code | The group |
+| `CATEGORY-HINT` | [02](02-matching-and-ranking.md) | Decisions API, choice | The group |
+| `DIET-FILTER` | [02](02-matching-and-ranking.md) | Deterministic code | The group |
+| `LOOKUP` | [02](02-matching-and-ranking.md) | Deterministic code | The group |
+| `TYPE-CHECK` | [02](02-matching-and-ranking.md) | Decisions API, yes/no | The group |
+| `RANK` | [02](02-matching-and-ranking.md) | Deterministic code | The group |
 | `UNIT-CONVERT` | [03](03-quantities-and-rounding.md) | Deterministic code | Ben |
 | `PACK-CONTENT` | [03](03-quantities-and-rounding.md) | Deterministic code | Ben |
 | `NEED-TOTAL` | [03](03-quantities-and-rounding.md) | Deterministic code | Ben |
@@ -112,14 +112,14 @@ Each chunk breaks down into named functions, and each function is one problem th
 | `APPROVAL-RECALL` | [07](07-changes-substitutes-and-final-check.md) | Deterministic code | Darragh |
 | `SILENCE-RESOLVE` | [07](07-changes-substitutes-and-final-check.md) | Deterministic code | Darragh |
 | `COVERAGE-SUMMARY` | [07](07-changes-substitutes-and-final-check.md) | Deterministic code | Darragh |
-| `IDENTITY-RESOLVE` | [08](08-gateway-and-orders.md) | Deterministic code | Pavit |
-| `QUOTE-CREATE` | [08](08-gateway-and-orders.md) | Deterministic code | Pavit |
-| `QUOTE-RECHECK` | [08](08-gateway-and-orders.md) | Deterministic code | Pavit |
-| `ORDER-PLACE` | [08](08-gateway-and-orders.md) | Deterministic code | Pavit |
-| `ORDER-SPLIT` | [08](08-gateway-and-orders.md) | Deterministic code | Pavit |
-| `ORDER-AMEND` | [08](08-gateway-and-orders.md) | Deterministic code | Pavit |
-| `MANDATE-SIGN` | [08](08-gateway-and-orders.md) | Deterministic code | Pavit |
-| `SPEC-PUBLISH` | [08](08-gateway-and-orders.md) | Deterministic code | Pavit |
+| `IDENTITY-RESOLVE` | [08](08-gateway-and-orders.md) | Deterministic code | The group |
+| `QUOTE-CREATE` | [08](08-gateway-and-orders.md) | Deterministic code | The group |
+| `QUOTE-RECHECK` | [08](08-gateway-and-orders.md) | Deterministic code | The group |
+| `ORDER-PLACE` | [08](08-gateway-and-orders.md) | Deterministic code | The group |
+| `ORDER-SPLIT` | [08](08-gateway-and-orders.md) | Deterministic code | The group |
+| `ORDER-AMEND` | [08](08-gateway-and-orders.md) | Deterministic code | The group |
+| `MANDATE-SIGN` | [08](08-gateway-and-orders.md) | Deterministic code | The group |
+| `SPEC-PUBLISH` | [08](08-gateway-and-orders.md) | Deterministic code | The group |
 | `AUDIT-APPEND` | [09](09-audit-and-explanations.md) | Deterministic code | Ben |
 | `AUDIT-VIEW` | [09](09-audit-and-explanations.md) | Deterministic code | Ben |
 | `EXPLAIN` | [09](09-audit-and-explanations.md) | Deterministic code | Ben |
@@ -144,7 +144,7 @@ The Gemini Decisions API is in the build (D29). It returns a probability, not a 
 
 ## Major questions: answer first
 
-Two questions were agreed only in outline at the team review and are marked incomplete. They come first, and they belong to **Pavit**, who builds the core functions the brief requires (`PRODUCT-SEARCH`, `LOOKUP`, quoting and ordering). Q09.2 sits in Ben's chunk 09 but is Pavit's to answer.
+Two questions were agreed only in outline at the team review and are marked incomplete. They come first, and they belong to **the group**, which took over the core functions the brief requires (`PRODUCT-SEARCH`, `LOOKUP`, quoting and ordering) from Pavit on 15 Nov. Q09.2 sits in Ben's chunk 09.
 
 | Question | Agreed so far | Still to write |
 |---|---|---|
@@ -177,7 +177,7 @@ Not yet answered by anyone: the proposed list of five Decisions API uses, and th
 
 Chunks depend on each other, so some answers are needed before others:
 
-1. **First:** Pavit answers the two major questions above. Then Darragh's 05 (rule IDs, the mandate, and the list of rules and parameters in Q05.10), Jack's 01 (the request object) and Pavit's 08 (endpoints and the quote).
+1. **First:** the group answers the two major questions above. Then Darragh's 05 (rule IDs, the mandate, and the list of rules and parameters in Q05.10), Jack's 01 (the request object) and the group's 08 (endpoints and the quote).
 2. **Next:** 02, 03, 04 and 06, which build on them.
 3. **Then:** 07 and 09.
 4. **Last:** 10 and 11. The seed event (Q11.1) is deferred until the demo is planned.
