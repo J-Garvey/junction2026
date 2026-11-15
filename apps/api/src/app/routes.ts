@@ -421,10 +421,19 @@ export function appRouter(): Router {
     if (!plan.proposal && !reviewing) return res.status(409).json({ error: "Nothing waiting to be added" });
     const { needId, productId } = z.object({ needId: z.string(), productId: z.string() }).parse(req.body);
     const need = plan.needs.find((n) => n.id === needId);
-    if (!need?.candidates.some((c) => c.productId === productId)) return res.status(404).json({ error: "Not one of the options" });
+    const broader = need?.replacementCandidates?.find((candidate) => candidate.productId === productId);
+    const choice = need?.candidates.find((candidate) => candidate.productId === productId) ?? broader;
+    if (!need || !choice) return res.status(404).json({ error: "Not one of the options" });
+    if (broader) {
+      const line = plan.kind === "single" ? plan.request?.lines.find((line) => line.id === needId) : null;
+      if (!line) return res.status(409).json({ error: "Review this replacement in a new request" });
+      // Only the product identity changes. The original quantity, diet and site
+      // remain authoritative, and quoteAndDecide rechecks all current terms.
+      line.productId = productId;
+    }
     const p = P(req);
     plan.overrides.chosen = [...(plan.overrides.chosen ?? []).filter((k) => !k.startsWith(`${needId}:`)), `${needId}:${productId}`];
-    audit({ actor: personActor(p), action: "request_received", summary: `${p.name} picked ${need.candidates.find((c) => c.productId === productId)!.name} for ${need.label}`, eventId: plan.eventId, details: { kind: "confirmation", planId: plan.id, needId, productId }, visibility: "hotel" });
+    audit({ actor: personActor(p), action: "request_received", summary: `${p.name} picked ${choice.name} for ${need.label}`, eventId: plan.eventId, details: { kind: "confirmation", planId: plan.id, needId, productId, ...(broader ? { outsideBrief: true } : {}) }, visibility: "hotel" });
     savePlan(plan);
     await quoteAndDecide(plan, T(req));
     res.json({ plan: getPlan(plan.id), questions: allQuestions().filter((q) => q.planId === plan.id) });

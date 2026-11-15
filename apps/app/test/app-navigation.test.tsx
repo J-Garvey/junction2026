@@ -50,7 +50,7 @@ describe("core page navigation without top tabs", () => {
       expect(screen.queryByRole("menu")).toBeNull();
       await screen.findByRole("heading", { name: heading });
     }
-    await user.click(screen.getByRole("link", { name: "Aimo Copilot home" }));
+    await user.click(screen.getByRole("link", { name: "Potato home" }));
     if (person.role === "approver") {
       await screen.findByRole("heading", { name: "Approvals & spend" });
       expect(screen.queryByRole("button", { name: "New order" })).toBeNull();

@@ -3,6 +3,7 @@
  * gateway's public API. Right: what Valio Aimo sees at its front door, live.
  */
 import { useEffect, useId, useRef, useState } from "react";
+import { Mark } from "../ui/icons";
 import "./live.css";
 
 type CallStep = { kind: "call"; n: number; method: string; path: string; summary: string; tone: "ok" | "warn" | "err" | "run"; ms: number | null };
@@ -36,6 +37,7 @@ type FeedEntry = {
   signed: boolean;
   quoteId: string | null;
   orderId: string | null;
+  ms: number;
 };
 type Rules = { hotel: string; spendCapEur: number; delivery: string; site: string; unconfirmedStock: string; signed: boolean };
 type State = { session: Session; feed: FeedEntry[]; rules: Rules; clock: string; model: string; modelReady: boolean };
@@ -121,9 +123,9 @@ export function Live() {
     <div className="lv">
       <header className="lv-top">
         <div className="lv-brand">
-          <b>Valio Aimo</b>
+          <div className="lv-wordmark"><Mark s={32} /><b>Potato</b></div>
           <span className="lv-sep" />
-          <span>Aimo Agent Gateway</span>
+          <span>Agent Gateway</span>
         </div>
         <div className="lv-tools">
           <span className={`lv-live ${connected ? "connected" : ""}`} role="status">
@@ -221,7 +223,7 @@ export function Live() {
         <section className="lv-right">
           <div className="lv-rh">
             <div className="lv-h">
-              <h2>Valio Aimo gateway</h2>
+              <h2>Potato gateway</h2>
               <p>Incoming external agent requests</p>
             </div>
             <div className="lv-rules">
@@ -258,7 +260,7 @@ export function Live() {
             {feed.map((f) =>
               f.verdict === "INFO" ? (
                 <div key={f.id} className="lv-tr lv-info">
-                  <span>{hhmm(f.at)}</span>
+                  <span>{hhmm(f.at)}<span className="lv-duration">{f.ms} ms</span></span>
                   <span>{f.agent}</span>
                   <span>
                     <code>
@@ -279,7 +281,7 @@ export function Live() {
                       setOpen(f.orderId);
                     }
                   }}>
-                  <span className="lv-time">{hhmm(f.at)}</span>
+                  <span className="lv-time">{hhmm(f.at)}<span className="lv-duration">{f.ms} ms</span></span>
                   <span className="lv-agent">{f.agent}</span>
                   <span>
                     <span className={`lv-act a-${f.action}`}>{f.action}</span>

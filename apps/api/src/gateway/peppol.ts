@@ -89,7 +89,7 @@ export function orderToUbl(o: Order): string {
   <cbc:IssueDate>${placed.toISOString().slice(0, 10)}</cbc:IssueDate>
   <cbc:IssueTime>${placed.toISOString().slice(11, 19)}</cbc:IssueTime>
   <cbc:OrderTypeCode>220</cbc:OrderTypeCode>
-  <cbc:Note>Simulated order from the Aimo Agent Gateway (Junction 2026). Version ${o.version}. Party identifiers are demo values.</cbc:Note>
+  <cbc:Note>Simulated order from the Potato Agent Gateway (Junction 2026). Version ${o.version}. Party identifiers are demo values.</cbc:Note>
   <cbc:DocumentCurrencyCode>EUR</cbc:DocumentCurrencyCode>
   <cbc:CustomerReference>${esc(m.customerNumber)}</cbc:CustomerReference>
   <cac:ValidityPeriod>

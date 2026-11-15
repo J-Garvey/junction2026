@@ -56,13 +56,19 @@ function actionOf(method: string, path: string): Action {
 const money = (n: number) => `€${n.toLocaleString("en-IE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 /** Reads the gateway's answer and names the verdict in Valio Aimo's words. */
-export function classify(method: string, path: string, status: number, body: any): Pick<FeedEntry, "action" | "verdict" | "amount" | "reason" | "signed" | "quoteId" | "orderId"> {
+export function classify(method: string, path: string, status: number, body: any, reviewOnly = false): Pick<FeedEntry, "action" | "verdict" | "amount" | "reason" | "signed" | "quoteId" | "orderId"> {
   const action = actionOf(method, path);
   const base = { action, amount: null as number | null, reason: null as string | null, signed: false, quoteId: null as string | null, orderId: null as string | null };
   if (status >= 400) {
     const rules: any[] = Array.isArray(body?.rules) ? body.rules : [];
     const reason = rules.find((r) => r.outcome === "block" || r.outcome === "ask_approver")?.message ?? body?.message ?? `HTTP ${status}`;
     return { ...base, verdict: "REFUSED", reason: body?.error ? `${reason}` : reason, quoteId: body?.quoteId ?? null };
+  }
+  if (action === "AMEND" && reviewOnly) {
+    const reviewed = classify("POST", "/quotes", status, body?.quote);
+    const chefFirst = reviewed.verdict !== "REFUSED" && (body?.quote?.outcome === "ask_chef" || body?.stockReviewRequired?.length > 0);
+    return { ...reviewed, action, verdict: chefFirst ? "ASKS_CHEF" : reviewed.verdict,
+      reason: `Review only; order unchanged · ${chefFirst ? "Chef must review product concerns before finance" : reviewed.reason ?? "Within the hotel's rules"}` };
   }
   if (action === "SEARCH") return { ...base, verdict: "INFO", reason: `${body?.products?.length ?? 0} products` };
   if (action === "LOOKUP") return { ...base, verdict: "INFO", reason: `${body?.lines?.length ?? 0} prices and stock` };
@@ -101,7 +107,7 @@ export function feedTap(req: Request, res: Response, next: NextFunction) {
   const orig = res.json.bind(res);
   res.json = (body: any) => {
     try {
-      const c = classify(req.method, path, res.statusCode, body);
+      const c = classify(req.method, path, res.statusCode, body, req.body?.quoteOnly === true);
       if (c.action === "READ" && res.statusCode < 400) return orig(body);
       if (c.action === "APPROVAL" && c.quoteId) c.amount = entries.find((x) => x.action === "QUOTE" && x.quoteId === c.quoteId)?.amount ?? null;
       if (c.action === "ORDER" && c.verdict === "REFUSED") {

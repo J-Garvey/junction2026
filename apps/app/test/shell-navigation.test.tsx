@@ -67,7 +67,7 @@ describe("app shell", () => {
 
   it("renders the chef workspace without the top tab bar", async () => {
     render(<MemoryRouter><App /></MemoryRouter>);
-    await screen.findByRole("link", { name: "Aimo Copilot home" });
+    await screen.findByRole("link", { name: "Potato home" });
     expect(screen.queryByRole("navigation", { name: "Primary navigation" })).toBeNull();
     expect(screen.getByRole("main").id).toBe("main-content");
     expect(screen.getByRole("link", { name: "Skip to content" }).getAttribute("href")).toBe("#main-content");
@@ -84,6 +84,6 @@ describe("app shell", () => {
   it("keeps the home link on a direct basket URL", async () => {
     vi.spyOn(api, "basket").mockRejectedValue(new Error("Fixture order unavailable"));
     render(<MemoryRouter initialEntries={["/baskets/wedding"]}><App /></MemoryRouter>);
-    expect((await screen.findByRole("link", { name: "Aimo Copilot home" })).getAttribute("href")).toBe("/");
+    expect((await screen.findByRole("link", { name: "Potato home" })).getAttribute("href")).toBe("/");
   });
 });

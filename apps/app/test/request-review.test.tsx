@@ -514,6 +514,31 @@ describe("saved request review controls", () => {
     await waitFor(() => expect(message).toHaveBeenCalledWith("10 l cheese"));
   });
 
+  it("shows checked outside-brief replacements immediately for a blocked item and rechecks the manual choice", async () => {
+    const blocked = fixture();
+    blocked.plan.lines = [];
+    blocked.plan.needs[0].candidates = [];
+    blocked.plan.needs[0].rules = [{ ruleId: "DIET-04", outcome: "block", message: "Original product contains almond", facts: {}, overridable: false }];
+    blocked.plan.needs[0].replacementCandidates = [{ ...candidate, name: "Raspberry cake" }];
+    blocked.plan.itemReviews![0].canApprove = false;
+    const changed = fixture();
+    changed.plan.lines[0].productName = "Raspberry cake";
+    changed.plan.itemReviews![0].requiresApproval = true;
+    const choose = vi.spyOn(api, "choose").mockResolvedValue(changed);
+    vi.spyOn(api, "basketPlan");
+    show(blocked);
+    const table = screen.getByRole("table", { name: "Suggested replacements for milk" });
+    expect(within(table).getByText("Outside brief · check match")).toBeTruthy();
+    expect(within(table).getByText("Raspberry cake")).toBeTruthy();
+    expect(within(table).getByText("1 KI")).toBeTruthy();
+    expect(within(table).getByText("12,00 €")).toBeTruthy();
+    fireEvent.click(within(table).getByRole("button", { name: "Use Raspberry cake" }));
+    await waitFor(() => expect(choose).toHaveBeenCalledExactlyOnceWith("plan", "need", candidate.productId));
+    expect((screen.getByRole("button", { name: "Add to order" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole("button", { name: "Approve milk" })).toBeTruthy();
+    expect(api.basketPlan).not.toHaveBeenCalled();
+  });
+
   it("checks a picked possible product again with its id pinned", async () => {
     const none = fixture();
     none.plan.lines = [];

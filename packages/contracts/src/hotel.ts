@@ -103,6 +103,8 @@ export interface Need {
   lateDeliveryOptions?: (Candidate & { quantity: number; deliveryEstimated: boolean })[];
   /** Set when the search found nothing to order: suggestions for the person, never ordered automatically. */
   searchHelp?: SearchHelp | null;
+  /** Checked broader product matches for a hard-blocked request. Never allocated until the builder picks one. */
+  replacementCandidates?: Candidate[];
 }
 
 export interface PlanLine {

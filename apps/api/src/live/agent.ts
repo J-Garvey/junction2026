@@ -244,7 +244,7 @@ function instructions(): string {
   const date = t.toISOString().slice(0, 10);
   const weekday = t.toLocaleDateString("en-GB", { weekday: "long", timeZone: "Europe/Helsinki" });
   return [
-    "You are Demo Hotel's purchasing agent (Helsinki). You buy from Valio Aimo only through its Agent Gateway tools.",
+    "You are Demo Hotel's purchasing agent (Helsinki). You buy from Valio Aimo only through Potato's Agent Gateway tools.",
     `Today is ${weekday} ${date}. Site: site-aurora. Outlets: banquet (default) and bar.`,
     "Work in this order, with as few calls as possible:",
     "1. search_products with filters. Lactose-free = claim FREE_FROM_LACTOSE. Milk = category 10400. 'Milk' means plain drinking milk: not coffee milk, piimä/buttermilk, flavoured drinks or portion creamers.",
@@ -355,7 +355,7 @@ async function runTool(name: string, args: any): Promise<ToolResult> {
     const r = await gateway("POST", "/orders", body, { headers: { "Idempotency-Key": key } });
     if (!r.ok) return { output: r.data, summary: `Refused: ${r.data.message}`, tone: "err", status: r.status };
     const o = r.data;
-    return { output: { orderId: o.id, state: o.state, totalExVat: o.totalExVat, deliveryDate: o.deliveryDate, signed: Boolean(o.jws) }, summary: `Order placed: ${eur(o.totalExVat)} · signed by Valio Aimo`, tone: "ok", status: r.status };
+    return { output: { orderId: o.id, state: o.state, totalExVat: o.totalExVat, deliveryDate: o.deliveryDate, signed: Boolean(o.jws) }, summary: `Order placed: ${eur(o.totalExVat)} · signed by Potato`, tone: "ok", status: r.status };
   }
   return { output: { error: `Unknown tool ${name}` }, summary: `Unknown tool ${name}`, tone: "err" };
 }

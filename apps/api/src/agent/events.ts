@@ -4,7 +4,7 @@
  * ORDER-DIFF, CHANGE-APPLY, ALLERGY-RECHECK, FINAL-CHECK, SHORTFALL-RESOLVE,
  * SUBSTITUTE-FIND, SILENCE-RESOLVE, COVERAGE-SUMMARY. EDIT-GUARD for events.
  */
-import { hasUnconfirmedAllergenData, type EventSpec, type Order, type Question, type WarningRecord, type DietGroup, type Need, type Quote, type AmendmentBody, type StageProcessing } from "@aimo/contracts";
+import { hasUnconfirmedAllergenData, type EventSpec, type Order, type PlanLine, type Question, type WarningRecord, type DietGroup, type Need, type Quote, type AmendmentBody, type StageProcessing } from "@aimo/contracts";
 import { getDb, getJson, allJson } from "../db.js";
 import { now, nowIso } from "../clock.js";
 import { getProduct, getRaw, searchProducts } from "../catalog.js";
@@ -200,20 +200,23 @@ async function applyChange(e: StoredEvent, p: Person, what: string) {
     return { applied: true, reason: "No change: pack rounding absorbs it.", diff };
   }
   const within = Math.abs(pct) <= m.preAnswers.guestChangeMaxPct && !diff.some((d) => d.change === "needs_substitute");
-  if ((within || outcomeOf("CHG-02") !== "block") && plan.lines.some(hasUnconfirmedAllergenData)) {
-    const { quote } = await gw.amend(order.id, { changes, quoteOnly: true });
-    plan.quoteId = quote.id;
-    plan.fingerprint = quote.fingerprint;
-    savePlan(plan);
-    const question = askChangeAllergens(e, plan, { orderId: order.id, changes, diff, continueWith, decidedBy: p.name, ...facts, requiresFinance: !within || outcomeOf("CHG-01") !== "order" }, quote);
-    if (question) return { applied: false, reason: question.body, diff, questionId: question.id };
-  }
   // RULE-POLICY: CHG-01 may be set to always ask, and CHG-02 to refuse changes over tolerance.
   if (!within && outcomeOf("CHG-02") === "block") {
     const reason = `${fire("CHG-02", facts).message} The hotel refuses such changes; the order stays as it is.`;
     audit({ actor: AGENT, action: "order_amended", summary: reason, eventId: e.id, orderId: order.id, ruleIds: ["CHG-02"], details: { diff, refused: true }, visibility: "hotel" });
     return { applied: false, reason, diff };
   }
+  // Review the exact amendment before finance sees it. The gateway identifies
+  // which unknown lines need fresh consent, preserving unchanged decisions.
+  const review = await gw.amend(order.id, { changes, quoteOnly: true });
+  plan.quoteId = review.quote.id;
+  plan.fingerprint = review.quote.fingerprint;
+  savePlan(plan);
+  const reviewFacts = { orderId: order.id, changes, diff, continueWith, decidedBy: p.name, ...facts,
+    requiresFinance: !within || outcomeOf("CHG-01") !== "order", financeRuleId: within ? "CHG-01" : "CHG-02" };
+  const question = askChangeAllergens(e, plan, reviewFacts, review.quote)
+    ?? (review.stockReviewRequired.length ? await askChangeStock(e, plan.id, reviewFacts, review.quote.id) : null);
+  if (question) return { applied: false, reason: question.body, diff, questionId: question.id };
   if (within && outcomeOf("CHG-01") === "order") {
     try {
       const r = await gw.amend(order.id, { changes, continueWithUnconfirmedStock: continueWith, decidedBy: p.name });
@@ -222,30 +225,29 @@ async function applyChange(e: StoredEvent, p: Person, what: string) {
       return { applied: true, reason: fire("CHG-01", facts).message, diff };
     } catch (err) {
       if (err instanceof GatewayError && err.body.error === "stock_unconfirmed" && err.body.newQuoteId) {
-        const question = await askChangeStock(e, plan.id, { orderId: order.id, changes }, err.body.newQuoteId);
+        const question = await askChangeStock(e, plan.id, reviewFacts, err.body.newQuoteId);
         return { applied: false, reason: question.body, diff, questionId: question.id };
       }
       if (!(err instanceof GatewayError) || err.body.error !== "mandate_violation") throw err;
       // Falls through to a question: the gateway needs an approval for this amendment.
     }
   }
-  const q = makeQuestion({
-    planId: plan.id, eventId: e.id, type: "change_outside_tolerance", forRole: "approver", outletId: null, quoteId: null, fingerprint: null,
-    title: facts.from === facts.to ? "Approve the change?" : `${facts.from} → ${facts.to} guests?`,
-    body: `${facts.from === facts.to ? "" : `${facts.pct} · `}${within ? (outcomeOf("CHG-01") === "order" ? "needs approval at the gateway" : "the hotel approves every change") : `over ${facts.tolerance}`} · ${diff.filter((d) => d.change !== "unchanged").length} lines change`,
-    facts: { kind: "change", orderId: order.id, changes, diff, continueWith, decidedBy: p.name, ...facts },
-    ruleIds: [within ? "CHG-01" : "CHG-02"],
-    options: [{ id: "approve", label: "Approve the change", primary: true }, { id: "keep", label: "Keep the order as is", primary: false }],
-    deadline: earliestCutoff(order),
-  });
-  saveQuestion(q);
-  audit({ actor: AGENT, action: "question_asked", summary: `Approver asked: ${q.title}`, eventId: e.id, questionId: q.id, ruleIds: q.ruleIds, details: { diff }, visibility: "hotel" });
+  const q = askChangeFinance(e, plan.id, reviewFacts, review.quote);
   return { applied: false, reason: q.body, diff, questionId: q.id };
 }
 
-function earliestCutoff(o: Order): string | null {
-  const t = o.lines.filter((l) => !l.removed).map((l) => parseAimoTime(l.closingTime)?.getTime()).filter((x): x is number => typeof x === "number" && x > now().getTime());
-  return t.length ? new Date(Math.min(...t)).toISOString() : null;
+function askChangeFinance(e: StoredEvent, planId: string, facts: Record<string, any>, quote: Quote) {
+  const q = makeQuestion({
+    planId, eventId: e.id, type: "change_outside_tolerance", forRole: "approver", outletId: null,
+    quoteId: quote.id, fingerprint: quote.fingerprint, deadline: quote.expiresAt,
+    title: facts.from === facts.to ? "Approve the change?" : `${facts.from} → ${facts.to} guests?`,
+    body: `${facts.pct} · ${eur(quote.totalExVat)} ex VAT · the chef has reviewed the product concerns.`,
+    facts: { ...facts, kind: "change" }, ruleIds: [facts.financeRuleId ?? "CHG-02"],
+    options: [{ id: "approve", label: "Approve the change", primary: true }, { id: "keep", label: "Keep the order as is", primary: false }],
+  });
+  saveQuestion(q);
+  audit({ actor: AGENT, action: "question_asked", summary: `Approver asked: ${q.title}`, eventId: e.id, quoteId: quote.id, questionId: q.id, ruleIds: q.ruleIds, details: { diff: facts.diff }, visibility: "hotel" });
+  return q;
 }
 
 function askChangeAllergens(e: StoredEvent, plan: StoredPlan, facts: Record<string, unknown>, quote: Quote) {
@@ -264,10 +266,25 @@ function askChangeAllergens(e: StoredEvent, plan: StoredPlan, facts: Record<stri
   return question;
 }
 
-function completeChange(e: StoredEvent, planId: string, order: Order, quote?: Quote) {
+type SubstitutionAllocation = { original: string; productId: string; outletId: string; needAmount: PlanLine["needAmount"]; packContent: PlanLine["packContent"] };
+
+function completeChange(e: StoredEvent, planId: string, order: Order, quote?: Quote, substitution?: SubstitutionAllocation) {
   const plan = getPlan(planId);
   if (plan) {
+    if (substitution) {
+      const added = order.lines.find((l) => !l.removed && l.productId === substitution.productId && l.outletId === substitution.outletId);
+      const original = plan.lines.find((l) => l.productId === substitution.original && l.outletId === added?.outletId);
+      if (added && original && !plan.lines.some((l) => l.productId === added.productId && l.outletId === added.outletId)) {
+        plan.lines.push({ ...original, ...added, id: newId("line"), needAmount: substitution.needAmount, packContent: substitution.packContent,
+          overshoot: null, rankStep: null, allocation: "partial", reliability: getProduct(added.productId)?.reliability ?? null,
+          verdict: added.stock.kind === "unknown" ? "amber" : "green", status: added.stock.kind === "unknown" ? "unknown_stock" : "covered",
+          allergenDataAcknowledgement: added.allergenDataAcknowledgement, carbonBasis: added.carbonBasis ?? null, co2Kg: null,
+          shares: original.shares.map((s) => ({ ...s, amount: original.needAmount.value ? round2(s.amount * substitution.needAmount.value / original.needAmount.value) : 0 })),
+        });
+      }
+    }
     plan.orderIds = [order.id];
+    plan.approvalId = order.approvalId;
     plan.status = "ordered";
     plan.totalExVat = order.totalExVat;
     plan.totalVat = order.totalVat;
@@ -336,16 +353,15 @@ export async function answerChange(q: Question, p: Person, token: string) {
     plan.overrides.allergenAcknowledgements = [...(plan.overrides.allergenAcknowledgements ?? []), acknowledgement];
     savePlan(plan);
     f.allergenAcknowledgements = plan.overrides.allergenAcknowledgements;
-    const reviewed = await gw.getQuote(q.quoteId!);
+    const review = await gw.amend(f.orderId, { changes: f.changes, quoteOnly: true });
+    const reviewed = review.quote;
     if (askChangeAllergens(e, plan, f, reviewed)) return;
+    if (review.stockReviewRequired.length) {
+      await askChangeStock(e, q.planId, f, reviewed.id);
+      return;
+    }
     if (f.requiresFinance) {
-      const finance = makeQuestion({ planId: q.planId, eventId: e.id, type: "change_outside_tolerance", forRole: "approver", outletId: null,
-        quoteId: reviewed.id, fingerprint: reviewed.fingerprint, deadline: reviewed.expiresAt,
-        title: `${f.from} → ${f.to} guests?`, body: `${f.pct} · chef continued with allergen data not confirmed; finance approval is still required.`,
-        facts: { ...f, kind: "change" }, ruleIds: ["CHG-02"],
-        options: [{ id: "approve", label: "Approve the change", primary: true }, { id: "keep", label: "Keep the order as is", primary: false }],
-      });
-      saveQuestion(finance);
+      askChangeFinance(e, q.planId, f, reviewed);
       return;
     }
   }
@@ -355,15 +371,25 @@ export async function answerChange(q: Question, p: Person, token: string) {
   }
   const builderConsentId = f.kind === "change_stock" && q.answer === "continue"
     ? (await gw.consent(token, await gw.getQuote(f.stockQuoteId), f.continueWith)).id : f.builderConsentId;
-  const body = { builderConsentId, changes: f.changes, continueWithUnconfirmedStock: f.continueWith ?? [],
+  if (f.kind === "change_stock" && f.requiresFinance) {
+    askChangeFinance(e, q.planId, { ...f, builderConsentId }, await gw.getQuote(f.stockQuoteId));
+    return;
+  }
+  // Record every finance decision against the reviewed quote, even when a
+  // guest-count policy asks for approval inside the gateway's spend mandate.
+  const body: AmendmentBody = { builderConsentId, changes: f.changes, continueWithUnconfirmedStock: f.continueWith ?? [],
     stockQuoteId: f.stockQuoteId, decidedBy: f.kind === "change_stock" ? p.name : f.decidedBy ?? undefined,
     allergenAcknowledgements: (f.allergenAcknowledgements ?? []).map((a: { token: string }) => a.token) };
   let changedOrder: Order;
   let changedQuote: Quote;
   try {
+    if (f.kind === "change" && p.role === "approver" && q.quoteId) {
+      const reviewed = await gw.getQuote(q.quoteId);
+      body.approvalId = (await gw.approve(token, reviewed.id, q.fingerprint ?? reviewed.fingerprint, reviewed.mandateCheck.approvalsNeeded)).id;
+    }
     try { const result = await gw.amend(f.orderId, body); changedOrder = result.order; changedQuote = result.quote; }
     catch (err) {
-      if (!(err instanceof GatewayError) || err.body.error !== "mandate_violation" || !err.body.newQuoteId || p.role !== "approver") throw err;
+      if (!(err instanceof GatewayError) || err.body.error !== "mandate_violation" || !err.body.newQuoteId || p.role !== "approver" || body.approvalId) throw err;
       const nq = await gw.getQuote(err.body.newQuoteId);
       const a = await gw.approve(token, nq.id, nq.fingerprint, nq.mandateCheck.approvalsNeeded);
       const result = await gw.amend(f.orderId, { ...body, approvalId: a.id });
@@ -391,7 +417,7 @@ export async function answerChange(q: Question, p: Person, token: string) {
     saveQuestion(finance);
     return;
   }
-  completeChange(e, q.planId, changedOrder!, changedQuote!);
+  completeChange(e, q.planId, changedOrder!, changedQuote!, f.substitution);
   if (f.recheckFinal) await finalCheck(e.id);
 }
 
@@ -617,13 +643,14 @@ export async function finalCheck(eventId: string) {
  * Try an amendment; if the gateway needs an approval for it (for example unknown
  * stock on a substitute), raise one Approver card instead of failing.
  */
-export async function amendOrAsk(e: StoredEvent, orderId: string, changes: { productId: string; outletId: string; quantity: number }[], title: string, why: string, stock?: { continueWith: string[]; decidedBy: string }): Promise<"applied" | "asked"> {
+export async function amendOrAsk(e: StoredEvent, orderId: string, changes: AmendmentBody["changes"], title: string, why: string, stock?: { continueWith: string[]; decidedBy: string }, substitution?: SubstitutionAllocation): Promise<"applied" | "asked"> {
   try {
-    await gw.amend(orderId, { changes, continueWithUnconfirmedStock: stock?.continueWith, decidedBy: stock?.decidedBy });
+    const result = await gw.amend(orderId, { changes, continueWithUnconfirmedStock: stock?.continueWith, decidedBy: stock?.decidedBy });
+    if (e.orderPlanId) completeChange(e, e.orderPlanId, result.order, result.quote, substitution);
     return "applied";
   } catch (err) {
     if (err instanceof GatewayError && err.body.newQuoteId && (err.body.error === "allergen_data_unconfirmed" || err.body.error === "stock_unconfirmed")) {
-      const facts = { recheckFinal: true, orderId, changes, continueWith: stock?.continueWith ?? [], decidedBy: stock?.decidedBy ?? null };
+      const facts = { recheckFinal: true, orderId, changes, continueWith: stock?.continueWith ?? [], decidedBy: stock?.decidedBy ?? null, substitution };
       if (err.body.error === "stock_unconfirmed") await askChangeStock(e, e.orderPlanId ?? "none", facts, err.body.newQuoteId);
       else {
         const plan = e.orderPlanId ? getPlan(e.orderPlanId) : null;
@@ -635,7 +662,7 @@ export async function amendOrAsk(e: StoredEvent, orderId: string, changes: { pro
     const q = makeQuestion({
       planId: e.orderPlanId ?? "none", eventId: e.id, type: "unknown_stock", forRole: "approver", outletId: null, quoteId: err.body.newQuoteId ?? null, fingerprint: null,
       title, body: why,
-      facts: { kind: "change", orderId, changes, continueWith: stock?.continueWith ?? [], decidedBy: stock?.decidedBy ?? null }, ruleIds: ["MAN-01"],
+      facts: { kind: "change", orderId, changes, continueWith: stock?.continueWith ?? [], decidedBy: stock?.decidedBy ?? null, substitution }, ruleIds: ["MAN-01"],
       options: [{ id: "approve", label: "Approve the change", primary: true }, { id: "keep", label: "Keep the order as is", primary: false }],
       deadline: null,
     });
@@ -645,7 +672,7 @@ export async function amendOrAsk(e: StoredEvent, orderId: string, changes: { pro
   }
 }
 
-type SubCandidate = { productId: string; name: string; quantity: number; stock: string; listed: boolean; pricePerBase: number | null; totalExVat: number | null; unknown: boolean };
+type SubCandidate = { productId: string; name: string; quantity: number; stock: string; listed: boolean; pricePerBase: number | null; totalExVat: number | null; unknown: boolean; packContent: PlanLine["packContent"] };
 
 /** SUBSTITUTE-FIND (Q07.4): listed substitutes first, every candidate passing the need's rules and TYPE-CHECK, on fresh stock. */
 async function findSubstitutes(line: Order["lines"][number], need: Need | undefined, deliveryDate: string, needAmount: { value: number; unit: string }): Promise<SubCandidate[]> {
@@ -674,7 +701,7 @@ async function findSubstitutes(line: Order["lines"][number], need: Need | undefi
     const quantity = Math.ceil(needAmount.value / content.value - 1e-9);
     const unknown = l.stock.kind === "unknown";
     if (l.stock.kind === "known" && l.stock.amount < quantity) continue;
-    out.push({ productId: p.id, name: p.name, quantity, stock: unknown ? "unknown stock" : `${l.stock.kind === "known" ? l.stock.amount : 0} in stock`, listed: listed.includes(p.id), pricePerBase: l.price ? round2(l.price.value / content.value) : null, totalExVat: needAmount.unit === "pcs" ? pieceCostToCover(p.name, needAmount.value, content, l.price?.value ?? null, mandate().preAnswers)?.totalExVat ?? null : null, unknown });
+    out.push({ productId: p.id, name: p.name, quantity, stock: unknown ? "unknown stock" : `${l.stock.kind === "known" ? l.stock.amount : 0} in stock`, listed: listed.includes(p.id), pricePerBase: l.price ? round2(l.price.value / content.value) : null, totalExVat: needAmount.unit === "pcs" ? pieceCostToCover(p.name, needAmount.value, content, l.price?.value ?? null, mandate().preAnswers)?.totalExVat ?? null : null, unknown, packContent: content });
   }
   // Names that share more words with the type asked for ("whipping cream") rank first. The model's
   // type check already dropped clear mismatches; this keeps the order sensible when it can't be reached.
@@ -707,13 +734,13 @@ async function resolveShortfall(e: StoredEvent, o: Order, line: Order["lines"][n
   const ordered = await findSubstitutes(line, need, o.deliveryDate, gap);
   const changesFor = (c: { productId: string; quantity: number }) => [
     { productId: line.productId, outletId: line.outletId, quantity: keep },
-    { productId: c.productId, outletId: line.outletId, quantity: c.quantity },
+    { productId: c.productId, outletId: line.outletId, quantity: c.quantity, requires: line.requires, allergenScope: line.allergenScope },
   ];
   for (const c of ordered) {
     const r = recallSubstitute(dishId, line.productId, c.productId);
     if (r) {
       const msg = fire("SUB-02", { substitute: c.name, original: prod.name, dish: need?.dishName ?? "this request", by: r.by, at: fmtHelsinki(r.at, false) }).message;
-      const res = await amendOrAsk(e, o.id, changesFor(c), "Approve the change?", `${c.quantity} × ${shortName(c.name)} fills the gap`, { continueWith: c.unknown ? [c.productId] : [], decidedBy: r.by });
+      const res = await amendOrAsk(e, o.id, changesFor(c), "Approve the change?", `${c.quantity} × ${shortName(c.name)} fills the gap`, { continueWith: c.unknown ? [c.productId] : [], decidedBy: r.by }, { original: line.productId, productId: c.productId, outletId: line.outletId, needAmount: gap, packContent: c.packContent });
       audit({ actor: AGENT, action: "substitute_applied", summary: res === "applied" ? msg : `${msg} Waiting for the Approver.`, eventId: e.id, orderId: o.id, ruleIds: ["SUB-02"], details: { rememberedAt: r.at }, visibility: "hotel" });
       return;
     }
@@ -729,8 +756,8 @@ async function resolveShortfall(e: StoredEvent, o: Order, line: Order["lines"][n
     title: `Short: ${shortName(prod.name)}`,
     body: `${keep} of ${line.quantity} in stock · ${gap.value} ${gap.unit} to fill`,
     facts: {
-      kind: "final_substitute", orderId: o.id, original: line.productId, originalQty: line.quantity, keep, outletId: line.outletId, dishId, dishName: need?.dishName ?? null,
-      candidates: options.map((c) => ({ productId: c.productId, name: c.name, quantity: c.quantity, stock: c.stock, pricePerBase: c.pricePerBase, totalExVat: c.totalExVat })),
+      kind: "final_substitute", orderId: o.id, original: line.productId, originalQty: line.quantity, keep, outletId: line.outletId, dishId, dishName: need?.dishName ?? null, gap, requires: line.requires, allergenScope: line.allergenScope,
+      candidates: options.map((c) => ({ productId: c.productId, name: c.name, quantity: c.quantity, stock: c.stock, pricePerBase: c.pricePerBase, totalExVat: c.totalExVat, packContent: c.packContent })),
       sideBySide: specCompare(line.productId, options[0].productId, { originalPrice: line.unitPrice !== null ? round2(line.unitPrice / perPack) : null, subPrice: options[0].pricePerBase }),
       stock,
     },
@@ -760,11 +787,12 @@ export async function answerFinalSubstitute(q: Question, p: Person) {
     f.orderId,
     [
       { productId: f.original, outletId: f.outletId, quantity: f.keep ?? 0 },
-      { productId: c.productId, outletId: f.outletId, quantity: c.quantity },
+      { productId: c.productId, outletId: f.outletId, quantity: c.quantity, requires: f.requires, allergenScope: f.allergenScope },
     ],
     "Approve the change?",
     `${c.quantity} × ${shortName(c.name)} fills the gap`,
     { continueWith: c.stock === "unknown stock" ? [c.productId] : [], decidedBy: p.name },
+    f.gap ? { original: f.original, productId: c.productId, outletId: f.outletId, needAmount: f.gap, packContent: c.packContent ?? null } : undefined,
   );
   if (applied === "applied") await finalCheck(e.id);
   audit({ actor: personActor(p), action: "substitute_applied", summary: `${p.name} kept ${f.keep} × ${shortName(getProduct(f.original)?.name ?? f.original)} and added ${c.quantity} × ${shortName(c.name)} for ${f.dishName ?? "the dish"}; remembered for next time`, eventId: q.eventId, orderId: f.orderId, questionId: q.id, ruleIds: ["SUB-01"], details: { dish: f.dishName }, visibility: "hotel" });

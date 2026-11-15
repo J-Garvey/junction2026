@@ -73,6 +73,16 @@ async function settle() {
 const openCard = (s: any) => s.session.steps.filter((x: any) => x.kind === "card" && !x.answer).at(-1);
 
 describe("Live console: real gateway, scripted model", () => {
+  it("labels amendment previews as review only, with chef concerns before finance and the proposed total", async () => {
+    const { classify } = await import("../src/live/feed.js");
+    const row = classify("POST", "/orders/wedding/amendments", 200, {
+      order: { id: "wedding", totalExVat: 2003.37, jws: "old-order" },
+      quote: { id: "changed-quote", totalExVat: 1965.17, jws: "reviewed-quote", outcome: "ask_approver", mandateCheck: { pass: false, approvalsNeeded: ["spend_cap"], rules: [] } },
+      stockReviewRequired: ["460541"],
+    }, true);
+    expect(row).toMatchObject({ action: "AMEND", verdict: "ASKS_CHEF", amount: 1965.17, quoteId: "changed-quote", orderId: null, signed: true });
+    expect(row.reason).toMatch(/Review only; order unchanged/);
+  });
   let final: any;
   let chefCard: any;
   let approverCard: any;

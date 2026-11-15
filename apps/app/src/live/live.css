@@ -26,6 +26,7 @@
 .lv-top { display: flex; align-items: center; justify-content: space-between; padding: 14px 28px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
 .lv-brand { display: flex; align-items: center; gap: 22px; font-size: 26px; font-weight: 800; letter-spacing: -0.5px; }
 .lv-brand b { font-weight: 900; }
+.lv-wordmark { display: flex; align-items: center; gap: 8px; }
 .lv-sep { width: 1px; height: 30px; background: var(--line); }
 .lv-tools { display: flex; align-items: center; gap: 14px; }
 .lv-live { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 16px; margin-right: 8px; }
@@ -102,6 +103,7 @@
 .lv-rules dt, .lv-rules dd { margin: 0; padding: 7px 0; border-top: 1px solid var(--line); font-size: 16px; }
 .lv-rules dd { text-align: right; font-weight: 600; padding-left: 20px; }
 
+.lv-duration { display: block; margin-top: 3px; font-size: 12px; color: var(--ink2); white-space: nowrap; }
 .lv-feedbar { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 6px 16px; margin: 12px 0 4px; font-size: 14px; color: var(--ink2); }
 .lv-feedhint { display: none; margin-right: auto; }
 .lv-feedbar label { display: flex; gap: 6px; align-items: center; cursor: pointer; }

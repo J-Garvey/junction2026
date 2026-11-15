@@ -619,7 +619,7 @@ export function saveOrder(o: Order) {
  * the new total; when it needs an approval the refusal carries the amendment
  * quote to approve, and the retry with that approval goes through.
  */
-export async function amendOrder(id: Identity, orderId: string, body: AmendmentBody, actor?: Actor): Promise<{ order: Order; quote: Quote }> {
+export async function amendOrder(id: Identity, orderId: string, body: AmendmentBody, actor?: Actor): Promise<{ order: Order; quote: Quote; stockReviewRequired: string[] }> {
   const hotelId = requireHotel(id);
   const o = getOrder(orderId);
   if (o.hotelId !== hotelId) throw new GatewayRefusal(403, { error: "forbidden", message: "Order belongs to another hotel" });
@@ -693,7 +693,7 @@ export async function amendOrder(id: Identity, orderId: string, body: AmendmentB
   q.outcome = blocked.length ? "block" : missingAllergenLines(q).length ? "ask_chef" : q.mandateCheck.approvalsNeeded.length ? "ask_approver" : "order";
   saveQuote(q);
   if (blocked.length) throw new GatewayRefusal(409, { error: "hard_rule", message: blocked.map((r) => r.message).join(" "), rules: blocked });
-  if (body.quoteOnly) return { order: o, quote: q };
+  if (body.quoteOnly) return { order: o, quote: q, stockReviewRequired: missingStock };
   let allergenData: ReturnType<typeof requireAllergenDecisions>;
   try { allergenData = requireAllergenDecisions(q, body.allergenAcknowledgements); }
   catch (err) {
@@ -708,7 +708,7 @@ export async function amendOrder(id: Identity, orderId: string, body: AmendmentB
   }
   if (missingStock.length)
     throw new GatewayRefusal(409, { error: "stock_unconfirmed", message: `Valio Aimo can't confirm stock for ${missingStock.join(", ")}. An authenticated chef must consent to the amendment quote through /builder-consents.`, newQuoteId: q.id });
-  if (q.mandateCheck.approvalsNeeded.length) {
+  if (q.mandateCheck.approvalsNeeded.length || body.approvalId) {
     const a = body.approvalId ? getJson<Approval>("approvals", body.approvalId) : null;
     const approvedQuote = a ? getJson<StoredQuote>("quotes", a.quoteId) : null;
     const ok = a && approvedQuote && approvedQuote.hotelId === hotelId && approvedQuote.amendsOrderId === o.id &&
@@ -729,7 +729,7 @@ export async function amendOrder(id: Identity, orderId: string, body: AmendmentB
     };
   });
   for (const [k, l] of prevLines) if (!next.has(k) && !l.removed) newLines.push({ ...l, removed: true });
-  const updated: StoredOrder = { ...o, lines: newLines, totalExVat: q.totalExVat, totalVat: q.totalVat, state: "amended", version: o.version + 1, stockPolicy: q.stockPolicy, humanPolicy: q.humanPolicy };
+  const updated: StoredOrder = { ...o, quoteId: q.id, approvalId: body.approvalId ?? o.approvalId, lines: newLines, totalExVat: q.totalExVat, totalVat: q.totalVat, state: "amended", version: o.version + 1, stockPolicy: q.stockPolicy, humanPolicy: q.humanPolicy };
   Object.assign(updated, signOrder(updated));
   saveOrder(updated);
   auditAllergenConcerns(q, updated, by);
@@ -744,5 +744,5 @@ export async function amendOrder(id: Identity, orderId: string, body: AmendmentB
     details: { changes: body.changes.map(({ productId, outletId, quantity }) => ({ productId, outletId, quantity })), refused: refusedLines.map((r) => r.facts), approvalId: body.approvalId ?? null },
     visibility: "shared",
   });
-  return { order: updated, quote: q };
+  return { order: updated, quote: q, stockReviewRequired: [] };
 }

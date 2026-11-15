@@ -9,7 +9,7 @@ import * as C from "@aimo/contracts";
 const schema = (s: z.ZodType) => z.toJSONSchema(s, { target: "draft-2020-12", unrepresentable: "any", io: "input" });
 
 const ASSUMPTIONS = `
-**Aimo Agent Gateway** sits in front of the Valio Aimo Junction mock (\`https://junction26.valioaimo.fi\`), which only looks things up.
+**Potato Agent Gateway** sits in front of the Valio Aimo Junction mock (\`https://junction26.valioaimo.fi\`), which only looks things up.
 This gateway owns quotes, approvals, orders, amendments and the audit log. Mandates and approvals are **AP2-style, not AP2-conformant**: a signed standing mandate (IntentMandate.standing) and a signed per-quote approval (CartMandate.approval). No payments: B2B foodservice is invoiced on account.
 
 Stated assumptions about the upstream mock (see GROUND_TRUTH.md):
@@ -71,7 +71,7 @@ export function buildOpenApi() {
   };
   return {
     openapi: "3.1.0",
-    info: { title: "Aimo Agent Gateway", version: "0.1.0", description: ASSUMPTIONS },
+    info: { title: "Potato Agent Gateway", version: "0.1.0", description: ASSUMPTIONS },
     servers: [{ url: "/gateway/v1" }],
     security: [{ bearer: [] }],
     paths: {
@@ -176,7 +176,7 @@ export function buildOpenApi() {
           summary: "Change quantities until each line's cut-off; re-runs the mandate check",
           parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
           requestBody: { required: true, ...json(ref("AmendmentBody")) },
-          responses: { "200": { description: "Amended order", ...json({ type: "object", properties: { order: ref("Order"), quote: ref("Quote") } }) }, ...refusals },
+          responses: { "200": { description: "Amended order, or rechecked terms without a commit when quoteOnly is true", ...json({ type: "object", properties: { order: ref("Order"), quote: ref("Quote"), stockReviewRequired: { type: "array", items: { type: "string" }, description: "Product IDs requiring fresh builder consent before this amendment can commit. Review these before requesting finance approval." } } }) }, ...refusals },
         },
       },
       "/mandate": { get: { operationId: "getMandate", summary: "The hotel's signed standing mandate", responses: { "200": { description: "Mandate", ...json(ref("Mandate")) } } } },

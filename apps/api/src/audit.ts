@@ -14,7 +14,7 @@ import { hotelFor } from "./ownership.js";
 
 export type Actor = AuditEntry["actor"];
 export const AGENT: Actor = { kind: "agent", id: "hotel-agent", name: "Hotel agent", role: "agent", outletId: null, testSession: false };
-export const GATEWAY: Actor = { kind: "gateway", id: "gateway", name: "Aimo Agent Gateway", role: "gateway", outletId: null, testSession: false };
+export const GATEWAY: Actor = { kind: "gateway", id: "gateway", name: "Potato Agent Gateway", role: "gateway", outletId: null, testSession: false };
 export const SYSTEM: Actor = { kind: "system", id: "system", name: "System", role: null, outletId: null, testSession: false };
 
 export type AppendInput = {
@@ -146,7 +146,7 @@ function sharedActor(actor: Actor): Actor {
     const role = actor.role === "chef" || actor.role === "approver" ? actor.role : null;
     return { kind: "person", id: role ? `role:${role}` : "person", name: role ? roles[role] : "Hotel staff", role, outletId: null, testSession: actor.testSession };
   }
-  const labels = { agent: "Hotel agent", outside_agent: "Outside agent", gateway: "Aimo Agent Gateway", system: "System" };
+  const labels = { agent: "Hotel agent", outside_agent: "Outside agent", gateway: "Potato Agent Gateway", system: "System" };
   return { kind: actor.kind, id: actor.kind, name: labels[actor.kind], role: actor.kind === "system" ? null : actor.kind === "gateway" ? "gateway" : "agent", outletId: null, testSession: actor.testSession };
 }
 
