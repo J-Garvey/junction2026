@@ -45,10 +45,10 @@ describe("literal purchase requests skip the model", () => {
   });
 
   it("still parses explicit allergy instructions through the model", async () => {
-    model.mockResolvedValue({ neededByText: null, lines: [{ text: "10 l milk without nuts", productWord: "milk", productType: "plain drinking milk", productId: null, amount: 10, unit: "l", claims: [], avoidAllergens: ["AN"] }] });
+    model.mockResolvedValue({ neededByText: null, lines: [{ text: "10 l milk without nuts", productWord: "milk", productType: "plain drinking milk", productId: null, amount: 10, unit: "l", claims: [], avoidAllergens: ["AN", "AP"], origin: null }] });
     const { request } = await parseRequest("10 l milk without nuts");
     expect(model).toHaveBeenCalledOnce();
     expect(request.parsedBy).toBe("openai");
-    expect(request.lines[0].constraints.avoidAllergens).toEqual(["AN"]);
+    expect(request.lines[0].constraints.avoidAllergens).toEqual(["AN", "AP"]);
   });
 });
