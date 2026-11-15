@@ -6,6 +6,10 @@ export interface OrderDeadline {
   at: string | null;
   reason: string | null;
   usesFixtures: boolean;
+  /** Items omitted from the cutoff calculation because delivery terms are missing. */
+  excludedItems: number;
+  /** Dated items whose cutoff is known but whose stock is still unconfirmed. */
+  unconfirmedStockItems: number;
 }
 
 export interface BasketStatus {
