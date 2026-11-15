@@ -258,7 +258,7 @@ export function MenuEditor({ event, menuInOrder, onSaved, onAdded }: { event: St
           onChanged={onAdded}
           onAdded={() => {
             setReview(null);
-            setNote({ cls: "green", text: "Menu order added. Submit the final order for finance review." });
+            setNote({ cls: "green", text: "Menu order added. Select Order to send it for finance approval." });
             onAdded();
           }}
         />

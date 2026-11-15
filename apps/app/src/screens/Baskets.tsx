@@ -13,6 +13,7 @@ import { MenuEditor } from "../ui/MenuEditor";
 import { BasketCard } from "../ui/BasketCard";
 import { OrderBy } from "../ui/OrderBy";
 import { OrderReviewHistory } from "../ui/OrderReviewHistory";
+import { FinanceOrderSummary } from "./Finance";
 import { stockText } from "../ui/Popover";
 import { tooLateText } from "../ui/TooLate";
 import { addDays, day, eur, helsinkiDate, plural, qty, when } from "../format";
@@ -136,13 +137,16 @@ export function BasketPage() {
   const orderTotal = staged.some((p) => p.totalExVat == null || p.lines.some((line) => line.lineTotal == null))
     ? null
     : live.reduce((sum, order) => sum + order.totalExVat, 0) + staged.reduce((sum, plan) => sum + plan.totalExVat!, 0);
+  const isApprover = me.role === "approver";
+  const placedTotal = live.reduce((sum, order) => sum + order.totalExVat, 0);
+  const pendingTotal = orderTotal === null ? null : orderTotal - placedTotal;
 
   return (
     <div className="page stack-l">
       <div className={`bhead${data.confirmed ? " confirmed" : ""}`}>
         <h1>{ev.name}</h1>
         {data.confirmed && <span className="stamp order"><Icon n="check" s={14} /> Confirmed</span>}
-        <div className="row small" style={{ gap: 12, marginLeft: "auto", flexWrap: "wrap" }}>
+        {!isApprover && <div className="order-submit">
           <button
             type="button"
             className="btn primary"
@@ -150,9 +154,10 @@ export function BasketPage() {
             onClick={submitForReview}
           >
             <Icon n={review ? "check" : "send"} s={16} />
-            {submitting ? "Submitting…" : review ? "Submitted for review" : "Submit order for review"}
+            {submitting ? "Ordering…" : review ? "Awaiting approval" : "Order"}
           </button>
-        </div>
+          {!review && <span className="small muted">Finance approval is required before placement.</span>}
+        </div>}
       </div>
       <div className="basket-context small muted">Delivery {day(ev.serviceDate)}<OrderBy deadline={data.orderBy} detail /></div>
 
@@ -161,7 +166,16 @@ export function BasketPage() {
       {returned && <div className="callout yellow small" role="status"><strong>Changes requested</strong><p className="decision-note">{returned.answerNote ?? "Returned to the order builder for changes."}</p><span className="muted">{returned.answeredBy?.name} · {when(returned.answeredAt)}</span></div>}
       {requestNote && <div className="callout green small" role="status">{requestNote}</div>}
 
-      <section className="stack">
+      {isApprover && <>
+        <nav className="finance-links" aria-label="Order finance tools">
+          <Link to="/"><Icon n="back" s={16} /> Approvals &amp; spend</Link>
+          <Link to={`/orders?eventId=${encodeURIComponent(ev.id)}`}><Icon n="box" s={16} /> Order receipts</Link>
+          <Link to="/rules"><Icon n="shield" s={16} /> Hotel rules</Link>
+        </nav>
+        <FinanceOrderSummary total={orderTotal} placed={placedTotal} pending={pendingTotal} review={review} />
+      </>}
+
+      {!isApprover && <section className="stack">
         <div className="add-mode">
           <h2>Add to the order</h2>
           <div className="seg" role="tablist" aria-label="How to add">
@@ -178,9 +192,9 @@ export function BasketPage() {
         ) : (
           <MenuEditor event={ev} menuInOrder={staged.some((r) => r.title.startsWith("Menu ·")) || live.length > 0} onSaved={reload} onAdded={() => { refresh(); reload(); }} />
         )}
-      </section>
+      </section>}
 
-      {(waitingQs.length > 0 || pending.length > 0) && (
+      {(waitingQs.length > 0 || (!isApprover && pending.length > 0)) && (
         <section>
           <div className="sechead">
             <h2>Decisions before processing</h2>
@@ -197,10 +211,10 @@ export function BasketPage() {
             </div>
           )}
           <OthersWaiting others={others} />
-          {pending.length > 0 && (
+          {!isApprover && pending.length > 0 && (
             <div className="card" style={{ marginTop: 12 }}>
               {pending.map((r) => (
-                <RequestRow key={r.id} r={r} onChanged={reload} onAdded={() => { setRequestNote("Added to the order. Submit the final order for finance review."); reload(); }} question={questions.find((q) => q.planId === r.id && (q.state === "open" || q.state === "waiting"))} />
+                <RequestRow key={r.id} r={r} onChanged={reload} onAdded={() => { setRequestNote("Added to the order. Select Order to send it for finance approval."); reload(); }} question={questions.find((q) => q.planId === r.id && (q.state === "open" || q.state === "waiting"))} />
               ))}
             </div>
           )}
@@ -213,7 +227,7 @@ export function BasketPage() {
           {(live.length > 0 || staged.length > 0) && <span className="small muted">{eur(orderTotal)} ex VAT</span>}
         </div>
         <StagedLines plans={staged} submitted={!!review} />
-        <OrderedLines orders={live} showEmpty={!staged.length} />
+        <OrderedLines orders={live} showEmpty={!staged.length} emptyText={isApprover ? "No items in this order yet. The kitchen is preparing it." : undefined} />
       </section>
       <OrderReviewHistory questions={questions} />
     </div>
@@ -262,10 +276,10 @@ function StagedLines({ plans, submitted }: { plans: BasketPlan[]; submitted: boo
   );
 }
 
-function OrderedLines({ orders, showEmpty = true }: { orders: Order[]; showEmpty?: boolean }) {
+function OrderedLines({ orders, showEmpty = true, emptyText = "Nothing ordered yet. Add something above." }: { orders: Order[]; showEmpty?: boolean; emptyText?: string }) {
   const lines = orders.flatMap((o) => o.lines.filter((l) => !l.removed).map((l) => ({ ...l, orderId: o.id })));
   const [selected, setSelected] = useState<(typeof lines)[number] | null>(null);
-  if (!lines.length) return showEmpty ? <div className="empty">Nothing ordered yet. Add something above.</div> : null;
+  if (!lines.length) return showEmpty ? <div className="empty">{emptyText}</div> : null;
   return (
     <>
       <div className="card">
@@ -354,7 +368,7 @@ function AddToBasket({ eventId, deliveryDate, onAdded }: { eventId: string; deli
   function added() {
     setReview(null);
     setText("");
-    setNote({ cls: "green", body: <><b>Added to the order.</b> Submit the final order for finance review.</> });
+    setNote({ cls: "green", body: <><b>Added to the order.</b> Select Order to send it for finance approval.</> });
     onAdded();
   }
 
