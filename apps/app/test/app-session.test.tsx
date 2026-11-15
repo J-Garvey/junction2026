@@ -24,6 +24,7 @@ const rules = (canEdit = true): RulesResp => ({
     spendCapEur: { key: "spendCapEur", scope: "mandate", label: "Spend cap per order", kind: "eur" },
     blockedProducts: { key: "blockedProducts", scope: "mandate", label: "Blocked product codes", kind: "products" },
   },
+  defaultParams: { spendCapEur: 1950, blockedProducts: [] },
   policy: { params: {}, version: 1, updatedBy: null, updatedAt: null },
   canEdit, fixed: {}, remembered: [], tokens: { outsideAgent: "fixture-agent", valioViewer: "fixture-viewer" },
 });
