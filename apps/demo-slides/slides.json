@@ -1,0 +1,378 @@
+[
+  {
+    "title": "Choose the finance manager",
+    "action": "Click Sanna — Finance manager.",
+    "script": "A hotel is preparing Emma and Lauri's wedding. We'll follow the chef, the finance manager and the wholesaler as the booking changes. First, meet Sanna, the finance manager.",
+    "image": "screenshots/01-choose-the-finance-manager.png",
+    "note": "",
+    "section": "Hotel rules"
+  },
+  {
+    "title": "Open Sanna’s hotel rules",
+    "action": "Click Hotel rules.",
+    "script": "Sanna sets the hotel's purchasing rules before the chef starts building an order.",
+    "image": "screenshots/02-open-sannas-hotel-rules.png",
+    "note": "",
+    "section": "Hotel rules"
+  },
+  {
+    "title": "Review the hotel mandate",
+    "action": "Review the €1,950 spend cap and Monday–Friday delivery days. Click the Sanna account button to switch roles.",
+    "script": "The spending limit is 1,950 euros before VAT, with weekday delivery. Unknown stock must go back to the person building the order. These rules follow the order through every change.",
+    "image": "screenshots/03-review-the-hotel-mandate.png",
+    "note": "Live Rules page is editable and includes a standing Finnish-origin policy; the demo plan described a read-only page and recipe-only origin.",
+    "section": "Hotel rules"
+  },
+  {
+    "title": "Open the persona and demo menu",
+    "action": "Click Switch user.",
+    "script": "Now we switch from finance to the kitchen.",
+    "image": "screenshots/04-open-the-persona-and-demo-menu.png",
+    "note": "",
+    "section": "Hotel rules"
+  },
+  {
+    "title": "Return to the demo persona picker",
+    "action": "Click Demo settings to set the story clock.",
+    "script": "The demo settings let us move through the wedding's timeline.",
+    "image": "screenshots/05-return-to-the-demo-persona-picker.png",
+    "note": "",
+    "section": "Hotel rules"
+  },
+  {
+    "title": "Set up the booking scene",
+    "action": "Click Scene 1 · Viability, months ahead. This sets the fixture clock without clearing any bookings.",
+    "script": "We begin in August, when the wedding is still months away.",
+    "image": "screenshots/06-set-up-the-booking-scene.png",
+    "note": "",
+    "section": "Hotel rules"
+  },
+  {
+    "title": "Start as Aino",
+    "action": "Click Aino — Head chef.",
+    "script": "Aino is the head chef. She needs food for 180 guests.",
+    "image": "screenshots/07-start-as-aino.png",
+    "note": "Scene 1 sets the fixture clock to 14 August. No workspace reset was performed.",
+    "section": "Booking the wedding"
+  },
+  {
+    "title": "Open the wedding workspace",
+    "action": "Click Emma and Lauri’s wedding.",
+    "script": "This is Emma and Lauri's wedding workspace, where Aino builds and follows the order.",
+    "image": "screenshots/08-open-the-wedding-workspace.png",
+    "note": "",
+    "section": "Booking the wedding"
+  },
+  {
+    "title": "Inspect the empty wedding order",
+    "action": "Click From a menu to inspect the seeded wedding ingredients; return to Products for the milk-language demonstration.",
+    "script": "Aino can start from the wedding menu or search for individual products.",
+    "image": "screenshots/09-inspect-the-empty-wedding-order.png",
+    "note": "",
+    "section": "Booking the wedding"
+  },
+  {
+    "title": "Choose the menu route",
+    "action": "Inspect the seeded menu, then click Products. Do not generate a duplicate order from this view.",
+    "script": "The menu has the main ingredients ready. Let's see how the agent handles the milk request.",
+    "image": "screenshots/10-choose-the-menu-route.png",
+    "note": "",
+    "section": "Booking the wedding"
+  },
+  {
+    "title": "Enter the milk request",
+    "action": "Type “Add 40 litres of lactose-free milk for the coffee service”, then click Search.",
+    "script": "Aino types: add 40 litres of lactose-free milk for the coffee service. The agent turns that request into a product search.",
+    "image": "screenshots/11-enter-the-milk-request.png",
+    "note": "",
+    "section": "Booking the wedding"
+  },
+  {
+    "title": "Review the milk interpretation and details",
+    "action": "The site opens Review the item with 40 L of lactose-free milk. Click View details; inspect product 464306, €40.40 and stock unknown. Scroll to Selection funnel.",
+    "script": "The selected milk costs 40 euros and 40 cents. Its stock is unknown, and the app keeps that uncertainty visible.",
+    "image": "screenshots/12-review-the-milk-interpretation-and-details.png",
+    "note": "The current builder proceeds straight to item review, rather than a separate pre-quote chip confirmation. Close the preview after inspecting it: the wedding menu already contains the milk line.",
+    "section": "Booking the wedding"
+  },
+  {
+    "title": "Show the milk filtering evidence",
+    "action": "Open Selection funnel. It shows 30 shortlisted products, 5 removed by product type and 24 final candidates.",
+    "script": "The selection funnel shows how the agent narrowed the catalogue and checked the candidates.",
+    "image": "screenshots/13-show-the-milk-filtering-evidence.png",
+    "note": "",
+    "section": "Booking the wedding"
+  },
+  {
+    "title": "Show products excluded by type",
+    "action": "Open Product type to show the exclusions, then close the item review with the top-right X. No duplicate milk was added.",
+    "script": "It excludes unsuitable product types, including products that are not plain drinking milk. Aino can inspect why.",
+    "image": "screenshots/14-show-products-excluded-by-type.png",
+    "note": "",
+    "section": "Booking the wedding"
+  },
+  {
+    "title": "Navigate to the scripted event demo",
+    "action": "Click Events in Aino’s account menu.",
+    "script": "Now we open Events for the wedding's staged ordering journey.",
+    "image": "screenshots/15-navigate-to-the-scripted-event-demo.png",
+    "note": "",
+    "section": "Booking the wedding"
+  },
+  {
+    "title": "Select the wedding in Events",
+    "action": "Click Emma and Lauri’s wedding.",
+    "script": "We select the same wedding to continue the booking.",
+    "image": "screenshots/16-select-the-wedding-in-events.png",
+    "note": "",
+    "section": "Booking the wedding"
+  },
+  {
+    "title": "Start the scripted wedding booking",
+    "action": "The documented stages are on the Event page. Click Order under stage 2. Stage 1 Check was attempted first but failed; see interruption evidence.",
+    "script": "The stages follow the booking through to the final check. The preliminary check failed during this capture, so we continued with the booking action.",
+    "image": "screenshots/17-start-the-scripted-wedding-booking.png",
+    "note": "Order advances the fixture clock to 14 August, 11:00. No reset was performed.",
+    "section": "Booking the wedding"
+  },
+  {
+    "title": "Aino’s booking stock question",
+    "action": "Click Continue on the four-line stock question: potatoes, princess cake, milk and sparkling.",
+    "script": "Four lines have unconfirmed stock. Aino decides whether to continue with those quantities; continuing does not turn unknown stock into confirmed stock.",
+    "image": "screenshots/18-ainos-booking-stock-question.png",
+    "note": "",
+    "section": "Booking the wedding"
+  },
+  {
+    "title": "Hand the booking to finance",
+    "action": "Click Aino’s account button → Switch user. The booking now waits for finance.",
+    "script": "The booking now needs finance approval before it can become an order.",
+    "image": "screenshots/19-hand-the-booking-to-finance.png",
+    "note": "",
+    "section": "Booking the wedding"
+  },
+  {
+    "title": "Switch to Sanna for the booking approval",
+    "action": "Click Sanna — Finance manager.",
+    "script": "We return to Sanna for that decision.",
+    "image": "screenshots/20-switch-to-sanna-for-the-booking-approval.png",
+    "note": "",
+    "section": "Booking the wedding"
+  },
+  {
+    "title": "Review Sanna’s booking decision",
+    "action": "Click Details on Approve order? to show the budget and coffee-overshoot reasons.",
+    "script": "Sanna gets one approval card, with the reasons available underneath.",
+    "image": "screenshots/21-review-sannas-booking-decision.png",
+    "note": "",
+    "section": "Booking the wedding"
+  },
+  {
+    "title": "Read the approval reasons",
+    "action": "Review €2,003.37 for seven lines, €53.37 over the cap, and the coffee overshoot. Click Approve.",
+    "script": "The order is 2,003 euros and 37 cents, just over the limit. The coffee case also exceeds the rounding allowance. Sanna reviews both reasons and approves.",
+    "image": "screenshots/22-read-the-approval-reasons.png",
+    "note": "",
+    "section": "Booking the wedding"
+  },
+  {
+    "title": "Booking approved and ordered",
+    "action": "Confirm Order placed and 4 stock not confirmed. Click Sanna’s account button → Switch user.",
+    "script": "The order is placed. The four stock concerns remain visible, alongside the successful order status.",
+    "image": "screenshots/23-booking-approved-and-ordered.png",
+    "note": "",
+    "section": "Booking the wedding"
+  },
+  {
+    "title": "Return to Aino",
+    "action": "Click Aino — Head chef.",
+    "script": "Now we return to Aino as the wedding approaches.",
+    "image": "screenshots/24-return-to-aino.png",
+    "note": "",
+    "section": "Guests and allergy"
+  },
+  {
+    "title": "Add fourteen guests and Onni’s allergy",
+    "action": "Enter 194 in New guest count, tick Onni: tree nuts, then click Apply. This advances to 30 October.",
+    "script": "Two weeks before the wedding, the guest count rises from 180 to 194. One new guest is Onni, a child with a tree-nut allergy.",
+    "image": "screenshots/25-add-fourteen-guests-and-onnis-allergy.png",
+    "note": "",
+    "section": "Guests and allergy"
+  },
+  {
+    "title": "Resolve the allergy conflicts",
+    "action": "The cake contains almond and has no approval-through action. Click Replace for everyone: Elonen Raspberry Pastrycake · 5 KI · €310.60.",
+    "script": "The original cake contains almond. Aino cannot approve that conflict away. She replaces it with the raspberry cake offered for the whole party.",
+    "image": "screenshots/26-resolve-the-allergy-conflicts.png",
+    "note": "",
+    "section": "Guests and allergy"
+  },
+  {
+    "title": "Choose the sparkling replacement",
+    "action": "Select Replace for everyone: Sparkling alcohol free.",
+    "script": "The original sparkling also fails the allergy requirement. Aino chooses the alcohol-free sparkling replacement offered here.",
+    "image": "screenshots/27-choose-the-sparkling-replacement.png",
+    "note": "The live shortlist includes a sparkling option, so the script’s red-wine fallback is unnecessary.",
+    "section": "Guests and allergy"
+  },
+  {
+    "title": "Answer the potato allergen-data question",
+    "action": "Continue with the potatoes only after acknowledging that allergen data is unconfirmed.",
+    "script": "The potatoes have no allergen declaration. Aino explicitly accepts continuing with missing data, and the concern remains on the line. The app does not label it allergy-safe.",
+    "image": "screenshots/28-answer-the-potato-allergen-data-question.png",
+    "note": "",
+    "section": "Guests and allergy"
+  },
+  {
+    "title": "Send the guest-count change to finance",
+    "action": "The change now waits for Sanna. Click Aino’s account button → Switch user.",
+    "script": "The kitchen choices are ready. The larger guest count still needs finance approval.",
+    "image": "screenshots/29-send-the-guest-count-change-to-finance.png",
+    "note": "In this run, finance review appeared before the renewed stock confirmation. Existing order lines remain visible until the change is applied.",
+    "section": "Guests and allergy"
+  },
+  {
+    "title": "Switch to Sanna for the change",
+    "action": "Click Sanna — Finance manager.",
+    "script": "Sanna now sees the proposed change to the existing wedding order.",
+    "image": "screenshots/30-switch-to-sanna-for-the-change.png",
+    "note": "",
+    "section": "Guests and allergy"
+  },
+  {
+    "title": "Review the combined wedding change",
+    "action": "Click Approve the change for 180 → 194 guests (+7.78%), then switch back to Aino.",
+    "script": "The increase is nearly eight percent, beyond Sanna's five-percent allowance. She approves the combined change, with its items and quantities attached.",
+    "image": "screenshots/31-review-the-combined-wedding-change.png",
+    "note": "",
+    "section": "Guests and allergy"
+  },
+  {
+    "title": "Reconfirm the changed order’s stock",
+    "action": "As Aino, click Continue with these quantities for the four changed stock-unknown lines.",
+    "script": "Back in the kitchen, Aino confirms that she will continue with the changed order's unconfirmed stock.",
+    "image": "screenshots/32-reconfirm-the-changed-orders-stock.png",
+    "note": "",
+    "section": "Guests and allergy"
+  },
+  {
+    "title": "View the revised order total",
+    "action": "Confirm Change applied, 194 guests and the retained allergen concern. Click Money.",
+    "script": "The change is applied for 194 guests. The missing allergen information remains visible.",
+    "image": "screenshots/33-view-the-revised-order-total.png",
+    "note": "",
+    "section": "Guests and allergy"
+  },
+  {
+    "title": "Read the revised booking total",
+    "action": "Read €1,984.07 ex VAT. Scroll to the top, then account menu → Switch user → Demo settings.",
+    "script": "With these replacements, the revised total is 1,984 euros and seven cents before VAT.",
+    "image": "screenshots/34-read-the-revised-booking-total.png",
+    "note": "",
+    "section": "Guests and allergy"
+  },
+  {
+    "title": "Advance to the final-check date",
+    "action": "Click Scene 4 · Final check, 24 h before cut-off, then select Aino. This sets 14 November, 17:00.",
+    "script": "We move to the final check: Saturday afternoon, 24 hours before the main ordering cut-off.",
+    "image": "screenshots/35-advance-to-the-final-check-date.png",
+    "note": "",
+    "section": "Final changes"
+  },
+  {
+    "title": "Record the six no-shows",
+    "action": "Enter 188 and click Apply. Aino must reconfirm the potatoes’ missing allergen data; click Continue with missing allergen data. Then click Check under stage 4.",
+    "script": "Six guests can no longer attend, bringing the count to 188. This is within the finance allowance, but Aino must acknowledge the potatoes' missing allergen data again.",
+    "image": "screenshots/36-record-the-six-no-shows.png",
+    "note": "The first request failed after partially saving the guest change; the conflict and Confirm again recovery are in the interruption appendix. The successful re-confirmation screen could not be saved because screenshot capture timed out; the later final-check and audit screens verify 188 guests.",
+    "section": "Final changes"
+  },
+  {
+    "title": "Review the 10-litre cream shortage",
+    "action": "Read “37 of 47 in stock · 10 l to fill”. Click Details.",
+    "script": "The final check finds a new problem: only 37 of the 47 litres of cream are available.",
+    "image": "screenshots/37-review-the-10-litre-cream-shortage.png",
+    "note": "",
+    "section": "Final changes"
+  },
+  {
+    "title": "Compare the cream replacements",
+    "action": "The comparison shows the first 1.75 L alternative. Select the second button, 10 × Valio whipping cream (€3.91/l), to use the plan’s 1 L UHT option.",
+    "script": "Aino keeps those 37 litres and chooses ten one-litre packs of Valio UHT cream to fill the gap.",
+    "image": "screenshots/38-compare-the-cream-replacements.png",
+    "note": "",
+    "section": "Final changes"
+  },
+  {
+    "title": "Review the final cream decision",
+    "action": "The cream amendment asks again about the potatoes. Click Continue with missing allergen data.",
+    "script": "The amendment asks Aino to confirm the outstanding potato concern again before proceeding.",
+    "image": "screenshots/39-review-the-final-cream-decision.png",
+    "note": "",
+    "section": "Final changes"
+  },
+  {
+    "title": "Confirm stock for the cream amendment",
+    "action": "Click Continue with these quantities for the five unconfirmed-stock lines, including the new cream.",
+    "script": "Aino also confirms the five lines with unconfirmed stock, including the replacement cream. Those uncertainties stay attached to the order.",
+    "image": "screenshots/40-confirm-stock-for-the-cream-amendment.png",
+    "note": "",
+    "section": "Final changes"
+  },
+  {
+    "title": "Final wedding outcome",
+    "action": "Read the final Ready status. Click Money to see the whole sales units and final total.",
+    "script": "The wedding is ready, with five stock concerns and one allergen-data concern clearly shown.",
+    "image": "screenshots/41-final-wedding-outcome.png",
+    "note": "The selected sparkling replacement has unconfirmed stock, so this run has five stock concerns rather than the plan’s four.",
+    "section": "Final changes"
+  },
+  {
+    "title": "Final order quantities and total",
+    "action": "Read €1,904.89 ex VAT, 37 ST Arla cream and 10 ST Valio UHT cream.",
+    "script": "The final total is 1,904 euros and 89 cents before VAT, including 37 litres of Arla cream and ten litres of Valio cream.",
+    "image": "screenshots/42-final-order-quantities-and-total.png",
+    "note": "",
+    "section": "Final changes"
+  },
+  {
+    "title": "Open the gateway safety drill",
+    "action": "Navigate to https://junction.hewston.ie/live and click Send unvetted agent. Do not click Reset.",
+    "script": "Now we look from the wholesaler's side. Our agent follows Sanna's rules, but the gateway must enforce them independently. Here is the safety drill.",
+    "image": "screenshots/43-open-the-gateway-safety-drill.png",
+    "note": "This pre-action screenshot is presented here in demo-script order. The safety drill was actually run earlier during the walkthrough.",
+    "section": "Supplier and audit"
+  },
+  {
+    "title": "Gateway refuses the unvetted agent",
+    "action": "Show the €2,387.20 REFUSED order and the explanation that no approval was attached.",
+    "script": "An unvetted agent attempts a 2,387-euro order without approval. The gateway refuses it. No supplier order is created by the drill.",
+    "image": "screenshots/44-gateway-refuses-the-unvetted-agent.png",
+    "note": "No supplier order was created by the safety drill.",
+    "section": "Supplier and audit"
+  },
+  {
+    "title": "Verify the final signed wedding order",
+    "action": "Click an ALLOWED wedding order or amendment row to open its record. Read Signature valid · ES256 and €1,904.89. Click Peppol BIS Order (UBL XML).",
+    "script": "The actual wedding order has a valid signature, the final items and total, and its approval attached. The wholesaler can verify what was agreed.",
+    "image": "screenshots/45-verify-the-final-signed-wedding-order.png",
+    "note": "The final version-4 record shows the eight active lines, a valid ES256 signature and a total of EUR 1,904.89.",
+    "section": "Supplier and audit"
+  },
+  {
+    "title": "Final Peppol XML",
+    "action": "Inspect the generated version-4 Peppol order document.",
+    "script": "The same final order is also available as a Peppol-format XML document for export.",
+    "image": "screenshots/46-final-peppol-xml.png",
+    "note": "The XML now reflects the latest amended order.",
+    "section": "Supplier and audit"
+  },
+  {
+    "title": "Check the audit trail",
+    "action": "From the hotel event, click Audit log. Read HASH CHAIN VERIFIED and the final 37 + 10 cream amendment.",
+    "script": "The hotel's audit records the decisions and verifies its hash chain. Private guest details stay out of the supplier's signed order. AI reads and judges. Rules decide, and the people keep control.",
+    "image": "screenshots/47-check-the-audit-trail.png",
+    "note": "This is the private hotel audit. The /live signed record omits Onni and guest details; no separate Katri persona was offered by the site.",
+    "section": "Supplier and audit"
+  }
+]

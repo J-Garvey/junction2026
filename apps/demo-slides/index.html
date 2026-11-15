@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#11151c">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Wedding demo · Aimo Copilot</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#slide=1">Aimo <span>demo walkthrough</span></a>
+    <nav aria-label="Presentation controls">
+      <label class="sr-only" for="slide-picker">Jump to a slide</label>
+      <select id="slide-picker" disabled><option>Loading slides…</option></select>
+      <button id="notes-toggle" type="button" aria-pressed="true" title="Toggle script (N)">Script <kbd>N</kbd></button>
+      <button id="fullscreen" type="button" title="Full screen (F)" aria-label="Enter full screen">Full screen <kbd>F</kbd></button>
+    </nav>
+  </header>
+  <main id="presentation" aria-busy="true">
+    <div class="heading">
+      <div><p id="section" class="eyebrow">Wedding demo</p><h1 id="slide-title">Loading the walkthrough…</h1></div>
+      <p id="counter" class="counter" aria-live="polite"></p>
+    </div>
+    <figure class="screen"><img id="screenshot" alt="" decoding="async"><p id="image-error" hidden>This screenshot could not load. Try refreshing the page.</p></figure>
+    <section id="speaker-notes" class="speaker-notes" aria-label="Suggested speaker script">
+      <p class="eyebrow">Suggested script</p>
+      <p id="script"></p>
+      <p id="action" class="action"></p>
+      <details id="recording-note" hidden><summary>Recording note</summary><p id="note"></p></details>
+    </section>
+    <p id="load-error" role="alert" hidden>The walkthrough could not load. Please refresh to try again.</p>
+  </main>
+  <footer>
+    <p class="keyboard-hint"><kbd>←</kbd> <kbd>→</kbd> to move <span>· <kbd>Space</kbd> next</span></p>
+    <div class="pagination"><button id="previous" type="button" disabled aria-label="Previous slide">← Previous</button><button id="next" class="primary" type="button" disabled aria-label="Next slide">Next →</button></div>
+  </footer>
+  <div class="progress-track" aria-hidden="true"><div id="progress"></div></div>
+</body>
+</html>
