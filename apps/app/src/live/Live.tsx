@@ -3,7 +3,7 @@
  * gateway's public API. Right: what Valio Aimo sees at its front door, live.
  */
 import { useEffect, useId, useRef, useState } from "react";
-import { Mark } from "../ui/icons";
+import { Icon, Mark } from "../ui/icons";
 import "./live.css";
 
 type CallStep = { kind: "call"; n: number; method: string; path: string; summary: string; tone: "ok" | "warn" | "err" | "run"; ms: number | null };
@@ -47,6 +47,7 @@ const PRESETS = ["I need 1,000 litres of lactose-free milk by Monday.", "The con
 const eur = (n: number | null | undefined) => n == null ? "TBC" : `€${n.toLocaleString("en-IE", { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`;
 const hhmm = (iso: string) => new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Europe/Helsinki" });
 const VERDICT_LABEL: Record<Verdict, string> = { ALLOWED: "ALLOWED", NEEDS_APPROVAL: "NEEDS APPROVAL", ASKS_CHEF: "ASKS CHEF", REFUSED: "REFUSED", APPROVED: "APPROVED", INFO: "" };
+const VERDICT_STYLE: Record<Verdict, string> = { ALLOWED: "order", NEEDS_APPROVAL: "ask", ASKS_CHEF: "ask", REFUSED: "block", APPROVED: "order", INFO: "info" };
 
 async function post(path: string, body: unknown = {}) {
   const r = await fetch(path, { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -121,32 +122,38 @@ export function Live() {
 
   return (
     <div className="lv">
-      <header className="lv-top">
+      <a className="skip-to-content" href="#gateway-content">Skip to content</a>
+      <header className="topbar lv-top">
         <div className="lv-brand">
-          <div className="lv-wordmark"><Mark s={32} /><b>Potato</b></div>
+          <a className="app-brand" href="/" aria-label="Potato home"><Mark s={22} /><b>Potato</b></a>
           <span className="lv-sep" />
-          <span>Agent Gateway</span>
+          <span className="muted">Wholesaler</span>
         </div>
         <div className="lv-tools">
           <span className={`lv-live ${connected ? "connected" : ""}`} role="status">
             <i aria-hidden="true" /> {connected ? "Live API monitor" : "Reconnecting to gateway"}
           </span>
-          <button className="lv-ghost" disabled={busy} onClick={() => act(() => post("/api/live/rogue"))}>
+          <button className="btn sm" disabled={busy} onClick={() => act(() => post("/api/live/rogue"))}>
             Send unvetted agent
           </button>
-          <button className="lv-ghost" disabled={busy} onClick={() => act(() => post("/api/live/reset"))}>
+          <button className="btn ghost sm" disabled={busy} onClick={() => act(() => post("/api/live/reset"))}>
             Reset
           </button>
-          <a className="lv-link" href="/">
+          <a className="btn ghost sm" href="/">
             Hotel app
           </a>
         </div>
       </header>
 
-      <main className="lv-main">
-        <section className="lv-left">
+      <main className="lv-main" id="gateway-content" tabIndex={-1}>
+        <div className="lv-intro">
+          <h1>Agent gateway</h1>
+          <p>Follow the hotel's requests, decisions and signed orders.</p>
+        </div>
+        <div className="lv-columns">
+        <section className="card lv-left" aria-labelledby="hotel-agent-heading">
           <div className="lv-h">
-            <h1>Hotel agent</h1>
+            <h2 id="hotel-agent-heading">Hotel agent</h2>
             <p>
               Live purchasing AI · <code>{s.model}</code> · uses only <a href="/openapi.json">/openapi.json</a>
             </p>
@@ -211,7 +218,7 @@ export function Live() {
             )}
             <div className="lv-row">
               <input aria-label="Kitchen request" value={text} onChange={(e) => setText(e.target.value)} placeholder={waiting ? "Answer the card above" : "Type what the kitchen needs…"} disabled={working || waiting} />
-              <button className="lv-send" disabled={busy || working || waiting || !text.trim()}>
+              <button className="btn primary" disabled={busy || working || waiting || !text.trim()}>
                 Send
               </button>
             </div>
@@ -220,15 +227,15 @@ export function Live() {
           </form>
         </section>
 
-        <section className="lv-right">
+        <section className="card lv-right" aria-labelledby="gateway-activity-heading">
           <div className="lv-rh">
             <div className="lv-h">
-              <h2>Potato gateway</h2>
+              <h2 id="gateway-activity-heading">Wholesaler activity</h2>
               <p>Incoming external agent requests</p>
             </div>
             <div className="lv-rules">
               <h3>
-                Hotel rules {s.rules.signed && <span className="lv-signed-sm">signed</span>}
+                Hotel rules {s.rules.signed && <span className="stamp order">signed</span>}
               </h3>
               <dl>
                 <dt>Budget per order</dt>
@@ -284,11 +291,11 @@ export function Live() {
                   <span className="lv-time">{hhmm(f.at)}<span className="lv-duration">{f.ms} ms</span></span>
                   <span className="lv-agent">{f.agent}</span>
                   <span>
-                    <span className={`lv-act a-${f.action}`}>{f.action}</span>
+                    <span className="tag">{f.action}</span>
                   </span>
                   <span className="lv-amt">{eur(f.amount)}</span>
                   <span className="lv-v">
-                    <span className={`lv-badge v-${f.verdict}`}>{VERDICT_LABEL[f.verdict]}</span>
+                    <span className={`stamp ${VERDICT_STYLE[f.verdict]}`}>{VERDICT_LABEL[f.verdict]}</span>
                     {f.signed && (f.verdict === "ALLOWED" || f.verdict === "APPROVED") && (
                       <span className="lv-seal" title="Signed ES256, verify with /.well-known/jwks.json">
                         <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
@@ -303,6 +310,7 @@ export function Live() {
             )}
           </div>
         </section>
+        </div>
       </main>
       {open && <Record id={open} onClose={() => setOpen(null)} />}
     </div>
@@ -311,9 +319,9 @@ export function Live() {
 
 function Card({ c, onPick, disabled }: { c: CardStep; onPick: (o: string) => void; disabled: boolean }) {
   return (
-    <div className={`lv-card ${c.who} ${c.answer ? "done" : ""}`}>
+    <div className={`card lv-card ${c.who} ${c.answer ? "done" : ""}`}>
       <div className="lv-card-h">
-        <span className="lv-warn">!</span>
+        <span className="lv-warn"><Icon n={c.answer ? "check" : "alert"} s={20} /></span>
         <div>
           <div className="lv-card-who">{c.person}</div>
           <h2>{c.title}</h2>
@@ -327,7 +335,7 @@ function Card({ c, onPick, disabled }: { c: CardStep; onPick: (o: string) => voi
       ) : (
         <div className="lv-opts">
           {c.options.map((o, i) => (
-            <button key={o.id} className={i === 0 ? "pri" : ""} disabled={disabled} onClick={() => onPick(o.id)}>
+            <button key={o.id} className={`btn${i === 0 ? " primary" : ""}`} disabled={disabled} onClick={() => onPick(o.id)}>
               {o.label}
               {o.sub && <small>{o.sub}</small>}
             </button>
@@ -375,18 +383,22 @@ function Record({ id, onClose }: { id: string; onClose: () => void }) {
         else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
       }}
       onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <div className="lv-sheet" onClick={(ev) => ev.stopPropagation()}>
-        <button className="lv-x" aria-label="Close signed order" onClick={onClose}>
-          ×
-        </button>
-        <h2 id={titleId}>Signed order {id}</h2>
+      <div className="item-dialog lv-sheet" onClick={(ev) => ev.stopPropagation()}>
+        <div className="item-dialog-head">
+          <div><div className="item-dialog-eyebrow">Order record</div><h2 id={titleId}>Signed order {id}</h2></div>
+          <button className="item-dialog-close" aria-label="Close signed order" onClick={onClose}>
+            <Icon n="x" s={20} />
+          </button>
+        </div>
+        <div className="item-dialog-body">
         {e && <div className="lv-err">{e}</div>}
+        {!r && !e && <p className="muted" role="status">Loading signed order…</p>}
         {r && (
           <>
-            <div className={`lv-verify ${r.signature.valid ? "ok" : "bad"}`}>{r.signature.valid ? `Signature valid · ${r.signature.alg} · key in ${r.signature.jwks}` : "Signature not valid"}</div>
-            <ul className="lv-lines" aria-label="Order items">
+            <div className={`callout ${r.signature.valid ? "green" : "red"}`}>{r.signature.valid ? `Signature valid · ${r.signature.alg} · key in ${r.signature.jwks}` : "Signature not valid"}</div>
+            <ul className="item-dialog-lines lv-lines" aria-label="Order items">
               {r.order.lines.map((l, index) => (
-                <li key={`${l.productId}-${index}`}>
+                <li className="item-dialog-line" key={`${l.productId}-${index}`}>
                   <span className="lv-line-name">{l.name}</span>
                   <span>{l.quantity} {l.salesUnit}</span>
                   <span>{eur(l.lineTotal)}</span>
@@ -398,16 +410,17 @@ function Record({ id, onClose }: { id: string; onClose: () => void }) {
               <b>{eur(r.order.totalExVat)}</b> ex VAT · delivery {r.order.deliveryDate} · {r.order.approvalId ? "approval attached" : "no approval needed"}
             </p>
             <div className="lv-links">
-              <a href={`/api/live/orders/${id}/peppol`} target="_blank" rel="noreferrer">
+              <a className="btn" href={`/api/live/orders/${id}/peppol`} target="_blank" rel="noreferrer">
                 Peppol BIS Order (UBL XML)
               </a>
-              <a href="/.well-known/jwks.json" target="_blank" rel="noreferrer">
+              <a className="btn ghost" href="/.well-known/jwks.json" target="_blank" rel="noreferrer">
                 Public keys (JWKS)
               </a>
             </div>
             {r.signature.jws && <div className="lv-jws" role="region" aria-label="Signed receipt token" tabIndex={0}><code>{r.signature.jws}</code></div>}
           </>
         )}
+        </div>
       </div>
     </dialog>
   );
