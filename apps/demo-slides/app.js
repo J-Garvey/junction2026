@@ -9,6 +9,12 @@
   const screenshot = el('screenshot');
   const picker = el('slide-picker');
   const grid = el('slide-grid');
+  const toolbar = document.querySelector('.topbar');
+  if (typeof ResizeObserver === 'function') {
+    new ResizeObserver(() => {
+      document.documentElement.style.setProperty('--toolbar-height', `${toolbar.getBoundingClientRect().height + 4}px`);
+    }).observe(toolbar);
+  }
   const readHash = () => {
     const match = location.hash.match(/^#slide=(\d+)$/);
     return match ? Number(match[1]) - 1 : 0;

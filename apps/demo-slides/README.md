@@ -4,6 +4,11 @@ A standalone static walkthrough of the wedding demo captured on 15 November 2026
 Move through 47 screenshots, each with suggested spoken text and the matching click
 instruction. Recording caveats are collapsed under each slide in single view.
 
+The viewer uses the full screen width with a compact toolbar and 4px gutters.
+Grid screenshots keep their natural proportions. Single view gives the screenshot
+the space left after the toolbar and readable script; hiding the script with N
+expands the image further. Phones use normal page scrolling so text is never clipped.
+
 Choose **Single** or **Grid** in the top bar, or press **G** to toggle. Grid shows
 all 47 slides in numeric order, left to right then down, with three columns on
 desktop, two on tablets and one on phones. Each full screenshot has its existing
