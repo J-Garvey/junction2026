@@ -9,7 +9,7 @@ You need Node 22.13 or later and pnpm.
 ```sh
 pnpm install
 pnpm --filter @aimo/app build      # the web app, served by the API
-pnpm start                         # http://127.0.0.1:8787
+AIMO_TEST_MODE=1 pnpm start        # explicit local demo personas; http://127.0.0.1:8787
 ```
 
 For development, `pnpm dev` runs the API with `tsx watch` and the Vite app on port 5173.
@@ -38,6 +38,7 @@ The server reads the environment, then the untracked `.env.local`, then the trac
 | `PORT` | `8787` | |
 | `AIMO_DB` | `apps/api/var/aimo.db` | SQLite file; `:memory:` for tests |
 | `CONTEXT_DEV_API_KEY` | unset | Supplier brand profiles from context.dev at `GET /gateway/v1/products/{id}/brand`. External web data: cached, labelled, never used by a rule |
+| `AIMO_TEST_MODE` | disabled | Set exactly `1` only for the local synthetic demo: permits clearly marked persona switching and live demo cards. `0` or unset disables impersonation and rejects old demo sessions |
 | `PREVIEW_PASSWORD` | unset | Turns on the preview gate: browsers sign in at `/login`, scripts send `X-Preview-Password`. `/healthz` stays open |
 
 ## The live console (the demo screen)
@@ -174,3 +175,20 @@ The PRD left these open. Each choice follows the chunk's recommended answer unle
 - Mandate and preference setup screens (D18; the mandate is pre-filled).
 - Pack mixing across sizes of the same product (Q03.4), CEL, Peppol, MCP and email updates.
 - Delivery-date alignment across different available dates (AP-14): the mock always answers Monday, so every line shares one date.
+
+
+### Authenticated builder decisions and non-test sessions
+
+A shared preview password only opens the preview gate; it never authenticates a hotel person.
+`AIMO_TEST_MODE` defaults off. `/api/session` can refresh only the already authenticated person's own identity outside demo mode. It refuses anonymous callers, agent tokens, demo sessions and attempts to select another person. Existing demo tokens stop resolving when demo mode is disabled. The person picker is explicitly labelled as a local demo surface. Live console cards use the authenticated caller's role outside demo mode; they cannot mint Aino or Sanna.
+
+This prototype uses operator-provisioned opaque bearer credentials rather than a new login platform. After verifying a person out of band, a trusted operator can run `pnpm --filter @aimo/api exec tsx src/scripts/issue-person-token.ts p-aino <private-output-file>` against the intended `AIMO_DB`. The output must be a new private file (on Windows use a directory with an owner-only ACL); its contents are never printed. Deliver that credential privately to the person, who sends `Authorization: Bearer <personal-token>`; calling `/api/session` for their own ID also sets the HttpOnly app cookie. Provision finance separately. Revoke by deleting the token row. Deployments should replace this manual provisioning with their identity provider. Do not enable demo mode on a preview shared with untrusted users.
+
+D31 external-agent flow:
+
+1. Agent requests `POST /gateway/v1/quotes` and shows exact unconfirmed lines, quantities and terms to the builder.
+2. Chef calls `POST /gateway/v1/builder-consents` using their **personal credential**, with `{ "quoteId": "quote-id", "fingerprint": "fingerprint", "productIds": ["464306"] }`. Finance and agent credentials receive 403. The returned opaque `id` references the authenticated server record.
+3. Agent calls `POST /gateway/v1/orders` with `quoteId`, `continueWithUnconfirmedStock`, and `builderConsentId` set to that ID, plus any separate finance `approvalId` and the usual idempotency header. `decidedBy` is deprecated and ignored; a name is never consent. Stock remains unknown on the receipt.
+4. An amendment needing a fresh decision returns `stock_unconfirmed` and `newQuoteId`. Chef consents to that amendment quote; retry the same changes with `builderConsentId`. Consent binds to the order version as well as exact site, lines, quantities, requirements, prices, delivery terms, hotel policy and expiry. Changed quantities or terms require a fresh decision. Unchanged previously accepted order lines and standing pre-answers retain their existing behavior.
+
+The app records consent when the chef answers the stock card, adds reviewed unconfirmed items, or submits their reviewed combined basket to finance. Finance cannot create builder consent. Consent records use the existing SQLite key/value store, so no schema migration is required. Old staged decisions consisting only of a name/product list require chef review again; committed receipts remain readable. The existing commit recheck still blocks stale supplier terms and hard rules.

@@ -14,7 +14,7 @@ This gateway owns quotes, approvals, orders, amendments and the audit log. Manda
 
 Stated assumptions about the upstream mock (see GROUND_TRUTH.md):
 - \`requestedDate\` and \`customer\` are ignored upstream; every available line says Monday 2026-11-16.
-- Stock 999999 on Terminal products and ~9,999,999,999 base units on some Stock products are **unknown**, never "available". The builder explicitly chooses whether to continue (D31); finance approval cannot make this decision. A newly unknown line requires a new quote. Amendment decisions can bind to the reviewed \`stockQuoteId\` and are checked against current terms.
+- Stock 999999 on Terminal products and ~9,999,999,999 base units on some Stock products are **unknown**, never "available". The builder explicitly chooses whether to continue (D31); finance approval cannot make this decision. A newly unknown line requires a new quote. Orders and amendments require a server-issued \`builderConsentId\` from POST /builder-consents with an authenticated chef credential. Consent binds to the exact quote and, for amendments, order version. Free-text \`decidedBy\` is ignored.
 - Empty \`scheduleLines\` means not deliverable, even with a price. \`error: true\` on price means no price.
 - A cut-off already past is refused (\`cutoff_passed\`) even though the mock still shows a Monday date.
 - Requested dates never move supplier dates or cutoffs. Quotes, commit and amendments independently select original supplier schedules on or before \`deliveryDate\`, constrained by the hotel's \`deliveryDays\` and \`holidays\`. No eligible schedule blocks with \`DLV-06\`; human approval cannot invent delivery evidence. Earlier availability can meet a later need, retaining its original ordering deadline. Explicit saved fixture overlays may model other schedules and are labelled as fixtures.
@@ -43,6 +43,7 @@ export function buildOpenApi() {
     ApprovalBody: schema(C.ApprovalBody),
     Approval: schema(C.Approval),
     OrderCreateBody: schema(C.OrderCreateBody),
+    BuilderConsentBody: schema(C.BuilderConsentBody),
     Order: schema(C.Order),
     AmendmentBody: schema(C.AmendmentBody),
     Mandate: schema(C.Mandate),
@@ -117,6 +118,11 @@ export function buildOpenApi() {
         },
       },
       "/quotes/{id}": { get: { operationId: "getQuote", parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }], responses: { "200": { description: "Quote", ...json(ref("Quote")) } } } },
+      "/builder-consents": { post: { operationId: "consentToUnconfirmedStock",
+        summary: "Authenticated chef consent for exact quote, products, scope, terms, policy and expiry. Finance and agent tokens are refused.",
+        requestBody: { required: true, ...json(ref("BuilderConsentBody")) },
+        responses: { "201": { description: "Server-owned consent record; attach its id as builderConsentId to order/amendment" }, "403": { description: "Chef authentication or scope required" }, ...refusals },
+      } },
       "/approvals": {
         post: {
           operationId: "approve",

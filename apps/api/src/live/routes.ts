@@ -4,6 +4,7 @@
  */
 import { Router, type Request, type Response } from "express";
 import { z } from "zod";
+import { tokenFrom } from "../identity.js";
 import { config } from "../config.js";
 import { kvSet } from "../db.js";
 import { HOTEL_ID } from "../agent/plan.js";
@@ -83,7 +84,7 @@ export function liveRouter(): Router {
   r.post("/cards/:id", async (req, res) => {
     const { optionId } = z.object({ optionId: z.string() }).parse(req.body);
     try {
-      await answer(String(req.params.id), optionId);
+      await answer(String(req.params.id), optionId, tokenFrom(req) ?? undefined);
       res.json({ ok: true });
     } catch (e) {
       res.status(409).json({ error: "closed", message: (e as Error).message });

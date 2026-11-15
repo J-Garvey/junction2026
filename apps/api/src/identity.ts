@@ -5,6 +5,7 @@
  */
 import type { Request } from "express";
 import { getDb, getJson, allJson } from "./db.js";
+import { config } from "./config.js";
 import { randomBytes } from "node:crypto";
 
 export type Person = { id: string; name: string; role: "chef" | "approver"; outlets: string[]; hotelScope: boolean; hotelId: string; title: string };
@@ -37,6 +38,7 @@ export function resolveToken(token: string | undefined | null): Identity | null 
   const row = getJson<TokenRow>("tokens", token, "token");
   if (!row) return null;
   if (row.kind === "person") {
+    if (!config.testMode && row.testSession !== false) return null;
     const person = row.personId ? getPerson(row.personId) : null;
     if (!person) return null;
     return { kind: "person", token, hotelId: person.hotelId, person, testSession: row.testSession ?? true };

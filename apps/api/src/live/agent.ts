@@ -9,7 +9,7 @@ import { EventEmitter } from "node:events";
 import { config } from "../config.js";
 import { now } from "../clock.js";
 import { kvGet } from "../db.js";
-import { issueToken } from "../identity.js";
+import { issueToken, resolveToken } from "../identity.js";
 import { newId, shortName } from "../util.js";
 
 // ---------- session state, shown on the left half ----------
@@ -47,6 +47,8 @@ export const agentBus = bus;
 let session: Session = blank();
 let input: any[] = [];
 let pending: Pending | null = null;
+let lastQuoteId: string | null = null;
+const builderConsents = new Map<string, string>();
 let runId = 0;
 
 function blank(): Session {
@@ -60,6 +62,8 @@ export function resetSession() {
   session = blank();
   input = [];
   pending = null;
+  lastQuoteId = null;
+  builderConsents.clear();
   emit();
 }
 
@@ -179,12 +183,11 @@ export const TOOLS = [
     parameters: {
       type: "object",
       additionalProperties: false,
-      required: ["quoteId", "approvalId", "continueWithUnconfirmedStock", "decidedBy"],
+      required: ["quoteId", "approvalId", "continueWithUnconfirmedStock"],
       properties: {
         quoteId: { type: "string" },
         approvalId: nul("string"),
         continueWithUnconfirmedStock: strArr,
-        decidedBy: { ...nul("string"), description: "The person who chose to continue with unconfirmed stock" },
       },
     },
   },
@@ -250,7 +253,7 @@ function instructions(): string {
     "5. create_quote. Set lactoseFree/glutenFree/avoidAllergens from what the buyer asked.",
     "6. If the quote lists unconfirmedStock, ask_chef: options 'continue' (Continue) and 'confirmed' (Use confirmed stock, with sub showing how much confirmed stock exists, e.g. '435 of 1,000 L'). If the chef picks confirmed stock, quote again using only products with known stock, split across them.",
     "7. If mandateCheck.pass is false, request_approval with the quoteId. If rejected, stop.",
-    "8. place_order with the quoteId, approvalId if any, and continueWithUnconfirmedStock + decidedBy 'Aino' if the chef chose to continue.",
+    "8. place_order with the quoteId, approvalId if any, and continueWithUnconfirmedStock (the server attaches the authenticated chef consent) if the chef chose to continue.",
     "If the gateway refuses, say why in one sentence and fix it only if you can without guessing.",
     "Between tool calls do not write prose. At the end write one short sentence: what was ordered, the total ex VAT and the delivery date. No markdown.",
   ].join("\n");
@@ -339,10 +342,11 @@ async function runTool(name: string, args: any): Promise<ToolResult> {
     const first = q.lines[0];
     const what = q.lines.length === 1 ? `${shortName(first.productName)} × ${first.quantity}` : `${q.lines.length} lines`;
     const flag = q.outcome === "block" ? " · blocked" : !q.mandateCheck.pass ? " · needs approval" : q.unconfirmedStock.length ? " · stock not confirmed" : "";
+    lastQuoteId = q.id;
     return { output: slimQuote(q), summary: `Quote: ${what}, ${eur(q.totalExVat)}${flag}`, tone: q.outcome === "block" ? "err" : flag ? "warn" : "ok", status: r.status };
   }
   if (name === "place_order") {
-    const body = { quoteId: args.quoteId, approvalId: args.approvalId ?? undefined, continueWithUnconfirmedStock: args.continueWithUnconfirmedStock ?? [], decidedBy: args.decidedBy ?? undefined };
+    const body = { quoteId: args.quoteId, approvalId: args.approvalId ?? undefined, continueWithUnconfirmedStock: args.continueWithUnconfirmedStock ?? [], builderConsentId: builderConsents.get(args.quoteId) };
     // One key per decision: a retry of the same order returns the same order (ORDER-PLACE idempotency).
     const key = `live-${args.quoteId}-${args.approvalId ?? "none"}`;
     const r = await gateway("POST", "/orders", body, { headers: { "Idempotency-Key": key } });
@@ -405,7 +409,7 @@ async function loop(myRun: number) {
         };
         session.steps.push({ kind: "call", n: nextN(), method: "ASK", path: "chef", summary: `Asked the chef: ${args.title}`, tone: "warn", ms: null });
         session.steps.push(card);
-        pending = { callId: call.call_id, card };
+        pending = { callId: call.call_id, card, quoteId: lastQuoteId ?? undefined };
         session.status = "waiting";
         emit();
         return;
@@ -468,27 +472,39 @@ export function say(text: string) {
 }
 
 /** A person taps a card. The answer goes back to the agent as the tool's result. */
-export async function answer(cardId: string, optionId: string) {
+export async function answer(cardId: string, optionId: string, personToken?: string) {
   if (!pending || pending.card.id !== cardId) throw new Error("That card is no longer open");
   const p = pending;
   const opt = p.card.options.find((o) => o.id === optionId);
   if (!opt) throw new Error("No such option");
-  const by = p.card.who === "chef" ? "Aino" : "Sanna";
-  pending = null;
-  p.card.answer = { optionId, label: opt.label, by };
+  const token = personToken ?? (config.testMode ? issueToken({ kind: "person", personId: p.card.who === "chef" ? "p-aino" : "p-sanna", testSession: true }) : undefined);
+  const identity = resolveToken(token);
+  if (identity?.kind !== "person" || identity.person.role !== (p.card.who === "chef" ? "chef" : "approver"))
+    throw new Error("An authenticated person with the card role is required");
+  const by = identity.person.name;
+
   let output: unknown = { choice: optionId, label: opt.label, decidedBy: by };
+  if (p.card.who === "chef" && optionId === "continue" && p.quoteId) {
+    const q = await gateway("GET", `/quotes/${encodeURIComponent(p.quoteId)}`);
+    const r = await gateway("POST", "/builder-consents", { quoteId: q.data.id, fingerprint: q.data.fingerprint, productIds: q.data.unconfirmedStock }, { token });
+    if (!r.ok) throw new Error(r.data.message);
+    builderConsents.set(p.quoteId, r.data.id);
+    output = { choice: optionId, label: opt.label, builderConsentId: r.data.id };
+  }
   if (p.card.who === "approver") {
     if (optionId === "approve") {
-      // The approval is made with Sanna's own session token: an agent token gets 403 (AP-07).
-      const token = issueToken({ kind: "person", personId: "p-sanna", testSession: true });
+      // The approval uses the authenticated person credential (AP-07).
       const q = await gateway("GET", `/quotes/${encodeURIComponent(p.quoteId!)}`);
       const r = await gateway("POST", "/approvals", { quoteId: p.quoteId, fingerprint: q.data.fingerprint, grants: p.approvalsNeeded }, { token });
-      output = r.ok ? { approved: true, approvalId: r.data.id, approvedBy: "Sanna" } : { approved: false, error: r.data };
+      output = r.ok ? { approved: true, approvalId: r.data.id, approvedBy: by } : { approved: false, error: r.data };
       session.steps.push({ kind: "call", n: nextN(), method: "POST", path: "/gateway/v1/approvals", summary: r.ok ? "Sanna approved · signed" : `Approval failed: ${r.data.message}`, tone: r.ok ? "ok" : "err", ms: null });
     } else {
-      output = { approved: false, rejectedBy: "Sanna" };
+      output = { approved: false, rejectedBy: by };
     }
   }
+  if (pending !== p) throw new Error("That card was already answered");
+  pending = null;
+  p.card.answer = { optionId, label: opt.label, by };
   input.push({ type: "function_call_output", call_id: p.callId, output: JSON.stringify(output) });
   void loop(runId);
 }

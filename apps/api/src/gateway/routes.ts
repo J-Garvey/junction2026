@@ -4,11 +4,11 @@
  */
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { z } from "zod";
-import { AmendmentBody, ApprovalBody, LookupBody, OrderCreateBody, ProductSearchQuery, QuoteCreateBody } from "@aimo/contracts";
+import { AmendmentBody, BuilderConsentBody, ApprovalBody, LookupBody, OrderCreateBody, ProductSearchQuery, QuoteCreateBody } from "@aimo/contracts";
 import { resolveToken, tokenFrom, type Identity } from "../identity.js";
 import { searchMatches, getProduct } from "../catalog.js";
 import { lookup, UpstreamError } from "../aimo/lookup.js";
-import { amendOrder, createApproval, createQuote, getMandate, getOrder, getQuote, GatewayRefusal, listOrders, placeOrder } from "./service.js";
+import { amendOrder, createBuilderConsent, createApproval, createQuote, getMandate, getOrder, getQuote, GatewayRefusal, listOrders, placeOrder } from "./service.js";
 import { auditView, verifyChain } from "../audit.js";
 import { buildOpenApi } from "./openapi.js";
 import { brandProfile, ExternalUnavailable } from "../external/contextdev.js";
@@ -87,10 +87,11 @@ export function gatewayRouter(): Router {
   });
   r.post("/quotes", async (req, res) => res.status(201).json(await createQuote(req.identity!, parse(QuoteCreateBody, req.body))));
   r.get("/quotes/:id", (req, res) => res.json(getQuote(String(req.params.id))));
+  r.post("/builder-consents", (req, res) => res.status(201).json(createBuilderConsent(req.identity!, parse(BuilderConsentBody, req.body))));
   r.post("/approvals", async (req, res) => res.status(201).json(await createApproval(req.identity!, parse(ApprovalBody, req.body))));
   r.post("/orders", async (req, res) => {
     const b = parse(OrderCreateBody, req.body);
-    const out = await placeOrder(req.identity!, b.quoteId, req.header("idempotency-key") ?? "", b.approvalId, undefined, { continueWith: b.continueWithUnconfirmedStock, decidedBy: b.decidedBy });
+    const out = await placeOrder(req.identity!, b.quoteId, req.header("idempotency-key") ?? "", b.approvalId, undefined, { continueWith: b.continueWithUnconfirmedStock, builderConsentId: b.builderConsentId });
     res.status(out.replay ? 200 : 201).json(out.order);
   });
   r.get("/orders", (req, res) => {

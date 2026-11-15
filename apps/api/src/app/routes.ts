@@ -71,9 +71,12 @@ export function appRouter(): Router {
   r.get("/people", (_req, res) => res.json({ people: allPeople(), outlets: OUTLETS }));
   r.post("/session", (req, res) => {
     const { personId } = z.object({ personId: z.string() }).parse(req.body);
+    const existing = resolveToken(tokenFrom(req));
+    if (!config.testMode && (existing?.kind !== "person" || existing.person.id !== personId))
+      return res.status(403).json({ error: "Authenticated person session required; demo persona switching is disabled" });
     const p = getPerson(personId);
     if (!p) return res.status(404).json({ error: "No such person" });
-    const token = issueToken({ kind: "person", personId: p.id, testSession: true });
+    const token = issueToken({ kind: "person", personId: p.id, testSession: config.testMode });
     sessionCookie(res, token);
     res.json({ person: p, token });
   });
@@ -242,6 +245,9 @@ export function appRouter(): Router {
     const p = P(req);
     const unconfirmed = plan.lines.filter((line) => line.productId && line.rules.some((rule) => rule.ruleId === "STK-01")).map((line) => line.productId!);
     if ((continueWithWarnings || plan.itemReviews) && unconfirmed.length) {
+      if (p.role !== "chef") return res.status(403).json({ error: "Only the chef can continue with unconfirmed stock" });
+      const reviewed = await gw.getQuote(plan.quoteId!);
+      if (reviewed.unconfirmedStock.length) plan.overrides.builderConsentId = (await gw.consent(T(req), reviewed, reviewed.unconfirmedStock)).id;
       plan.overrides.stockContinued = [...new Set([...(plan.overrides.stockContinued ?? []), ...unconfirmed])];
       const stockApprovers = plan.itemReviews?.filter((item) => plan.lines.some((line) => line.needIds.includes(item.needId) && unconfirmed.includes(line.productId!))).map((item) => item.approvedBy!);
       plan.overrides.stockDecidedBy = stockApprovers?.length ? [...new Set(stockApprovers)].join(", ") : p.name;
@@ -429,7 +435,7 @@ export function appRouter(): Router {
     const review = basketReview(id, orders);
     res.json({ ...eventView(id), requests: basketPlans(id).map(planRow), orders, review, ...basketSummary(getEvent(id)!, orders) });
   });
-  r.post("/baskets/:id/submit-review", async (req, res) => res.json({ review: await submitBasketForReview(String(req.params.id), P(req)) }));
+  r.post("/baskets/:id/submit-review", async (req, res) => res.json({ review: await submitBasketForReview(String(req.params.id), P(req), T(req)) }));
 
   r.get("/events", (_req, res) => res.json({ events: listEvents().map((e) => ({ ...e, coverage: coverageSummary(e.id) })) }));
   r.get("/events/:id", (req, res) => res.json(eventView(String(req.params.id))));
