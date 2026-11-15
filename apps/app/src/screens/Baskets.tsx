@@ -283,13 +283,15 @@ function StagedLines({ eventId, plans, submitted, onChanged, onEdit }: { eventId
   if (!plans.length) return null;
   return (
     <div className="card staged-lines">
-      {plans.map((plan) => <div key={plan.id} role="group" aria-label={plan.title}>
-        {plan.lines.map((line) => <div key={line.id} className="li">
+      {plans.map((plan) => <div key={plan.id} className="staged-request" role="group" aria-label={plan.title}>
+        {plan.lines.map((line) => <div key={line.id} className="li staged-line">
           <span className="bqty">{qty(line.quantity)} {line.salesUnit ?? ""}</span>
-          <span className="trunc" style={{ flex: 1, color: "var(--ink)" }}>{line.productName}</span>
-          {line.stock?.kind === "unknown" && <Status k="unknown_stock" title="Valio Aimo has not confirmed stock. Continuing does not confirm fulfillment." />}
-          <span className="stamp ask">{submitted ? "Awaiting finance approval" : "Awaiting final order"}</span>
-          <span className="small">{eur(line.lineTotal)}</span>
+          <span className="staged-line-name">{line.productName}</span>
+          <span className="staged-line-status">
+            {line.stock?.kind === "unknown" && <Status k="unknown_stock" title="Valio Aimo has not confirmed stock. Continuing does not confirm fulfillment." />}
+            <span className="stamp ask">{submitted ? "Awaiting finance approval" : "Awaiting final order"}</span>
+          </span>
+          <span className="small staged-line-price">{eur(line.lineTotal)}</span>
         </div>)}
         <RequestCorrectionActions eventId={eventId} plan={plan} onChanged={onChanged} onEdit={() => onEdit(plan)} />
       </div>)}
@@ -323,7 +325,7 @@ function RequestCorrectionActions({ eventId, plan, onChanged, onEdit }: { eventI
   }
 
   return <>
-    <div className="li row" style={{ flexWrap: "wrap" }}>
+    <div className="li row request-correction-actions" style={{ flexWrap: "wrap" }}>
       {onEdit && <button type="button" className="btn sm" aria-label={`Edit request: ${plan.title}`} disabled={busy} onClick={() => correct("edit")}>Edit request</button>}
       <button type="button" className="btn sm ghost" aria-label={`Remove request: ${plan.title}`} disabled={busy} onClick={() => { setError(null); setConfirmRemove(true); }}>Remove request</button>
       {onEdit && <span className="small muted">Changes need fresh item checks and finance review.</span>}
