@@ -22,7 +22,7 @@ import { toBase } from "../agent/parse.js";
 import { newPlan, quoteAndDecide, getPlan, listPlans, mandate, savePlan, emptyOverrides, HOTEL_ID, needsFromSingle } from "../agent/plan.js";
 import { questionsFor, allQuestions, getQuestion, canAnswer } from "../agent/questions.js";
 import { answer } from "../agent/answers.js";
-import { addDietGroup, changeEvent, changeGuests, coverageSummary, EditConflict, eventView, finalCheck, getEvent, listEvents, orderEvent, removeNeed, runCutoff, runViability, saveEvent, warnings, personActor, type StoredEvent } from "../agent/events.js";
+import { addDietGroup, changeEvent, changeGuests, coverageSummary, EditConflict, eventView, eventCreation, finalCheck, getEvent, listEvents, orderEvent, removeNeed, runCutoff, runViability, saveEvent, warnings, personActor, type StoredEvent } from "../agent/events.js";
 import { isCalendarDate, newId } from "../util.js";
 import { MenuBody, menuRequest, saveMenu, scaleMenu } from "../agent/menu.js";
 import { listRemembered } from "../agent/memory.js";
@@ -472,6 +472,7 @@ export function appRouter(): Router {
           name: e.name,
           deliveryDate: e.serviceDate,
           guests: e.guests,
+          ...eventCreation(e),
           coverage: coverageSummary(e.id),
           lines: mine.reduce((n, o) => n + o.lines.filter((l) => !l.removed).length, 0) + staged.reduce((n, pl) => n + pl.lines.filter((l) => !l.removed).length, 0),
           totalExVat,
@@ -489,6 +490,7 @@ export function appRouter(): Router {
     const b = z.object({ name: z.string().trim().min(1).max(120), deliveryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), guests: z.number().int().min(0).optional() }).parse(req.body);
     const p = P(req);
     const e: StoredEvent = {
+      createdBy: p.name, createdAt: now().toISOString(),
       id: newId("evt"), name: b.name, siteId: mandate().sites[0].id, serviceDate: b.deliveryDate, guests: b.guests ?? 0, dietGroups: [], dishes: [], dietsConfirmed: false,
       version: 1, removedNeeds: [], viabilityPlanId: null, orderPlanId: null, orderedGuests: null, lastDiff: null, finalCheck: null, changes: [{ at: now().toISOString(), by: p.name, what: "Order created" }],
     };

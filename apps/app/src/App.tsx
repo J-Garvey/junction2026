@@ -7,6 +7,7 @@ import { api, authHooks, type Outlet, type Person, type StatusResp, type SceneKe
 import { Ctx, type AppCtx, useLoad } from "./ctx";
 import { Icon, Lockup, Mark } from "./ui/icons";
 import { AllergyBanner } from "./ui/Banner";
+import { Fixture } from "./ui/Status";
 import { day, initials, when } from "./format";
 import { Home } from "./screens/Home";
 import { FinanceHome } from "./screens/Finance";
@@ -346,9 +347,7 @@ function DemoSettings({ status, onChange, onOpenWhatsApp, person }: { status: St
         <span className="small muted">
           <Icon n="clock" s={14} /> {when(status.clock.now)}
         </span>
-        <span className={`stamp ${dm === "fixture" ? "fixture" : "info"}`} title={overlay ? `Fixture: ${overlay}` : undefined}>
-          {dm === "fixture" ? "Fixture" : "Live"}
-        </span>
+        {dm === "fixture" ? <Fixture name={overlay} /> : <span className="stamp info">Live</span>}
       </div>
       <div className="small muted">Time</div>
       <div className="demotimes" role="group" aria-label="Demo time">

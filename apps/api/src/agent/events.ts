@@ -25,6 +25,8 @@ import type { Person } from "../identity.js";
 import { allergenQuestionText, constraintsForLine, eventAllergenScope, lineAllergenScope, missingAllergenProducts } from "./allergenData.js";
 
 export type StoredEvent = EventSpec & {
+  createdBy?: string | null;
+  createdAt?: string | null;
   processing?: StageProcessing;
   version: number;
   removedNeeds: string[];
@@ -47,6 +49,15 @@ export const getEvent = (id: string) => getJson<StoredEvent>("events", id);
 export const listEvents = () => allJson<StoredEvent>("SELECT json FROM events ORDER BY id");
 export function saveEvent(e: StoredEvent) {
   getDb().prepare("INSERT INTO events (id, json, version) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET json = excluded.json, version = excluded.version").run(e.id, JSON.stringify(e), e.version);
+}
+
+/** Older bookings already recorded their creator in the audit; keep that attribution on reads. */
+export function eventCreation(e: StoredEvent): { createdBy: string | null; createdAt: string | null } {
+  if (e.createdBy && e.createdAt) return { createdBy: e.createdBy, createdAt: e.createdAt };
+  const row = getDb().prepare(`SELECT json_extract(json, '$.actor.name') AS name, json_extract(json, '$.simTime') AS at
+    FROM audit WHERE json_extract(json, '$.eventId') = ? AND json_extract(json, '$.action') = 'basket_created'
+    AND json_extract(json, '$.actor.kind') = 'person' ORDER BY seq LIMIT 1`).get(e.id) as { name: string; at: string } | undefined;
+  return { createdBy: e.createdBy ?? row?.name ?? null, createdAt: e.createdAt ?? row?.at ?? null };
 }
 
 /** EDIT-GUARD (TM-07): an edit made against an old version is refused with what changed. */
@@ -851,7 +862,7 @@ export function coverageSummary(eventId: string): { level: "covered" | "at_risk"
 export function eventView(eventId: string) {
   const e = getEvent(eventId)!;
   return {
-    event: e,
+    event: { ...e, ...eventCreation(e) },
     viability: e.viabilityPlanId ? getPlan(e.viabilityPlanId) : null,
     orderPlan: e.orderPlanId ? getPlan(e.orderPlanId) : null,
     warnings: warnings(eventId),

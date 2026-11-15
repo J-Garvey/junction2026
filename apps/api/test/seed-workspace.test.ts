@@ -81,6 +81,8 @@ describe("populated hotel demo", () => {
         expect(await receipt(ids.allergy)).toEqual([]);
 
         const bar = await call(`/baskets/${ids.bar}`);
+        expect(bar.event).toMatchObject({ guests: 96, createdBy: "Mikko", createdAt: "2026-11-10T09:00:00.000Z" });
+        expect(baskets.find((b: any) => b.id === ids.bar)).toMatchObject({ guests: 96, createdBy: "Mikko" });
         expect(bar.questions.some((q: any) => q.type === "order_review" && q.answer === "reject" && q.answeredBy.personId === "p-sanna" && q.answerNote.includes("head count"))).toBe(true);
         expect(await receipt(ids.bar)).toEqual([]);
 
@@ -126,5 +128,18 @@ describe("populated hotel demo", () => {
       expect((await call("/baskets")).baskets).toHaveLength(7);
       expect(await receipt(ids.breakfast)).toHaveLength(1);
     } finally { fixture.price["460768"] = price; }
+  });
+
+  it("recovers the creator of an already-loaded reception from its original audit entry", async () => {
+    await fresh();
+    getDb().prepare("UPDATE events SET json = json_remove(json, '$.createdBy', '$.createdAt') WHERE id = ?").run(ids.bar);
+    await signIn("p-sanna");
+    expect((await call(`/baskets/${ids.bar}`)).event).toMatchObject({ guests: 96, createdBy: "Mikko", createdAt: "2026-11-10T09:00:00.000Z" });
+    expect((await call("/baskets")).baskets.find((b: any) => b.id === ids.bar).createdBy).toBe("Mikko");
+    expect((await call("/status")).chain.ok).toBe(true);
+    await signIn("p-mikko");
+    const made = await call("/baskets", { name: "New reception", deliveryDate: "2026-11-19", guests: 40 });
+    await signIn("p-sanna");
+    expect((await call(`/baskets/${made.basket.id}`)).event).toMatchObject({ guests: 40, createdBy: "Mikko" });
   });
 });

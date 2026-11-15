@@ -1,5 +1,6 @@
 /** Q10.2: one set of status labels, always words, never colour alone. */
 import { hasUnconfirmedAllergenData, type StatusLabel } from "@aimo/contracts";
+import { useId, useState } from "react";
 import { ROLE_LABEL } from "../format";
 import type { CoverageLevel } from "../api";
 
@@ -15,7 +16,7 @@ const DEF: Record<Kind, { text: string; cls: string; warn?: boolean }> = {
   blocked: { text: "Blocked", cls: "block" },
   unresolved: { text: "Unresolved", cls: "block" },
   allergy_warning: { text: "Allergy warning", cls: "block", warn: true },
-  fixture: { text: "Fixture", cls: "fixture" },
+  fixture: { text: "Demo data", cls: "fixture" },
   ordered: { text: "Ordered", cls: "order" },
   needs_input: { text: "Needs input", cls: "ask" },
 };
@@ -48,12 +49,17 @@ export function AllergenDataMark({ line }: { line: Parameters<typeof hasUnconfir
   return hasUnconfirmedAllergenData(line) ? <span className="stamp ask" title="A chef may continue with missing declarations. This does not confirm allergen safety.">Allergen data not confirmed</span> : null;
 }
 
-export const Fixture = ({ show = true, name }: { show?: boolean; name?: string | null }) =>
-  show ? (
-    <span className="stamp fixture" title={name ? `Saved fixture: ${name}` : "Seed or saved test data, not a live answer"}>
-      Fixture
-    </span>
-  ) : null;
+export function Fixture({ show = true, name }: { show?: boolean; name?: string | null }) {
+  const [open, setOpen] = useState(false);
+  const id = useId();
+  if (!show) return null;
+  return <span className="popwrap fixture-info"
+    onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOpen(false); }}
+    onKeyDown={(e) => { if (open && e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setOpen(false); } }}>
+    <button type="button" className="stamp fixture" title="About demo data" aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => setOpen((value) => !value)}>Demo data</button>
+    {open && <span id={id} className="popover" role="note" aria-label="About demo data">Saved or simulated data for a repeatable demo. Supplier prices, stock and cutoffs shown here come from saved responses, rather than a fresh supplier check.{name ? ` Data set: ${name}.` : ""}</span>}
+  </span>;
+}
 
 /** Plan status → a status label. */
 export function planStatusKind(s: string): Kind {

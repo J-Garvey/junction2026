@@ -186,7 +186,12 @@ export function BasketPage() {
           </button>
         </div>}
       </div>
-      <div className="basket-context small muted">Delivery {day(ev.serviceDate)}<OrderBy deadline={data.orderBy} detail /></div>
+      <div className="basket-context small muted">
+        <span>Delivery {day(ev.serviceDate)}</span>
+        <span>{ev.guests > 0 ? plural(ev.guests, "guest") : "Guest count not entered"}</span>
+        <span>{ev.createdBy ? `Created by ${ev.createdBy}` : "Creator not recorded"}</span>
+        <OrderBy deadline={data.orderBy} detail />
+      </div>
 
       {submitError && <div className="callout red" role="alert">{submitError}</div>}
       {reviewFeedback?.eventId === ev.id && <div className={`callout ${reviewFeedback.error ? "red" : "green"} small`} role={reviewFeedback.error ? "alert" : "status"}>{reviewFeedback.message}</div>}
