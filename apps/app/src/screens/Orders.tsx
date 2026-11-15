@@ -9,6 +9,7 @@ import { stockText } from "../ui/Popover";
 import { day, eur, when } from "../format";
 import { OrderItemDialog } from "../ui/OrderItemDialog";
 import { LineCalculation, TotalCalculation, VatCalculation } from "../ui/CalculationEvidence";
+import { CarbonEstimate } from "../ui/CarbonEstimate";
 
 export function Orders() {
   const [sp] = useSearchParams();
@@ -62,6 +63,7 @@ export function Orders() {
                 </span>
                 <span>{eur(l.lineTotal)}</span>
               </div>
+              <CarbonEstimate line={l} />
               {(l.removed || l.stock.kind === "unknown") && (
                 <div className="rl small muted">
                   <span className="row" style={{ gap: 6 }}>
@@ -92,6 +94,7 @@ export function Orders() {
             { label: "Quantity", value: `${selected.line.quantity} ${selected.line.salesUnit ?? ""}` },
             { label: "Unit price", value: eur(selected.line.unitPrice) },
             { label: "Line total", value: eur(selected.line.lineTotal) },
+            { label: "Carbon estimate", value: <CarbonEstimate line={selected.line} /> },
             { label: "Product ID", value: selected.line.productId },
             { label: "Stock", value: stockText(selected.line.stock) },
             { label: "Delivery", value: day(selected.order.deliveryDate) },

@@ -6,6 +6,7 @@ import { stockText } from "./Popover";
 import { UnknownStockMark } from "./Status";
 import { Icon } from "./icons";
 import { ProductDetailsPanel, allergenLabel } from "./ProductDetails";
+import { CarbonEstimate } from "./CarbonEstimate";
 
 /** One compact table group per requested item; supporting evidence opens on demand. */
 export function ProductReviewItem({ line, need, lines, deliveryDate, checked, disabled, review, onApprove, onSalesQuantity, onEdit, onDiscard, onChoose, children }: {
@@ -53,6 +54,7 @@ export function ProductReviewItem({ line, need, lines, deliveryDate, checked, di
         <tr key={product?.id ?? line.id} className="add-review-row">
           <td className="add-review-row-product">
             <b>{product?.productName ?? line.query}{product?.stock?.kind === "unknown" && <UnknownStockMark reason={product.stock.reason} />}</b>
+            <CarbonEstimate line={product ?? { quantity: 0 }} />
             {index === 0 && <div className="add-review-request small muted">
               <span>Requested</span>
               <button type="button" className="add-review-edit-value" disabled={disabled} onClick={() => onEdit("quantity")} aria-label={`Edit quantity for ${line.query}`}>
